@@ -33,3 +33,7 @@ pids/
 # Misc
 .cache/
 .tmp/
+
+
+.agents/   
+skills-lock.json
