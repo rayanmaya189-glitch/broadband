@@ -87,7 +87,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 5650, label: "6 Months", savings: "Save ₹350" },
         12: { price: 10800, label: "12 Months", savings: "Save ₹1200" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support", "Static IP Option"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support"],
     },
     {
       id: "ultimate-300",
@@ -101,7 +101,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 7350, label: "6 Months", savings: "Save ₹450" },
         12: { price: 14000, label: "12 Months", savings: "Save ₹1600" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support", "Static IP Option", "Business Grade"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support", "Business Grade"],
     },
   ],
   features: [
