@@ -112,7 +112,7 @@ export default function Navbar() {
               <img src="/logo.png" alt={SITE_CONFIG.company.name} className="h-32 w-auto" />
             </Link>
 
-            <div className="hidden lg:flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1 flex-wrap">
               {links.map((link) => {
                 const isActive = link.href === '/'
                   ? location.pathname === '/'
@@ -122,10 +122,10 @@ export default function Navbar() {
                     key={link.label}
                     to={link.href}
                     className={cn(
-                      'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                      'px-4 py-2.5 rounded-lg text-xs lg:text-sm font-medium transition-all duration-200 min-h-[44px] flex items-center',
                       isActive
                         ? 'text-accent-400 bg-accent-400/10'
-                        : 'text-dark-300 hover:text-white hover:bg-white/[0.04]'
+                        : 'text-dark-300 hover:text-white hover:bg-white/[0.06]'
                     )}
                   >
                     {link.label}

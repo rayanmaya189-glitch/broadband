@@ -18,7 +18,7 @@ export default function AvailabilityChecker() {
   };
 
   return (
-    <section id="coverage" className="relative py-20 lg:py-28 overflow-hidden">
+    <section id="coverage" className="relative py-12 sm:py-20 lg:py-28 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-dark-950 via-dark-900 to-dark-950" />
 
       <div ref={ref} className="relative max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6">
@@ -26,16 +26,16 @@ export default function AvailabilityChecker() {
           initial={{ opacity: 0, y: 40 }}
           animate={isVisible ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-8 sm:mb-10 lg:mb-12"
         >
-          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-300 text-sm font-medium mb-4">
-            <MapPin className="w-4 h-4" />
+          <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-300 text-xs sm:text-sm font-medium mb-3 sm:mb-4">
+            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
             Check Availability
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mt-3">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mt-2 sm:mt-3">
             Is {SITE_CONFIG.location.city} Covered?
           </h2>
-          <p className="mt-4 text-lg text-dark-400 max-w-2xl mx-auto">
+          <p className="mt-3 sm:mt-4 text-xs sm:text-base text-dark-400 max-w-2xl mx-auto">
             Enter your location to check if our fiber internet is available at your address.
           </p>
         </motion.div>
@@ -44,32 +44,33 @@ export default function AvailabilityChecker() {
           initial={{ opacity: 0, y: 40 }}
           animate={isVisible ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="max-w-xl mx-auto"
+          className="max-w-2xl mx-auto"
         >
           <form onSubmit={handleSubmit} className="relative">
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <div className="flex-1 relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+                <MapPin className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-dark-400" />
                 <input
                   type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Enter your area or ZIP code..."
-                  className="w-full pl-12 pr-4 py-4 bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] rounded-xl text-white placeholder:text-dark-500 focus:outline-none focus:border-accent-400/50 focus:ring-1 focus:ring-accent-400/30 transition-all"
+                  className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] rounded-xl text-white text-sm sm:text-base placeholder:text-dark-500 focus:outline-none focus:border-accent-400/50 focus:ring-1 focus:ring-accent-400/30 transition-all min-h-[44px]"
                   minLength={2}
                 />
               </div>
               <button
                 type="submit"
                 disabled={isPending || location.trim().length < 2}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-accent-500 to-primary-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-accent-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                className="inline-flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 bg-gradient-to-r from-accent-500 to-primary-600 text-white font-semibold text-sm sm:text-base rounded-xl hover:shadow-lg hover:shadow-accent-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 min-h-[44px] sm:min-h-[56px] active:scale-95"
               >
                 {isPending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                 ) : (
-                  <Search className="w-5 h-5" />
+                  <Search className="w-4 h-4 sm:w-5 sm:h-5" />
                 )}
-                Check Coverage
+                <span className="hidden sm:inline">Check Coverage</span>
+                <span className="sm:hidden">Check</span>
               </button>
             </div>
           </form>
@@ -78,22 +79,22 @@ export default function AvailabilityChecker() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-6"
+              className="mt-4 sm:mt-6"
             >
               {data.available ? (
-                <div className="p-6 rounded-xl bg-accent-400/10 border border-accent-400/20">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-6 h-6 text-accent-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-lg font-semibold text-accent-300">
-                        Great news! We serve <span className="text-white">{data.area}</span>
+                <div className="p-4 sm:p-6 rounded-xl bg-accent-400/10 border border-accent-400/20">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-accent-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base sm:text-lg font-semibold text-accent-300">
+                        Great news! We serve <span className="text-white break-words">{data.area}</span>
                       </p>
-                      <p className="text-dark-400 mt-1">
+                      <p className="text-xs sm:text-sm text-dark-400 mt-1">
                         Check out our available plans below and get connected today.
                       </p>
                       <Link
                         to="/plans"
-                        className="inline-flex items-center gap-2 mt-3 text-accent-400 hover:text-accent-300 font-medium transition-colors"
+                        className="inline-flex items-center gap-2 mt-2 sm:mt-3 text-accent-400 hover:text-accent-300 font-medium transition-colors text-xs sm:text-sm"
                       >
                         View Plans &rarr;
                       </Link>
@@ -101,14 +102,14 @@ export default function AvailabilityChecker() {
                   </div>
                 </div>
               ) : (
-                <div className="p-6 rounded-xl bg-red-400/10 border border-red-400/20">
-                  <div className="flex items-start gap-3">
-                    <XCircle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-lg font-semibold text-red-300">
+                <div className="p-4 sm:p-6 rounded-xl bg-red-400/10 border border-red-400/20">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base sm:text-lg font-semibold text-red-300">
                         Not available in your area yet
                       </p>
-                      <p className="text-dark-400 mt-1">
+                      <p className="text-xs sm:text-sm text-dark-400 mt-1">
                         We're expanding rapidly. Contact us to be notified when we launch in your area.
                       </p>
                     </div>

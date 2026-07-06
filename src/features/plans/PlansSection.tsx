@@ -28,7 +28,7 @@ export default function PlansSection() {
   const handleLeave = useCallback(() => setHoveredIndex(null), []);
 
   return (
-    <section id="plans" className="relative py-20 lg:py-28 overflow-hidden">
+    <section id="plans" className="relative py-12 sm:py-20 lg:py-28 overflow-hidden">
       <div className="absolute inset-0 bg-dark-900/30" />
 
       <div ref={ref} className="relative max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6">
@@ -36,15 +36,15 @@ export default function PlansSection() {
           initial={{ opacity: 0, y: 40 }}
           animate={isVisible ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="text-center mb-10"
+          className="text-center mb-8 sm:mb-10 lg:mb-12"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white leading-tight">
             Choose Your{' '}
             <span className="bg-gradient-to-r from-accent-300 via-accent-400 to-primary-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(6,182,212,0.3)]">
               Perfect Plan
             </span>
           </h2>
-          <p className="mt-4 text-lg text-dark-400 max-w-2xl mx-auto">
+          <p className="mt-3 sm:mt-4 text-xs sm:text-base text-dark-400 max-w-2xl mx-auto">
             Flexible plans designed for every need. All with unlimited data.
           </p>
         </motion.div>
@@ -53,15 +53,53 @@ export default function PlansSection() {
         <PlanComparison billingPeriod={billingPeriod} />
 
         {isLoading ? (
-          <div className="flex justify-center gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
             {[1, 2, 3, 4, 5].map((i) => (
               <PlanCardSkeleton key={i} />
             ))}
           </div>
         ) : plans && plans.length > 0 ? (
           <>
+            {/* Mobile/Tablet: Grid layout */}
             <div
-              className="flex items-center justify-center gap-2 sm:gap-3 lg:gap-4 xl:gap-6"
+              className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
+            >
+              {plans.map((plan, i) => {
+                return (
+                  <div
+                    key={plan.id}
+                    className="w-full"
+                  >
+                    <PlanCard
+                      plan={plan}
+                      billingPeriod={billingPeriod}
+                      index={i}
+                      isFocused={false}
+                      isSelected={selectedIndex === i}
+                      onClick={() => handleClick(i)}
+                      onHover={() => handleHover(i)}
+                      onLeave={handleLeave}
+                    />
+                    <div className="mt-2 sm:mt-3 flex justify-center">
+                      <button
+                        onClick={() => toggleComparisonPlan(plan)}
+                        className={`text-[10px] sm:text-xs px-2.5 py-1.5 rounded-md border transition-all min-h-[32px] ${
+                          comparisonPlans.find((p) => p.id === plan.id)
+                            ? 'bg-accent-400/20 text-accent-300 border-accent-400/30'
+                            : 'bg-white/[0.04] text-dark-500 border-white/[0.06] hover:text-dark-300'
+                        }`}
+                      >
+                        {comparisonPlans.find((p) => p.id === plan.id) ? 'Remove' : 'Compare'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: Tilt carousel layout */}
+            <div
+              className="hidden lg:flex items-center justify-center gap-3 xl:gap-4"
               style={{ perspective: '1200px' }}
             >
               {plans.map((plan, i) => {
@@ -69,7 +107,7 @@ export default function PlansSection() {
                 return (
                   <div
                     key={plan.id}
-                    className="flex-1 max-w-[200px] sm:max-w-[220px] lg:max-w-[240px] xl:max-w-[260px]"
+                    className="flex-1 max-w-[200px] lg:max-w-[240px] xl:max-w-[260px]"
                   >
                     <PlanCard
                       plan={plan}
@@ -81,7 +119,7 @@ export default function PlansSection() {
                       onHover={() => handleHover(i)}
                       onLeave={handleLeave}
                     />
-                    <div className="mt-1.5 flex justify-center">
+                    <div className="mt-2 flex justify-center">
                       <button
                         onClick={() => toggleComparisonPlan(plan)}
                         className={`text-[10px] px-2 py-1 rounded-md border transition-all ${
@@ -97,7 +135,7 @@ export default function PlansSection() {
                 );
               })}
             </div>
-            <p className="text-center text-[11px] text-dark-600 mt-6">
+            <p className="text-center text-[10px] sm:text-[11px] text-dark-600 mt-4 sm:mt-6">
               Click a plan to select &bull; Hover to preview
             </p>
           </>
