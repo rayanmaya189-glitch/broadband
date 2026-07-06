@@ -16,7 +16,7 @@ export default function Footer() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary-500/3 to-accent-500/5 pointer-events-none" />
 
       <div className="relative max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 py-12 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
           <div className="space-y-4">
             <div>
               <img src="/logo.png" alt={SITE_CONFIG.company.name} className="h-32 w-auto" />
