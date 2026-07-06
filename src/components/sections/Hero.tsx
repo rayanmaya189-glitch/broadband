@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Shield, Users, Zap } from 'lucide-react';
-import SpeedVisual from '../ui/SpeedVisual';
-import TiltCard from '../ui/TiltCard';
 
 export default function Hero() {
   const { scrollY } = useScroll();
@@ -26,11 +24,6 @@ export default function Hero() {
         className="absolute bottom-1/4 -left-32 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl"
         animate={{ scale: [1.2, 1, 1.2], opacity: [0.2, 0.4, 0.2] }}
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent-400/5 rounded-full blur-3xl"
-        animate={{ scale: [1, 1.15, 1], rotate: [0, 180, 360] }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
       />
 
       <motion.div style={{ opacity }} className="relative w-full">
@@ -119,22 +112,99 @@ export default function Hero() {
               initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
               animate={{ opacity: 1, scale: 1, rotateY: 0 }}
               transition={{ duration: 0.8, delay: 0.3, type: 'spring', stiffness: 60 }}
-              className="hidden lg:flex flex-col items-center"
+              className="hidden lg:flex items-center justify-center"
               style={{ perspective: '1000px' }}
             >
-              <TiltCard tiltDegree={4} glareOpacity={0.15} perspective={1000}>
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-accent-500/20 to-primary-500/20 rounded-3xl blur-3xl" />
-                  <div className="relative glass-card-strong rounded-3xl p-8 transition-shadow duration-300 hover:shadow-2xl hover:shadow-accent-500/10">
-                    <SpeedVisual speed={300} />
-                    <div className="mt-6 text-center">
-                      <p className="text-sm text-dark-400">Real-time speed</p>
-                      <p className="text-2xl font-bold text-white">Fiber Optic</p>
-                      <p className="text-sm text-accent-400">Low Latency &bull; High Bandwidth</p>
+              <div className="relative w-full max-w-[500px]">
+                {/* Glow effects behind the image */}
+                <motion.div
+                  className="absolute -inset-10 bg-gradient-to-r from-accent-500/20 via-primary-500/15 to-accent-500/20 rounded-full blur-3xl"
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
+                  transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+
+                {/* Decorative rings */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <motion.div
+                    className="w-[120%] h-[120%] rounded-full border border-accent-400/10"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+                  />
+                  <motion.div
+                    className="absolute w-[140%] h-[140%] rounded-full border border-primary-400/5"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 45, repeat: Infinity, ease: 'linear' }}
+                  />
+                </div>
+
+                {/* Network lines */}
+                <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 400 400">
+                  <motion.circle
+                    cx="200" cy="200" r="150"
+                    stroke="url(#glow-gradient)"
+                    strokeWidth="0.5"
+                    fill="none"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 3, ease: 'easeInOut' }}
+                  />
+                  <motion.circle
+                    cx="200" cy="200" r="180"
+                    stroke="url(#glow-gradient)"
+                    strokeWidth="0.3"
+                    fill="none"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 4, delay: 0.5, ease: 'easeInOut' }}
+                  />
+                  <defs>
+                    <linearGradient id="glow-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#06b6d4" />
+                      <stop offset="50%" stopColor="#0a66c2" />
+                      <stop offset="100%" stopColor="#06b6d4" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+
+                {/* Placeholder image container */}
+                <div className="relative rounded-2xl overflow-hidden">
+                  <div className="aspect-[16/10] bg-gradient-to-br from-dark-800 via-dark-900 to-dark-800 flex items-center justify-center">
+                    {/* Replace this div with actual image: */}
+                    {/* <img src="/hero-influencer.png" alt="Brand Ambassador" className="w-full h-full object-cover" /> */}
+                    <div className="text-center p-8">
+                      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-accent-400/10 flex items-center justify-center">
+                        <svg className="w-10 h-10 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-dark-400">Place your</p>
+                      <p className="text-sm text-dark-400">influencer image here</p>
                     </div>
                   </div>
                 </div>
-              </TiltCard>
+
+                {/* WiFi signal decorative element */}
+                <motion.div
+                  className="absolute -top-4 -right-4"
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <div className="p-3 rounded-xl bg-accent-400/10 border border-accent-400/20">
+                    <Zap className="w-6 h-6 text-accent-400" />
+                  </div>
+                </motion.div>
+
+                {/* Speed badge */}
+                <motion.div
+                  className="absolute -bottom-4 -left-4"
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <div className="px-4 py-2 rounded-xl bg-gradient-to-r from-accent-500 to-primary-600 text-white text-sm font-bold shadow-lg shadow-accent-500/25">
+                    300 Mbps
+                  </div>
+                </motion.div>
+              </div>
             </motion.div>
           </div>
         </div>
