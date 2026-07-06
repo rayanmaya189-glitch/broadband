@@ -18,9 +18,8 @@ export default function Footer() {
       <div className="relative max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 py-12 lg:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
+            <div>
               <img src="/logo.png" alt={SITE_CONFIG.company.name} className="h-8 w-auto" />
-              <span className="text-lg font-bold text-white">{SITE_CONFIG.company.name}</span>
             </div>
             <p className="text-sm text-dark-400 leading-relaxed">{SITE_CONFIG.company.description}</p>
             <div className="flex gap-3">

@@ -38,11 +38,8 @@ export default function Navbar() {
       >
         <div className="max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 lg:h-20">
-            <Link to="/" className="flex items-center gap-3">
+            <Link to="/">
               <img src="/logo.png" alt={SITE_CONFIG.company.name} className="h-8 w-auto" />
-              <span className="text-lg font-bold text-white hidden sm:block">
-                {SITE_CONFIG.company.name}
-              </span>
             </Link>
 
             <div className="hidden lg:flex items-center gap-1">
