@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import ErrorBoundary from '../ui/ErrorBoundary';
 import ToastContainer from '../ui/Toast';
 import ScrollToTop from './ScrollToTop';
 
@@ -9,9 +10,11 @@ export default function Layout() {
     <div className="min-h-screen bg-dark-950 text-white">
       <ScrollToTop />
       <Navbar />
-      <main>
-        <Outlet />
-      </main>
+      <ErrorBoundary>
+        <main>
+          <Outlet />
+        </main>
+      </ErrorBoundary>
       <Footer />
       <ToastContainer />
     </div>

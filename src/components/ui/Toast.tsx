@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
@@ -18,7 +19,7 @@ export default function ToastContainer() {
   const toasts = useUIStore((s) => s.toasts);
   const removeToast = useUIStore((s) => s.removeToast);
 
-  return (
+  return createPortal(
     <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-3 max-w-sm">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => {
@@ -41,6 +42,7 @@ export default function ToastContainer() {
           );
         })}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body
   );
 }

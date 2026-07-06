@@ -1,7 +1,7 @@
-import { useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Check, ArrowRight, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTilt } from '../../hooks/useTilt';
 import type { Plan } from '../../types';
 import { formatPrice } from '../../utils/helpers';
 
@@ -17,31 +17,19 @@ interface PlanCardProps {
 }
 
 export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, isSelected, onClick, onHover, onLeave }: PlanCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [rotate, setRotate] = useState({ x: 0, y: 0 });
-  const [glow, setGlow] = useState({ x: 50, y: 50 });
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const rotateX = ((y - centerY) / centerY) * -6;
-    const rotateY = ((x - centerX) / centerX) * 6;
-    setRotate({ x: rotateX, y: rotateY });
-    setGlow({ x: (x / rect.width) * 100, y: (y / rect.height) * 100 });
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setRotate({ x: 0, y: 0 });
-    setGlow({ x: 50, y: 50 });
-    onLeave?.();
-  }, [onLeave]);
+  const { ref, tiltStyle, glowPos, isHovered, handlers } = useTilt({ tiltDegree: 6 });
 
   const duration = plan.durations[billingPeriod] || plan.durations[1];
   const monthlyPrice = duration.price;
+
+  const cardStyle: React.CSSProperties = {
+    ...tiltStyle,
+    transform: `${tiltStyle.transform} scale(${isFocused ? 1 : 0.88})`,
+    opacity: isFocused ? 1 : 0.4,
+    filter: isFocused ? 'none' : 'blur(1px)',
+    zIndex: isFocused ? 10 : 0,
+    transition: `all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)`,
+  };
 
   return (
     <motion.div
@@ -67,29 +55,25 @@ export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, is
       )}
 
       <div
-        ref={cardRef}
+        ref={ref}
         onClick={onClick}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
+        {...handlers}
+        onMouseLeave={(e) => {
+          handlers.onMouseLeave();
+          onLeave?.();
+        }}
         className={`relative rounded-2xl flex flex-col cursor-pointer ${
           plan.popular
             ? 'bg-gradient-to-b from-accent-500/10 via-primary-500/5 to-dark-800 border-2 border-accent-500/30 shadow-xl shadow-accent-500/10'
             : 'glass-card border border-white/[0.06]'
         } ${isSelected ? 'ring-2 ring-accent-400 ring-offset-2 ring-offset-dark-950' : ''}`}
-        style={{
-          transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg) scale(${isFocused ? 1 : 0.88})`,
-          transformStyle: 'preserve-3d',
-          opacity: isFocused ? 1 : 0.4,
-          filter: isFocused ? 'none' : 'blur(1px)',
-          zIndex: isFocused ? 10 : 0,
-          transition: 'all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        }}
+        style={cardStyle}
       >
         <div
-          className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-500"
+          className="pointer-events-none absolute inset-0 rounded-2xl transition-opacity duration-500"
           style={{
             opacity: isFocused ? 1 : 0,
-            background: `radial-gradient(circle at ${glow.x}% ${glow.y}%, rgba(6,182,212,0.15), transparent 60%)`,
+            background: `radial-gradient(circle at ${glowPos.x}% ${glowPos.y}%, rgba(6,182,212,0.15), transparent 60%)`,
           }}
         />
 

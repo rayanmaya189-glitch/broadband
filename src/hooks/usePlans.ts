@@ -14,7 +14,7 @@ export function usePlans() {
   const { speedRange, priceRange, usageType, billingPeriod } = useFilterStore();
 
   return useQuery<Plan[]>({
-    queryKey: ['plans', speedRange, priceRange, usageType],
+    queryKey: ['plans', speedRange, priceRange, usageType, billingPeriod],
     queryFn: fetchPlans,
     staleTime: 5 * 60 * 1000,
     select: (plans) =>
