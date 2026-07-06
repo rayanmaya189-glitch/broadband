@@ -25,12 +25,22 @@ export async function checkAvailability(location: string): Promise<AvailabilityR
     const { data } = await api.post<AvailabilityResult>('/coverage/check', { location });
     return data;
   } catch {
+    const query = location.toLowerCase();
+
+    const pincodeMatch = SITE_CONFIG.coverageAreas.find(
+      (a) => a.pincodes?.some((p) => p === query) && a.status === 'active'
+    );
+    if (pincodeMatch) {
+      return { available: true, area: pincodeMatch.name, plans: SITE_CONFIG.plans };
+    }
+
     const area = SITE_CONFIG.coverageAreas.find(
-      (a) => a.name.toLowerCase().includes(location.toLowerCase()) && a.status === 'active'
+      (a) => a.name.toLowerCase().includes(query) && a.status === 'active'
     );
     if (area) {
       return { available: true, area: area.name, plans: SITE_CONFIG.plans };
     }
+
     return {
       available: false,
       area: location,

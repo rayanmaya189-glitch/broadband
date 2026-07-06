@@ -1,16 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
+import type { NavLink } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { cn } from '../../utils/helpers';
+
+const pageNav: Record<string, NavLink[]> = {
+  landing: [
+    { label: 'Home', href: '/' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'Coverage', href: '/check-availability' },
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'Support', href: '/support' },
+  ],
+  plans: [
+    { label: 'Home', href: '/' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'Coverage', href: '/check-availability' },
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/contact' },
+  ],
+  about: [
+    { label: 'Home', href: '/' },
+    { label: 'About', href: '/about' },
+    { label: 'Team', href: '/team' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'Contact', href: '/contact' },
+  ],
+  team: [
+    { label: 'Home', href: '/' },
+    { label: 'About', href: '/about' },
+    { label: 'Team', href: '/team' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'Contact', href: '/contact' },
+  ],
+  contact: [
+    { label: 'Home', href: '/' },
+    { label: 'About', href: '/about' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'Support', href: '/support' },
+  ],
+  coverage: [
+    { label: 'Home', href: '/' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'Coverage', href: '/check-availability' },
+    { label: 'Contact', href: '/contact' },
+  ],
+  support: [
+    { label: 'Home', href: '/' },
+    { label: 'Plans', href: '/plans' },
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'Support', href: '/support' },
+  ],
+  legal: [
+    { label: 'Home', href: '/' },
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'Support', href: '/support' },
+  ],
+};
+
+function getPageGroup(pathname: string): NavLink[] {
+  if (pathname === '/') return pageNav.landing;
+  if (pathname.startsWith('/plans') || pathname.startsWith('/plan/')) return pageNav.plans;
+  if (pathname.startsWith('/about')) return pageNav.about;
+  if (pathname.startsWith('/team')) return pageNav.team;
+  if (pathname.startsWith('/contact')) return pageNav.contact;
+  if (pathname.startsWith('/check-availability')) return pageNav.coverage;
+  if (pathname.startsWith('/support')) return pageNav.support;
+  if (pathname.startsWith('/privacy') || pathname.startsWith('/terms') || pathname.startsWith('/refund')) return pageNav.legal;
+  return pageNav.landing;
+}
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const { isMobileMenuOpen, setMobileMenuOpen } = useUIStore();
-
+  const links = useMemo(() => getPageGroup(location.pathname), [location.pathname]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -42,7 +113,7 @@ export default function Navbar() {
             </Link>
 
             <div className="hidden lg:flex items-center gap-1">
-              {SITE_CONFIG.navLinks.map((link) => {
+              {links.map((link) => {
                 const isActive = link.href === '/'
                   ? location.pathname === '/'
                   : location.pathname.startsWith(link.href.split('/')[1] ? '/' + link.href.split('/')[1] : '');
@@ -94,7 +165,7 @@ export default function Navbar() {
           >
             <div className="absolute inset-0 bg-dark-950/95 backdrop-blur-xl" onClick={() => setMobileMenuOpen(false)} />
             <div className="relative p-6 pt-4 space-y-2">
-              {SITE_CONFIG.navLinks.map((link) => (
+              {links.map((link) => (
                 <Link
                   key={link.label}
                   to={link.href}

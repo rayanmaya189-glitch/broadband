@@ -11,6 +11,7 @@ const CheckAvailabilityPage = lazy(() => import('../features/availability/CheckA
 const ContactPage = lazy(() => import('../features/contact/ContactPage'));
 const AboutPage = lazy(() => import('../features/about/AboutPage'));
 const SupportPage = lazy(() => import('../features/support/SupportPage'));
+const TeamPage = lazy(() => import('../features/team/TeamPage'));
 const PrivacyPolicy = lazy(() => import('../features/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('../features/legal/TermsOfService'));
 const RefundPolicy = lazy(() => import('../features/legal/RefundPolicy'));
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
       { path: 'privacy', element: <PrivacyPolicy /> },
       { path: 'terms', element: <TermsOfService /> },
       { path: 'refund', element: <RefundPolicy /> },
+      { path: 'team', element: <TeamPage /> },
     ],
   },
   {

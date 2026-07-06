@@ -48,6 +48,14 @@ export interface CoverageArea {
   name: string;
   status: 'active' | 'coming-soon';
   type: 'city' | 'area';
+  pincodes?: string[];
+}
+
+export interface TeamMember {
+  name: string;
+  photo: string;
+  designation: string;
+  about: string;
 }
 
 export interface NavLink {
@@ -81,6 +89,7 @@ export interface SiteConfig {
   testimonials: Testimonial[];
   faqs: FAQ[];
   coverageAreas: CoverageArea[];
+  team: TeamMember[];
 }
 
 export interface AvailabilityResult {
