@@ -4,7 +4,7 @@ import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import TiltCard from '../ui/TiltCard';
 
 const highlights = [
-  { icon: Monitor, title: 'Free WiFi Router', desc: 'Complimentary Dual Band router with 12-month plans.' },
+  { icon: Monitor, title: 'Free WiFi Router', desc: 'Complimentary Dual Band router with 12-month plans. Limited offer' },
   { icon: Globe, title: 'Fiber Backbone', desc: 'Modern fiber optic infrastructure across Jalgaon.' },
   { icon: Zap, title: 'Free Installation', desc: 'Professional setup at no cost. Limited period.' },
   { icon: Headphones, title: 'Local Support', desc: 'Jalgaon-based team, available 24/7.' },
