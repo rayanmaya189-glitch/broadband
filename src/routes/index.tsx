@@ -12,7 +12,9 @@ const ContactPage = lazy(() => import('../features/contact/ContactPage'));
 const AboutPage = lazy(() => import('../features/about/AboutPage'));
 const SupportPage = lazy(() => import('../features/support/SupportPage'));
 const TeamPage = lazy(() => import('../features/team/TeamPage'));
-const LegalPage = lazy(() => import('../features/legal/LegalPage'));
+const PrivacyPolicy = lazy(() => import('../features/legal/LegalPage'));
+const TermsOfService = lazy(() => import('../features/legal/TermsOfService'));
+const RefundPolicy = lazy(() => import('../features/legal/RefundPolicy'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 
 function PageLoader() {
@@ -39,9 +41,9 @@ export const router = createBrowserRouter([
       { path: 'contact', element: <ContactPage /> },
       { path: 'about', element: <AboutPage /> },
       { path: 'support', element: <SupportPage /> },
-      { path: 'privacy', element: <LegalPage /> },
-      { path: 'terms', element: <LegalPage /> },
-      { path: 'refund', element: <LegalPage /> },
+      { path: 'privacy', element: <PrivacyPolicy /> },
+      { path: 'terms', element: <TermsOfService /> },
+      { path: 'refund', element: <RefundPolicy /> },
       { path: 'team', element: <TeamPage /> },
     ],
   },
