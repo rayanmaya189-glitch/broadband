@@ -166,21 +166,14 @@ export default function Hero() {
                   </defs>
                 </svg>
 
-                {/* Placeholder image container */}
+                {/* Influencer image */}
                 <div className="relative rounded-2xl overflow-hidden">
-                  <div className="aspect-[16/10] bg-gradient-to-br from-dark-800 via-dark-900 to-dark-800 flex items-center justify-center">
-                    {/* Replace this div with actual image: */}
-                    {/* <img src="/hero-influencer.png" alt="Brand Ambassador" className="w-full h-full object-cover" /> */}
-                    <div className="text-center p-8">
-                      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-accent-400/10 flex items-center justify-center">
-                        <svg className="w-10 h-10 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                        </svg>
-                      </div>
-                      <p className="text-sm text-dark-400">Place your</p>
-                      <p className="text-sm text-dark-400">influencer image here</p>
-                    </div>
-                  </div>
+                  <img
+                    src="/hero-influencer.png"
+                    alt="AeroXe Broadband Brand Ambassador"
+                    className="w-full h-auto rounded-2xl"
+                    loading="eager"
+                  />
                 </div>
 
                 {/* WiFi signal decorative element */}
