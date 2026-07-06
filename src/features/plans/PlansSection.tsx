@@ -15,12 +15,17 @@ export default function PlansSection() {
   const comparisonPlans = usePlanStore((s) => s.comparisonPlans);
   const toggleComparisonPlan = usePlanStore((s) => s.toggleComparisonPlan);
   const { ref, isVisible } = useIntersectionObserver();
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const defaultFocused = plans?.findIndex((p) => p.popular) ?? 2;
+  const defaultIndex = plans?.findIndex((p) => p.popular) ?? 2;
+  const activeIndex = selectedIndex ?? hoveredIndex ?? defaultIndex;
 
-  const handleHover = useCallback((i: number) => setFocusedIndex(i), []);
-  const handleLeave = useCallback(() => setFocusedIndex(null), []);
+  const handleClick = useCallback((i: number) => {
+    setSelectedIndex((prev) => (prev === i ? prev : i));
+  }, []);
+  const handleHover = useCallback((i: number) => setHoveredIndex(i), []);
+  const handleLeave = useCallback(() => setHoveredIndex(null), []);
 
   return (
     <section id="plans" className="relative py-20 lg:py-28 overflow-hidden">
@@ -60,7 +65,7 @@ export default function PlansSection() {
               style={{ perspective: '1200px' }}
             >
               {plans.map((plan, i) => {
-                const isFocused = focusedIndex === i || (focusedIndex === null && i === defaultFocused);
+                const isFocused = activeIndex === i;
                 return (
                   <div
                     key={plan.id}
@@ -71,6 +76,8 @@ export default function PlansSection() {
                       billingPeriod={billingPeriod}
                       index={i}
                       isFocused={isFocused}
+                      isSelected={selectedIndex === i}
+                      onClick={() => handleClick(i)}
                       onHover={() => handleHover(i)}
                       onLeave={handleLeave}
                     />
@@ -91,7 +98,7 @@ export default function PlansSection() {
               })}
             </div>
             <p className="text-center text-[11px] text-dark-600 mt-6">
-              Hover over a plan to preview &bull; Click to see full details
+              Click a plan to select &bull; Hover to preview
             </p>
           </>
         ) : (

@@ -10,11 +10,13 @@ interface PlanCardProps {
   billingPeriod: number;
   index?: number;
   isFocused?: boolean;
+  isSelected?: boolean;
+  onClick?: () => void;
   onHover?: () => void;
   onLeave?: () => void;
 }
 
-export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, onHover, onLeave }: PlanCardProps) {
+export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, isSelected, onClick, onHover, onLeave }: PlanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [rotate, setRotate] = useState({ x: 0, y: 0 });
   const [glow, setGlow] = useState({ x: 50, y: 50 });
@@ -66,13 +68,14 @@ export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, on
 
       <div
         ref={cardRef}
+        onClick={onClick}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        className={`relative rounded-2xl flex flex-col ${
+        className={`relative rounded-2xl flex flex-col cursor-pointer ${
           plan.popular
             ? 'bg-gradient-to-b from-accent-500/10 via-primary-500/5 to-dark-800 border-2 border-accent-500/30 shadow-xl shadow-accent-500/10'
             : 'glass-card border border-white/[0.06]'
-        }`}
+        } ${isSelected ? 'ring-2 ring-accent-400 ring-offset-2 ring-offset-dark-950' : ''}`}
         style={{
           transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg) scale(${isFocused ? 1 : 0.88})`,
           transformStyle: 'preserve-3d',
