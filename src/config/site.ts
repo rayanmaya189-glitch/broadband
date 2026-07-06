@@ -14,7 +14,7 @@ export const SITE_CONFIG: SiteConfig = {
     tagline: "Lightning Fast Fiber Internet",
     description: "Premium fiber optic internet services in Jalgaon, Maharashtra. Reliable, fast, and affordable connectivity solutions for home and business.",
     phone: "+91 77700 33326",
-    email: "support@aeroXe.in",
+    email: "support@aeroXe.com",
     address: "Jalgaon, Maharashtra, India",
   },
   social: {
