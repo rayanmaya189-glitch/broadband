@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Mail, MapPin, Send, MessageSquare } from 'lucide-react';
+import { Phone, Mail, MapPin, Send, MessageSquare, ArrowRight } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
 import TiltCard from '../../components/ui/TiltCard';
 
@@ -23,6 +23,15 @@ export default function ContactPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
+          <motion.span
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-400/10 border border-accent-400/20 text-accent-300 text-sm font-medium mb-5"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Get in Touch
+          </motion.span>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">Contact Us</h1>
           <p className="mt-4 text-lg text-dark-400">
             We&apos;re here to help. Reach out to us anytime.
@@ -91,41 +100,47 @@ export default function ContactPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="space-y-6"
           >
-            {[
-              { icon: Phone, label: 'Phone', value: SITE_CONFIG.company.phone, href: `tel:${SITE_CONFIG.company.phone}` },
-              { icon: Mail, label: 'Email', value: SITE_CONFIG.company.email, href: `mailto:${SITE_CONFIG.company.email}` },
-              { icon: MapPin, label: 'Address', value: SITE_CONFIG.company.address },
-              { icon: MessageSquare, label: 'WhatsApp', value: 'Chat with us', href: `https://wa.me/${SITE_CONFIG.whatsapp}` },
-            ].map((item, i) => (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + i * 0.1 }}
-              >
-                <TiltCard tiltDegree={4} glareOpacity={0.1}>
-                  <div className="glass-card rounded-2xl p-6 border border-white/[0.06] transition-shadow duration-300 hover:shadow-2xl hover:shadow-accent-500/5">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-accent-400/10">
-                        <item.icon className="w-6 h-6 text-accent-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-dark-400">{item.label}</p>
-                        {item.href ? (
-                          <a href={item.href} className="text-white font-medium hover:text-accent-400 transition-colors">
-                            {item.value}
-                          </a>
-                        ) : (
-                          <p className="text-white font-medium">{item.value}</p>
-                        )}
-                      </div>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 sm:p-8">
+              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-400 animate-pulse" />
+                Contact Information
+              </h2>
+              <div className="space-y-1">
+                {[
+                  { icon: Phone, label: 'Phone', value: SITE_CONFIG.company.phone, href: `tel:${SITE_CONFIG.company.phone}` },
+                  { icon: Mail, label: 'Email', value: SITE_CONFIG.company.email, href: `mailto:${SITE_CONFIG.company.email}` },
+                  { icon: MapPin, label: 'Address', value: SITE_CONFIG.company.address },
+                  { icon: MessageSquare, label: 'WhatsApp', value: 'Chat with us', href: `https://wa.me/${SITE_CONFIG.whatsapp}` },
+                ].map((item, i) => (
+                  <motion.div
+                    key={item.label}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + i * 0.06 }}
+                    className="flex items-start gap-4 p-4 rounded-xl hover:bg-white/[0.04] transition-colors duration-300 cursor-default group"
+                  >
+                    <div className="shrink-0 w-1 self-stretch rounded-full bg-gradient-to-b from-accent-400 to-primary-500 opacity-40 group-hover:opacity-100 transition-opacity" />
+                    <div className="shrink-0 p-2.5 rounded-xl bg-accent-400/10 group-hover:bg-accent-400/20 transition-colors">
+                      <item.icon className="w-5 h-5 text-accent-400" />
                     </div>
-                  </div>
-                </TiltCard>
-              </motion.div>
-            ))}
+                    <div className="min-w-0">
+                      <p className="text-sm text-dark-500">{item.label}</p>
+                      {item.href ? (
+                        <a href={item.href} className="text-white font-medium hover:text-accent-400 transition-colors">
+                          {item.value}
+                        </a>
+                      ) : (
+                        <p className="text-white font-medium">{item.value}</p>
+                      )}
+                    </div>
+                    {item.href && (
+                      <ArrowRight className="w-4 h-4 text-dark-600 ml-auto shrink-0 mt-1.5 group-hover:text-accent-400 transition-colors" />
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>
