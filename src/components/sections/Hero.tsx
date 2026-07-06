@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Shield, Users, Zap } from 'lucide-react';
-import SpeedVisual from '../ui/SpeedVisual';
+import { ArrowRight, Shield, Users, Zap, Wifi, Signal, Sparkles } from 'lucide-react';
 import TiltCard from '../ui/TiltCard';
 
 export default function Hero() {
@@ -13,7 +12,7 @@ export default function Hero() {
     <section className="relative min-h-screen flex items-center overflow-hidden">
       <motion.div style={{ y: bgY }} className="absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.12),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(10,102,194,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.15),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(10,102,194,0.08),transparent_50%)]" />
         <div className="absolute inset-0 bg-grid" />
       </motion.div>
 
@@ -28,7 +27,7 @@ export default function Hero() {
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent-400/5 rounded-full blur-3xl"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent-400/5 rounded-full blur-3xl"
         animate={{ scale: [1, 1.15, 1], rotate: [0, 180, 360] }}
         transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
       />
@@ -119,18 +118,61 @@ export default function Hero() {
               initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
               animate={{ opacity: 1, scale: 1, rotateY: 0 }}
               transition={{ duration: 0.8, delay: 0.3, type: 'spring', stiffness: 60 }}
-              className="hidden lg:flex flex-col items-center"
+              className="hidden lg:flex flex-col items-center relative"
               style={{ perspective: '1000px' }}
             >
-              <TiltCard tiltDegree={4} glareOpacity={0.15} perspective={1000}>
+              <motion.div
+                className="absolute -top-8 -right-4 z-20"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8, type: 'spring', stiffness: 80 }}
+              >
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-500/20 backdrop-blur-xl border border-accent-400/30 shadow-lg shadow-accent-500/10">
+                  <Signal className="w-5 h-5 text-accent-400" />
+                  <div>
+                    <p className="text-xs font-bold text-white">300 Mbps</p>
+                    <p className="text-[10px] text-accent-300">Fiber Optic</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                className="absolute -bottom-6 -left-8 z-20"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1, type: 'spring', stiffness: 80 }}
+              >
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-900/80 backdrop-blur-xl border border-white/[0.08] shadow-lg">
+                  <Wifi className="w-5 h-5 text-accent-400" />
+                  <div>
+                    <p className="text-xs font-bold text-white">Unlimited</p>
+                    <p className="text-[10px] text-dark-400">No Data Caps</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                className="absolute -top-4 -left-4 w-16 h-16 bg-accent-400/10 rounded-full blur-2xl"
+                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              />
+
+              <TiltCard tiltDegree={3} glareOpacity={0.12} perspective={1000}>
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-accent-500/20 to-primary-500/20 rounded-3xl blur-3xl" />
-                  <div className="relative glass-card-strong rounded-3xl p-8 transition-shadow duration-300 hover:shadow-2xl hover:shadow-accent-500/10">
-                    <SpeedVisual speed={300} />
-                    <div className="mt-6 text-center">
-                      <p className="text-sm text-dark-400">Real-time speed</p>
-                      <p className="text-2xl font-bold text-white">Fiber Optic</p>
-                      <p className="text-sm text-accent-400">Low Latency &bull; High Bandwidth</p>
+                  <div className="absolute -inset-1 bg-gradient-to-r from-accent-500/30 via-primary-500/30 to-accent-500/30 rounded-[32px] blur-xl" />
+                  <div className="absolute -inset-[2px] bg-gradient-to-r from-accent-400/40 via-primary-500/40 to-accent-400/40 rounded-[32px] opacity-60" />
+                  <div className="relative rounded-3xl overflow-hidden border border-white/[0.08]">
+                    <img
+                      src="/hero-influncer.png"
+                      alt="AeroXe Broadband"
+                      className="w-full h-auto max-h-[500px] object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-dark-950/40 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-dark-950/80 to-transparent pointer-events-none">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-accent-400" />
+                        <span className="text-sm font-semibold text-white">AeroXe Broadband — Speed You Can Trust</span>
+                      </div>
                     </div>
                   </div>
                 </div>
