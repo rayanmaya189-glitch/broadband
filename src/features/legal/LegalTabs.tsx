@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SITE_CONFIG } from '../../config/site';
 
@@ -16,12 +14,6 @@ interface Props {
 }
 
 export default function LegalTabs({ title, intro, sections, formatContent }: Props) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const activeSection = sections[activeIndex];
-  const content = activeSection && formatContent
-    ? formatContent(activeSection.content)
-    : activeSection?.content ?? '';
-
   return (
     <div className="min-h-screen bg-dark-950">
       <div className="max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 pt-28 pb-20">
@@ -34,64 +26,40 @@ export default function LegalTabs({ title, intro, sections, formatContent }: Pro
           </p>
         </div>
 
-        <div className="mt-10 flex flex-wrap gap-2">
+        <div className="mt-12 space-y-1">
           {sections.map((section, i) => {
-            const isActive = i === activeIndex;
+            const content = formatContent ? formatContent(section.content) : section.content;
             return (
-              <button
+              <div
                 key={section.title}
-                onClick={() => setActiveIndex(i)}
-                className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                  isActive
-                    ? 'bg-accent-400/15 text-accent-300'
-                    : 'bg-white/[0.04] text-dark-400 hover:text-dark-200 hover:bg-white/[0.08]'
-                }`}
+                className="group relative pl-5 py-5 rounded-xl transition-colors hover:bg-white/[0.02]"
               >
-                {section.title}
-              </button>
+                <div className="absolute left-0 top-5 bottom-5 w-0.5 rounded-full bg-dark-700 group-hover:bg-accent-400/50 transition-colors" />
+                <div className="flex items-start gap-4">
+                  <span className="mt-0.5 text-xs font-mono font-bold text-dark-600 group-hover:text-accent-400/70 transition-colors w-6 shrink-0">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-base sm:text-lg font-semibold text-white mb-1.5 group-hover:text-accent-200 transition-colors">
+                      {section.title}
+                    </h2>
+                    <p className="text-sm sm:text-base text-dark-400 leading-relaxed group-hover:text-dark-300 transition-colors">
+                      {content}
+                    </p>
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
 
-        <div className="mt-10">
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">
-            {activeSection.title}
-          </h2>
-          <p className="text-dark-400 leading-relaxed text-[15px] sm:text-base max-w-3xl">
-            {content}
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between mt-10 pt-6 border-t border-white/[0.06] max-w-3xl">
-          <button
-            onClick={() => setActiveIndex(Math.max(0, activeIndex - 1))}
-            disabled={activeIndex === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-dark-400 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        <div className="mt-12 pt-8 border-t border-white/[0.06] max-w-3xl">
+          <Link
+            to="/contact"
+            className="inline-flex items-center gap-2 text-sm text-accent-400 hover:text-accent-300 transition-colors font-medium"
           >
-            <ChevronRight className="w-4 h-4 rotate-180" />
-            Previous
-          </button>
-
-          <span className="text-sm text-dark-500">
-            {activeIndex + 1} / {sections.length}
-          </span>
-
-          {activeIndex < sections.length - 1 ? (
-            <button
-              onClick={() => setActiveIndex(Math.min(sections.length - 1, activeIndex + 1))}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-dark-400 hover:text-white hover:bg-white/[0.06] transition-all"
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <Link
-              to="/contact"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-accent-500/20 text-accent-300 hover:bg-accent-500/30 transition-all"
-            >
-              Contact Us
-            </Link>
-          )}
+            Have questions? Contact us &rarr;
+          </Link>
         </div>
       </div>
     </div>
