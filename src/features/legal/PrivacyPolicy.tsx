@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
 import { Shield } from 'lucide-react';
+import LegalLayout from './LegalLayout';
 import { SITE_CONFIG } from '../../config/site';
 
 const sections = [
@@ -43,56 +43,12 @@ const sections = [
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen pt-24 pb-16 bg-dark-950">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_50%)]" />
-
-      <div className="relative max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
-        >
-          <motion.span
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-400/10 border border-accent-400/20 text-accent-300 text-sm font-medium mb-5"
-          >
-            <Shield className="w-4 h-4" />
-            Legal
-          </motion.span>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">Privacy Policy</h1>
-          <p className="mt-4 text-lg text-dark-400">Last updated: July 2026</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 sm:p-10 lg:p-12"
-        >
-          <p className="text-dark-300 leading-relaxed mb-8">
-            At {SITE_CONFIG.company.name}, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our broadband internet services and visit our website.
-          </p>
-
-          <div className="space-y-6">
-            {sections.map((section, i) => (
-              <motion.div
-                key={section.title}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + i * 0.04 }}
-              >
-                <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-3">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-400 shrink-0" />
-                  {section.title}
-                </h2>
-                <p className="text-dark-400 leading-relaxed pl-5">{section.content}</p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-    </div>
+    <LegalLayout
+      icon={<Shield className="w-3.5 h-3.5" />}
+      title="Privacy Policy"
+      intro={`At ${SITE_CONFIG.company.name}, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our broadband internet services and visit our website.`}
+      sections={sections}
+      lastUpdated="July 2026"
+    />
   );
 }

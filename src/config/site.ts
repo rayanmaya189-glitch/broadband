@@ -166,40 +166,39 @@ export const SITE_CONFIG: SiteConfig = {
   ],
   team: [
     {
-      name: "Amit Patil",
-      photo: "",
-      designation: "Founder & CEO",
-      about: "With over 15 years in the telecom industry, Amit founded AeroXe Broadband to bring world-class fiber internet to Jalgaon. His vision of bridging the digital divide drives every decision at the company.",
-    },
-    {
-      name: "Sneha Deshmukh",
-      photo: "",
-      designation: "Chief Technology Officer",
-      about: "Sneha leads our network architecture and technology strategy. An engineering graduate with expertise in fiber optics, she ensures our infrastructure delivers 99.99% uptime and blazing-fast speeds.",
-    },
-    {
-      name: "Rohan Jadhav",
-      photo: "",
-      designation: "Head of Operations",
-      about: "Rohan oversees day-to-day operations, from installation scheduling to field team management. His commitment to efficiency ensures every customer gets connected within 24 hours.",
-    },
-    {
-      name: "Priya Mahajan",
-      photo: "",
-      designation: "Customer Support Lead",
-      about: "Priya built our 24/7 support team from the ground up. With a background in customer experience, she ensures every query is resolved promptly and every customer feels valued.",
-    },
-    {
-      name: "Vikas Shinde",
-      photo: "",
-      designation: "Marketing Head",
-      about: "Vikas is the voice of AeroXe Broadband in Jalgaon. He leads community outreach and digital marketing, making sure everyone knows about the best internet in town.",
-    },
-    {
-      name: "Sagar Kulkarni",
-      photo: "",
-      designation: "Field Operations Manager",
-      about: "Sagar manages our installation and maintenance teams across Jalgaon. His hands-on approach and deep knowledge of local geography ensure seamless fiber deployment.",
-    },
+    name: "Saif Ali",
+    photo: "",
+    designation: "Founder & Management",
+    about:
+      "Leads strategic growth and business direction with a strong focus on scalability, customer trust, and long-term value creation.",
+  },
+  {
+    name: "Abdullah Shah",
+    photo: "",
+    designation: "Founder & Operations",
+    about:
+      "Ensures seamless execution across installations and service delivery, optimizing processes for speed, reliability, and customer satisfaction.",
+  },
+  {
+    name: "Azaz Shah",
+    photo: "",
+    designation: "Founder & Network",
+    about:
+      "Designs and maintains high-performance broadband networks, ensuring consistent speed, low latency, and robust connectivity.",
+  },
+  {
+    name: "Gajju Shah",
+    photo: "",
+    designation: "Founder & Optics Network Infra",
+    about:
+      "Specializes in fiber infrastructure deployment, building scalable and resilient optical networks for uninterrupted connectivity.",
+  },
+  {
+    name: "Farhana Ali",
+    photo: "",
+    designation: "Founder & Software",
+    about:
+      "Develops intelligent systems and automation that power operations, enhance performance, and deliver a seamless digital experience.",
+  },
   ],
 };
