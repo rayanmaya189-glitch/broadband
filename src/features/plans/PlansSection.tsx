@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { usePlans } from '../../hooks/usePlans';
 import { useFilterStore } from '../../store/filterStore';
 import { usePlanStore } from '../../store/planStore';
@@ -13,8 +14,13 @@ export default function PlansSection() {
   const billingPeriod = useFilterStore((s) => s.billingPeriod);
   const comparisonPlans = usePlanStore((s) => s.comparisonPlans);
   const toggleComparisonPlan = usePlanStore((s) => s.toggleComparisonPlan);
-  const showComparison = usePlanStore((s) => s.comparisonPlans.length > 0);
   const { ref, isVisible } = useIntersectionObserver();
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+
+  const defaultFocused = plans?.findIndex((p) => p.popular) ?? 2;
+
+  const handleHover = useCallback((i: number) => setFocusedIndex(i), []);
+  const handleLeave = useCallback(() => setFocusedIndex(null), []);
 
   return (
     <section id="plans" className="relative py-20 lg:py-28 overflow-hidden">
@@ -25,7 +31,7 @@ export default function PlansSection() {
           initial={{ opacity: 0, y: 40 }}
           animate={isVisible ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-10"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
             Choose Your{' '}
@@ -39,33 +45,55 @@ export default function PlansSection() {
         </motion.div>
 
         <FilterPanel />
-
         <PlanComparison billingPeriod={billingPeriod} />
 
         {isLoading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="flex justify-center gap-4">
             {[1, 2, 3, 4, 5].map((i) => (
               <PlanCardSkeleton key={i} />
             ))}
           </div>
         ) : plans && plans.length > 0 ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {plans.map((plan, i) => (
-              <div key={plan.id} className="relative">
-                <PlanCard plan={plan} billingPeriod={billingPeriod} index={i} />
-                <button
-                  onClick={() => toggleComparisonPlan(plan)}
-                  className={`mt-2 w-full text-xs py-2 rounded-lg border transition-all ${
-                    comparisonPlans.find((p) => p.id === plan.id)
-                      ? 'bg-accent-400/20 text-accent-300 border-accent-400/30'
-                      : 'bg-white/[0.04] text-dark-400 border-white/[0.06] hover:bg-white/[0.08]'
-                  }`}
-                >
-                  {comparisonPlans.find((p) => p.id === plan.id) ? 'Remove from Compare' : 'Add to Compare'}
-                </button>
-              </div>
-            ))}
-          </div>
+          <>
+            <div
+              className="flex items-center justify-center gap-2 sm:gap-3 lg:gap-4 xl:gap-6"
+              style={{ perspective: '1200px' }}
+            >
+              {plans.map((plan, i) => {
+                const isFocused = focusedIndex === i || (focusedIndex === null && i === defaultFocused);
+                return (
+                  <div
+                    key={plan.id}
+                    className="flex-1 max-w-[200px] sm:max-w-[220px] lg:max-w-[240px] xl:max-w-[260px]"
+                  >
+                    <PlanCard
+                      plan={plan}
+                      billingPeriod={billingPeriod}
+                      index={i}
+                      isFocused={isFocused}
+                      onHover={() => handleHover(i)}
+                      onLeave={handleLeave}
+                    />
+                    <div className="mt-1.5 flex justify-center">
+                      <button
+                        onClick={() => toggleComparisonPlan(plan)}
+                        className={`text-[10px] px-2 py-1 rounded-md border transition-all ${
+                          comparisonPlans.find((p) => p.id === plan.id)
+                            ? 'bg-accent-400/20 text-accent-300 border-accent-400/30'
+                            : 'bg-white/[0.04] text-dark-500 border-white/[0.06] hover:text-dark-300'
+                        }`}
+                      >
+                        {comparisonPlans.find((p) => p.id === plan.id) ? 'Remove' : 'Compare'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-center text-[11px] text-dark-600 mt-6">
+              Hover over a plan to preview &bull; Click to see full details
+            </p>
+          </>
         ) : (
           <div className="text-center py-16">
             <p className="text-xl text-dark-400">No plans match your filters.</p>
