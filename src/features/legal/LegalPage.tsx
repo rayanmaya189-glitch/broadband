@@ -1,4 +1,3 @@
-import { Shield } from 'lucide-react';
 import LegalTabs from './LegalTabs';
 import { SITE_CONFIG } from '../../config/site';
 
@@ -44,11 +43,9 @@ const sections = [
 export default function PrivacyPolicy() {
   return (
     <LegalTabs
-      icon={<Shield className="w-4 h-4 text-accent-400" />}
       title="Privacy Policy"
       intro={`At ${SITE_CONFIG.company.name}, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our broadband internet services and visit our website.`}
       sections={sections}
-      lastUpdated="July 2026"
     />
   );
 }

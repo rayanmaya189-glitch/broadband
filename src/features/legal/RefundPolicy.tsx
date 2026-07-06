@@ -1,4 +1,3 @@
-import { RotateCcw } from 'lucide-react';
 import LegalTabs from './LegalTabs';
 import { SITE_CONFIG } from '../../config/site';
 
@@ -40,12 +39,10 @@ function formatContent(text: string) {
 export default function RefundPolicy() {
   return (
     <LegalTabs
-      icon={<RotateCcw className="w-4 h-4 text-accent-400" />}
       title="Refund & Cancellation Policy"
       intro={`At ${SITE_CONFIG.company.name}, we strive to ensure your satisfaction with our broadband services. This Refund & Cancellation Policy outlines the terms under which cancellations and refunds are processed.`}
       sections={sections}
       formatContent={formatContent}
-      lastUpdated="July 2026"
     />
   );
 }

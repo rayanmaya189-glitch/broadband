@@ -1,4 +1,3 @@
-import { FileText } from 'lucide-react';
 import LegalTabs from './LegalTabs';
 import { SITE_CONFIG } from '../../config/site';
 
@@ -55,12 +54,10 @@ function formatContent(text: string) {
 export default function TermsOfService() {
   return (
     <LegalTabs
-      icon={<FileText className="w-4 h-4 text-accent-400" />}
       title="Terms of Service"
       intro={`These Terms of Service govern your use of ${SITE_CONFIG.company.name}'s broadband internet services. By subscribing to or using our services, you agree to these terms.`}
       sections={sections}
       formatContent={formatContent}
-      lastUpdated="July 2026"
     />
   );
 }
