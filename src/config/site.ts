@@ -132,8 +132,8 @@ export const SITE_CONFIG: SiteConfig = {
   testimonials: [
     { name: "Rahul Sharma", role: "Remote Professional, Jalgaon", feedback: "AeroXe Broadband has been a game-changer for my work-from-home setup. The 100 Mbps plan is rock solid and I've never faced a single disconnection in 3 months!", rating: 5 },
     { name: "Priya Patil", role: "College Student", feedback: "Finally, reliable internet in Jalgaon! No more buffering during online classes. The free WiFi router works great throughout our home. Highly recommended!", rating: 5 },
-    { name: "Amit Deshmukh", role: "Small Business Owner", feedback: "Our entire business runs on AeroXe's 200 Mbps connection. Video calls are crystal clear, and their support team is incredibly responsive.", rating: 5 },
-    { name: "Sneha Joshi", role: "Streaming Enthusiast", feedback: "4K streaming on Netflix and Prime Video without any buffering — even with multiple devices connected. AeroXe is the best ISP in Jalgaon, hands down.", rating: 5 },
+    { name: "Amit Deshmukh", role: "Small Business Owner", feedback: "Our entire business runs on AeroXe Broadband's 200 Mbps connection. Video calls are crystal clear, and their support team is incredibly responsive.", rating: 5 },
+    { name: "Sneha Joshi", role: "Streaming Enthusiast", feedback: "4K streaming on Netflix and Prime Video without any buffering — even with multiple devices connected. AeroXe Broadband is the best ISP in Jalgaon, hands down.", rating: 5 },
     { name: "Vikram Singh", role: "Gamer, Jalgaon", feedback: "Low ping, consistent speeds, and zero lag in competitive games. The 150 Mbps plan is perfect for gaming. Plus, the free installation was quick and clean!", rating: 5 },
   ],
   faqs: [
@@ -141,7 +141,7 @@ export const SITE_CONFIG: SiteConfig = {
     { question: "What internet speeds do you offer?", answer: "We offer fiber optic plans from 50 Mbps to 300 Mbps. All plans provide symmetrical speeds and truly unlimited data with no FUP limits." },
     { question: "How do I contact customer support?", answer: "Our support team is available 24/7 via phone at 77700 33326, WhatsApp at the same number, or through our website contact form." },
     { question: "What internet plans do you have?", answer: "We have 5 speed tiers: 50 Mbps (₹400/mo), 100 Mbps (₹600/mo), 150 Mbps (₹800/mo), 200 Mbps (₹1,000/mo), and 300 Mbps (₹1,300/mo)." },
-    { question: "Is AeroXe available in my area?", answer: "We are currently serving Jalgaon with plans to expand to Bhusawal, Mumbai, Navi Mumbai, and Barhanpur soon." },
+    { question: "Is AeroXe Broadband available in my area?", answer: "We are currently serving Jalgaon with plans to expand to Bhusawal, Mumbai, Navi Mumbai, and Barhanpur soon." },
     { question: "Do I get a free WiFi router?", answer: "Yes! All 12-month plans include a complimentary Dual Band WiFi router for strong, stable WiFi coverage." },
     { question: "Is installation really free?", answer: "Yes, installation is completely free for a limited period. Our expert technicians set up everything at no cost to you." },
     { question: "What is fiber optic internet?", answer: "Fiber optic internet uses light signals through glass cables to deliver data at lightning speeds. It's faster and more reliable than traditional copper connections." },
