@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Phone, Mail, MapPin, Send, MessageSquare, ArrowRight } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
 import TiltCard from '../../components/ui/TiltCard';
+import SEO from '../../components/seo/SEO';
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
@@ -14,6 +15,12 @@ export default function ContactPage() {
   };
 
   return (
+    <>
+      <SEO
+        title="Contact AeroXe Broadband — Get Fiber Internet in Jalgaon"
+        description="Contact AeroXe Broadband in Jalgaon for fiber internet. Call +91 77700 33326, email support@aeroxe.com, or send a WhatsApp message. Get connected in 24 hours."
+        path="/contact"
+      />
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_50%)]" />
 
@@ -145,5 +152,6 @@ export default function ContactPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import LegalTabs from './LegalTabs';
 import { SITE_CONFIG } from '../../config/site';
+import SEO from '../../components/seo/SEO';
 
 const sections = [
   {

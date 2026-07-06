@@ -1,0 +1,113 @@
+# Server-Side SEO Optimizations for Apache
+# Improves performance, security, and SEO signals
+
+# Enable compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+  AddOutputFilterByType DEFLATE application/rss+xml application/atom+xml image/svg+xml
+</IfModule>
+
+# Enable browser caching
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # Cache HTML files for 1 hour
+  ExpiresByType text/html "access plus 1 hour"
+  
+  # Cache CSS and JS for 1 year
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType application/json "access plus 1 year"
+  
+  # Cache images for 1 month
+  ExpiresByType image/jpeg "access plus 1 month"
+  ExpiresByType image/gif "access plus 1 month"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType image/webp "access plus 1 month"
+  ExpiresByType image/svg+xml "access plus 1 month"
+  
+  # Cache fonts for 1 year
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  
+  # Default
+  ExpiresDefault "access plus 2 days"
+</IfModule>
+
+# Set proper cache control headers
+<IfModule mod_headers.c>
+  # For HTML files
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "max-age=3600, public"
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+  </FilesMatch>
+  
+  # For CSS and JS
+  <FilesMatch "\.(css|js)$">
+    Header set Cache-Control "max-age=31536000, public, immutable"
+  </FilesMatch>
+  
+  # For images
+  <FilesMatch "\.(jpg|jpeg|png|gif|webp|svg)$">
+    Header set Cache-Control "max-age=2592000, public"
+  </FilesMatch>
+  
+  # For fonts
+  <FilesMatch "\.(woff|woff2|ttf|eot|otf)$">
+    Header set Cache-Control "max-age=31536000, public, immutable"
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+  
+  # Security headers
+  Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+  Header set Content-Security-Policy "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self'"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# Enable GZIP compression
+<IfModule mod_gzip.c>
+  mod_gzip_on Yes
+  mod_gzip_dechunk Yes
+  mod_gzip_item_include file \.(html?|txt|css|js|json|svg|xml)$
+  mod_gzip_item_include handler ^cgi-script$
+  mod_gzip_item_include mime ^text/.*
+  mod_gzip_item_include mime ^application/json$
+  mod_gzip_item_exclude mime ^image/.*
+  mod_gzip_level 9
+  mod_gzip_buffers 1200 20480
+  mod_gzip_window_size 20480
+  mod_gzip_min_length 500
+</IfModule>
+
+# URL rewriting for SPA
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Prevent rewrite for existing files and directories
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Rewrite requests to index.html for SPA routing
+  RewriteRule ^.*$ /index.html [L]
+</IfModule>
+
+# Disable directory listing
+<IfModule mod_autoindex.c>
+  Options -Indexes
+</IfModule>
+
+# Prevent access to sensitive files
+<FilesMatch "^\.|(\.env|\.git|composer\.json|composer\.lock)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>

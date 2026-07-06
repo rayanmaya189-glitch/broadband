@@ -1,0 +1,4 @@
+Contact: mailto:security@aeroxe.com
+Contact: https://aeroxebroadband.com/security
+Expires: 2027-07-06T00:00:00Z
+Preferred-Languages: en

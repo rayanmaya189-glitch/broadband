@@ -1,0 +1,25 @@
+# AeroXe Broadband - Robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+Crawl-delay: 1
+
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Yandexbot
+Allow: /
+Crawl-delay: 2
+
+Sitemap: https://aeroxebroadband.com/sitemap.xml
+Sitemap: https://aeroxebroadband.com/sitemap-static.xml
+Sitemap: https://aeroxebroadband.com/sitemap-products.xml

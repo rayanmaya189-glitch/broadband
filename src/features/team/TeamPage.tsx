@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Users, Quote } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
+import SEO from '../../components/seo/SEO';
 
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('');
@@ -16,6 +17,12 @@ const bgColors = [
 
 export default function TeamPage() {
   return (
+    <>
+      <SEO
+        title="Meet the Team — AeroXe Broadband"
+        description="Meet the founders behind AeroXe Broadband. A dedicated team bringing premium fiber internet to Jalgaon with expertise in operations, networking, and software."
+        path="/team"
+      />
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_50%)]" />
 
@@ -80,5 +87,6 @@ export default function TeamPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

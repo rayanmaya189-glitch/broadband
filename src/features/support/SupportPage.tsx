@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Phone, MessageSquare, Mail, Search, HelpCircle } from 'lucide-react';
 import Accordion from '../../components/ui/Accordion';
 import { SITE_CONFIG } from '../../config/site';
+import SEO from '../../components/seo/SEO';
 
 export default function SupportPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,6 +15,12 @@ export default function SupportPage() {
   );
 
   return (
+    <>
+      <SEO
+        title="Support & FAQ — AeroXe Broadband Help Center"
+        description="Get help from AeroXe Broadband. Browse FAQs about fiber internet plans, installation, coverage in Jalgaon, billing, and support. Call +91 77700 33326 or WhatsApp us."
+        path="/support"
+      />
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_50%)]" />
 
@@ -97,5 +104,6 @@ export default function SupportPage() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }

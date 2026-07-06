@@ -2,6 +2,7 @@ import type { SiteConfig } from '../types';
 
 export const SITE_CONFIG: SiteConfig = {
   whatsapp: "917770033326",
+  domain: "https://aeroxebroadband.com",
   location: {
     mapUrl: "https://maps.app.goo.gl/gZXzQKuHh6rcp55Q8?g_st=aw",
     city: "Jalgaon",
@@ -164,6 +165,40 @@ export const SITE_CONFIG: SiteConfig = {
     { name: "MIDC Area", status: "active", type: "area", pincodes: ["425004"] },
     { name: "Railway Station Area", status: "active", type: "area", pincodes: ["425003", "425005"] },
   ],
+  socialMedia: {
+    facebook: "https://facebook.com/aeroXe",
+    twitter: "https://twitter.com/aeroXe",
+    instagram: "https://instagram.com/aeroXe",
+    linkedin: "https://linkedin.com/company/aeroXe",
+    youtube: "https://youtube.com/@aeroXe",
+    whatsapp: "https://wa.me/917770033326",
+  },
+  keywords: {
+    primary: [
+      "fiber internet Jalgaon",
+      "broadband provider Jalgaon",
+      "high speed internet Jalgaon",
+      "WiFi internet Jalgaon",
+      "home internet Jalgaon",
+    ],
+    secondary: [
+      "ISP Jalgaon",
+      "business broadband Jalgaon",
+      "unlimited internet Jalgaon",
+      "fiber optic internet",
+      "broadband service",
+    ],
+    locationKeywords: [
+      "Jalgaon internet",
+      "Jalgaon broadband",
+      "internet service provider Maharashtra",
+      "fiber internet provider India",
+      "fastest broadband Jalgaon",
+      "affordable internet Jalgaon",
+      "unlimited data Jalgaon",
+      "WiFi plans Jalgaon",
+    ],
+  },
   team: [
     {
     name: "Saif Ali",

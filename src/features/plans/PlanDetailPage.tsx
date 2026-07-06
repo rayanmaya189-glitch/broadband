@@ -6,6 +6,7 @@ import { useFilterStore } from '../../store/filterStore';
 import { formatPrice } from '../../utils/helpers';
 import { SITE_CONFIG } from '../../config/site';
 import Skeleton from '../../components/ui/Skeleton';
+import SEO from '../../components/seo/SEO';
 
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +44,16 @@ export default function PlanDetailPage() {
   const totalPrice = duration.price;
   const perMonth = Math.round(totalPrice / billingPeriod);
 
+  const planSpeed = plan.speed.replace(' ', '-').toLowerCase();
+
   return (
+    <>
+      <SEO
+        title={`${plan.speed} ${plan.tag} Plan — ₹${perMonth}/mo`}
+        description={`Get ${plan.speed} fiber internet from AeroXe Broadband. ${plan.tag} plan at ₹${perMonth}/mo with unlimited data, free installation, and 24/7 support in Jalgaon.`}
+        path={`/plan/${plan.id}`}
+        ogType="product"
+      />
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.08),transparent_50%)]" />
 
@@ -140,5 +150,6 @@ export default function PlanDetailPage() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }

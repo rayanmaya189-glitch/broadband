@@ -1,5 +1,6 @@
 import LegalTabs from './LegalTabs';
 import { SITE_CONFIG } from '../../config/site';
+import SEO from '../../components/seo/SEO';
 
 const sections = [
   {
@@ -42,10 +43,17 @@ const sections = [
 
 export default function PrivacyPolicy() {
   return (
-    <LegalTabs
-      title="Privacy Policy"
-      intro={`At ${SITE_CONFIG.company.name}, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our broadband internet services and visit our website.`}
-      sections={sections}
-    />
+    <>
+      <SEO
+        title="Privacy Policy — AeroXe Broadband"
+        description="Read the AeroXe Broadband privacy policy. Learn how we collect, use, and protect your personal information when you use our fiber internet services in Jalgaon."
+        path="/privacy"
+      />
+      <LegalTabs
+        title="Privacy Policy"
+        intro={`At ${SITE_CONFIG.company.name}, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our broadband internet services and visit our website.`}
+        sections={sections}
+      />
+    </>
   );
 }

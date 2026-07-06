@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useAvailability } from '../../hooks/useAvailability';
 import { SITE_CONFIG } from '../../config/site';
 import { cn } from '../../utils/helpers';
+import SEO from '../../components/seo/SEO';
 
 export default function CheckAvailabilityPage() {
   const [location, setLocation] = useState('');
@@ -17,6 +18,12 @@ export default function CheckAvailabilityPage() {
   };
 
   return (
+    <>
+      <SEO
+        title="Check Fiber Internet Availability in Jalgaon"
+        description="Check if AeroXe Broadband fiber internet is available in your area of Jalgaon. Enter your location or pincode to see coverage. Same-day activation in most areas."
+        path="/check-availability"
+      />
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_50%)]" />
 
@@ -158,5 +165,6 @@ export default function CheckAvailabilityPage() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }

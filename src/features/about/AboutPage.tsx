@@ -1,16 +1,23 @@
 import { motion } from 'framer-motion';
 import { Shield, Zap, Users, Target, ArrowRight } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
+import SEO from '../../components/seo/SEO';
 
 const stats = [
-  { icon: Users, label: 'Happy Customers', value: '1,200+' },
-  { icon: Shield, label: 'Network Uptime', value: '99.99%' },
+  { icon: Users, label: 'Happy Customers', value: '1,000+' },
+  { icon: Shield, label: 'Uptime', value: '99.9%' },
   { icon: Zap, label: 'Max Speed', value: '300 Mbps' },
-  { icon: Target, label: 'Coverage Area', value: `${SITE_CONFIG.location.city}+` },
+  { icon: Target, label: 'Coverage', value: `${SITE_CONFIG.location.city}` },
 ];
 
 export default function AboutPage() {
   return (
+    <>
+      <SEO
+        title="About AeroXe Broadband — Fiber Internet in Jalgaon"
+        description="Learn about AeroXe Broadband — Jalgaon's premium fiber internet provider. Founded to deliver reliable, high-speed connectivity with local 24/7 support."
+        path="/about"
+      />
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_50%)]" />
 
@@ -120,5 +127,6 @@ export default function AboutPage() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }

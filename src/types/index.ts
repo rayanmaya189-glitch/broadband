@@ -65,6 +65,7 @@ export interface NavLink {
 
 export interface SiteConfig {
   whatsapp: string;
+  domain: string;
   location: {
     mapUrl: string;
     city: string;
@@ -81,6 +82,19 @@ export interface SiteConfig {
     address: string;
   };
   social: Record<string, string>;
+  socialMedia: {
+    facebook: string;
+    twitter: string;
+    instagram: string;
+    linkedin: string;
+    youtube: string;
+    whatsapp: string;
+  };
+  keywords: {
+    primary: string[];
+    secondary: string[];
+    locationKeywords: string[];
+  };
   navLinks: NavLink[];
   plans: Plan[];
   features: Feature[];
