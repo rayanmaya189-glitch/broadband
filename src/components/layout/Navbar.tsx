@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Sun, Moon } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
 import { useUIStore } from '../../store/uiStore';
-import { useTheme } from '../../hooks/useTheme';
 import { cn } from '../../utils/helpers';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const { isMobileMenuOpen, setMobileMenuOpen } = useUIStore();
-  const { theme, toggleTheme } = useTheme();
+
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -65,14 +64,6 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.06] transition-all"
-                aria-label="Toggle theme"
-              >
-                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-
               <Link
                 to="/plans"
                 className="hidden sm:inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-accent-500 to-primary-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-accent-500/25 transition-all duration-300"
