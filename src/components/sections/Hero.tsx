@@ -1,41 +1,28 @@
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Shield, Users, Zap, Wifi, Signal, Sparkles } from 'lucide-react';
-import TiltCard from '../ui/TiltCard';
+import { ArrowRight, Shield, Users, Zap, Wifi, Signal } from 'lucide-react';
 
 export default function Hero() {
   const { scrollY } = useScroll();
   const bgY = useTransform(scrollY, [0, 500], [0, 150]);
   const opacity = useTransform(scrollY, [0, 400], [1, 0.6]);
+  const imgScale = useTransform(scrollY, [0, 400], [1, 1.08]);
+  const imgY = useTransform(scrollY, [0, 400], [0, -40]);
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       <motion.div style={{ y: bgY }} className="absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.15),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(10,102,194,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_50%,rgba(6,182,212,0.08),transparent_50%),radial-gradient(ellipse_at_80%_30%,rgba(10,102,194,0.06),transparent_50%)]" />
         <div className="absolute inset-0 bg-grid" />
       </motion.div>
 
-      <motion.div
-        className="absolute top-1/4 -right-32 w-96 h-96 bg-accent-500/10 rounded-full blur-3xl"
-        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute bottom-1/4 -left-32 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl"
-        animate={{ scale: [1.2, 1, 1.2], opacity: [0.2, 0.4, 0.2] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent-400/5 rounded-full blur-3xl"
-        animate={{ scale: [1, 1.15, 1], rotate: [0, 180, 360] }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-      />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-500/10 rounded-full blur-3xl" />
 
       <motion.div style={{ opacity }} className="relative w-full">
         <div className="max-w-[92%] 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 pt-24 pb-16 lg:pt-32 lg:pb-24">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div className="text-center lg:text-left">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 min-h-[70vh] items-center">
+            <div className="text-center lg:text-left relative z-20">
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -114,73 +101,73 @@ export default function Hero() {
               </motion.div>
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
-              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-              transition={{ duration: 0.8, delay: 0.3, type: 'spring', stiffness: 60 }}
-              className="hidden lg:flex flex-col items-center relative"
-              style={{ perspective: '1000px' }}
-            >
-              <motion.div
-                className="absolute -top-8 -right-4 z-20"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8, type: 'spring', stiffness: 80 }}
-              >
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-500/20 backdrop-blur-xl border border-accent-400/30 shadow-lg shadow-accent-500/10">
-                  <Signal className="w-5 h-5 text-accent-400" />
-                  <div>
-                    <p className="text-xs font-bold text-white">300 Mbps</p>
-                    <p className="text-[10px] text-accent-300">Fiber Optic</p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                className="absolute -bottom-6 -left-8 z-20"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1, type: 'spring', stiffness: 80 }}
-              >
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-900/80 backdrop-blur-xl border border-white/[0.08] shadow-lg">
-                  <Wifi className="w-5 h-5 text-accent-400" />
-                  <div>
-                    <p className="text-xs font-bold text-white">Unlimited</p>
-                    <p className="text-[10px] text-dark-400">No Data Caps</p>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                className="absolute -top-4 -left-4 w-16 h-16 bg-accent-400/10 rounded-full blur-2xl"
-                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            <div className="lg:hidden mt-8 flex justify-center">
+              <img
+                src="/hero-influncer.png"
+                alt=""
+                className="w-full max-w-md rounded-2xl"
               />
+            </div>
 
-              <TiltCard tiltDegree={3} glareOpacity={0.12} perspective={1000}>
-                <div className="relative">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-accent-500/30 via-primary-500/30 to-accent-500/30 rounded-[32px] blur-xl" />
-                  <div className="absolute -inset-[2px] bg-gradient-to-r from-accent-400/40 via-primary-500/40 to-accent-400/40 rounded-[32px] opacity-60" />
-                  <div className="relative rounded-3xl overflow-hidden border border-white/[0.08]">
-                    <img
-                      src="/hero-influncer.png"
-                      alt="AeroXe Broadband"
-                      className="w-full h-auto max-h-[500px] object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-dark-950/40 via-transparent to-transparent pointer-events-none" />
-                    <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-dark-950/80 to-transparent pointer-events-none">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-accent-400" />
-                        <span className="text-sm font-semibold text-white">AeroXe Broadband — Speed You Can Trust</span>
-                      </div>
+            <div className="hidden lg:flex relative h-full items-center justify-center">
+              <motion.div
+                initial={{ opacity: 0, x: 80 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
+                className="absolute top-1/2 -translate-y-1/2"
+                style={{ right: 'calc(-1 * ((100vw - min(92vw, 90rem)) / 2))', left: 'auto', width: '55vw' }}
+              >
+                <motion.div
+                  className="absolute -top-8 right-[15%] z-20"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8, type: 'spring', stiffness: 80 }}
+                >
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-900/70 backdrop-blur-xl border border-white/[0.08] shadow-lg shadow-accent-500/5">
+                    <Signal className="w-5 h-5 text-accent-400" />
+                    <div>
+                      <p className="text-xs font-bold text-white">300 Mbps</p>
+                      <p className="text-[10px] text-accent-300">Fiber Optic</p>
                     </div>
                   </div>
-                </div>
-              </TiltCard>
-            </motion.div>
+                </motion.div>
+
+                <motion.div
+                  className="absolute -bottom-6 left-[8%] z-20"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1, type: 'spring', stiffness: 80 }}
+                >
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-900/70 backdrop-blur-xl border border-white/[0.08] shadow-lg">
+                    <Wifi className="w-5 h-5 text-accent-400" />
+                    <div>
+                      <p className="text-xs font-bold text-white">Unlimited</p>
+                      <p className="text-[10px] text-dark-400">No Data Caps</p>
+                    </div>
+                  </div>
+                </motion.div>
+
+                <div className="absolute -inset-3 bg-gradient-to-r from-accent-500/5 via-primary-500/10 to-accent-500/5 rounded-[40px] blur-2xl" />
+
+                <motion.div
+                  style={{ scale: imgScale, y: imgY }}
+                  className="relative overflow-hidden rounded-2xl"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-dark-950/60 via-transparent to-transparent z-10 pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-dark-950/30 via-transparent to-transparent z-10 pointer-events-none" />
+                  <img
+                    src="/hero-influncer.png"
+                    alt=""
+                    className="w-full h-auto max-h-[650px] object-cover object-[30%_center] scale-105"
+                  />
+                </motion.div>
+              </motion.div>
+            </div>
           </div>
         </div>
       </motion.div>
+
+      <div className="hidden lg:block absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-dark-950 to-transparent pointer-events-none z-10" />
     </section>
   );
 }
