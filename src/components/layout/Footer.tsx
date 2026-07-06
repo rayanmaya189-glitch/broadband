@@ -70,6 +70,27 @@ export default function Footer() {
           </div>
 
           <div>
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Legal</h3>
+            <ul className="space-y-3">
+              <li>
+                <Link to="/privacy" className="flex items-center gap-2 text-sm text-dark-400 hover:text-accent-400 transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms" className="flex items-center gap-2 text-sm text-dark-400 hover:text-accent-400 transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link to="/refund" className="flex items-center gap-2 text-sm text-dark-400 hover:text-accent-400 transition-colors">
+                  Refund Policy
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Contact</h3>
             <ul className="space-y-3">
               <li>
@@ -97,8 +118,9 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} {SITE_CONFIG.company.legalName}. All rights reserved.
           </p>
           <div className="flex gap-6">
-            <a href="#" className="text-sm text-dark-500 hover:text-dark-400 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-sm text-dark-500 hover:text-dark-400 transition-colors">Terms of Service</a>
+            <Link to="/privacy" className="text-sm text-dark-500 hover:text-dark-400 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="text-sm text-dark-500 hover:text-dark-400 transition-colors">Terms of Service</Link>
+            <Link to="/refund" className="text-sm text-dark-500 hover:text-dark-400 transition-colors">Refund Policy</Link>
           </div>
         </div>
       </div>
