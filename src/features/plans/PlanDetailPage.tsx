@@ -39,7 +39,9 @@ export default function PlanDetailPage() {
     );
   }
 
-  const monthlyPrice = plan.durations[billingPeriod]?.price ?? plan.durations[1].price;
+  const duration = plan.durations[billingPeriod] || plan.durations[1];
+  const totalPrice = duration.price;
+  const perMonth = Math.round(totalPrice / billingPeriod);
 
   return (
     <div className="min-h-screen pt-24 pb-16 bg-dark-950">
@@ -70,13 +72,21 @@ export default function PlanDetailPage() {
               <p className="text-lg text-dark-400 mt-1">{plan.tag} Plan</p>
               <div className="mt-4 flex items-baseline gap-2">
                 <span className="text-5xl sm:text-6xl font-bold text-white">
-                  {formatPrice(monthlyPrice)}
+                  {formatPrice(perMonth)}
                 </span>
                 <span className="text-xl text-dark-400">/mo</span>
               </div>
+              {billingPeriod > 1 && (
+                <p className="mt-2 text-sm text-dark-400">
+                  {formatPrice(totalPrice)} for {duration.label.toLowerCase()}
+                  {duration.savings && (
+                    <span className="text-accent-400 font-medium ml-1">— {duration.savings}</span>
+                  )}
+                </p>
+              )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
               {[1, 3, 6, 12].map((period) => {
                 const d = plan.durations[period];
                 return (
@@ -90,8 +100,9 @@ export default function PlanDetailPage() {
                     }`}
                   >
                     {d?.label}
+                    <span className="block text-xs text-dark-500 mt-0.5">{formatPrice(d?.price ?? 0)}</span>
                     {d?.savings && (
-                      <span className="block text-xs text-accent-500 mt-0.5">{d.savings}</span>
+                      <span className="block text-[10px] text-accent-400 mt-0.5">{d.savings}</span>
                     )}
                   </button>
                 );
@@ -110,7 +121,7 @@ export default function PlanDetailPage() {
 
           <div className="mt-10 flex flex-col sm:flex-row gap-4">
             <a
-              href={`https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(`Hi! I'm interested in the ${plan.speed} ${plan.tag} plan (₹${monthlyPrice}/mo). Please help me get connected.`)}`}
+              href={`https://wa.me/${SITE_CONFIG.whatsapp}?text=${encodeURIComponent(`Hi! I'm interested in the ${plan.speed} ${plan.tag} plan (₹${perMonth}/mo). Please help me get connected.`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-accent-500 to-primary-600 text-white font-semibold rounded-xl hover:shadow-xl hover:shadow-accent-500/25 transition-all duration-300"

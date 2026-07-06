@@ -20,7 +20,8 @@ export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, is
   const { ref, tiltStyle, glowPos, isHovered, handlers } = useTilt({ tiltDegree: 6 });
 
   const duration = plan.durations[billingPeriod] || plan.durations[1];
-  const monthlyPrice = duration.price;
+  const totalPrice = duration.price;
+  const perMonth = Math.round(totalPrice / billingPeriod);
 
   const cardStyle: React.CSSProperties = {
     ...tiltStyle,
@@ -88,11 +89,20 @@ export default function PlanCard({ plan, billingPeriod, index = 0, isFocused, is
 
           <div className="relative z-10 mt-2 mb-3" style={{ transform: isFocused ? 'translateZ(35px)' : 'none' }}>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-bold text-white">{formatPrice(monthlyPrice)}</span>
+              <span className="text-xl sm:text-2xl font-bold text-white">{formatPrice(perMonth)}</span>
               <span className="text-dark-400 text-[11px]">/mo</span>
             </div>
-            {duration.savings && billingPeriod > 1 && (
-              <p className="mt-0.5 text-[10px] text-accent-400 font-medium">{duration.savings}</p>
+            {billingPeriod > 1 ? (
+              <p className="mt-0.5 text-[10px] text-dark-500">
+                {formatPrice(totalPrice)} for {duration.label.toLowerCase()}
+                {duration.savings && (
+                  <span className="text-accent-400 font-medium"> — {duration.savings}</span>
+                )}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-[10px] text-dark-500">
+                {formatPrice(totalPrice)}/mo
+              </p>
             )}
           </div>
 

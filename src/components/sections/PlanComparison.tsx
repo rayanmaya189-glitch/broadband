@@ -46,9 +46,14 @@ export default function PlanComparison({ billingPeriod }: PlanComparisonProps) {
                         <p className="text-lg font-bold text-white">{plan.speed}</p>
                         <p className="text-sm text-dark-400">{plan.tag}</p>
                         <p className="text-xl font-bold text-accent-400 mt-1">
-                          {formatPrice(plan.durations[billingPeriod]?.price ?? 0)}
+                          {formatPrice(Math.round((plan.durations[billingPeriod]?.price ?? 0) / billingPeriod))}
                           <span className="text-sm text-dark-400">/mo</span>
                         </p>
+                        {billingPeriod > 1 && (
+                          <p className="text-[10px] text-dark-500">
+                            {formatPrice(plan.durations[billingPeriod]?.price ?? 0)} total
+                          </p>
+                        )}
                       </div>
                       <button
                         onClick={() => toggleComparisonPlan(plan)}

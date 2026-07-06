@@ -104,9 +104,6 @@ export interface AuthState {
 }
 
 export interface FilterState {
-  speedRange: [number, number];
-  priceRange: [number, number];
-  usageType: 'all' | 'gaming' | 'streaming' | 'business';
   billingPeriod: number;
 }
 

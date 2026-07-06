@@ -45,7 +45,7 @@ export default function PlansSection() {
             </span>
           </h2>
           <p className="mt-4 text-lg text-dark-400 max-w-2xl mx-auto">
-            Flexible plans designed for every need. All with unlimited data and free installation.
+            Flexible plans designed for every need. All with unlimited data.
           </p>
         </motion.div>
 
