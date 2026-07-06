@@ -19,7 +19,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           <div className="space-y-4">
             <div>
-              <img src="/logo.png" alt={SITE_CONFIG.company.name} className="h-8 w-auto" />
+              <img src="/logo.png" alt={SITE_CONFIG.company.name} className="h-10 w-auto" />
             </div>
             <p className="text-sm text-dark-400 leading-relaxed">{SITE_CONFIG.company.description}</p>
             <div className="flex gap-3">
