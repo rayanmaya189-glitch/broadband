@@ -34,7 +34,7 @@ export default function CTASection() {
             Ready for <span className="bg-gradient-to-r from-accent-400 to-primary-400 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(6,182,212,0.25)]">Lightning-Fast</span> Internet?
           </h2>
           <p className="mt-4 text-lg text-dark-400 max-w-2xl mx-auto">
-            Join 1,200+ happy customers in {SITE_CONFIG.location.city}. Get connected in 24-48 hours with free installation.
+            Join customers across {SITE_CONFIG.location.city}. Get connected with free installation.
           </p>
 
           <motion.div

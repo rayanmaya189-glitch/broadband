@@ -81,15 +81,14 @@ Please check availability and share best plans.
               </h1>
 
               <p className="mt-6 text-lg text-dark-300 max-w-xl mx-auto lg:mx-0">
-                Unlimited data. Zero buffering. 99.99% uptime with 24/7 support.
-                Plans starting at ₹400/month.
+                Unlimited data with 24/7 support. Plans starting at ₹400/month.
               </p>
 
               {/* Benefits */}
               <div className="mt-6 flex flex-col gap-3 text-left max-w-md mx-auto lg:mx-0">
                 {[
                   'Unlimited Data – No FUP',
-                  'Same-Day Activation',
+                  'Fast Activation',
                   'Local 24/7 Support',
                 ].map((item) => (
                   <div key={item} className="flex items-center gap-2 text-sm text-dark-200">
@@ -158,7 +157,7 @@ Please check availability and share best plans.
                 className="mt-10 flex flex-wrap gap-4 sm:gap-6 justify-center lg:justify-start"
               >
                 {[
-                  { icon: Shield, label: '99.99% Uptime', value: 'Reliability' },
+                  { icon: Shield, label: 'Reliable Fiber', value: 'Reliability' },
                   { icon: Zap, label: 'Up to 300 Mbps', value: 'Speed' },
                   { icon: Wifi, label: 'Unlimited Data', value: 'Trusted' },
                 ].map((item, i) => (
@@ -201,7 +200,7 @@ Please check availability and share best plans.
                 />
 
                 <div className="absolute bottom-4 left-4 bg-dark-900/80 backdrop-blur-xl px-4 py-2 rounded-xl border border-white/10 text-xs">
-                  ⭐ Rated 4.9 by 1,200+ users
+                  Trusted across Jalgaon
                 </div>
               </motion.div>
             </div>

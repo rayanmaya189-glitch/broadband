@@ -45,7 +45,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 2250, label: "6 Months", savings: "Save ₹150" },
         12: { price: 4300, label: "12 Months", savings: "Save ₹500" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "Reliable Connection"],
     },
     {
       id: "standard-100",
@@ -59,7 +59,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 3350, label: "6 Months", savings: "Save ₹250" },
         12: { price: 6400, label: "12 Months", savings: "Save ₹800" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "Reliable Connection", "Dual Band WiFi Router Free*"],
     },
     {
       id: "premium-150",
@@ -73,7 +73,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 4550, label: "6 Months", savings: "Save ₹250" },
         12: { price: 8700, label: "12 Months", savings: "Save ₹900" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "Reliable Connection", "Dual Band WiFi Router Free*", "Priority Support"],
     },
     {
       id: "pro-200",
@@ -87,7 +87,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 5650, label: "6 Months", savings: "Save ₹350" },
         12: { price: 10800, label: "12 Months", savings: "Save ₹1200" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "Reliable Connection", "Dual Band WiFi Router Free*", "Priority Support"],
     },
     {
       id: "ultimate-300",
@@ -101,7 +101,7 @@ export const SITE_CONFIG: SiteConfig = {
         6: { price: 7350, label: "6 Months", savings: "Save ₹450" },
         12: { price: 14000, label: "12 Months", savings: "Save ₹1600" },
       },
-      features: ["Unlimited Data", "Free Installation", "24/7 Support", "99.99% Uptime", "Dual Band WiFi Router Free*", "Priority Support", "Business Grade"],
+      features: ["Unlimited Data", "Free Installation", "24/7 Support", "Reliable Connection", "Dual Band WiFi Router Free*", "Priority Support", "Business Grade"],
     },
   ],
   features: [
@@ -110,15 +110,15 @@ export const SITE_CONFIG: SiteConfig = {
     { icon: "Monitor", title: "Free WiFi Router", description: "Get a free Dual Band WiFi router with 12-month plans. Enjoy strong, stable WiFi coverage throughout your home or office." },
     { icon: "Headphones", title: "24/7 Support", description: "Round-the-clock customer support via phone and WhatsApp. We're always here when you need us." },
     { icon: "Zap", title: "Free Installation", description: "Professional free installation by our expert technicians. Limited period offer." },
-    { icon: "Shield", title: "99.99% Uptime", description: "Enterprise-grade reliability with 99.99% network uptime guarantee." },
+    { icon: "Shield", title: "Reliable Connection", description: "Enterprise-grade reliability with redundant fiber backbone for consistent connectivity." },
     { icon: "BadgePercent", title: "Affordable Plans", description: "Premium internet at the most competitive prices. Plans starting from just ₹400/month." },
     { icon: "Globe", title: "Local Service", description: "Proudly serving Jalgaon with personalized local support." },
   ],
   whyChooseUs: [
     { title: "Free Installation", description: "Limited period offer — get connected absolutely free. No installation or setup charges." },
     { title: "Free Dual Band Router", description: "12-month plans include a complimentary Dual Band WiFi router for seamless connectivity." },
-    { title: "99.99% Uptime", description: "Reliable fiber optic network with 99.99% uptime guarantee for uninterrupted internet." },
-    { title: "Truly Unlimited Data", description: "No FUP limits, no hidden caps. Stream, download, and browse as much as you want." },
+    { title: "Enterprise Reliability", description: "Reliable fiber optic network with redundant backbone for uninterrupted internet." },
+    { title: "No FUP Limits", description: "No hidden caps. Stream, download, and browse as much as you want." },
     { title: "Affordable Pricing", description: "Competitive plans starting at just ₹400/month. Save more with our longer duration plans." },
     { title: "24/7 Local Support", description: "Expert support team based in Jalgaon, available anytime via phone or WhatsApp." },
     { title: "Fiber Backbone", description: "Modern fiber optic infrastructure delivering consistent high-speed connectivity." },

@@ -63,7 +63,7 @@ export default function Features() {
             </span>
           </h2>
           <p className="mt-4 text-lg text-dark-400 max-w-2xl mx-auto">
-            Eight reasons why thousands trust us for their internet connectivity
+            Eight reasons to choose fiber internet from {SITE_CONFIG.company.name}
           </p>
         </motion.div>
 
@@ -111,9 +111,9 @@ export default function Features() {
           <div className="absolute inset-0 border border-accent-400/10 rounded-2xl" />
           <div className="relative grid sm:grid-cols-3 gap-6 sm:gap-8">
             {[
-              { value: '1,200+', label: 'Happy Customers', desc: 'Across Jalgaon' },
-              { value: '99.99%', label: 'Network Uptime', desc: 'Enterprise reliability' },
+              { value: '99.9%', label: 'Uptime', desc: 'Enterprise reliability' },
               { value: '24/7', label: 'Local Support', desc: 'Based in Jalgaon' },
+              { value: 'Fiber', label: 'Infrastructure', desc: 'Modern backbone' },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
                 <p className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-accent-300 to-primary-400 bg-clip-text text-transparent">
