@@ -93,7 +93,6 @@ The business model is a **local ISP** that deploys, manages, and monetizes fiber
 | **Installation Fees** | One-time installation (currently free promo) | ❌ |
 | **Hardware Sales** | Routers, ONTs, switches (upsell) | ❌ |
 | **Priority Support Tier** | Premium support packages | ✅ |
-| **Priority Support Tier** | Premium support packages | ✅ |
 | **Late Payment Fees** | Penalty for overdue invoices | ❌ |
 | **Plan Upgrades** | Mid-cycle speed upgrades | ✅ |
 
@@ -789,6 +788,58 @@ CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
 ```
 
+
+### 2.13 Lead Management
+
+Sales agents track potential customers through a pipeline:
+
+**Database:**
+```sql
+CREATE TABLE leads (
+    id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL REFERENCES branches(id),
+    assigned_to BIGINT REFERENCES users(id),
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(255),
+    source VARCHAR(50) NOT NULL
+        CHECK (source IN ('landing_page', 'whatsapp', 'referral', 'walk_in',
+                          'cold_call', 'social_media', 'field_visit')),
+    status VARCHAR(30) DEFAULT 'new'
+        CHECK (status IN ('new', 'contacted', 'interested', 'surveyed',
+                          'quoted', 'converted', 'lost')),
+    interested_plan_id BIGINT REFERENCES plans(id),
+    estimated_install_date DATE,
+    address TEXT,
+    latitude DECIMAL(10, 7),
+    longitude DECIMAL(10, 7),
+    lost_reason TEXT,
+    notes TEXT,
+    converted_customer_id BIGINT REFERENCES customers(id),
+    converted_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE lead_activities (
+    id BIGSERIAL PRIMARY KEY,
+    lead_id BIGINT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    activity_type VARCHAR(30) NOT NULL
+        CHECK (activity_type IN ('call', 'whatsapp', 'visit', 'email', 'note', 'status_change')),
+    description TEXT NOT NULL,
+    performed_by BIGINT NOT NULL REFERENCES users(id),
+    scheduled_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Lead Pipeline Stages:**
+```
+new → contacted → interested → surveyed → quoted → converted
+                                          ↘ lost
+```
+
 ---
 
 ## 3. Customer Management Module
@@ -887,6 +938,9 @@ prospect → registered → kyc_pending → kyc_verified → installation_schedu
 The platform maintains a database of service coverage areas to validate whether a customer address is within the ISP's service footprint before scheduling installation.
 
 ```sql
+-- Requires PostGIS extension for spatial queries
+-- CREATE EXTENSION IF NOT EXISTS postgis;
+
 CREATE TABLE coverage_areas (
     id BIGSERIAL PRIMARY KEY,
     branch_id BIGINT NOT NULL REFERENCES branches(id),
@@ -1041,8 +1095,8 @@ CREATE TABLE subscriptions (
     end_date DATE,
     next_billing_date DATE,
     auto_renew BOOLEAN DEFAULT TRUE,
-    pppoe_username VARCHAR(100) UNIQUE,
-    pppoe_password VARCHAR(255),
+    -- pppoe_username managed via pppoe_sessions table
+    pppoe_session_id BIGINT REFERENCES pppoe_sessions(id),
     mac_address MACADDR,
     ip_address INET,
     vlan_id INTEGER,
@@ -1164,6 +1218,54 @@ customer.installation.scheduled:
     scheduled_date: date
     scheduled_time_slot: string
 ```
+
+
+### 3.7 Referral Program
+
+Customers earn rewards for referring new subscribers:
+
+**Database:**
+```sql
+CREATE TABLE referral_programs (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    referrer_reward_type VARCHAR(20) NOT NULL CHECK (referrer_reward_type IN ('credit', 'free_days', 'plan_upgrade')),
+    referrer_reward_value DECIMAL(10,2) NOT NULL,
+    referee_reward_type VARCHAR(20) NOT NULL CHECK (referee_reward_type IN ('credit', 'free_days', 'discount')),
+    referee_reward_value DECIMAL(10,2) NOT NULL,
+    max_referrals_per_customer INTEGER,
+    valid_from DATE NOT NULL,
+    valid_until DATE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE referral_tracking (
+    id BIGSERIAL PRIMARY KEY,
+    program_id BIGINT NOT NULL REFERENCES referral_programs(id),
+    referrer_id BIGINT NOT NULL REFERENCES customers(id),
+    referee_id BIGINT REFERENCES customers(id),
+    referral_code VARCHAR(20) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending'
+        CHECK (status IN ('pending', 'registered', 'activated', 'rewarded')),
+    referrer_reward_amount DECIMAL(10,2),
+    referee_reward_amount DECIMAL(10,2),
+    referrer_reward_applied BOOLEAN DEFAULT FALSE,
+    referee_reward_applied BOOLEAN DEFAULT FALSE,
+    registered_at TIMESTAMPTZ,
+    activated_at TIMESTAMPTZ,
+    rewarded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Flow:**
+1. Referrer shares unique referral code
+2. New customer registers with code → `status: 'registered'`
+3. New customer activates service → `status: 'activated'`
+4. System credits referrer wallet + applies referee discount
+5. `status: 'rewarded'`
+6. Journal entry: Dr. Marketing Expense, Cr. Prepaid Expenses
 
 ---
 
@@ -2132,6 +2234,60 @@ The NOC dashboard shows a real-time view of device discovery:
 | Device impersonation | Validate sysObjectID against known signatures |
 | ARP spoofing | Enable DHCP snooping + dynamic ARP inspection |
 
+
+### 6.7 Hardware Inventory Management
+
+Tracks all physical equipment from procurement to disposal:
+
+**Database:**
+```sql
+CREATE TABLE inventory_items (
+    id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL REFERENCES branches(id),
+    item_type VARCHAR(50) NOT NULL,
+    device_model_id BIGINT REFERENCES device_models(id),
+    serial_number VARCHAR(255) UNIQUE,
+    barcode VARCHAR(100) UNIQUE,
+    purchase_date DATE,
+    purchase_price DECIMAL(10,2),
+    warranty_expiry DATE,
+    supplier VARCHAR(255),
+    status VARCHAR(30) DEFAULT 'in_stock'
+        CHECK (status IN ('in_stock', 'assigned', 'installed', 'returned',
+                          'damaged', 'scrapped', 'in_transit')),
+    assigned_to BIGINT REFERENCES users(id),
+    assigned_to_branch_id BIGINT REFERENCES branches(id),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE inventory_movements (
+    id BIGSERIAL PRIMARY KEY,
+    item_id BIGINT NOT NULL REFERENCES inventory_items(id),
+    movement_type VARCHAR(30) NOT NULL
+        CHECK (movement_type IN ('received', 'assigned', 'installed',
+                                 'returned', 'transferred', 'scrapped')),
+    from_branch_id BIGINT REFERENCES branches(id),
+    to_branch_id BIGINT REFERENCES branches(id),
+    reference_type VARCHAR(50),
+    reference_id BIGINT,
+    performed_by BIGINT NOT NULL REFERENCES users(id),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Permissions:**
+```
+inventory.view
+inventory.receive
+inventory.assign
+inventory.transfer
+inventory.scrapp
+inventory.report
+```
+
 ---
 
 ## 7. Network Management Module
@@ -2439,6 +2595,39 @@ CREATE INDEX idx_customer_sessions_customer ON customer_sessions(customer_id);
 CREATE INDEX idx_customer_sessions_online ON customer_sessions(is_online);
 ```
 
+CREATE TABLE vlans_history (
+    id BIGSERIAL PRIMARY KEY,
+    vlan_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB,
+    new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
+);
+
+CREATE TABLE ip_pools_history (
+    id BIGSERIAL PRIMARY KEY,
+    pool_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB,
+    new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
+);
+
+CREATE TABLE pppoe_sessions_history (
+    id BIGSERIAL PRIMARY KEY,
+    session_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB,
+    new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
+);
+
 ### 7.10 Events
 
 ```yaml
@@ -2619,6 +2808,17 @@ CREATE TABLE ticket_status_history (
     changed_by BIGINT NOT NULL REFERENCES users(id),
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE tickets_history (
+    id BIGSERIAL PRIMARY KEY,
+    ticket_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB,
+    new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
 );
 
 -- Indexes
@@ -2997,6 +3197,105 @@ subscription.reactivated:
     subscription_id: uuid
 ```
 
+
+### 8.8 Pro-Rata Billing
+
+When a customer upgrades or downgrades mid-cycle, the system calculates pro-rata charges:
+
+**Upgrade (e.g., Standard → Premium on day 15 of 30-day cycle):**
+```
+Remaining days = 30 - 15 = 15
+Old plan daily rate = ₹600 / 30 = ₹20/day
+New plan daily rate = ₹800 / 30 = ₹26.67/day
+Credit for remaining old plan = 15 × ₹20 = ₹300
+Charge for remaining new plan = 15 × ₹26.67 = ₹400
+Pro-rata adjustment = ₹400 - ₹300 = ₹100 (additional charge)
+```
+
+**Downgrade (e.g., Premium → Standard on day 15):**
+```
+Credit for remaining old plan = 15 × ₹26.67 = ₹400
+Charge for remaining new plan = 15 × ₹20 = ₹300
+Pro-rata adjustment = ₹300 - ₹400 = -₹100 (credit to next invoice)
+```
+
+**Database:**
+```sql
+CREATE TABLE prorata_adjustments (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL REFERENCES customers(id),
+    subscription_id BIGINT NOT NULL REFERENCES subscriptions(id),
+    invoice_id BIGINT REFERENCES invoices(id),
+    old_plan_id BIGINT NOT NULL REFERENCES plans(id),
+    new_plan_id BIGINT NOT NULL REFERENCES plans(id),
+    change_date DATE NOT NULL,
+    cycle_start DATE NOT NULL,
+    cycle_end DATE NOT NULL,
+    old_daily_rate DECIMAL(10,2) NOT NULL,
+    new_daily_rate DECIMAL(10,2) NOT NULL,
+    remaining_days INTEGER NOT NULL,
+    credit_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    charge_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    net_adjustment DECIMAL(10,2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending'
+        CHECK (status IN ('pending', 'applied', 'refunded')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Rules:**
+- Pro-rata applies only to monthly billing cycles (not 3/6/12-month prepaid)
+- Upgrades take effect immediately; pro-rata charged on next invoice
+- Downgrades take effect at cycle end; credit applied to next invoice
+- Minimum charge: ₹1 (no negative invoices)
+- Pro-rata adjustments generate journal entries automatically
+
+
+### 8.9 Late Fee Engine
+
+Automatic penalty charges for overdue invoices:
+
+**Configuration:**
+```sql
+CREATE TABLE late_fee_rules (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    grace_period_days INTEGER NOT NULL DEFAULT 3,
+    fee_type VARCHAR(20) NOT NULL CHECK (fee_type IN ('percentage', 'fixed')),
+    fee_value DECIMAL(10,2) NOT NULL,
+    max_fee DECIMAL(10,2),
+    compounding BOOLEAN DEFAULT FALSE,
+    applies_to_plan_ids BIGINT[],
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE late_fee_applications (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(id),
+    customer_id BIGINT NOT NULL REFERENCES customers(id),
+    rule_id BIGINT NOT NULL REFERENCES late_fee_rules(id),
+    amount DECIMAL(10,2) NOT NULL,
+    days_overdue INTEGER NOT NULL,
+    applied_at TIMESTAMPTZ DEFAULT NOW(),
+    invoice_line_item_id BIGINT REFERENCES invoice_line_items(id)
+);
+```
+
+**Example rules:**
+| Rule | Grace Period | Fee | Max Fee | Compounding |
+|------|-------------|-----|---------|-------------|
+| Standard Late Fee | 3 days | 2% of invoice | ₹200 | No |
+| Business Premium | 5 days | 1% of invoice | ₹500 | No |
+
+**Flow:**
+1. Dunning engine runs daily (cron job at 00:00 IST)
+2. Finds invoices overdue beyond grace period
+3. Applies late fee → creates invoice line item
+4. Generates journal entry: Dr. Accounts Receivable, Cr. Late Payment Fees
+5. Sends notification to customer
+6. Total late fees capped at `max_fee` per invoice
+
 ---
 
 ## 8A. General Ledger & Double-Entry Accounting
@@ -3173,6 +3472,12 @@ Every billing event automatically generates journal entries:
 | `refund.approved` | Dr. Refund Expense, Cr. Bank Account |
 | `payment.failed` | No entry (retry flow) |
 | `subscription.upgraded` | Dr. Accounts Receivable (new), Cr. Subscription Revenue (new); Dr. Subscription Revenue (old), Cr. Accounts Receivable (old) |
+| `late_fee.applied` | Dr. Accounts Receivable, Cr. Late Payment Fees |
+| `pro_rata.upgrade` | Dr. Accounts Receivable, Cr. Subscription Revenue (pro-rata amount) |
+| `pro_rata.downgrade` | Dr. Subscription Revenue (pro-rata credit), Cr. Accounts Receivable |
+| `wallet.credited` | Dr. Bank Account, Cr. Prepaid Expenses |
+| `wallet.applied` | Dr. Prepaid Expenses, Cr. Accounts Receivable |
+| `referral.rewarded` | Dr. Marketing Expense, Cr. Prepaid Expenses |
 
 ### 8A.7 Permissions
 
@@ -3189,6 +3494,147 @@ accounting.trial_balance.view
 accounting.trial_balance.generate
 accounting.reports.view
 accounting.reports.export
+```
+
+
+### 8A.8 GST Filing Data Generation
+
+The system generates GST-compliant reports for monthly filing:
+
+**GSTR-1 Data (Outward Supplies):**
+```sql
+CREATE TABLE gst_returns (
+    id BIGSERIAL PRIMARY KEY,
+    return_type VARCHAR(10) NOT NULL CHECK (return_type IN ('GSTR1', 'GSTR3B', 'GSTR9')),
+    filing_period VARCHAR(7) NOT NULL,  -- YYYY-MM
+    branch_id BIGINT REFERENCES branches(id),
+    gstin VARCHAR(15) NOT NULL,
+    total_taxable_value DECIMAL(15,2) DEFAULT 0,
+    total_igst DECIMAL(15,2) DEFAULT 0,
+    total_cgst DECIMAL(15,2) DEFAULT 0,
+    total_sgst DECIMAL(15,2) DEFAULT 0,
+    total_cess DECIMAL(15,2) DEFAULT 0,
+    invoice_count INTEGER DEFAULT 0,
+    hsn_summary JSONB,
+    status VARCHAR(20) DEFAULT 'draft'
+        CHECK (status IN ('draft', 'generated', 'filed')),
+    filed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Auto-generated reports:**
+| Report | Frequency | Contents |
+|--------|-----------|----------|
+| GSTR-1 | Monthly | B2B invoices, HSN summary, document-wise tax |
+| GSTR-3B | Monthly | Summary of outward/inward supplies, tax liability |
+| HSN-wise Summary | Monthly | Service accounting code (998421), qty, value, tax |
+| Cash/Payment Register | Monthly | All payments received with tax breakup |
+| Input Tax Credit Register | Monthly | GST paid on purchases/expenses |
+
+
+### 8A.9 Financial Statements
+
+Automated generation of standard financial statements:
+
+**Profit & Loss Statement:**
+```sql
+CREATE TABLE financial_statements (
+    id BIGSERIAL PRIMARY KEY,
+    statement_type VARCHAR(30) NOT NULL
+        CHECK (statement_type IN ('profit_loss', 'balance_sheet', 'cash_flow')),
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    branch_id BIGINT REFERENCES branches(id),  -- NULL = consolidated
+    generated_data JSONB NOT NULL,
+    generated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(statement_type, period_start, period_end, branch_id)
+);
+```
+
+**Statement Types:**
+
+1. **Profit & Loss (Monthly/Quarterly/Annual):**
+```
+Revenue:
+  Subscription Revenue          ₹X,XXX,XXX
+  Installation Revenue          ₹XX,XXX
+  Hardware Revenue              ₹XX,XXX
+  Late Payment Fees             ₹X,XXX
+  ─────────────────────────────────────
+  Total Revenue                 ₹X,XXX,XXX
+
+Expenses:
+  Bandwidth Cost                ₹XX,XXX
+  Equipment Cost                ₹XX,XXX
+  Salary Expense                ₹X,XXX,XXX
+  Rent Expense                  ₹XX,XXX
+  Electricity Expense           ₹XX,XXX
+  Maintenance Expense           ₹XX,XXX
+  Marketing Expense             ₹XX,XXX
+  Refund Expense                ₹X,XXX
+  ─────────────────────────────────────
+  Total Expenses                ₹X,XXX,XXX
+
+Net Profit/Loss                 ₹X,XXX,XXX
+```
+
+2. **Balance Sheet (Point-in-Time):**
+```
+Assets:
+  Cash                          ₹X,XXX,XXX
+  Bank Account                  ₹XX,XXX,XXX
+  Accounts Receivable           ₹X,XXX,XXX
+  GST Input Credit              ₹XX,XXX
+  Prepaid Expenses              ₹XX,XXX
+  ─────────────────────────────
+  Total Assets                  ₹XX,XXX,XXX
+
+Liabilities:
+  Accounts Payable              ₹XX,XXX
+  GST Output Tax                ₹X,XXX,XXX
+  TDS Payable                   ₹XX,XXX
+  ─────────────────────────────
+  Total Liabilities             ₹X,XXX,XXX
+
+Equity:
+  Owner's Equity                ₹XX,XXX,XXX
+  Retained Earnings             ₹XX,XXX,XXX
+  ─────────────────────────────
+  Total Equity                  ₹XX,XXX,XXX
+```
+
+3. **Cash Flow Statement (Monthly):**
+```
+Operating Activities:
+  Cash from customers           ₹X,XXX,XXX
+  Cash paid to vendors          (₹XX,XXX)
+  Cash paid to employees        (₹X,XXX,XXX)
+  ─────────────────────────────
+  Net Operating Cash Flow       ₹X,XXX,XXX
+
+Investing Activities:
+  Equipment purchases           (₹XX,XXX)
+  ─────────────────────────────
+  Net Investing Cash Flow       (₹XX,XXX)
+
+Financing Activities:
+  Owner investment              ₹XX,XXX
+  ─────────────────────────────
+  Net Financing Cash Flow       ₹XX,XXX
+
+Net Change in Cash              ₹X,XXX,XXX
+```
+
+**Permissions:**
+```
+financial.statement.profit_loss.view
+financial.statement.profit_loss.generate
+financial.statement.balance_sheet.view
+financial.statement.balance_sheet.generate
+financial.statement.cash_flow.view
+financial.statement.cash_flow.generate
+financial.statement.export
 ```
 
 ---
@@ -3359,6 +3805,32 @@ gateway.webhook.view
 gateway.reconciliation.view
 gateway.reconciliation.process
 ```
+
+
+### 8B.8 Idempotency
+
+All payment operations use idempotency keys to prevent double-processing:
+
+```sql
+CREATE TABLE idempotency_keys (
+    id BIGSERIAL PRIMARY KEY,
+    idempotency_key VARCHAR(255) NOT NULL UNIQUE,
+    user_id BIGINT REFERENCES users(id),
+    endpoint VARCHAR(255) NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
+    response_status INTEGER,
+    response_body JSONB,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Rules:**
+- Client generates idempotency key (UUID v4) for every POST request
+- Key is valid for 24 hours
+- If duplicate key received → return cached response (no reprocessing)
+- Webhook handlers use `gateway_transaction_id` as natural idempotency key
+- Journal entries use `reference_type + reference_id` as natural idempotency key
 
 ---
 
@@ -4069,6 +4541,62 @@ pub enum AppError {
 ```
 
 ---
+
+
+### 11.6 CQRS Pattern (Where Beneficial)
+
+For high-read, low-write paths, the backend uses Command Query Responsibility Segregation:
+
+**Write Side (Commands):**
+- Handles all state mutations (create, update, delete)
+- Writes to PostgreSQL primary tables
+- Publishes events to NATS after successful write
+- Validates business rules and permissions
+
+**Read Side (Queries):**
+- Optimized for fast reads (dashboards, reports, lists)
+- Uses Redis cache with materialized views
+- Event subscribers update read models asynchronously
+- No business logic — pure data access
+
+**Applicable Modules:**
+
+| Module | Write Model | Read Model | Update Strategy |
+|--------|------------|------------|-----------------|
+| Customer Dashboard | `customers` + `subscriptions` | Redis hash `customer:{id}:dashboard` | Event-driven (real-time) |
+| NOC Dashboard | `network_devices` + `customer_sessions` | Redis sorted set `noc:online` | Event-driven (real-time) |
+| Billing Reports | `invoices` + `payments` | PostgreSQL materialized views | Periodic refresh (5 min) |
+| Plan Listings | `plans` + `plan_pricing` | Redis hash `plans:active` | Event-driven (on plan change) |
+
+**Event Subscriber Pattern:**
+```rust
+// Each read model has a dedicated NATS subscriber
+struct CustomerDashboardSubscriber {
+    redis: RedisPool,
+}
+
+impl CustomerDashboardSubscriber {
+    async fn handle(&self, event: &DomainEvent) -> Result<()> {
+        match event {
+            DomainEvent::CustomerActivated(e) => {
+                // Update read model
+                self.redis.hset(
+                    format!("customer:{}:dashboard", e.customer_id),
+                    "status", "active"
+                ).await?;
+            }
+            DomainEvent::InvoicePaid(e) => {
+                self.redis.hset(
+                    format!("customer:{}:dashboard", e.customer_id),
+                    "last_payment", &e.amount.to_string()
+                ).await?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+```
 
 ## 12. Event Sourcing Design
 
