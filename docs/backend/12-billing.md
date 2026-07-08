@@ -1,0 +1,294 @@
+# AeroXe Backend — Billing Module
+
+> **Req Ref:** §8 Billing System, §8.8 Pro-Rata Billing, §8.9 Late Fee Engine
+
+---
+
+## 1. Overview
+
+Manages the complete billing lifecycle: invoice generation, payment processing, refunds, discounts, dunning (overdue payment handling), and late fees. Invoices are generated automatically on subscription renewal and can be created manually.
+
+## 2. Database Tables
+
+```sql
+CREATE TABLE invoices (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_number VARCHAR(20) NOT NULL UNIQUE,
+    customer_id BIGINT NOT NULL REFERENCES customers(id),
+    branch_id BIGINT NOT NULL REFERENCES branches(id),
+    subscription_id BIGINT NOT NULL REFERENCES subscriptions(id),
+    billing_period_start DATE NOT NULL,
+    billing_period_end DATE NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    discount_amount DECIMAL(10,2) DEFAULT 0,
+    tax_amount DECIMAL(10,2) DEFAULT 0,
+    total_amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'INR',
+    status VARCHAR(20) DEFAULT 'draft'
+        CHECK (status IN ('draft', 'pending', 'sent', 'paid', 'partial', 'overdue', 'void', 'refunded')),
+    due_date DATE NOT NULL,
+    paid_at TIMESTAMPTZ,
+    payment_method VARCHAR(50),
+    payment_reference VARCHAR(255),
+    created_by BIGINT REFERENCES users(id),
+    reviewed_by BIGINT REFERENCES users(id),
+    reviewed_at TIMESTAMPTZ,
+    review_status VARCHAR(20) DEFAULT 'pending'
+        CHECK (review_status IN ('pending', 'approved', 'rejected')),
+    review_notes TEXT,
+    approved_by BIGINT REFERENCES users(id),
+    approved_at TIMESTAMPTZ,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE invoice_line_items (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    quantity DECIMAL(10,2) DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    tax_rate DECIMAL(5,2) DEFAULT 0,
+    tax_amount DECIMAL(10,2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE payments (
+    id BIGSERIAL PRIMARY KEY,
+    payment_number VARCHAR(20) NOT NULL UNIQUE,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(id),
+    customer_id BIGINT NOT NULL REFERENCES customers(id),
+    branch_id BIGINT NOT NULL REFERENCES branches(id),
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'INR',
+    payment_method VARCHAR(50) NOT NULL,
+    payment_gateway VARCHAR(50),
+    gateway_transaction_id VARCHAR(255),
+    gateway_response JSONB,
+    status VARCHAR(20) DEFAULT 'pending'
+        CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded')),
+    processed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE refunds (
+    id BIGSERIAL PRIMARY KEY,
+    refund_number VARCHAR(20) NOT NULL UNIQUE,
+    payment_id BIGINT NOT NULL REFERENCES payments(id),
+    invoice_id BIGINT NOT NULL REFERENCES invoices(id),
+    customer_id BIGINT NOT NULL REFERENCES customers(id),
+    amount DECIMAL(10,2) NOT NULL,
+    reason TEXT NOT NULL,
+    requested_by BIGINT REFERENCES users(id),
+    approved_by BIGINT REFERENCES users(id),
+    approved_at TIMESTAMPTZ,
+    review_notes TEXT,
+    status VARCHAR(20) DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'processed', 'rejected')),
+    processed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE discounts (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('percentage', 'fixed')),
+    value DECIMAL(10,2) NOT NULL,
+    applicable_plan_ids JSONB,
+    applicable_billing_periods INTEGER[],
+    max_uses INTEGER,
+    current_uses INTEGER DEFAULT 0,
+    valid_from DATE NOT NULL,
+    valid_until DATE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by BIGINT REFERENCES users(id),
+    reviewed_by BIGINT REFERENCES users(id),
+    reviewed_at TIMESTAMPTZ,
+    review_status VARCHAR(20) DEFAULT 'pending'
+        CHECK (review_status IN ('pending', 'approved', 'rejected')),
+    approved_by BIGINT REFERENCES users(id),
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE payment_reminders (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(id),
+    reminder_type VARCHAR(20) NOT NULL,
+    channel VARCHAR(20) NOT NULL,
+    sent_at TIMESTAMPTZ NOT NULL,
+    status VARCHAR(20) DEFAULT 'sent'
+        CHECK (status IN ('sent', 'delivered', 'failed')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- History tables
+CREATE TABLE invoices_history (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB, new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
+);
+
+CREATE TABLE refunds_history (
+    id BIGSERIAL PRIMARY KEY,
+    refund_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB, new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
+);
+
+CREATE TABLE discounts_history (
+    id BIGSERIAL PRIMARY KEY,
+    discount_id BIGINT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_data JSONB, new_data JSONB,
+    performed_by BIGINT REFERENCES users(id),
+    performed_at TIMESTAMPTZ DEFAULT NOW(),
+    reason TEXT
+);
+```
+
+## 3. API Endpoints
+
+| Method | Path | Required Role | Description |
+|--------|------|--------------|-------------|
+| GET | `/api/v1/billing/invoices` | billing_ops | List invoices |
+| POST | `/api/v1/billing/invoices` | billing_operator+ | Create invoice |
+| GET | `/api/v1/billing/invoices/:id` | billing_ops | Get invoice |
+| PUT | `/api/v1/billing/invoices/:id` | billing_operator+ | Update invoice |
+| POST | `/api/v1/billing/invoices/:id/send` | billing_operator+ | Send invoice to customer |
+| POST | `/api/v1/billing/invoices/:id/void` | finance_manager+ | Void invoice |
+| GET | `/api/v1/billing/invoices/:id/pdf` | billing_ops | Generate invoice PDF |
+| GET | `/api/v1/billing/payments` | billing_ops | List payments |
+| POST | `/api/v1/billing/payments` | billing_operator+ | Record payment |
+| GET | `/api/v1/billing/payments/:id` | billing_ops | Get payment details |
+| POST | `/api/v1/billing/refunds` | billing_operator+ | Request refund |
+| PUT | `/api/v1/billing/refunds/:id/approve` | finance_manager+ | Approve refund |
+| PUT | `/api/v1/billing/refunds/:id/reject` | finance_manager+ | Reject refund |
+| GET | `/api/v1/billing/discounts` | billing_ops | List discounts |
+| POST | `/api/v1/billing/discounts` | finance_manager+ | Create discount |
+| PUT | `/api/v1/billing/discounts/:id` | finance_manager+ | Update discount |
+| GET | `/api/v1/billing/dunning/config` | finance_manager+ | Get dunning config |
+| PUT | `/api/v1/billing/dunning/config` | finance_manager+ | Update dunning config |
+| GET | `/api/v1/billing/tax/config` | finance_manager+ | Get tax config |
+| PUT | `/api/v1/billing/tax/config` | finance_manager+ | Update tax config |
+
+## 4. Invoice Generation Flow
+
+```
+1. Trigger: subscription renewal OR manual creation
+2. Calculate line items:
+   - Plan price for billing period
+   - Pro-rata adjustment (if mid-cycle upgrade/downgrade)
+   - Late fees (if applicable)
+   - Service package add-ons
+3. Apply discount (if code provided)
+4. Calculate tax (CGST 9% + SGST 9% for Maharashtra)
+5. Generate invoice number: INV-{YYYY}-{MM}-{SEQUENCE}
+6. Persist invoice + line items
+7. Publish invoice.generated event
+8. Send invoice to customer via notification
+```
+
+## 5. Dunning Flow
+
+```
+Day 0:  Invoice due date → status: 'overdue'
+Day 3:  First reminder (SMS + Email)
+Day 7:  Second reminder (WhatsApp + Email)
+Day 10: Subscription suspended
+Day 30: Customer terminated + final invoice generated
+```
+
+**Dunning config:**
+```json
+{
+  "reminder_days": [3, 7],
+  "suspension_day": 10,
+  "termination_day": 30,
+  "late_fee_percent": 2.0,
+  "late_fee_cap_percent": 10.0,
+  "channels": ["sms", "email", "whatsapp"]
+}
+```
+
+## 6. Tax Configuration
+
+```json
+{
+  "cgst_rate": 9.0,
+  "sgst_rate": 9.0,
+  "igst_rate": 18.0,
+  "applicable_state": "Maharashtra",
+  "hsn_code": "998421",
+  "sac_code": "998421",
+  "tax_name": "GST on Internet Services"
+}
+```
+
+## 7. Invoice Number Generation
+
+Format: `INV-{YYYY}-{MM}-{SEQUENCE}`
+
+Example: `INV-2026-07-0001`
+
+Uses Redis atomic counter per month for uniqueness.
+
+## 8. Events Published
+
+```yaml
+invoice.generated:
+  payload: { invoice_id, invoice_number, customer_id, total_amount, due_date }
+invoice.sent:
+  payload: { invoice_id, customer_id, channel }
+invoice.paid:
+  payload: { invoice_id, payment_id, amount, payment_method }
+invoice.overdue:
+  payload: { invoice_id, days_overdue, total_amount }
+invoice.voided:
+  payload: { invoice_id, reason }
+payment.completed:
+  payload: { payment_id, invoice_id, amount }
+payment.failed:
+  payload: { payment_id, invoice_id, reason }
+refund.approved:
+  payload: { refund_id, invoice_id, amount }
+refund.processed:
+  payload: { refund_id, invoice_id, amount }
+subscription.suspended:
+  payload: { customer_id, subscription_id, reason: "payment_overdue" }
+```
+
+## 9. RBAC Permissions
+
+```
+billing.invoice.view
+billing.invoice.generate
+billing.invoice.send
+billing.invoice.void
+billing.invoice.refund
+billing.invoice.export
+billing.payment.view
+billing.payment.process
+billing.payment.refund
+billing.payment.reconcile
+billing.discount.view
+billing.discount.create
+billing.discount.update
+billing.discount.delete
+billing.discount.apply
+billing.tax.view
+billing.tax.configure
+billing.dunning.view
+billing.dunning.configure
+billing.dunning.execute
+```
