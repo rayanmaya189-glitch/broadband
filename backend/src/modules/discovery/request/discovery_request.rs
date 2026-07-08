@@ -2,16 +2,14 @@ use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateScanRequest {
     pub branch_id: i64,
     pub name: String,
     pub scan_type: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DiscoveryQuery {
     pub branch_id: Option<i64>,
     pub status: Option<String>,

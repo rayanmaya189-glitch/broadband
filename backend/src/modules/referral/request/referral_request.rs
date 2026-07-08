@@ -2,8 +2,7 @@ use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateReferralProgramRequest {
     pub name: String,
     pub referrer_reward_type: String,
@@ -14,6 +13,5 @@ pub struct CreateReferralProgramRequest {
     pub end_date: chrono::NaiveDate,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReferralQuery { pub page: Option<i64>, pub per_page: Option<i64> }

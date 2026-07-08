@@ -1,8 +1,10 @@
 use std::net::SocketAddr;
 
 use axum::Router;
+use aeraxe_backend::api::openapi::ApiDoc;
 use aeraxe_backend::app::AppState;
 use aeraxe_backend::common::config::config::Config;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[tokio::main]
 async fn main() {
@@ -66,6 +68,10 @@ async fn main() {
         .nest("/api/v1/realtime", aeraxe_backend::modules::realtime::router::realtime_router::realtime_routes())
         .nest("/ws", aeraxe_backend::modules::realtime::router::realtime_router::ws_routes())
         .nest("/api/v1/audit", aeraxe_backend::modules::audit::router::audit_router::audit_routes())
+        .merge(
+            SwaggerUi::new("/swagger-ui")
+                .url("/api-docs/openapi.json", ApiDoc::openapi()),
+        )
         .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
         .with_state(state);
 

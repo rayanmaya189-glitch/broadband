@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct InstallationResponse {
     pub id: i64,
     pub customer_id: i64,
@@ -24,8 +23,7 @@ pub struct InstallationResponse {
     pub technician_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InstallationListResponse {
     pub installations: Vec<InstallationResponse>,
     pub total: i64,
@@ -34,8 +32,7 @@ pub struct InstallationListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

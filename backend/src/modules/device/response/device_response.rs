@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct DeviceResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -21,8 +20,7 @@ pub struct DeviceResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DeviceListResponse {
     pub devices: Vec<DeviceResponse>,
     pub total: i64,
@@ -31,8 +29,7 @@ pub struct DeviceListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct DeviceModelResponse {
     pub id: i64,
     pub vendor: String,
@@ -43,8 +40,7 @@ pub struct DeviceModelResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

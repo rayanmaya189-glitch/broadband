@@ -4,8 +4,7 @@ use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreatePermissionRequest {
     #[validate(length(min = 3, max = 100, message = "Name must be 3-100 characters"))]
     pub name: String,
@@ -14,8 +13,7 @@ pub struct CreatePermissionRequest {
     pub module: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ListPermissionsQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,

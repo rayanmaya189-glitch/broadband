@@ -3,8 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, FromRow, ToSchema)]
 pub struct CustomerResponse {
     pub id: i64,
     pub customer_code: String,
@@ -23,8 +22,7 @@ pub struct CustomerResponse {
 
 pub type CustomerDetailResponse = CustomerResponse;
 
-#[derive(Debug, Serialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

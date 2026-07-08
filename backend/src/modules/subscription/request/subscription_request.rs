@@ -5,8 +5,7 @@ use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateSubscriptionRequest {
     pub customer_id: i64,
     pub plan_id: i64,
@@ -16,8 +15,7 @@ pub struct CreateSubscriptionRequest {
     pub auto_renew: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ListSubscriptionsQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,
@@ -26,8 +24,7 @@ pub struct ListSubscriptionsQuery {
     pub branch_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SubscriptionActionRequest {
     pub reason: Option<String>,
 }

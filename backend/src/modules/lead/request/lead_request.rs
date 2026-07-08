@@ -3,8 +3,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateLeadRequest {
     pub branch_id: i64,
     pub name: String,
@@ -19,8 +18,7 @@ pub struct CreateLeadRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateLeadRequest {
     pub name: Option<String>,
     pub phone: Option<String>,
@@ -34,22 +32,19 @@ pub struct UpdateLeadRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LeadStatusRequest {
     #[validate(length(min = 1, max = 30))]
     pub status: String,
     pub lost_reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct AssignLeadRequest {
     pub assigned_to: i64,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct AddActivityRequest {
     #[validate(length(min = 1, max = 30))]
     pub activity_type: String,
@@ -58,15 +53,13 @@ pub struct AddActivityRequest {
     pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ConvertLeadRequest {
     pub plan_id: Option<i64>,
     pub branch_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LeadQuery {
     pub status: Option<String>,
     pub source: Option<String>,

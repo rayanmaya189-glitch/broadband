@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct ScanResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -14,8 +13,7 @@ pub struct ScanResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct ResultResponse {
     pub id: i64,
     pub discovered_ip: String,
@@ -25,8 +23,7 @@ pub struct ResultResponse {
     pub discovered_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

@@ -4,8 +4,7 @@ use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateCustomerRequest {
     #[validate(length(min = 1, max = 255, message = "First name is required"))]
     pub first_name: String,
@@ -22,8 +21,7 @@ pub struct CreateCustomerRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateCustomerRequest {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
@@ -34,8 +32,7 @@ pub struct UpdateCustomerRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ListCustomersQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,
@@ -43,8 +40,7 @@ pub struct ListCustomersQuery {
     pub branch_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CustomerStatusTransition {
     pub status: String,
     pub reason: Option<String>,

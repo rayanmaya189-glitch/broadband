@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct AuditLogResponse {
     pub id: i64,
     pub user_id: Option<i64>,
@@ -15,8 +14,7 @@ pub struct AuditLogResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AuditListResponse {
     pub logs: Vec<AuditLogResponse>,
     pub total: i64,

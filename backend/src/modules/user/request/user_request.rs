@@ -5,8 +5,7 @@ use validator::Validate;
 use crate::common::utils::helpers::PaginationParams;
 
 /// Login request payload.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LoginRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
@@ -16,8 +15,7 @@ pub struct LoginRequest {
 }
 
 /// Registration request payload.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct RegisterRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
@@ -35,8 +33,7 @@ pub struct RegisterRequest {
 }
 
 /// Create user request payload.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateUserRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
@@ -56,8 +53,7 @@ pub struct CreateUserRequest {
 }
 
 /// Update user request payload.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateUserRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: Option<String>,
@@ -67,16 +63,14 @@ pub struct UpdateUserRequest {
 }
 
 /// Update user status request.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateUserStatusRequest {
     #[validate(length(min = 1, message = "Status is required"))]
     pub status: String,
 }
 
 /// Update own profile request.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateProfileRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: Option<String>,
@@ -85,16 +79,14 @@ pub struct UpdateProfileRequest {
 }
 
 /// Refresh token request.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct RefreshTokenRequest {
     #[validate(length(min = 1, message = "Refresh token is required"))]
     pub refresh_token: String,
 }
 
 /// Change password request.
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ChangePasswordRequest {
     #[validate(length(min = 1, message = "Current password is required"))]
     pub current_password: String,
@@ -104,15 +96,13 @@ pub struct ChangePasswordRequest {
 }
 
 /// Logout request.
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LogoutRequest {
     pub refresh_token: Option<String>,
 }
 
 /// Query parameters for listing users.
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ListUsersQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,

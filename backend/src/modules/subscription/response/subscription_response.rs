@@ -3,8 +3,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, FromRow, ToSchema)]
 pub struct SubscriptionResponse {
     pub id: i64,
     pub customer_id: i64,
@@ -22,6 +21,5 @@ pub struct SubscriptionResponse {
 
 pub type SubscriptionDetailResponse = SubscriptionResponse;
 
-#[derive(Debug, Serialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse { pub message: String }

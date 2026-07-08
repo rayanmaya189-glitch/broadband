@@ -2,8 +2,7 @@ use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateBandwidthProfileRequest {
     pub name: String,
     pub description: Option<String>,
@@ -16,8 +15,7 @@ pub struct CreateBandwidthProfileRequest {
     pub priority: Option<i32>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateBandwidthProfileRequest {
     pub name: Option<String>,
     pub description: Option<String>,

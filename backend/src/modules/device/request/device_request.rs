@@ -2,8 +2,7 @@ use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateDeviceRequest {
     pub branch_id: i64,
     pub name: String,
@@ -16,8 +15,7 @@ pub struct CreateDeviceRequest {
     pub location_area: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateDeviceRequest {
     pub name: Option<String>,
     pub firmware_version: Option<String>,
@@ -26,8 +24,7 @@ pub struct UpdateDeviceRequest {
     pub location_area: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateDeviceModelRequest {
     pub vendor: String,
     pub model: String,
@@ -36,8 +33,7 @@ pub struct CreateDeviceModelRequest {
     pub default_port: Option<i32>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DeviceQuery {
     pub branch_id: Option<i64>,
     pub status: Option<String>,

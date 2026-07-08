@@ -3,8 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, FromRow, ToSchema)]
 pub struct PermissionResponse {
     pub id: i64,
     pub name: String,
@@ -13,8 +12,7 @@ pub struct PermissionResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

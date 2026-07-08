@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct TicketResponse {
     pub id: i64,
     pub ticket_number: String,
@@ -42,8 +41,7 @@ pub struct TicketResponse {
     pub customer_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TicketListResponse {
     pub tickets: Vec<TicketResponse>,
     pub total: i64,
@@ -52,8 +50,7 @@ pub struct TicketListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TicketCommentResponse {
     pub id: i64,
     pub ticket_id: i64,
@@ -67,8 +64,7 @@ pub struct TicketCommentResponse {
     pub user_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TicketDashboardResponse {
     pub total_open: i64,
     pub total_in_progress: i64,
@@ -78,22 +74,19 @@ pub struct TicketDashboardResponse {
     pub by_category: Vec<CategoryCount>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PriorityCount {
     pub priority: String,
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CategoryCount {
     pub category: String,
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

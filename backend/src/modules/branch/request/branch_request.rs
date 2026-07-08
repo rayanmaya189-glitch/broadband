@@ -4,8 +4,7 @@ use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateBranchRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: String,
@@ -20,8 +19,7 @@ pub struct CreateBranchRequest {
     pub timezone: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdateBranchRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: Option<String>,
@@ -34,8 +32,7 @@ pub struct UpdateBranchRequest {
     pub timezone: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ListBranchesQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,

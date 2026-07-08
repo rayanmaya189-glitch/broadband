@@ -2,8 +2,7 @@ use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateVlanRequest {
     pub branch_id: i64,
     pub vlan_id: i32,
@@ -12,8 +11,7 @@ pub struct CreateVlanRequest {
     pub vlan_type: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateIpPoolRequest {
     pub branch_id: i64,
     pub name: String,
@@ -26,8 +24,7 @@ pub struct CreateIpPoolRequest {
     pub total_count: i32,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreatePppoeSessionRequest {
     pub customer_id: i64,
     pub subscription_id: i64,
@@ -35,8 +32,7 @@ pub struct CreatePppoeSessionRequest {
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct NetworkQuery {
     pub branch_id: Option<i64>,
     pub page: Option<i64>,

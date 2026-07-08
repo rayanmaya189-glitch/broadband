@@ -2,8 +2,7 @@ use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateInventoryItemRequest {
     pub branch_id: i64,
     pub item_type: String,
@@ -15,8 +14,7 @@ pub struct CreateInventoryItemRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InventoryQuery {
     pub branch_id: Option<i64>,
     pub status: Option<String>,

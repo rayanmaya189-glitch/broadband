@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct InvoiceResponse {
     pub id: i64,
     pub invoice_number: String,
@@ -31,8 +30,7 @@ pub struct InvoiceResponse {
     pub branch_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct InvoiceLineItemResponse {
     pub id: i64,
     pub invoice_id: i64,
@@ -44,8 +42,7 @@ pub struct InvoiceLineItemResponse {
     pub tax_amount: Decimal,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InvoiceListResponse {
     pub invoices: Vec<InvoiceResponse>,
     pub total: i64,
@@ -54,8 +51,7 @@ pub struct InvoiceListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct PaymentResponse {
     pub id: i64,
     pub payment_number: String,
@@ -70,8 +66,7 @@ pub struct PaymentResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PaymentListResponse {
     pub payments: Vec<PaymentResponse>,
     pub total: i64,
@@ -80,8 +75,7 @@ pub struct PaymentListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct RefundResponse {
     pub id: i64,
     pub refund_number: String,
@@ -94,8 +88,7 @@ pub struct RefundResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct DiscountResponse {
     pub id: i64,
     pub name: String,
@@ -110,8 +103,7 @@ pub struct DiscountResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

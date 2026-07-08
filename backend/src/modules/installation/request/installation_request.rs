@@ -3,8 +3,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateInstallationRequest {
     pub customer_id: i64,
     pub branch_id: i64,
@@ -12,16 +11,14 @@ pub struct CreateInstallationRequest {
     pub installation_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ScheduleInstallationRequest {
     pub scheduled_date: NaiveDate,
     pub scheduled_time_slot: String,
     pub technician_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CompleteInstallationRequest {
     pub fiber_drop_length_meters: Option<i32>,
     pub onu_power_dbm: Option<f64>,
@@ -29,8 +26,7 @@ pub struct CompleteInstallationRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InstallationQuery {
     pub status: Option<String>,
     pub branch_id: Option<i64>,

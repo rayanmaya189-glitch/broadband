@@ -4,8 +4,7 @@ use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreatePlanRequest {
     #[validate(length(min = 2, max = 255, message = "Name must be 2-255 characters"))]
     pub name: String,
@@ -24,8 +23,7 @@ pub struct CreatePlanRequest {
     pub category: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpdatePlanRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -42,8 +40,7 @@ pub struct UpdatePlanRequest {
     pub category: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[derive(ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ListPlansQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,
