@@ -1,11 +1,27 @@
 //! Feature modules — each module encapsulates a bounded domain.
 
+pub mod accounting;
+pub mod bandwidth;
 pub mod branch;
+pub mod billing;
+pub mod coverage;
 pub mod customer;
+pub mod device;
+pub mod discovery;
+pub mod document;
+pub mod event;
+pub mod installation;
+pub mod inventory;
 pub mod lead;
+pub mod network;
+pub mod notification;
+pub mod payment_gateway;
 pub mod permission;
 pub mod plan;
+pub mod realtime;
+pub mod referral;
 pub mod role;
 pub mod subscription;
 pub mod ticket;
 pub mod user;
+pub mod audit;

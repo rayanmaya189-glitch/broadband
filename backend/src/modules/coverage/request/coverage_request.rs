@@ -1,0 +1,26 @@
+use serde::Deserialize;
+use validator::Validate;
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateCoverageAreaRequest {
+    pub branch_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub area_type: String,
+    pub pincodes: Option<Vec<String>>,
+    pub fiber_available: Option<bool>,
+    pub estimated_installation_days: Option<i32>,
+    pub max_customers: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CheckAvailabilityRequest {
+    pub pincode: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CoverageQuery {
+    pub branch_id: Option<i64>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
