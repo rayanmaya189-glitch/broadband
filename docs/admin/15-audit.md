@@ -86,3 +86,154 @@ Metadata:
 | View audit logs | `audit.log.view` |
 | Export audit logs | `audit.log.export` |
 | Search audit logs | `audit.log.search` |
+
+## 7. Entity History & Rollback (§8D)
+
+### Entity History Viewer (`/audit/entity-history`)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Entity History                          [Export]        │
+├──────────────────────────────────────────────────────────┤
+│  Entity: [Customer ▼]  ID: [________]  Action: [All ▼]  │
+│  Date: [Range ▼]  Branch: [All ▼]                       │
+├──────────────────────────────────────────────────────────┤
+│  Time          │ Action          │ User       │ Fields   │
+│  Jul 8, 10:30  │ updated         │ admin@aero │ name,    │
+│                │                 │            │ email    │
+│  Jul 5, 14:20  │ status_changed  │ system     │ active → │
+│                │                 │            │ suspended│
+│  Jul 1, 09:00  │ created         │ sales@aero │ —        │
+└──────────────────────────────────────────────────────────┘
+```
+
+### History Detail (click any row)
+
+```
+Entity History Entry #H-2026-00042
+─────────────────────────────────────────────────────────
+Timestamp: Jul 8, 2026 10:30:15 AM IST
+Entity: customer #cust_abc123 (Rahul Sharma)
+Action: updated
+User: admin@aeroxe.com (Super Admin)
+IP: 10.0.1.50
+Reason: Customer requested address change
+
+── Changed Fields ──────────────────────────────────────
+Field        │ Old Value                    │ New Value
+─────────────┼──────────────────────────────┼──────────
+address.city │ Jalgaon                      │ Pune
+address.zip  │ 425001                       │ 411001
+
+── Rollback ────────────────────────────────────────────
+[🔄 Rollback to Previous State]
+
+⚠️ Rolling back will restore the old values and create a
+new history entry with action = 'rollback'.
+─────────────────────────────────────────────────────────
+```
+
+### History Tables List
+
+| Entity | History Table | Retention | Compression |
+|--------|---------------|-----------|-------------|
+| Customers | `customers_history` | 7 years | After 1 year |
+| Subscriptions | `subscriptions_history` | 7 years | After 1 year |
+| Plans | `plans_history` | 7 years | After 1 year |
+| Invoices | `invoices_history` | 7 years | After 1 year |
+| Refunds | `refunds_history` | 7 years | After 1 year |
+| Journal Entries | `journal_entries_history` | 7 years | After 1 year |
+| Manual Payments | `manual_payments_history` | 7 years | After 1 year |
+| Network Devices | `network_devices_history` | 3 years | After 6 months |
+| Payment Gateways | `payment_gateways_history` | 3 years | After 6 months |
+| Discounts | `discounts_history` | 3 years | After 6 months |
+| Approval Requests | `approval_requests_history` | 3 years | After 6 months |
+| Bandwidth Profiles | `bandwidth_profiles_history` | 2 years | After 6 months |
+
+### History Table Schema
+
+```sql
+CREATE TABLE {entity}_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_id UUID NOT NULL,
+    action VARCHAR(50) NOT NULL, -- created, updated, deleted, status_changed, rollback
+    old_data JSONB,              -- snapshot before change
+    new_data JSONB,              -- snapshot after change
+    changed_fields TEXT[],       -- list of changed field names
+    user_id UUID REFERENCES users(id),
+    branch_id UUID REFERENCES branches(id),
+    ip_address INET,
+    user_agent TEXT,
+    reason TEXT,                 -- optional reason for change
+    rollback_reference UUID,     -- links to original change if rollback
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_{entity}_history_entity ON {entity}_history(entity_id);
+CREATE INDEX idx_{entity}_history_action ON {entity}_history(action);
+CREATE INDEX idx_{entity}_history_user ON {entity}_history(user_id);
+CREATE INDEX idx_{entity}_history_created ON {entity}_history(created_at);
+```
+
+### Rollback Workflow
+
+```
+1. Admin views entity history
+2. Selects a previous state to restore
+3. System validates rollback is safe (no downstream dependencies)
+4. System applies old_data back to primary table
+5. Creates new history entry:
+   - action = 'rollback'
+   - old_data = current state (before rollback)
+   - new_data = restored state
+   - rollback_reference = original change ID
+6. Publishes entity.{entity_type}.rollback event
+7. Notifies affected users
+```
+
+### Rollback Safety Checks
+
+| Check | Description |
+|-------|-------------|
+| Active subscriptions | Cannot rollback customer if active subscription exists |
+| Paid invoices | Cannot rollback invoice if payment already processed |
+| Deployed devices | Cannot rollback device if currently online |
+| Chain dependencies | Cannot rollback if dependent entities exist |
+| Approval workflows | Cannot rollback approved items without re-approval |
+
+### History API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/audit/entity-history` | GET | Search entity history |
+| `/api/v1/audit/entity-history/:id` | GET | Get history entry detail |
+| `/api/v1/audit/entity-history/:entity/:id` | GET | Get all history for entity |
+| `/api/v1/audit/entity-history/:id/rollback` | POST | Rollback to this state |
+| `/api/v1/audit/entity-history/compare` | GET | Compare old vs new state |
+| `/api/v1/audit/entity-history/export` | GET | Export entity history |
+
+### Entity History RBAC
+
+| Action | Required Permission |
+|--------|-------------------|
+| View entity history | `audit.entity_history.view` |
+| Rollback entity | `audit.entity_history.rollback` |
+| Export entity history | `audit.entity_history.export` |
+
+### Rollback Notification
+
+When a rollback occurs, affected users receive:
+
+```
+Subject: Entity Changed — Rollback Performed
+
+The {entity_type} ({entity_name}) has been rolled back.
+
+Changed by: {admin_name}
+Reason: {reason}
+Previous state: {old_values}
+Restored state: {new_values}
+
+If you did not expect this change, contact support immediately.
+```

@@ -158,3 +158,218 @@ Auto-generated on creation using Redis atomic counter.
 | Approve refund > ₹5K | `billing.invoice.refund` + approval |
 | Manage discounts | `billing.discount.create` |
 | Configure dunning | `billing.dunning.configure` |
+
+## 7. Manual Payments & Top-Up (§8C)
+
+### Manual Payments List (`/billing/manual-payments`)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Manual Payments                  [+ Record Payment] [Export] │
+├──────────────────────────────────────────────────────────┤
+│  Status: [All ▼] Method: [All ▼] Date: [Range ▼]       │
+├──────────────────────────────────────────────────────────┤
+│  ☐ │ Ref #      │ Customer    │ Amount │ Method    │ Status        │
+│  ☐ │ MP-0045    │ Rahul S.    │ ₹708   │ Cash      │ ● Approved   │
+│  ☐ │ MP-0044    │ Priya P.    │ ₹472   │ Bank Xfer │ ● Pending    │
+│  ☐ │ MP-0043    │ Amit D.     │ ₹1,180 │ Cheque    │ ● Rejected   │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Record Manual Payment (`/billing/manual-payments/create`)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Record Manual Payment                                   │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Customer: [Select Customer ▼]                           │
+│  Invoice:  [Select Invoice ▼]                            │
+│                                                          │
+│  Amount: ₹ [________]                                    │
+│  Method: ○ Cash  ○ Bank Transfer  ○ Cheque              │
+│                                                          │
+│  Reference #: [________]  (receipt/transaction #)        │
+│  Bank Name:    [________]  (if transfer/cheque)         │
+│  Notes:         [________________________]              │
+│                                                          │
+│  Proof: [📎 Upload Receipt/Screenshot]                   │
+│                                                          │
+│  ┌─────────────────────────────────────┐                │
+│  │        Submit for Approval →        │                │
+│  └─────────────────────────────────────┘                │
+│                                                          │
+│  ⚠️ This will be sent to a finance manager for approval. │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Manual Payment Detail (`/billing/manual-payments/:id`)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Manual Payment MP-0044                                  │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Customer: Priya Patil                                   │
+│  Invoice:  INV-2026-07-002 (₹472)                       │
+│  Amount:   ₹472                                         │
+│  Method:   Bank Transfer                                │
+│  Reference: TXN-20260708-4521                           │
+│  Bank:     State Bank of India                           │
+│                                                          │
+│  Proof: [📄 receipt.pdf] [🖼️ screenshot.jpg]              │
+│                                                          │
+│  Status: ● Pending Approval                              │
+│  Created by: billing@aeroxe.com (Jul 8, 10:30 AM)       │
+│                                                          │
+│  ── Approval History ────────────────────────────────── │
+│  Jul 8, 10:30 AM — Submitted by billing@aeroxe.com     │
+│  Jul 8, 11:00 AM — Pending review by finance_manager    │
+│                                                          │
+│  [✅ Approve] [❌ Reject] [💬 Add Comment]               │
+│                                                          │
+│  ⚠️ Approval will mark invoice as paid and generate     │
+│  accounting journal entry automatically.                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Maker/Checker Workflow
+
+```
+┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────┐
+│  Maker    │────▶│  Pending     │────▶│  Checker     │────▶│ Approved │
+│  (staff)  │     │  Approval    │     │  (finance)   │     │          │
+└──────────┘     └──────────────┘     └──────┬───────┘     └──────────┘
+                                              │
+                                              ▼
+                                        ┌──────────┐
+                                        │ Rejected │
+                                        └──────────┘
+```
+
+| Step | Actor | Action |
+|------|-------|--------|
+| 1 | Staff (maker) | Creates payment record, uploads proof |
+| 2 | System | Sets status to `pending_approval` |
+| 3 | Finance Manager (checker) | Reviews proof and details |
+| 4a | Finance Manager | Approves → status: `approved` |
+| 4b | Finance Manager | Rejects → status: `rejected` |
+| 5 | System | On approval: marks invoice paid, generates journal entry |
+| 6 | System | Notifies customer of payment confirmation |
+
+### Customer Top-Up & Wallet
+
+#### Wallet Overview (`/billing/wallets`)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Customer Wallets                                        │
+├──────────────────────────────────────────────────────────┤
+│  Search: [____] Balance: [Min ▼] [Max ▼]                 │
+├──────────────────────────────────────────────────────────┤
+│  Customer     │ Balance  │ Total Earned │ Total Used  │
+│  Rahul S.     │ ₹1,200   │ ₹1,600      │ ₹400        │
+│  Priya P.     │ ₹300     │ ₹500        │ ₹200        │
+│  Amit D.      │ ₹0       │ ₹200        │ ₹200        │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### Wallet Detail (`/billing/wallets/:id`)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Wallet — Rahul Sharma                                   │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Balance: ₹1,200  │  Earned: ₹1,600  │  Used: ₹400     │
+│                                                          │
+│  ── Transaction History ────────────────────────────── │
+│  Date        │ Type   │ Amount │ Reference     │ Note   │
+│  Jul 5       │ Credit │ +₹200  │ Referral      │ Amit D.│
+│  Jun 28      │ Debit  │ -₹200  │ INV-2026-06-12│ Auto   │
+│  Jun 15      │ Credit │ +₹200  │ Referral      │ Priya P│
+│  Jun 1       │ Credit │ +₹200  │ Referral      │ Vikram │
+│  May 20      │ Debit  │ -₹200  │ INV-2026-05-08│ Auto   │
+│                                                          │
+│  [💰 Manual Credit] [📉 Manual Debit] [Export]           │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### Manual Wallet Adjustment
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Wallet Adjustment — Rahul Sharma                        │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Current Balance: ₹1,200                                 │
+│                                                          │
+│  Adjustment Type: ○ Credit (+)  ○ Debit (-)             │
+│  Amount: ₹ [________]                                    │
+│  Reason: [________________________]                      │
+│                                                          │
+│  ⚠️ This will create a journal entry and notify the     │
+│  customer.                                               │
+│                                                          │
+│  ┌─────────────────────────────────────┐                │
+│  │      Apply Adjustment →             │                │
+│  └─────────────────────────────────────┘                │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Top-Up Flow (Customer-Initiated)
+
+```
+1. Customer requests top-up (min ₹100) via mobile app
+2. System generates payment link (Razorpay)
+3. Customer pays via UPI/Card/Net Banking
+4. Payment confirmed → credit customer wallet
+5. Generate journal entry:
+   Dr. Bank/Cash  ₹{amount}
+   Cr. Customer Wallet (Liability)  ₹{amount}
+6. Notify customer: "₹{amount} added to your wallet"
+```
+
+### Wallet Auto-Application
+
+```
+When invoice is generated:
+1. Check customer wallet balance
+2. If balance > 0:
+   a. Apply min(balance, invoice_amount) to invoice
+   b. Debit wallet
+   c. Add line item: "Wallet Credit: -₹{applied}"
+   d. Generate journal entry:
+      Dr. Customer Wallet (Liability)  ₹{applied}
+      Cr. Accounts Receivable  ₹{applied}
+3. Excess balance carries forward to next invoice
+```
+
+### Manual Payment API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/admin/manual-payments` | GET | List manual payments |
+| `/api/v1/admin/manual-payments` | POST | Create manual payment |
+| `/api/v1/admin/manual-payments/:id` | GET | Get payment detail |
+| `/api/v1/admin/manual-payments/:id/approve` | POST | Approve payment |
+| `/api/v1/admin/manual-payments/:id/reject` | POST | Reject payment |
+| `/api/v1/admin/wallets` | GET | List customer wallets |
+| `/api/v1/admin/wallets/:id` | GET | Get wallet detail |
+| `/api/v1/admin/wallets/:id/transactions` | GET | Wallet transactions |
+| `/api/v1/admin/wallets/:id/adjust` | POST | Manual wallet adjustment |
+| `/api/v1/customer/wallet` | GET | Get own wallet (customer) |
+| `/api/v1/customer/wallet/topup` | POST | Initiate top-up (customer) |
+
+### Manual Payment RBAC
+
+| Action | Required Permission |
+|--------|-------------------|
+| View manual payments | `manual_payment.view` |
+| Create manual payment | `manual_payment.create` |
+| Approve manual payment | `manual_payment.approve` |
+| Reject manual payment | `manual_payment.reject` |
+| View wallets | `wallet.view` |
+| Credit wallet | `wallet.credit` |
+| Debit wallet | `wallet.debit` |
+| Adjust wallet | `wallet.adjust` |
