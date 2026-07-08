@@ -1,9 +1,11 @@
+use utoipa::ToSchema;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateInvoiceRequest {
     pub customer_id: i64,
     pub branch_id: i64,
@@ -17,6 +19,7 @@ pub struct CreateInvoiceRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateLineItemRequest {
     pub description: String,
     pub quantity: Option<Decimal>,
@@ -25,6 +28,7 @@ pub struct CreateLineItemRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct InvoiceQuery {
     pub status: Option<String>,
     pub customer_id: Option<i64>,
@@ -34,6 +38,7 @@ pub struct InvoiceQuery {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct RecordPaymentRequest {
     pub invoice_id: i64,
     pub amount: Decimal,
@@ -43,6 +48,7 @@ pub struct RecordPaymentRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateRefundRequest {
     pub payment_id: i64,
     pub amount: Decimal,
@@ -51,6 +57,7 @@ pub struct CreateRefundRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateDiscountRequest {
     pub name: String,
     pub code: Option<String>,
@@ -63,6 +70,7 @@ pub struct CreateDiscountRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct PaymentQuery {
     pub status: Option<String>,
     pub customer_id: Option<i64>,
@@ -72,6 +80,7 @@ pub struct PaymentQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct RefundQuery {
     pub status: Option<String>,
     pub page: Option<i64>,

@@ -1,9 +1,11 @@
+use utoipa::ToSchema;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 
 /// User list item response.
 #[derive(Debug, Serialize, FromRow)]
+#[derive(ToSchema)]
 pub struct UserResponse {
     pub id: i64,
     pub email: String,
@@ -27,6 +29,7 @@ pub type UserDetailResponse = UserResponse;
 
 /// Auth user response (minimal user info for auth endpoints).
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct AuthUserResponse {
     pub id: i64,
     pub email: String,
@@ -40,6 +43,7 @@ pub struct AuthUserResponse {
 
 /// Login response with tokens.
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct LoginResponse {
     pub access_token: String,
     pub refresh_token: String,
@@ -50,6 +54,7 @@ pub struct LoginResponse {
 
 /// Registration response.
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct RegisterResponse {
     pub user: AuthUserResponse,
     pub access_token: String,
@@ -60,6 +65,7 @@ pub struct RegisterResponse {
 
 /// Token refresh response.
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct TokenRefreshResponse {
     pub access_token: String,
     pub refresh_token: String,
@@ -69,6 +75,7 @@ pub struct TokenRefreshResponse {
 
 /// Session info for listing active sessions.
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct SessionResponse {
     pub id: i64,
     pub device_info: Option<String>,
@@ -80,6 +87,7 @@ pub struct SessionResponse {
 
 /// Generic message response.
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

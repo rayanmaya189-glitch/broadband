@@ -1,9 +1,11 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct InvoiceResponse {
     pub id: i64,
     pub invoice_number: String,
@@ -30,6 +32,7 @@ pub struct InvoiceResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct InvoiceLineItemResponse {
     pub id: i64,
     pub invoice_id: i64,
@@ -42,6 +45,7 @@ pub struct InvoiceLineItemResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct InvoiceListResponse {
     pub invoices: Vec<InvoiceResponse>,
     pub total: i64,
@@ -51,6 +55,7 @@ pub struct InvoiceListResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct PaymentResponse {
     pub id: i64,
     pub payment_number: String,
@@ -66,6 +71,7 @@ pub struct PaymentResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct PaymentListResponse {
     pub payments: Vec<PaymentResponse>,
     pub total: i64,
@@ -75,6 +81,7 @@ pub struct PaymentListResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct RefundResponse {
     pub id: i64,
     pub refund_number: String,
@@ -88,6 +95,7 @@ pub struct RefundResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct DiscountResponse {
     pub id: i64,
     pub name: String,
@@ -103,6 +111,7 @@ pub struct DiscountResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

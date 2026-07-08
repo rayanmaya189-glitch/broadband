@@ -1,6 +1,8 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct AuditQuery {
     pub user_id: Option<i64>,
     pub action: Option<String>,

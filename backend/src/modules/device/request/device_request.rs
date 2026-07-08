@@ -1,7 +1,9 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateDeviceRequest {
     pub branch_id: i64,
     pub name: String,
@@ -15,6 +17,7 @@ pub struct CreateDeviceRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct UpdateDeviceRequest {
     pub name: Option<String>,
     pub firmware_version: Option<String>,
@@ -24,6 +27,7 @@ pub struct UpdateDeviceRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateDeviceModelRequest {
     pub vendor: String,
     pub model: String,
@@ -33,6 +37,7 @@ pub struct CreateDeviceModelRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct DeviceQuery {
     pub branch_id: Option<i64>,
     pub status: Option<String>,

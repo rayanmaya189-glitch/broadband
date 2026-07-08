@@ -1,8 +1,10 @@
+use utoipa::ToSchema;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, FromRow)]
+#[derive(ToSchema)]
 pub struct BranchResponse {
     pub id: i64,
     pub name: String,
@@ -22,6 +24,7 @@ pub struct BranchResponse {
 pub type BranchDetailResponse = BranchResponse;
 
 #[derive(Debug, Serialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

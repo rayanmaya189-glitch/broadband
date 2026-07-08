@@ -1,9 +1,11 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreatePermissionRequest {
     #[validate(length(min = 3, max = 100, message = "Name must be 3-100 characters"))]
     pub name: String,
@@ -13,6 +15,7 @@ pub struct CreatePermissionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct ListPermissionsQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,

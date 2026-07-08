@@ -1,7 +1,9 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateReferralProgramRequest {
     pub name: String,
     pub referrer_reward_type: String,
@@ -13,4 +15,5 @@ pub struct CreateReferralProgramRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct ReferralQuery { pub page: Option<i64>, pub per_page: Option<i64> }

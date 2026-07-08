@@ -1,8 +1,10 @@
+use utoipa::ToSchema;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateInstallationRequest {
     pub customer_id: i64,
     pub branch_id: i64,
@@ -11,6 +13,7 @@ pub struct CreateInstallationRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct ScheduleInstallationRequest {
     pub scheduled_date: NaiveDate,
     pub scheduled_time_slot: String,
@@ -18,6 +21,7 @@ pub struct ScheduleInstallationRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct CompleteInstallationRequest {
     pub fiber_drop_length_meters: Option<i32>,
     pub onu_power_dbm: Option<f64>,
@@ -26,6 +30,7 @@ pub struct CompleteInstallationRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct InstallationQuery {
     pub status: Option<String>,
     pub branch_id: Option<i64>,

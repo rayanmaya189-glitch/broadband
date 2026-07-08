@@ -1,7 +1,9 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateVlanRequest {
     pub branch_id: i64,
     pub vlan_id: i32,
@@ -11,6 +13,7 @@ pub struct CreateVlanRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateIpPoolRequest {
     pub branch_id: i64,
     pub name: String,
@@ -24,6 +27,7 @@ pub struct CreateIpPoolRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreatePppoeSessionRequest {
     pub customer_id: i64,
     pub subscription_id: i64,
@@ -32,6 +36,7 @@ pub struct CreatePppoeSessionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct NetworkQuery {
     pub branch_id: Option<i64>,
     pub page: Option<i64>,

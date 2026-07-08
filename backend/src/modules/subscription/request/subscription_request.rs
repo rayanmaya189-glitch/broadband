@@ -1,3 +1,4 @@
+use utoipa::ToSchema;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use validator::Validate;
@@ -5,6 +6,7 @@ use validator::Validate;
 use crate::common::utils::helpers::PaginationParams;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateSubscriptionRequest {
     pub customer_id: i64,
     pub plan_id: i64,
@@ -15,6 +17,7 @@ pub struct CreateSubscriptionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct ListSubscriptionsQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,
@@ -24,6 +27,7 @@ pub struct ListSubscriptionsQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct SubscriptionActionRequest {
     pub reason: Option<String>,
 }

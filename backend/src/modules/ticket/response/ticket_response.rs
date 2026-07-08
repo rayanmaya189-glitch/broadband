@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct TicketResponse {
     pub id: i64,
     pub ticket_number: String,
@@ -41,6 +43,7 @@ pub struct TicketResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct TicketListResponse {
     pub tickets: Vec<TicketResponse>,
     pub total: i64,
@@ -50,6 +53,7 @@ pub struct TicketListResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct TicketCommentResponse {
     pub id: i64,
     pub ticket_id: i64,
@@ -64,6 +68,7 @@ pub struct TicketCommentResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct TicketDashboardResponse {
     pub total_open: i64,
     pub total_in_progress: i64,
@@ -74,18 +79,21 @@ pub struct TicketDashboardResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct PriorityCount {
     pub priority: String,
     pub count: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct CategoryCount {
     pub category: String,
     pub count: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

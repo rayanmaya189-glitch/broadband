@@ -1,7 +1,9 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateTicketRequest {
     pub branch_id: i64,
     pub customer_id: Option<i64>,
@@ -19,6 +21,7 @@ pub struct CreateTicketRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct UpdateTicketRequest {
     pub category: Option<String>,
     pub subcategory: Option<String>,
@@ -30,11 +33,13 @@ pub struct UpdateTicketRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct AssignTicketRequest {
     pub assigned_to: i64,
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct EscalateTicketRequest {
     pub escalated_to: i64,
     pub reason: String,
@@ -42,23 +47,27 @@ pub struct EscalateTicketRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct ResolveTicketRequest {
     #[validate(length(min = 1))]
     pub resolution_notes: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CloseTicketRequest {
     pub closure_notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct ReopenTicketRequest {
     #[validate(length(min = 1))]
     pub reason: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct AddCommentRequest {
     #[validate(length(min = 1))]
     pub comment: String,
@@ -67,12 +76,14 @@ pub struct AddCommentRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct TicketFeedbackRequest {
     pub satisfaction_rating: Option<i32>,
     pub satisfaction_feedback: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct TicketQuery {
     pub status: Option<String>,
     pub priority: Option<String>,

@@ -7,6 +7,7 @@ use crate::common::config::config::Config;
 use crate::common::errors::app_error::AppError;
 use crate::common::events::nats::NatsService;
 use crate::common::cache::redis::RedisService;
+use crate::modules::realtime::service::realtime_service::ConnectionManager;
 
 /// Shared application state passed to every Axum handler via `State<SharedState>`.
 #[derive(Clone)]
@@ -15,6 +16,7 @@ pub struct AppState {
     pub redis: RedisService,
     pub nats: NatsService,
     pub config: Arc<Config>,
+    pub ws_manager: Arc<ConnectionManager>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -48,6 +50,9 @@ impl AppState {
         let nats = NatsService::new(nats_client);
         tracing::info!("NATS connected");
 
-        Ok(Self { db, redis, nats, config: Arc::new(config) })
+        let ws_manager = Arc::new(ConnectionManager::new());
+        tracing::info!("WebSocket connection manager ready");
+
+        Ok(Self { db, redis, nats, config: Arc::new(config), ws_manager })
     }
 }

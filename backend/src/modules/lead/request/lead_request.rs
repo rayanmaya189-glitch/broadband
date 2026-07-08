@@ -1,8 +1,10 @@
+use utoipa::ToSchema;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use validator::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateLeadRequest {
     pub branch_id: i64,
     pub name: String,
@@ -18,6 +20,7 @@ pub struct CreateLeadRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct UpdateLeadRequest {
     pub name: Option<String>,
     pub phone: Option<String>,
@@ -32,6 +35,7 @@ pub struct UpdateLeadRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct LeadStatusRequest {
     #[validate(length(min = 1, max = 30))]
     pub status: String,
@@ -39,11 +43,13 @@ pub struct LeadStatusRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct AssignLeadRequest {
     pub assigned_to: i64,
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct AddActivityRequest {
     #[validate(length(min = 1, max = 30))]
     pub activity_type: String,
@@ -53,12 +59,14 @@ pub struct AddActivityRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct ConvertLeadRequest {
     pub plan_id: Option<i64>,
     pub branch_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct LeadQuery {
     pub status: Option<String>,
     pub source: Option<String>,

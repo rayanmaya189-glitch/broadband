@@ -1,8 +1,10 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct InstallationResponse {
     pub id: i64,
     pub customer_id: i64,
@@ -23,6 +25,7 @@ pub struct InstallationResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct InstallationListResponse {
     pub installations: Vec<InstallationResponse>,
     pub total: i64,
@@ -32,6 +35,7 @@ pub struct InstallationListResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

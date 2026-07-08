@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Paginated list request.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PaginationParams {
     #[serde(default = "default_page")]
     pub page: u32,
@@ -31,7 +32,7 @@ impl PaginationParams {
 }
 
 /// Paginated list response wrapper.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PaginatedResponse<T: Serialize> {
     pub data: Vec<T>,
     pub total: i64,

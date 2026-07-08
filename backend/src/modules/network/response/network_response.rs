@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct VlanResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -15,6 +17,7 @@ pub struct VlanResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct IpPoolResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -31,6 +34,7 @@ pub struct IpPoolResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct PppoeSessionResponse {
     pub id: i64,
     pub customer_id: i64,
@@ -43,6 +47,7 @@ pub struct PppoeSessionResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

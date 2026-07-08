@@ -64,6 +64,7 @@ async fn main() {
         .nest("/api/v1/payments", aeraxe_backend::modules::payment_gateway::router::payment_gateway_router::payment_gateway_routes())
         .nest("/api/v1/discovery", aeraxe_backend::modules::discovery::router::discovery_router::discovery_routes())
         .nest("/api/v1/realtime", aeraxe_backend::modules::realtime::router::realtime_router::realtime_routes())
+        .nest("/ws", aeraxe_backend::modules::realtime::router::realtime_router::ws_routes())
         .nest("/api/v1/audit", aeraxe_backend::modules::audit::router::audit_router::audit_routes())
         .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
         .with_state(state);

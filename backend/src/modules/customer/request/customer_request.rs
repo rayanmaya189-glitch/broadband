@@ -1,9 +1,11 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateCustomerRequest {
     #[validate(length(min = 1, max = 255, message = "First name is required"))]
     pub first_name: String,
@@ -21,6 +23,7 @@ pub struct CreateCustomerRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct UpdateCustomerRequest {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
@@ -32,6 +35,7 @@ pub struct UpdateCustomerRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct ListCustomersQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,
@@ -40,6 +44,7 @@ pub struct ListCustomersQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct CustomerStatusTransition {
     pub status: String,
     pub reason: Option<String>,

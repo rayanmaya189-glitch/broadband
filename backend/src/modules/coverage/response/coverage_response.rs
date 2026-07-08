@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct CoverageAreaResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -17,6 +19,7 @@ pub struct CoverageAreaResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct AvailabilityCheckResponse {
     pub available: bool,
     pub area_name: Option<String>,
@@ -25,6 +28,7 @@ pub struct AvailabilityCheckResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

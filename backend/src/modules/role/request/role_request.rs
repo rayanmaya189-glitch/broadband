@@ -1,9 +1,11 @@
+use utoipa::ToSchema;
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::common::utils::helpers::PaginationParams;
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct CreateRoleRequest {
     #[validate(length(min = 2, max = 50, message = "Name must be 2-50 characters"))]
     pub name: String,
@@ -13,6 +15,7 @@ pub struct CreateRoleRequest {
 }
 
 #[derive(Debug, Deserialize, Validate)]
+#[derive(ToSchema)]
 pub struct UpdateRoleRequest {
     #[validate(length(min = 2, max = 50, message = "Name must be 2-50 characters"))]
     pub name: Option<String>,
@@ -22,6 +25,7 @@ pub struct UpdateRoleRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct ListRolesQuery {
     #[serde(flatten)]
     pub pagination: PaginationParams,
@@ -29,6 +33,7 @@ pub struct ListRolesQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[derive(ToSchema)]
 pub struct AssignPermissionsRequest {
     pub permission_ids: Vec<i64>,
 }

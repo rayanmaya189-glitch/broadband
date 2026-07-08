@@ -1,8 +1,10 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct LeadResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -30,6 +32,7 @@ pub struct LeadResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct LeadListResponse {
     pub leads: Vec<LeadResponse>,
     pub total: i64,
@@ -39,6 +42,7 @@ pub struct LeadListResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(ToSchema)]
 pub struct LeadActivityResponse {
     pub id: i64,
     pub lead_id: i64,
@@ -53,6 +57,7 @@ pub struct LeadActivityResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct LeadPipelineResponse {
     pub new: i64,
     pub contacted: i64,
@@ -64,6 +69,7 @@ pub struct LeadPipelineResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct LeadStatsResponse {
     pub total_leads: i64,
     pub converted_this_month: i64,
@@ -73,18 +79,21 @@ pub struct LeadStatsResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct SourceCount {
     pub source: String,
     pub count: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct StatusCount {
     pub status: String,
     pub count: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[derive(ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }
