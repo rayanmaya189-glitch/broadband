@@ -9,7 +9,7 @@ build/
 .env
 .env.local
 .env.*.local
-
+.vite/
 # IDE and editor files
 .vscode/
 .idea/

@@ -1,15 +1,13 @@
 use std::net::SocketAddr;
 
+use axum::Router;
 use aeraxe_backend::app::AppState;
-use aeraxe_backend::config::Config;
-use aeraxe_backend::interfaces::http::create_router;
+use aeraxe_backend::common::config::config::Config;
 
 #[tokio::main]
 async fn main() {
-    // ── Load configuration ──────────────────────────────────
     let config = Config::get().clone();
 
-    // ── Initialize tracing / logging ────────────────────────
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
@@ -27,7 +25,6 @@ async fn main() {
         "Starting AeroXe backend"
     );
 
-    // ── Build application state (connects DB, Redis, NATS) ─
     let state = match AppState::new(config.clone()).await {
         Ok(state) => {
             tracing::info!("All services connected successfully");
@@ -41,8 +38,14 @@ async fn main() {
 
     let state = std::sync::Arc::new(state);
 
-    // ── Build and start Axum server ────────────────────────
-    let router = create_router(state);
+    let router = Router::new()
+        .nest("/api/v1/auth", aeraxe_backend::modules::user::router::user_router::auth_routes())
+        .nest("/api/v1/users", aeraxe_backend::modules::user::router::user_router::users_routes())
+        .nest("/api/v1/roles", aeraxe_backend::modules::role::router::role_router::roles_routes())
+        .nest("/api/v1/permissions", aeraxe_backend::modules::permission::router::permission_router::permissions_routes())
+        .nest("/api/v1/branches", aeraxe_backend::modules::branch::router::branch_router::branches_routes())
+        .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
+        .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port)
         .parse()
