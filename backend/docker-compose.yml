@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: aeraxe-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: aeraxe
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: aeraxe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeraxe"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Redis ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: aeraxe-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── NATS ──────────────────────────────────────────────────
+  nats:
+    image: nats:2.10-alpine
+    container_name: aeraxe-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"  # monitoring
+    command: ["--jetstream", "--store_dir", "/data"]
+    volumes:
+      - natsdata:/data
+    healthcheck:
+      test: ["CMD", "nats-server", "--signal", "ldm="]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── MinIO (S3-compatible object storage) ───────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: aeraxe-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  redisdata:
+  natsdata:
+  miniodata:

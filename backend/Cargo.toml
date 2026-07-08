@@ -1,0 +1,90 @@
+[package]
+name = "aeraxe-backend"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "AeroXe ISP Platform — Modular Monolith Backend"
+license = "MIT"
+
+[dependencies]
+# Web framework
+axum = { version = "0.8", features = ["macros", "ws"] }
+axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "util"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+bytes = "1"
+
+# Database (PostgreSQL)
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "chrono",
+    "uuid",
+    "json",
+    "ipnetwork",
+    "bigdecimal",
+    "migrate",
+] }
+
+# Cache
+redis = { version = "0.29", features = ["tokio-comp", "connection-manager", "aio"] }
+
+# Messaging
+async-nats = "0.40"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Auth & Security
+jsonwebtoken = "9"
+argon2 = { version = "0.5", features = ["std"] }
+rand = "0.8"
+uuid = { version = "1", features = ["v4", "serde"] }
+ulid = { version = "1", features = ["serde"] }
+sha2 = "0.10"
+aes-gcm = "0.10"
+hex = "0.4"
+
+# Config
+dotenvy = "0.15"
+config = "0.15"
+
+# Logging & Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+
+# Validation
+validator = { version = "0.19", features = ["derive"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# IP Networking
+ipnet = "2"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[features]
+default = []
+multitenant = []
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3

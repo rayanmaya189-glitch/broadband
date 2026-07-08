@@ -37,3 +37,5 @@ pids/
 
 .agents/   
 skills-lock.json
+
+target/
