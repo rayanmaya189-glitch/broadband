@@ -44,6 +44,11 @@ async fn main() {
         .nest("/api/v1/roles", aeraxe_backend::modules::role::router::role_router::roles_routes())
         .nest("/api/v1/permissions", aeraxe_backend::modules::permission::router::permission_router::permissions_routes())
         .nest("/api/v1/branches", aeraxe_backend::modules::branch::router::branch_router::branches_routes())
+        .nest("/api/v1/customers", aeraxe_backend::modules::customer::router::customer_router::customers_routes())
+        .nest("/api/v1/plans", aeraxe_backend::modules::plan::router::plan_router::plans_routes())
+        .nest("/api/v1/subscriptions", aeraxe_backend::modules::subscription::router::subscription_router::subscriptions_routes())
+        .nest("/api/v1/tickets", aeraxe_backend::modules::ticket::router::ticket_router::ticket_routes())
+        .nest("/api/v1/leads", aeraxe_backend::modules::lead::router::lead_router::lead_routes())
         .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
         .with_state(state);
 

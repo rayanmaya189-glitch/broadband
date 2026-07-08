@@ -39,3 +39,4 @@ pids/
 skills-lock.json
 
 target/
+Cargo.lock
