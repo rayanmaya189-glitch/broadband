@@ -1,1 +1,1 @@
-// inventory mapper
+// Mapper handled inline in service

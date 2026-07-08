@@ -1,1 +1,1 @@
-// payment_gateway mapper
+// Mapper handled inline in service

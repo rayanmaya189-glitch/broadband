@@ -1,1 +1,1 @@
-// Bandwidth mapper
+// Mapper handled inline in service

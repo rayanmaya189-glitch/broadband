@@ -1,1 +1,1 @@
-// realtime mapper
+// Mapper handled inline in service

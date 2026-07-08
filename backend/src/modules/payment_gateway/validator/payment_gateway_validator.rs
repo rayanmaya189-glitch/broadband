@@ -1,1 +1,1 @@
-// payment_gateway validator
+// Validation handled by derive macros in request structs

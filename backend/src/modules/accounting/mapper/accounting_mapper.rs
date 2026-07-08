@@ -1,1 +1,1 @@
-// accounting mapper
+// Mapper handled inline in service

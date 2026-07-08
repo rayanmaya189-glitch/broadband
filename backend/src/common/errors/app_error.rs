@@ -18,6 +18,9 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
     #[error("Conflict: {0}")]
     Conflict(String),
 
@@ -50,6 +53,7 @@ impl IntoResponse for AppError {
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".into()),
             Self::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
             Self::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),
+            Self::BadRequest(m) => (StatusCode::BAD_REQUEST, m.clone()),
             Self::Conflict(m) => (StatusCode::CONFLICT, m.clone()),
             Self::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limited".into()),
             Self::Timeout => (StatusCode::REQUEST_TIMEOUT, "Request timeout".into()),

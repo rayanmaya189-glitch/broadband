@@ -1,1 +1,1 @@
-// discovery mapper
+// Mapper handled inline in service
