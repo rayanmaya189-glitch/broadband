@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use sqlx::{FromRow, PgPool};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn, error};
 
 use crate::app::SharedState;
@@ -198,7 +199,7 @@ async fn process_dunning(
 }
 
 /// Main dunning loop.
-pub async fn run_invoice_dunning(state: SharedState) {
+pub async fn run_invoice_dunning(state: SharedState, token: CancellationToken) {
     let interval_secs = std::env::var("DUNNING_INTERVAL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -212,51 +213,57 @@ pub async fn run_invoice_dunning(state: SharedState) {
     );
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            _ = interval.tick() => {
+                match find_overdue_invoices(&state.db).await {
+                    Ok(invoices) if invoices.is_empty() => {
+                        // No overdue invoices
+                    }
+                    Ok(invoices) => {
+                        let count = invoices.len();
+                        info!(count = count, "Found overdue invoices, processing dunning");
 
-        match find_overdue_invoices(&state.db).await {
-            Ok(invoices) if invoices.is_empty() => {
-                // No overdue invoices
-            }
-            Ok(invoices) => {
-                let count = invoices.len();
-                info!(count = count, "Found overdue invoices, processing dunning");
+                        let mut processed = 0u64;
+                        let mut skipped = 0u64;
+                        let mut failed = 0u64;
 
-                let mut processed = 0u64;
-                let mut skipped = 0u64;
-                let mut failed = 0u64;
-
-                for invoice in &invoices {
-                    match process_dunning(&state.db, invoice).await {
-                        Ok(()) => {
-                            if invoice.dunning_stage.as_deref() == Some(determine_dunning_stage(invoice.days_overdue)) {
-                                skipped += 1;
-                            } else {
-                                processed += 1;
+                        for invoice in &invoices {
+                            match process_dunning(&state.db, invoice).await {
+                                Ok(()) => {
+                                    if invoice.dunning_stage.as_deref() == Some(determine_dunning_stage(invoice.days_overdue)) {
+                                        skipped += 1;
+                                    } else {
+                                        processed += 1;
+                                    }
+                                }
+                                Err(e) => {
+                                    failed += 1;
+                                    warn!(
+                                        invoice_id = invoice.id,
+                                        invoice_number = %invoice.invoice_number,
+                                        error = %e,
+                                        "Failed to process dunning"
+                                    );
+                                }
                             }
                         }
-                        Err(e) => {
-                            failed += 1;
-                            warn!(
-                                invoice_id = invoice.id,
-                                invoice_number = %invoice.invoice_number,
-                                error = %e,
-                                "Failed to process dunning"
-                            );
-                        }
+
+                        info!(
+                            total = count,
+                            processed = processed,
+                            skipped = skipped,
+                            failed = failed,
+                            "Dunning batch complete"
+                        );
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to query overdue invoices");
                     }
                 }
-
-                info!(
-                    total = count,
-                    processed = processed,
-                    skipped = skipped,
-                    failed = failed,
-                    "Dunning batch complete"
-                );
             }
-            Err(e) => {
-                error!(error = %e, "Failed to query overdue invoices");
+            _ = token.cancelled() => {
+                info!("Invoice dunning shutting down gracefully");
+                break;
             }
         }
     }

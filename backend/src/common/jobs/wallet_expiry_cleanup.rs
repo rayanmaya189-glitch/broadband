@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use sqlx::{FromRow, PgPool};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn, error};
 
 use crate::app::SharedState;
@@ -104,7 +105,7 @@ async fn process_expiry(
 }
 
 /// Main wallet expiry cleanup loop.
-pub async fn run_wallet_expiry_cleanup(state: SharedState) {
+pub async fn run_wallet_expiry_cleanup(state: SharedState, token: CancellationToken) {
     let interval_secs = std::env::var("WALLET_EXPIRY_INTERVAL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -118,43 +119,49 @@ pub async fn run_wallet_expiry_cleanup(state: SharedState) {
     );
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            _ = interval.tick() => {
+                match find_expired_credits(&state.db).await {
+                    Ok(credits) if credits.is_empty() => {
+                        // No expired credits
+                    }
+                    Ok(credits) => {
+                        let count = credits.len();
+                        info!(count = count, "Found expired wallet credits, processing");
 
-        match find_expired_credits(&state.db).await {
-            Ok(credits) if credits.is_empty() => {
-                // No expired credits
-            }
-            Ok(credits) => {
-                let count = credits.len();
-                info!(count = count, "Found expired wallet credits, processing");
+                        let mut processed = 0u64;
+                        let mut failed = 0u64;
 
-                let mut processed = 0u64;
-                let mut failed = 0u64;
-
-                for credit in &credits {
-                    match process_expiry(&state.db, credit).await {
-                        Ok(()) => processed += 1,
-                        Err(e) => {
-                            failed += 1;
-                            warn!(
-                                wallet_id = credit.wallet_id,
-                                transaction_id = credit.id,
-                                error = %e,
-                                "Failed to process wallet credit expiry"
-                            );
+                        for credit in &credits {
+                            match process_expiry(&state.db, credit).await {
+                                Ok(()) => processed += 1,
+                                Err(e) => {
+                                    failed += 1;
+                                    warn!(
+                                        wallet_id = credit.wallet_id,
+                                        transaction_id = credit.id,
+                                        error = %e,
+                                        "Failed to process wallet credit expiry"
+                                    );
+                                }
+                            }
                         }
+
+                        info!(
+                            total = count,
+                            processed = processed,
+                            failed = failed,
+                            "Wallet expiry cleanup batch complete"
+                        );
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to query expired wallet credits");
                     }
                 }
-
-                info!(
-                    total = count,
-                    processed = processed,
-                    failed = failed,
-                    "Wallet expiry cleanup batch complete"
-                );
             }
-            Err(e) => {
-                error!(error = %e, "Failed to query expired wallet credits");
+            _ = token.cancelled() => {
+                info!("Wallet expiry cleanup shutting down gracefully");
+                break;
             }
         }
     }

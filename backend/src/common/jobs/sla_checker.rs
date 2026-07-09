@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use sqlx::{FromRow, PgPool};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn, error};
 
 use crate::app::SharedState;
@@ -162,7 +163,7 @@ struct SLABreachedTicket {
 ///
 /// Periodically queries for tickets that have breached their SLA resolution
 /// deadline and auto-escalates them with appropriate priority bumps.
-pub async fn run_sla_checker(state: SharedState) {
+pub async fn run_sla_checker(state: SharedState, token: CancellationToken) {
     let interval_secs = std::env::var("SLA_CHECK_INTERVAL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -176,43 +177,49 @@ pub async fn run_sla_checker(state: SharedState) {
     );
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            _ = interval.tick() => {
+                match find_sla_breached_tickets(&state.db).await {
+                    Ok(tickets) if tickets.is_empty() => {
+                        // No breached tickets — quiet log
+                    }
+                    Ok(tickets) => {
+                        let count = tickets.len();
+                        info!(count = count, "Found SLA-breached tickets, processing");
 
-        match find_sla_breached_tickets(&state.db).await {
-            Ok(tickets) if tickets.is_empty() => {
-                // No breached tickets — quiet log
-            }
-            Ok(tickets) => {
-                let count = tickets.len();
-                info!(count = count, "Found SLA-breached tickets, processing");
+                        let mut escalated = 0u64;
+                        let mut failed = 0u64;
 
-                let mut escalated = 0u64;
-                let mut failed = 0u64;
-
-                for ticket in &tickets {
-                    match auto_escalate_ticket(&state.db, ticket).await {
-                        Ok(()) => escalated += 1,
-                        Err(e) => {
-                            failed += 1;
-                            warn!(
-                                ticket_id = ticket.id,
-                                ticket_number = %ticket.ticket_number,
-                                error = %e,
-                                "Failed to auto-escalate ticket"
-                            );
+                        for ticket in &tickets {
+                            match auto_escalate_ticket(&state.db, ticket).await {
+                                Ok(()) => escalated += 1,
+                                Err(e) => {
+                                    failed += 1;
+                                    warn!(
+                                        ticket_id = ticket.id,
+                                        ticket_number = %ticket.ticket_number,
+                                        error = %e,
+                                        "Failed to auto-escalate ticket"
+                                    );
+                                }
+                            }
                         }
+
+                        info!(
+                            total = count,
+                            escalated = escalated,
+                            failed = failed,
+                            "SLA checker batch complete"
+                        );
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to query SLA-breached tickets");
                     }
                 }
-
-                info!(
-                    total = count,
-                    escalated = escalated,
-                    failed = failed,
-                    "SLA checker batch complete"
-                );
             }
-            Err(e) => {
-                error!(error = %e, "Failed to query SLA-breached tickets");
+            _ = token.cancelled() => {
+                info!("SLA breach checker shutting down gracefully");
+                break;
             }
         }
     }

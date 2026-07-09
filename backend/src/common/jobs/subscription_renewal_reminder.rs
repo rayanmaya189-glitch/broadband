@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use sqlx::{FromRow, PgPool};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn, error};
 
 use crate::app::SharedState;
@@ -106,7 +107,7 @@ async fn record_renewal_reminder(
 }
 
 /// Main subscription renewal reminder loop.
-pub async fn run_subscription_renewal_reminder(state: SharedState) {
+pub async fn run_subscription_renewal_reminder(state: SharedState, token: CancellationToken) {
     let interval_secs = std::env::var("RENEWAL_REMINDER_INTERVAL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -121,43 +122,49 @@ pub async fn run_subscription_renewal_reminder(state: SharedState) {
     );
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            _ = interval.tick() => {
+                match find_expiring_subscriptions(&state.db).await {
+                    Ok(subs) if subs.is_empty() => {
+                        // No expiring subscriptions
+                    }
+                    Ok(subs) => {
+                        let count = subs.len();
+                        info!(count = count, "Found expiring subscriptions, sending reminders");
 
-        match find_expiring_subscriptions(&state.db).await {
-            Ok(subs) if subs.is_empty() => {
-                // No expiring subscriptions
-            }
-            Ok(subs) => {
-                let count = subs.len();
-                info!(count = count, "Found expiring subscriptions, sending reminders");
+                        let mut sent = 0u64;
+                        let mut failed = 0u64;
 
-                let mut sent = 0u64;
-                let mut failed = 0u64;
-
-                for sub in &subs {
-                    match record_renewal_reminder(&state.db, sub).await {
-                        Ok(()) => sent += 1,
-                        Err(e) => {
-                            failed += 1;
-                            warn!(
-                                subscription_id = sub.id,
-                                customer_id = sub.customer_id,
-                                error = %e,
-                                "Failed to record renewal reminder"
-                            );
+                        for sub in &subs {
+                            match record_renewal_reminder(&state.db, sub).await {
+                                Ok(()) => sent += 1,
+                                Err(e) => {
+                                    failed += 1;
+                                    warn!(
+                                        subscription_id = sub.id,
+                                        customer_id = sub.customer_id,
+                                        error = %e,
+                                        "Failed to record renewal reminder"
+                                    );
+                                }
+                            }
                         }
+
+                        info!(
+                            total = count,
+                            sent = sent,
+                            failed = failed,
+                            "Renewal reminder batch complete"
+                        );
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to query expiring subscriptions");
                     }
                 }
-
-                info!(
-                    total = count,
-                    sent = sent,
-                    failed = failed,
-                    "Renewal reminder batch complete"
-                );
             }
-            Err(e) => {
-                error!(error = %e, "Failed to query expiring subscriptions");
+            _ = token.cancelled() => {
+                info!("Subscription renewal reminder shutting down gracefully");
+                break;
             }
         }
     }

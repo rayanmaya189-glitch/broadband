@@ -4,6 +4,7 @@ use axum::Router;
 use aeraxe_backend::api::openapi::ApiDoc;
 use aeraxe_backend::app::AppState;
 use aeraxe_backend::common::config::config::Config;
+use tokio_util::sync::CancellationToken;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -118,22 +119,47 @@ async fn main() {
 
     tracing::info!(addr = %addr, "Server listening");
 
-    // Spawn background jobs
-    let bg1 = state.clone();
+    // ── Graceful shutdown via CancellationToken ──────────────
+    let shutdown_token = CancellationToken::new();
+
+    // Spawn signal handler for SIGINT (Ctrl+C) and SIGTERM
+    let signal_token = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::sla_checker::run_sla_checker(bg1).await;
+        let ctrl_c = tokio::signal::ctrl_c();
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler");
+
+        tokio::select! {
+            _ = ctrl_c => {
+                tracing::info!("Received SIGINT, initiating graceful shutdown");
+            }
+            _ = sigterm.recv() => {
+                tracing::info!("Received SIGTERM, initiating graceful shutdown");
+            }
+        }
+        signal_token.cancel();
+    });
+
+    // Spawn background jobs with cancellation token
+    let bg1 = state.clone();
+    let t1 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::sla_checker::run_sla_checker(bg1, t1).await;
     });
     let bg2 = state.clone();
+    let t2 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::subscription_renewal_reminder::run_subscription_renewal_reminder(bg2).await;
+        aeraxe_backend::common::jobs::subscription_renewal_reminder::run_subscription_renewal_reminder(bg2, t2).await;
     });
     let bg3 = state.clone();
+    let t3 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::invoice_dunning::run_invoice_dunning(bg3).await;
+        aeraxe_backend::common::jobs::invoice_dunning::run_invoice_dunning(bg3, t3).await;
     });
     let bg4 = state.clone();
+    let t4 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::wallet_expiry_cleanup::run_wallet_expiry_cleanup(bg4).await;
+        aeraxe_backend::common::jobs::wallet_expiry_cleanup::run_wallet_expiry_cleanup(bg4, t4).await;
     });
     tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry");
 
@@ -141,7 +167,13 @@ async fn main() {
         .await
         .expect("Failed to bind to address");
 
+    // Graceful HTTP server shutdown
+    let server_token = shutdown_token.clone();
     axum::serve(listener, router)
+        .with_graceful_shutdown(async move {
+            server_token.cancelled().await;
+            tracing::info!("HTTP server shutting down gracefully");
+        })
         .await
         .expect("Server failed");
 }
