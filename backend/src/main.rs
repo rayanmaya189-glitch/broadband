@@ -72,7 +72,6 @@ async fn main() {
     };
 
     let state = std::sync::Arc::new(state);
-    let state_bg = state.clone();
 
     let router = Router::new()
         .nest("/api/v1/auth", aeraxe_backend::modules::user::router::user_router::auth_routes())
@@ -109,7 +108,7 @@ async fn main() {
                 .url("/api-docs/openapi.json", ApiDoc::openapi()),
         )
         .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
-        .with_state(state);
+        .with_state(state.clone());
 
     let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port)
         .parse()
@@ -120,10 +119,23 @@ async fn main() {
     tracing::info!(addr = %addr, "Server listening");
 
     // Spawn background jobs
+    let bg1 = state.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::sla_checker::run_sla_checker(state_bg).await;
+        aeraxe_backend::common::jobs::sla_checker::run_sla_checker(bg1).await;
     });
-    tracing::info!("Background jobs spawned");
+    let bg2 = state.clone();
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::subscription_renewal_reminder::run_subscription_renewal_reminder(bg2).await;
+    });
+    let bg3 = state.clone();
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::invoice_dunning::run_invoice_dunning(bg3).await;
+    });
+    let bg4 = state.clone();
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::wallet_expiry_cleanup::run_wallet_expiry_cleanup(bg4).await;
+    });
+    tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
