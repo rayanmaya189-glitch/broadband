@@ -3,7 +3,8 @@ use sqlx::PgPool;
 use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::{total_pages, PaginatedResponse};
 use crate::modules::branch::model::branch::Branch;
-use crate::modules::branch::response::branch_response::BranchResponse;
+use crate::modules::branch::request::branch_request::WorkingHourEntry;
+use crate::modules::branch::response::branch_response::*;
 
 pub struct BranchRepository<'a> {
     pool: &'a PgPool,
@@ -78,7 +79,56 @@ impl<'a> BranchRepository<'a> {
     }
 
     pub async fn count_active_customers(&self, id: i64) -> Result<i64, AppError> {
-        let c = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM customers WHERE branch_id = $1 AND status = 'active'").bind(id).fetch_one(self.pool).await?;
+        let c = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM customers WHERE branch_id = $1 AND deleted_at IS NULL").bind(id).fetch_one(self.pool).await?;
         Ok(c)
+    }
+
+    // ── Working Hours ──────────────────────────────────────
+
+    pub async fn get_working_hours(&self, branch_id: i64) -> Result<Vec<WorkingHourResponse>, AppError> {
+        let rows = sqlx::query_as::<_, WorkingHourResponse>(
+            "SELECT id, branch_id, day_of_week, TO_CHAR(open_time, 'HH24:MI') as open_time, TO_CHAR(close_time, 'HH24:MI') as close_time, is_closed FROM branch_working_hours WHERE branch_id = $1 ORDER BY day_of_week",
+        ).bind(branch_id).fetch_all(self.pool).await?;
+        Ok(rows)
+    }
+
+    pub async fn upsert_working_hours(&self, branch_id: i64, hours: &[WorkingHourEntry]) -> Result<Vec<WorkingHourResponse>, AppError> {
+        for h in hours {
+            sqlx::query(
+                "INSERT INTO branch_working_hours (branch_id, day_of_week, open_time, close_time, is_closed) VALUES ($1, $2, $3::TIME, $4::TIME, $5) ON CONFLICT (branch_id, day_of_week) DO UPDATE SET open_time = EXCLUDED.open_time, close_time = EXCLUDED.close_time, is_closed = EXCLUDED.is_closed",
+            ).bind(branch_id).bind(h.day_of_week).bind(&h.open_time).bind(&h.close_time).bind(h.is_closed).execute(self.pool).await?;
+        }
+        self.get_working_hours(branch_id).await
+    }
+
+    // ── User-Branch Assignment ─────────────────────────────
+
+    pub async fn assign_user(&self, branch_id: i64, user_id: i64, is_primary: bool) -> Result<(), AppError> {
+        sqlx::query(
+            "INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES ($1, $2, $3) ON CONFLICT (user_id, branch_id) DO UPDATE SET is_primary = EXCLUDED.is_primary",
+        ).bind(user_id).bind(branch_id).bind(is_primary).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn remove_user(&self, branch_id: i64, user_id: i64) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM user_branches WHERE branch_id = $1 AND user_id = $2").bind(branch_id).bind(user_id).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn list_branch_users(&self, branch_id: i64) -> Result<Vec<BranchUserResponse>, AppError> {
+        let rows = sqlx::query_as::<_, BranchUserResponse>(
+            "SELECT ub.user_id, u.name as user_name, u.email as user_email, ub.is_primary, ub.created_at as assigned_at FROM user_branches ub LEFT JOIN users u ON u.id = ub.user_id WHERE ub.branch_id = $1 ORDER BY ub.is_primary DESC, ub.created_at ASC",
+        ).bind(branch_id).fetch_all(self.pool).await?;
+        Ok(rows)
+    }
+
+    // ── Branch Statistics ──────────────────────────────────
+
+    pub async fn get_branch_stats(&self, branch_id: i64) -> Result<(i64, i64, i64, i64), AppError> {
+        let total_customers = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM customers WHERE branch_id = $1 AND deleted_at IS NULL").bind(branch_id).fetch_one(self.pool).await?;
+        let active_customers = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM customers WHERE branch_id = $1 AND status = 'active' AND deleted_at IS NULL").bind(branch_id).fetch_one(self.pool).await?;
+        let total_subscriptions = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM subscriptions WHERE branch_id = $1").bind(branch_id).fetch_one(self.pool).await?;
+        let active_subscriptions = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM subscriptions WHERE branch_id = $1 AND status = 'active'").bind(branch_id).fetch_one(self.pool).await?;
+        Ok((total_customers, active_customers, total_subscriptions, active_subscriptions))
     }
 }

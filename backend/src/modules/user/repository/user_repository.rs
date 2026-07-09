@@ -286,4 +286,62 @@ impl<'a> UserRepository<'a> {
         ).bind(user_id).fetch_all(self.pool).await?;
         Ok(rows)
     }
+
+    // ── 2FA (TOTP) — Encrypted storage ──────────────────────
+
+    pub async fn store_2fa_secret_pending(&self, user_id: i64, encrypted_secret: &str) -> Result<(), AppError> {
+        sqlx::query("UPDATE users SET two_factor_secret = $2, updated_at = NOW() WHERE id = $1")
+            .bind(user_id).bind(format!("pending:{encrypted_secret}")).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_pending_2fa_secret(&self, user_id: i64) -> Result<Option<String>, AppError> {
+        let r = sqlx::query_scalar::<_, String>("SELECT two_factor_secret FROM users WHERE id = $1 AND two_factor_secret LIKE 'pending:%'")
+            .bind(user_id).fetch_optional(self.pool).await?;
+        Ok(r.map(|s| s.strip_prefix("pending:").unwrap_or(&s).to_string()))
+    }
+
+    pub async fn enable_2fa(&self, user_id: i64, encrypted_secret: &str) -> Result<(), AppError> {
+        sqlx::query("UPDATE users SET two_factor_enabled = true, two_factor_secret = $2, updated_at = NOW() WHERE id = $1")
+            .bind(user_id).bind(encrypted_secret).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn disable_2fa(&self, user_id: i64) -> Result<(), AppError> {
+        sqlx::query("UPDATE users SET two_factor_enabled = false, two_factor_secret = NULL, backup_codes = NULL, updated_at = NOW() WHERE id = $1")
+            .bind(user_id).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_encrypted_2fa_secret(&self, user_id: i64) -> Result<Option<String>, AppError> {
+        let r = sqlx::query_scalar::<_, String>("SELECT two_factor_secret FROM users WHERE id = $1 AND two_factor_enabled = true AND two_factor_secret IS NOT NULL AND two_factor_secret NOT LIKE 'pending:%'")
+            .bind(user_id).fetch_optional(self.pool).await?;
+        Ok(r)
+    }
+
+    pub async fn store_backup_codes(&self, user_id: i64, codes_json: &str) -> Result<(), AppError> {
+        sqlx::query("UPDATE users SET backup_codes = $2, updated_at = NOW() WHERE id = $1")
+            .bind(user_id).bind(codes_json).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_backup_codes(&self, user_id: i64) -> Result<Option<String>, AppError> {
+        let r = sqlx::query_scalar::<_, String>("SELECT backup_codes FROM users WHERE id = $1 AND backup_codes IS NOT NULL")
+            .bind(user_id).fetch_optional(self.pool).await?;
+        Ok(r)
+    }
+
+    pub async fn consume_backup_code(&self, user_id: i64, code: &str) -> Result<bool, AppError> {
+        let codes_json = self.get_backup_codes(user_id).await?;
+        if let Some(json_str) = codes_json {
+            let mut codes: Vec<String> = serde_json::from_str(&json_str).unwrap_or_default();
+            if let Some(pos) = codes.iter().position(|c| c == code) {
+                codes.remove(pos);
+                let new_json = serde_json::to_string(&codes).unwrap_or_else(|_| "[]".into());
+                self.store_backup_codes(user_id, &new_json).await?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
 }

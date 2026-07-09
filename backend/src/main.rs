@@ -4,7 +4,40 @@ use axum::Router;
 use aeraxe_backend::api::openapi::ApiDoc;
 use aeraxe_backend::app::AppState;
 use aeraxe_backend::common::config::config::Config;
+use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+fn print_routes() {
+    let doc = ApiDoc::openapi();
+
+    println!("\n================ API ROUTES ================\n");
+
+    for (path, item) in doc.paths.paths {
+        if item.get.is_some() {
+            println!("{:<7} {}", "GET", path);
+        }
+        if item.post.is_some() {
+            println!("{:<7} {}", "POST", path);
+        }
+        if item.put.is_some() {
+            println!("{:<7} {}", "PUT", path);
+        }
+        if item.delete.is_some() {
+            println!("{:<7} {}", "DELETE", path);
+        }
+        if item.patch.is_some() {
+            println!("{:<7} {}", "PATCH", path);
+        }
+        if item.options.is_some() {
+            println!("{:<7} {}", "OPTIONS", path);
+        }
+        if item.head.is_some() {
+            println!("{:<7} {}", "HEAD", path);
+        }
+    }
+
+    println!("\n============================================\n");
+}
 
 #[tokio::main]
 async fn main() {
@@ -78,6 +111,8 @@ async fn main() {
     let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port)
         .parse()
         .expect("Invalid server address");
+
+    print_routes();
 
     tracing::info!(addr = %addr, "Server listening");
 

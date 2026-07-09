@@ -39,3 +39,26 @@ pub struct ListBranchesQuery {
     pub is_active: Option<bool>,
     pub city: Option<String>,
 }
+
+// ── Working Hours ──────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct WorkingHourEntry {
+    pub day_of_week: i32,
+    pub open_time: String,
+    pub close_time: String,
+    pub is_closed: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateWorkingHoursRequest {
+    pub hours: Vec<WorkingHourEntry>,
+}
+
+// ── User-Branch Assignment ─────────────────────────────────
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AssignUserToBranchRequest {
+    pub user_id: i64,
+    pub is_primary: Option<bool>,
+}

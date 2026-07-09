@@ -26,3 +26,37 @@ pub type BranchDetailResponse = BranchResponse;
 pub struct MessageResponse {
     pub message: String,
 }
+
+// ── Working Hours ──────────────────────────────────────────
+
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct WorkingHourResponse {
+    pub id: i64,
+    pub branch_id: i64,
+    pub day_of_week: i32,
+    pub open_time: String,
+    pub close_time: String,
+    pub is_closed: bool,
+}
+
+// ── User-Branch Assignment ─────────────────────────────────
+
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct BranchUserResponse {
+    pub user_id: i64,
+    pub user_name: Option<String>,
+    pub user_email: Option<String>,
+    pub is_primary: bool,
+    pub assigned_at: DateTime<Utc>,
+}
+
+// ── Branch Statistics ──────────────────────────────────────
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BranchStatsResponse {
+    pub branch_id: i64,
+    pub total_customers: i64,
+    pub active_customers: i64,
+    pub total_subscriptions: i64,
+    pub active_subscriptions: i64,
+}

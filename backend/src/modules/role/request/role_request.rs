@@ -29,7 +29,17 @@ pub struct ListRolesQuery {
     pub is_active: Option<bool>,
 }
 
+// ── Permission Assignment ──────────────────────────────────
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AssignPermissionsRequest {
     pub permission_ids: Vec<i64>,
+}
+
+// ── User-Role Management ───────────────────────────────────
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AssignUserRoleRequest {
+    pub role_id: i64,
+    pub expires_at: Option<String>,
 }

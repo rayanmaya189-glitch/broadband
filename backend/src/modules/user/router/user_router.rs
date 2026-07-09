@@ -10,8 +10,12 @@ use crate::modules::user::controller::user_controller;
 pub fn auth_routes() -> Router<SharedState> {
     let public = Router::new()
         .route("/login", post(user_controller::login))
+        .route("/login/otp/send", post(user_controller::send_otp))
+        .route("/login/otp/verify", post(user_controller::verify_otp))
         .route("/register", post(user_controller::register))
-        .route("/refresh", post(user_controller::refresh_token));
+        .route("/refresh", post(user_controller::refresh_token))
+        .route("/password/reset/request", post(user_controller::request_password_reset))
+        .route("/password/reset/confirm", post(user_controller::confirm_password_reset));
 
     let protected = Router::new()
         .route("/logout", post(user_controller::logout))
@@ -19,9 +23,16 @@ pub fn auth_routes() -> Router<SharedState> {
         .route("/me", get(user_controller::me))
         .route("/password/change", post(user_controller::change_password))
         .route("/sessions", get(user_controller::list_sessions))
+        .route("/2fa/enable", post(user_controller::enable_2fa))
+        .route("/2fa/confirm", post(user_controller::confirm_2fa))
+        .route("/2fa/disable", post(user_controller::disable_2fa))
         .layer(middleware::from_fn(jwt_middleware));
 
-    public.merge(protected)
+    // 2FA login verification (public — requires temp_token, not JWT)
+    let public_2fa = Router::new()
+        .route("/2fa/verify", post(user_controller::verify_2fa_login));
+
+    public.merge(protected).merge(public_2fa)
 }
 
 /// Build users routes — all require authentication.

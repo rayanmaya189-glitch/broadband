@@ -84,3 +84,43 @@ pub struct SessionResponse {
 pub struct MessageResponse {
     pub message: String,
 }
+
+// ── OTP Login ──────────────────────────────────────────────
+
+/// Response for OTP send request.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OtpSentResponse {
+    pub message: String,
+    pub expires_in: i64,
+}
+
+// ── Password Reset ─────────────────────────────────────────
+
+/// Response for password reset request.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PasswordResetResponse {
+    pub message: String,
+}
+
+// ── 2FA (TOTP) ────────────────────────────────────────────
+
+/// Response when 2FA is required during login.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct Requires2FaResponse {
+    pub requires_2fa: bool,
+    pub temp_token: String,
+}
+
+/// Response for 2FA setup (enable).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TwoFaSetupResponse {
+    pub secret: String,
+    pub otpauth_url: String,
+}
+
+/// Response for 2FA enable confirm.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TwoFaEnabledResponse {
+    pub message: String,
+    pub backup_codes: Vec<String>,
+}

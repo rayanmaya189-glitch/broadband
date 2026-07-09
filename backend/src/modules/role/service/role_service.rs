@@ -47,4 +47,34 @@ impl<'a> RoleService<'a> {
         self.repo.deactivate(role_id).await?;
         Ok(MessageResponse { message: "Role deactivated successfully".into() })
     }
+
+    // ── Permission Assignment ──────────────────────────────
+
+    pub async fn assign_permissions(&self, role_id: i64, req: &AssignPermissionsRequest) -> Result<MessageResponse, AppError> {
+        let _ = self.repo.find_by_id(role_id).await?.ok_or_else(|| AppError::NotFound("Role not found".into()))?;
+        self.repo.assign_permissions(role_id, &req.permission_ids).await?;
+        Ok(MessageResponse { message: format!("Assigned {} permissions", req.permission_ids.len()) })
+    }
+
+    pub async fn remove_permission(&self, role_id: i64, permission_id: i64) -> Result<MessageResponse, AppError> {
+        self.repo.remove_permission(role_id, permission_id).await?;
+        Ok(MessageResponse { message: "Permission removed from role".into() })
+    }
+
+    // ── User-Role Management ───────────────────────────────
+
+    pub async fn list_user_roles(&self, user_id: i64) -> Result<Vec<RoleResponse>, AppError> {
+        self.repo.list_user_roles(user_id).await
+    }
+
+    pub async fn assign_role_to_user(&self, user_id: i64, req: &AssignUserRoleRequest) -> Result<MessageResponse, AppError> {
+        let _ = self.repo.find_by_id(req.role_id).await?.ok_or_else(|| AppError::NotFound("Role not found".into()))?;
+        self.repo.assign_role_to_user(user_id, req.role_id, req.expires_at.as_deref()).await?;
+        Ok(MessageResponse { message: "Role assigned to user".into() })
+    }
+
+    pub async fn revoke_role_from_user(&self, user_id: i64, role_id: i64) -> Result<MessageResponse, AppError> {
+        self.repo.revoke_role_from_user(user_id, role_id).await?;
+        Ok(MessageResponse { message: "Role revoked from user".into() })
+    }
 }

@@ -78,10 +78,12 @@ rust_decimal_macros = "1"
 
 # API Documentation (Swagger UI)
 utoipa = { version = "5", features = ["axum_extras", "chrono", "decimal", "uuid"] }
-utoipa-swagger-ui = { version = "8", features = ["axum"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 # IP Networking
 ipnet = "2"
+sha1 = "0.11.0"
+hmac = "0.13.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -78,4 +78,43 @@ impl<'a> RoleRepository<'a> {
         };
         Ok(r)
     }
+
+    // ── Permission Assignment ──────────────────────────────
+
+    pub async fn assign_permissions(&self, role_id: i64, permission_ids: &[i64]) -> Result<(), AppError> {
+        // Delete existing permissions first
+        sqlx::query("DELETE FROM role_permissions WHERE role_id = $1").bind(role_id).execute(self.pool).await?;
+        // Insert new permissions
+        for pid in permission_ids {
+            sqlx::query("INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+                .bind(role_id).bind(pid).execute(self.pool).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn remove_permission(&self, role_id: i64, permission_id: i64) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2").bind(role_id).bind(permission_id).execute(self.pool).await?;
+        Ok(())
+    }
+
+    // ── User-Role Management ───────────────────────────────
+
+    pub async fn list_user_roles(&self, user_id: i64) -> Result<Vec<RoleResponse>, AppError> {
+        let roles = sqlx::query_as::<_, RoleResponse>(
+            "SELECT r.id, r.name, r.display_name, r.description, r.is_system, r.is_active, r.created_at, r.updated_at FROM roles r INNER JOIN user_roles ur ON ur.role_id = r.id WHERE ur.user_id = $1 AND ur.is_active = true ORDER BY r.name"
+        ).bind(user_id).fetch_all(self.pool).await?;
+        Ok(roles)
+    }
+
+    pub async fn assign_role_to_user(&self, user_id: i64, role_id: i64, expires_at: Option<&str>) -> Result<(), AppError> {
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id, is_active, expires_at) VALUES ($1, $2, true, $3::TIMESTAMPTZ) ON CONFLICT (user_id, role_id) DO UPDATE SET is_active = true, expires_at = EXCLUDED.expires_at",
+        ).bind(user_id).bind(role_id).bind(expires_at).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn revoke_role_from_user(&self, user_id: i64, role_id: i64) -> Result<(), AppError> {
+        sqlx::query("UPDATE user_roles SET is_active = false WHERE user_id = $1 AND role_id = $2").bind(user_id).bind(role_id).execute(self.pool).await?;
+        Ok(())
+    }
 }
