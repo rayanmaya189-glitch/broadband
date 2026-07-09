@@ -26,7 +26,8 @@ struct OverdueInvoice {
     total_amount: rust_decimal::Decimal,
     #[allow(dead_code)] due_date: chrono::NaiveDate,
     days_overdue: i64,
-    current_dunning_stage: Option<String>,
+    dunning_stage: Option<String>,
+    #[allow(dead_code)] dunning_notified_at: Option<chrono::DateTime<chrono::Utc>>,
     #[allow(dead_code)] customer_name: String,
     #[allow(dead_code)] customer_phone: String,
 }
@@ -37,7 +38,8 @@ async fn find_overdue_invoices(pool: &PgPool) -> Result<Vec<OverdueInvoice>, sql
         "SELECT i.id, i.invoice_number, i.customer_id, i.branch_id, i.subscription_id,
                 i.total_amount, i.due_date,
                 EXTRACT(DAY FROM CURRENT_DATE - i.due_date)::bigint as days_overdue,
-                i.notes as current_dunning_stage,
+                i.dunning_stage,
+                i.dunning_notified_at,
                 c.first_name || COALESCE(' ' || c.last_name, '') as customer_name,
                 c.phone as customer_phone
          FROM invoices i
@@ -70,13 +72,13 @@ async fn process_dunning(
     let new_stage = determine_dunning_stage(invoice.days_overdue);
 
     // Skip if already at this stage (avoid duplicate notifications)
-    if invoice.current_dunning_stage.as_deref() == Some(new_stage) {
+    if invoice.dunning_stage.as_deref() == Some(new_stage) {
         return Ok(());
     }
 
-    // Update the invoice notes with current dunning stage
+    // Update the dedicated dunning columns on the invoice
     sqlx::query(
-        "UPDATE invoices SET notes = $2, updated_at = NOW() WHERE id = $1",
+        "UPDATE invoices SET dunning_stage = $2, dunning_notified_at = NOW(), updated_at = NOW() WHERE id = $1",
     )
     .bind(invoice.id)
     .bind(new_stage)
@@ -227,7 +229,7 @@ pub async fn run_invoice_dunning(state: SharedState) {
                 for invoice in &invoices {
                     match process_dunning(&state.db, invoice).await {
                         Ok(()) => {
-                            if invoice.current_dunning_stage.as_deref() == Some(determine_dunning_stage(invoice.days_overdue)) {
+                            if invoice.dunning_stage.as_deref() == Some(determine_dunning_stage(invoice.days_overdue)) {
                                 skipped += 1;
                             } else {
                                 processed += 1;
