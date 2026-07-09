@@ -109,6 +109,10 @@ async fn main() {
                 .url("/api-docs/openapi.json", ApiDoc::openapi()),
         )
         .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            aeraxe_backend::common::middleware::rls_layer::inject_pool_middleware,
+        ))
         .with_state(state.clone());
 
     let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port)
@@ -161,7 +165,17 @@ async fn main() {
     tokio::spawn(async move {
         aeraxe_backend::common::jobs::wallet_expiry_cleanup::run_wallet_expiry_cleanup(bg4, t4).await;
     });
-    tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry");
+    let bg5 = state.clone();
+    let t5 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::partition_manager::run_partition_manager(bg5, t5).await;
+    });
+    let bg6 = state.clone();
+    let t6 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::data_cleanup::run_data_cleanup(bg6, t6).await;
+    });
+    tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry, partition manager, data cleanup");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
