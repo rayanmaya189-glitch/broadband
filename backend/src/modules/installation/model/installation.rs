@@ -18,6 +18,16 @@ pub struct InstallationOrder {
     pub fiber_drop_length_meters: Option<i32>,
     pub onu_power_dbm: Option<f64>,
     pub notes: Option<String>,
+    pub photos: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct InstallationPhoto {
+    pub id: i64,
+    pub installation_id: i64,
+    pub photo_url: String,
+    pub caption: Option<String>,
+    pub uploaded_at: DateTime<Utc>,
 }

@@ -12,18 +12,22 @@ pub struct BillingService<'a> {
 impl<'a> BillingService<'a> {
     pub fn new(pool: &'a PgPool) -> Self { Self { repo: BillingRepository::new(pool) } }
 
+    fn invoice_to_response(i: &crate::modules::billing::model::billing::Invoice) -> InvoiceResponse {
+        InvoiceResponse { id: i.id, invoice_number: i.invoice_number.clone(), customer_id: i.customer_id, branch_id: i.branch_id, subscription_id: i.subscription_id, billing_period_start: i.billing_period_start, billing_period_end: i.billing_period_end, subtotal: i.subtotal, discount_amount: i.discount_amount, tax_amount: i.tax_amount, total_amount: i.total_amount, currency: i.currency.clone(), status: i.status.clone(), due_date: i.due_date, paid_at: i.paid_at, payment_method: i.payment_method.clone(), review_status: i.review_status.clone(), notes: i.notes.clone(), created_at: i.created_at, customer_name: None, branch_name: None }
+    }
+
     pub async fn list_invoices(&self, query: InvoiceQuery) -> Result<InvoiceListResponse, AppError> {
         let page = query.page.unwrap_or(1);
         let per_page = query.per_page.unwrap_or(20);
         let (invoices, total) = self.repo.list_invoices(query.branch_id, query.status.as_deref(), query.customer_id, page, per_page).await?;
-        let responses: Vec<InvoiceResponse> = invoices.iter().map(|i| InvoiceResponse { id: i.id, invoice_number: i.invoice_number.clone(), customer_id: i.customer_id, branch_id: i.branch_id, subscription_id: i.subscription_id, billing_period_start: i.billing_period_start, billing_period_end: i.billing_period_end, subtotal: i.subtotal, discount_amount: i.discount_amount, tax_amount: i.tax_amount, total_amount: i.total_amount, currency: i.currency.clone(), status: i.status.clone(), due_date: i.due_date, paid_at: i.paid_at, payment_method: i.payment_method.clone(), notes: i.notes.clone(), created_at: i.created_at, customer_name: None, branch_name: None }).collect();
+        let responses: Vec<InvoiceResponse> = invoices.iter().map(|i| InvoiceResponse { id: i.id, invoice_number: i.invoice_number.clone(), customer_id: i.customer_id, branch_id: i.branch_id, subscription_id: i.subscription_id, billing_period_start: i.billing_period_start, billing_period_end: i.billing_period_end, subtotal: i.subtotal, discount_amount: i.discount_amount, tax_amount: i.tax_amount, total_amount: i.total_amount, currency: i.currency.clone(), status: i.status.clone(), due_date: i.due_date, paid_at: i.paid_at, payment_method: i.payment_method.clone(), review_status: i.review_status.clone(), notes: i.notes.clone(), created_at: i.created_at, customer_name: None, branch_name: None }).collect();
         let total_pages = (total as f64 / per_page as f64).ceil() as i64;
         Ok(InvoiceListResponse { invoices: responses, total, page, per_page, total_pages })
     }
 
     pub async fn get_invoice(&self, id: i64) -> Result<InvoiceResponse, AppError> {
         let i = self.repo.get_invoice_by_id(id).await?.ok_or_else(|| AppError::NotFound("Invoice not found".into()))?;
-        Ok(InvoiceResponse { id: i.id, invoice_number: i.invoice_number, customer_id: i.customer_id, branch_id: i.branch_id, subscription_id: i.subscription_id, billing_period_start: i.billing_period_start, billing_period_end: i.billing_period_end, subtotal: i.subtotal, discount_amount: i.discount_amount, tax_amount: i.tax_amount, total_amount: i.total_amount, currency: i.currency, status: i.status, due_date: i.due_date, paid_at: i.paid_at, payment_method: i.payment_method, notes: i.notes, created_at: i.created_at, customer_name: None, branch_name: None })
+        Ok(InvoiceResponse { id: i.id, invoice_number: i.invoice_number, customer_id: i.customer_id, branch_id: i.branch_id, subscription_id: i.subscription_id, billing_period_start: i.billing_period_start, billing_period_end: i.billing_period_end, subtotal: i.subtotal, discount_amount: i.discount_amount, tax_amount: i.tax_amount, total_amount: i.total_amount, currency: i.currency, status: i.status, due_date: i.due_date, paid_at: i.paid_at, payment_method: i.payment_method, review_status: i.review_status.clone(), notes: i.notes, created_at: i.created_at, customer_name: None, branch_name: None })
     }
 
     pub async fn create_invoice(&self, req: CreateInvoiceRequest) -> Result<InvoiceResponse, AppError> {
@@ -32,7 +36,75 @@ impl<'a> BillingService<'a> {
         let tax: rust_decimal::Decimal = req.line_items.iter().map(|li| li.unit_price * li.quantity.unwrap_or(rust_decimal::Decimal::ONE) * li.tax_rate.unwrap_or(rust_decimal::Decimal::ZERO) / rust_decimal::Decimal::from(100)).sum();
         let total = subtotal + tax;
         let invoice = self.repo.create_invoice(&invoice_number, req.customer_id, req.branch_id, req.subscription_id, req.billing_period_start, req.billing_period_end, subtotal, rust_decimal::Decimal::ZERO, tax, total, req.due_date, req.notes.as_deref()).await?;
-        Ok(InvoiceResponse { id: invoice.id, invoice_number: invoice.invoice_number, customer_id: invoice.customer_id, branch_id: invoice.branch_id, subscription_id: invoice.subscription_id, billing_period_start: invoice.billing_period_start, billing_period_end: invoice.billing_period_end, subtotal: invoice.subtotal, discount_amount: invoice.discount_amount, tax_amount: invoice.tax_amount, total_amount: invoice.total_amount, currency: invoice.currency, status: invoice.status, due_date: invoice.due_date, paid_at: invoice.paid_at, payment_method: invoice.payment_method, notes: invoice.notes, created_at: invoice.created_at, customer_name: None, branch_name: None })
+        // Persist line items
+        for li in &req.line_items {
+            let qty = li.quantity.unwrap_or(rust_decimal::Decimal::ONE);
+            let amount = li.unit_price * qty;
+            let tax_rate = li.tax_rate.unwrap_or(rust_decimal::Decimal::ZERO);
+            let tax_amt = amount * tax_rate / rust_decimal::Decimal::from(100);
+            self.repo.create_line_item(invoice.id, &li.description, qty, li.unit_price, amount, tax_rate, tax_amt).await?;
+        }
+        Ok(Self::invoice_to_response(&invoice))
+    }
+
+    pub async fn get_line_items(&self, invoice_id: i64) -> Result<Vec<InvoiceLineItemResponse>, AppError> {
+        let _ = self.repo.get_invoice_by_id(invoice_id).await?.ok_or_else(|| AppError::NotFound("Invoice not found".into()))?;
+        let items = self.repo.get_line_items(invoice_id).await?;
+        Ok(items.iter().map(|li| InvoiceLineItemResponse { id: li.id, invoice_id: li.invoice_id, description: li.description.clone(), quantity: li.quantity, unit_price: li.unit_price, amount: li.amount, tax_rate: li.tax_rate, tax_amount: li.tax_amount }).collect())
+    }
+
+    pub async fn send_invoice(&self, id: i64) -> Result<InvoiceResponse, AppError> {
+        let i = self.repo.update_invoice_status(id, "sent").await.map_err(|_| AppError::NotFound("Invoice not found".into()))?;
+        Ok(Self::invoice_to_response(&i))
+    }
+
+    pub async fn void_invoice(&self, id: i64) -> Result<InvoiceResponse, AppError> {
+        let i = self.repo.update_invoice_status(id, "void").await.map_err(|_| AppError::NotFound("Invoice not found".into()))?;
+        Ok(Self::invoice_to_response(&i))
+    }
+
+    pub async fn review_invoice(&self, id: i64, review_status: &str, review_notes: Option<&str>, reviewed_by: i64) -> Result<InvoiceResponse, AppError> {
+        if !matches!(review_status, "approved" | "rejected") {
+            return Err(AppError::Validation("review_status must be 'approved' or 'rejected'".into()));
+        }
+        let i = self.repo.review_invoice(id, review_status, review_notes, Some(reviewed_by)).await.map_err(|_| AppError::NotFound("Invoice not found".into()))?;
+        Ok(Self::invoice_to_response(&i))
+    }
+
+    pub async fn get_dunning_config(&self) -> Result<serde_json::Value, AppError> {
+        match self.repo.get_dunning_config().await? {
+            Some(c) => Ok(c),
+            None => Ok(serde_json::json!({
+                "reminder_days": [3, 7],
+                "suspension_day": 10,
+                "termination_day": 30,
+                "late_fee_percent": 2.0,
+                "late_fee_cap_percent": 10.0,
+                "channels": ["sms", "email", "whatsapp"]
+            }))
+        }
+    }
+
+    pub async fn update_dunning_config(&self, config: serde_json::Value) -> Result<MessageResponse, AppError> {
+        self.repo.upsert_dunning_config(config).await?;
+        Ok(MessageResponse { message: "Dunning config updated".into() })
+    }
+
+    pub async fn get_tax_config(&self) -> Result<serde_json::Value, AppError> {
+        match self.repo.get_tax_config().await? {
+            Some(c) => Ok(c),
+            None => Ok(serde_json::json!({
+                "cgst_rate": 9.0, "sgst_rate": 9.0, "igst_rate": 18.0,
+                "applicable_state": "Maharashtra",
+                "hsn_code": "998421", "sac_code": "998421",
+                "tax_name": "GST on Internet Services"
+            }))
+        }
+    }
+
+    pub async fn update_tax_config(&self, config: serde_json::Value) -> Result<MessageResponse, AppError> {
+        self.repo.upsert_tax_config(config).await?;
+        Ok(MessageResponse { message: "Tax config updated".into() })
     }
 
     pub async fn record_payment(&self, req: RecordPaymentRequest) -> Result<PaymentResponse, AppError> {

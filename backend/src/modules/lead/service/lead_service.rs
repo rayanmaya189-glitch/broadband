@@ -5,6 +5,7 @@ use crate::modules::lead::repository::lead_repository::LeadRepository;
 use crate::modules::lead::request::lead_request::*;
 use crate::modules::lead::response::lead_response::*;
 use crate::modules::lead::mapper::lead_mapper::*;
+use crate::modules::customer::repository::customer_repository::CustomerRepository;
 
 pub struct LeadService<'a> {
     repo: LeadRepository<'a>,
@@ -59,11 +60,26 @@ impl<'a> LeadService<'a> {
         Ok(activities.iter().map(activity_to_response).collect())
     }
 
-    pub async fn convert_lead(&self, id: i64, _req: ConvertLeadRequest) -> Result<LeadResponse, AppError> {
+    pub async fn convert_lead(&self, id: i64, pool: &PgPool, user_id: i64, _req: ConvertLeadRequest) -> Result<LeadResponse, AppError> {
         let lead = self.repo.get_by_id(id).await?.ok_or_else(|| AppError::NotFound("Lead not found".into()))?;
         if lead.status == "converted" { return Err(AppError::Conflict("Lead already converted".into())); }
-        let customer_id = 1i64; // TODO: integrate with customer service
-        let lead = self.repo.convert(id, customer_id).await?;
+
+        // Create a customer from lead data with phone uniqueness validation
+        let cust_repo = CustomerRepository::new(pool);
+        if cust_repo.phone_exists(&lead.phone, None).await? {
+            return Err(AppError::Conflict("A customer with this phone number already exists".into()));
+        }
+        let branch_code = sqlx::query_scalar::<_, String>("SELECT code FROM branches WHERE id = $1")
+            .bind(lead.branch_id).fetch_optional(pool).await?
+            .unwrap_or_else(|| "GEN".into());
+        let customer_code = cust_repo.generate_customer_code(&branch_code).await?;
+        let customer = cust_repo.create(
+            &customer_code, &lead.name, None, lead.email.as_deref(),
+            &lead.phone, None, lead.branch_id, Some(id), None,
+            Some(user_id), lead.notes.as_deref(),
+        ).await?;
+
+        let lead = self.repo.convert(id, customer.id).await?;
         Ok(lead_to_response(&lead))
     }
 

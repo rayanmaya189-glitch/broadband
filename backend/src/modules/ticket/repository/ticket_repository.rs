@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::modules::ticket::model::ticket::{Ticket, TicketComment};
+use crate::modules::ticket::model::ticket::{Ticket, TicketComment, TicketEscalation, TicketStatusHistory};
 
 pub struct TicketRepository<'a> {
     pool: &'a PgPool,
@@ -182,5 +182,41 @@ impl<'a> TicketRepository<'a> {
         )
         .bind(ticket_id).bind(user_id).bind(is_customer).bind(comment).bind(is_internal).bind(attachments)
         .fetch_one(self.pool).await
+    }
+
+    // ──── Escalations ────
+
+    pub async fn create_escalation(&self, ticket_id: i64, from_user_id: i64, to_user_id: i64, from_priority: Option<&str>, to_priority: Option<&str>, reason: &str) -> Result<TicketEscalation, sqlx::Error> {
+        sqlx::query_as::<_, TicketEscalation>(
+            "INSERT INTO ticket_escalations (ticket_id, from_user_id, to_user_id, from_priority, to_priority, reason)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+        )
+        .bind(ticket_id).bind(from_user_id).bind(to_user_id).bind(from_priority).bind(to_priority).bind(reason)
+        .fetch_one(self.pool).await
+    }
+
+    pub async fn list_escalations(&self, ticket_id: i64) -> Result<Vec<TicketEscalation>, sqlx::Error> {
+        sqlx::query_as::<_, TicketEscalation>(
+            "SELECT * FROM ticket_escalations WHERE ticket_id = $1 ORDER BY escalated_at ASC",
+        )
+        .bind(ticket_id).fetch_all(self.pool).await
+    }
+
+    // ──── Status History ────
+
+    pub async fn create_status_history(&self, ticket_id: i64, old_status: Option<&str>, new_status: &str, changed_by: i64, reason: Option<&str>) -> Result<TicketStatusHistory, sqlx::Error> {
+        sqlx::query_as::<_, TicketStatusHistory>(
+            "INSERT INTO ticket_status_history (ticket_id, old_status, new_status, changed_by, reason)
+             VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        )
+        .bind(ticket_id).bind(old_status).bind(new_status).bind(changed_by).bind(reason)
+        .fetch_one(self.pool).await
+    }
+
+    pub async fn list_status_history(&self, ticket_id: i64) -> Result<Vec<TicketStatusHistory>, sqlx::Error> {
+        sqlx::query_as::<_, TicketStatusHistory>(
+            "SELECT * FROM ticket_status_history WHERE ticket_id = $1 ORDER BY created_at ASC",
+        )
+        .bind(ticket_id).fetch_all(self.pool).await
     }
 }

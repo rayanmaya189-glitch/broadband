@@ -3,6 +3,7 @@ use validator::Validate;
 
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;
+use crate::common::middleware::auth_middleware::UserContext;
 use crate::modules::lead::request::lead_request::*;
 use crate::modules::lead::response::lead_response::*;
 use crate::modules::lead::service::lead_service::LeadService;
@@ -38,10 +39,10 @@ pub async fn assign_lead(State(state): State<SharedState>, Path(id): Path<i64>, 
     Ok(Json(svc.assign_lead(id, req).await?))
 }
 
-pub async fn add_activity(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<AddActivityRequest>) -> Result<Json<LeadActivityResponse>, AppError> {
+pub async fn add_activity(State(state): State<SharedState>, user: UserContext, Path(id): Path<i64>, Json(req): Json<AddActivityRequest>) -> Result<Json<LeadActivityResponse>, AppError> {
     req.validate()?;
     let svc = LeadService::new(&state.db);
-    Ok(Json(svc.add_activity(id, 1, req).await?))
+    Ok(Json(svc.add_activity(id, user.user_id, req).await?))
 }
 
 pub async fn get_activities(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<Vec<LeadActivityResponse>>, AppError> {
@@ -49,9 +50,9 @@ pub async fn get_activities(State(state): State<SharedState>, Path(id): Path<i64
     Ok(Json(svc.get_activities(id).await?))
 }
 
-pub async fn convert_lead(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<ConvertLeadRequest>) -> Result<Json<LeadResponse>, AppError> {
+pub async fn convert_lead(State(state): State<SharedState>, user: UserContext, Path(id): Path<i64>, Json(req): Json<ConvertLeadRequest>) -> Result<Json<LeadResponse>, AppError> {
     let svc = LeadService::new(&state.db);
-    Ok(Json(svc.convert_lead(id, req).await?))
+    Ok(Json(svc.convert_lead(id, &state.db, user.user_id, req).await?))
 }
 
 pub async fn delete_lead(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {

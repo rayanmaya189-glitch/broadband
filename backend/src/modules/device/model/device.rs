@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use sqlx::FromRow;
 
 #[derive(Debug, Clone, FromRow)]
@@ -29,4 +30,43 @@ pub struct NetworkDevice {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct DevicePort {
+    pub id: i64,
+    pub device_id: i64,
+    pub port_number: i32,
+    pub port_name: Option<String>,
+    pub port_type: Option<String>,
+    pub speed_mbps: Option<i32>,
+    pub status: String,
+    pub connected_device_id: Option<i64>,
+    pub customer_id: Option<i64>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct FirmwareUpdate {
+    pub id: i64,
+    pub device_id: i64,
+    pub from_version: Option<String>,
+    pub to_version: String,
+    pub status: String,
+    pub initiated_by: Option<i64>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub failure_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct DeviceLog {
+    pub id: i64,
+    pub device_id: i64,
+    pub level: String,
+    pub message: String,
+    pub source: Option<String>,
+    pub metadata: Option<Value>,
+    pub created_at: DateTime<Utc>,
 }

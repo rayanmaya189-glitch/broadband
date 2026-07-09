@@ -16,3 +16,24 @@ pub struct CoverageArea {
     pub estimated_installation_days: Option<i32>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, FromRow)]
+pub struct CoveragePincode {
+    pub id: i64,
+    pub coverage_area_id: i64,
+    pub pincode: String,
+    pub city: String,
+    pub district: Option<String>,
+    pub state: Option<String>,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct CoverageStats {
+    pub total_areas: i64,
+    pub active_areas: i64,
+    pub total_pincodes: i64,
+    pub total_customers: i64,
+    pub fiber_available_areas: i64,
+}

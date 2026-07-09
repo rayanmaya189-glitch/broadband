@@ -82,8 +82,9 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 # IP Networking
 ipnet = "2"
-sha1 = "0.11.0"
-hmac = "0.13.0"
+sha1 = "0.10"
+hmac = "0.12"
+base64 = "0.22"
 
 [dev-dependencies]
 tokio-test = "0.4"

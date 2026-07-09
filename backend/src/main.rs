@@ -72,6 +72,7 @@ async fn main() {
     };
 
     let state = std::sync::Arc::new(state);
+    let state_bg = state.clone();
 
     let router = Router::new()
         .nest("/api/v1/auth", aeraxe_backend::modules::user::router::user_router::auth_routes())
@@ -97,10 +98,12 @@ async fn main() {
         .nest("/api/v1/documents", aeraxe_backend::modules::document::router::document_router::document_routes())
         .nest("/api/v1/accounting", aeraxe_backend::modules::accounting::router::accounting_router::accounting_routes())
         .nest("/api/v1/payments", aeraxe_backend::modules::payment_gateway::router::payment_gateway_router::payment_gateway_routes())
+        .nest("/api/v1/payments/webhook", aeraxe_backend::modules::payment_gateway::router::payment_gateway_router::payment_webhook_routes())
         .nest("/api/v1/discovery", aeraxe_backend::modules::discovery::router::discovery_router::discovery_routes())
         .nest("/api/v1/realtime", aeraxe_backend::modules::realtime::router::realtime_router::realtime_routes())
         .nest("/ws", aeraxe_backend::modules::realtime::router::realtime_router::ws_routes())
         .nest("/api/v1/audit", aeraxe_backend::modules::audit::router::audit_router::audit_routes())
+        .nest("/api/v1/audit/entity-history", aeraxe_backend::modules::audit::router::entity_history_router::entity_history_routes())
         .merge(
             SwaggerUi::new("/swagger-ui")
                 .url("/api-docs/openapi.json", ApiDoc::openapi()),
@@ -115,6 +118,12 @@ async fn main() {
     print_routes();
 
     tracing::info!(addr = %addr, "Server listening");
+
+    // Spawn background jobs
+    tokio::spawn(async move {
+        aeraxe_backend::common::jobs::sla_checker::run_sla_checker(state_bg).await;
+    });
+    tracing::info!("Background jobs spawned");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await

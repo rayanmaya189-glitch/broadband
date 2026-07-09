@@ -1,4 +1,5 @@
 use utoipa::ToSchema;
+use chrono::NaiveDate;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -44,4 +45,76 @@ pub struct ListCustomersQuery {
 pub struct CustomerStatusTransition {
     pub status: String,
     pub reason: Option<String>,
+}
+
+// ── Customer Profile (KYC) ──────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct UpdateCustomerProfileRequest {
+    pub date_of_birth: Option<NaiveDate>,
+    pub gender: Option<String>,
+    pub nationality: Option<String>,
+    pub id_proof_type: Option<String>,
+    pub id_proof_number: Option<String>,
+    pub id_proof_expiry: Option<NaiveDate>,
+    pub pan_number: Option<String>,
+    pub aadhaar_number: Option<String>,
+    pub gstin: Option<String>,
+    pub company_name: Option<String>,
+    pub designation: Option<String>,
+    pub occupation: Option<String>,
+    pub annual_income_range: Option<String>,
+    pub preferred_language: Option<String>,
+    pub communication_opt_in: Option<bool>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SubmitKycRequest {
+    pub id_proof_type: String,
+    pub id_proof_number: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct VerifyKycRequest {
+    pub status: String, // verified or rejected
+    pub rejection_reason: Option<String>,
+}
+
+// ── KYC Documents ───────────────────────────────────────────
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ListKycDocumentsQuery {
+    pub status: Option<String>,
+}
+
+// ── Customer Addresses ──────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct CreateAddressRequest {
+    #[validate(length(min = 1))]
+    pub address_type: String, // installation, billing, correspondence
+    #[validate(length(min = 1))]
+    pub address_line1: String,
+    pub address_line2: Option<String>,
+    #[validate(length(min = 1))]
+    pub city: String,
+    #[validate(length(min = 1))]
+    pub state: String,
+    #[validate(length(min = 4, max = 10))]
+    pub pincode: String,
+    pub landmark: Option<String>,
+    pub is_primary: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct UpdateAddressRequest {
+    pub address_type: Option<String>,
+    pub address_line1: Option<String>,
+    pub address_line2: Option<String>,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub pincode: Option<String>,
+    pub landmark: Option<String>,
+    pub is_primary: Option<bool>,
 }

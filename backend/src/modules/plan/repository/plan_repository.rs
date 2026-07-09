@@ -2,7 +2,7 @@ use sqlx::PgPool;
 
 use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::{total_pages, PaginatedResponse};
-use crate::modules::plan::model::plan::Plan;
+use crate::modules::plan::model::plan::{Plan, SpeedProfile, PlanPricing};
 use crate::modules::plan::response::plan_response::PlanResponse;
 
 pub struct PlanRepository<'a> {
@@ -93,6 +93,86 @@ impl<'a> PlanRepository<'a> {
         } else {
             sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM plans WHERE code = $1)").bind(code).fetch_one(self.pool).await?
         };
+        Ok(r)
+    }
+
+    // ── Publish / Unpublish ─────────────────────────────────
+
+    pub async fn publish(&self, id: i64, published_by: Option<i64>) -> Result<Plan, AppError> {
+        let r = sqlx::query_as::<_, Plan>(
+            "UPDATE plans SET is_active = true, published_at = NOW(), published_by = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, code, description, speed_down_mbps, speed_up_mbps, data_cap_gb, price_monthly, price_quarterly, price_half_yearly, price_yearly, gst_percent, is_active, is_promotional, category, created_at, updated_at",
+        ).bind(id).bind(published_by).fetch_one(self.pool).await?;
+        Ok(r)
+    }
+
+    pub async fn unpublish(&self, id: i64) -> Result<Plan, AppError> {
+        let r = sqlx::query_as::<_, Plan>(
+            "UPDATE plans SET is_active = false, unpublished_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, name, code, description, speed_down_mbps, speed_up_mbps, data_cap_gb, price_monthly, price_quarterly, price_half_yearly, price_yearly, gst_percent, is_active, is_promotional, category, created_at, updated_at",
+        ).bind(id).fetch_one(self.pool).await?;
+        Ok(r)
+    }
+
+    // ── Clone ───────────────────────────────────────────────
+
+    pub async fn clone(&self, id: i64) -> Result<Plan, AppError> {
+        let r = sqlx::query_as::<_, Plan>(
+            "INSERT INTO plans (name, code, description, speed_down_mbps, speed_up_mbps, data_cap_gb, price_monthly, price_quarterly, price_half_yearly, price_yearly, gst_percent, is_promotional, category) SELECT name || ' (Copy)', code || '-copy-' || EXTRACT(EPOCH FROM NOW())::int, description, speed_down_mbps, speed_up_mbps, data_cap_gb, price_monthly, price_quarterly, price_half_yearly, price_yearly, gst_percent, is_promotional, category FROM plans WHERE id = $1 RETURNING id, name, code, description, speed_down_mbps, speed_up_mbps, data_cap_gb, price_monthly, price_quarterly, price_half_yearly, price_yearly, gst_percent, is_active, is_promotional, category, created_at, updated_at",
+        ).bind(id).fetch_one(self.pool).await?;
+        Ok(r)
+    }
+
+    // ── Speed Profiles ──────────────────────────────────────
+
+    pub async fn get_speed_profile(&self, plan_id: i64) -> Result<Option<SpeedProfile>, AppError> {
+        let r = sqlx::query_as::<_, SpeedProfile>(
+            "SELECT id, plan_id, name, download_limit_kbps, upload_limit_kbps, burst_download_kbps, burst_upload_kbps, burst_duration_seconds, priority_queue, qos_marking, htb_parent_queue, fq_codel_enabled, device_type, is_active, created_at, updated_at FROM speed_profiles WHERE plan_id = $1 AND is_active = true",
+        ).bind(plan_id).fetch_optional(self.pool).await?;
+        Ok(r)
+    }
+
+    pub async fn upsert_speed_profile(
+        &self, plan_id: i64, name: &str, download_kbps: i32, upload_kbps: i32,
+        burst_down: Option<i32>, burst_up: Option<i32>, burst_duration: Option<i32>,
+        priority: Option<i32>, qos: Option<&str>, htb_parent: Option<&str>,
+        fq_codel: Option<bool>, device_type: Option<&str>,
+    ) -> Result<SpeedProfile, AppError> {
+        let existing = self.get_speed_profile(plan_id).await?;
+        if let Some(sp) = existing {
+            let r = sqlx::query_as::<_, SpeedProfile>(
+                "UPDATE speed_profiles SET name = $2, download_limit_kbps = $3, upload_limit_kbps = $4, burst_download_kbps = $5, burst_upload_kbps = $6, burst_duration_seconds = COALESCE($7, burst_duration_seconds), priority_queue = COALESCE($8, priority_queue), qos_marking = $9, htb_parent_queue = $10, fq_codel_enabled = COALESCE($11, fq_codel_enabled), device_type = COALESCE($12, device_type), updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, name, download_limit_kbps, upload_limit_kbps, burst_download_kbps, burst_upload_kbps, burst_duration_seconds, priority_queue, qos_marking, htb_parent_queue, fq_codel_enabled, device_type, is_active, created_at, updated_at",
+            ).bind(sp.id).bind(name).bind(download_kbps).bind(upload_kbps).bind(burst_down).bind(burst_up).bind(burst_duration).bind(priority).bind(qos).bind(htb_parent).bind(fq_codel).bind(device_type).fetch_one(self.pool).await?;
+            Ok(r)
+        } else {
+            let r = sqlx::query_as::<_, SpeedProfile>(
+                "INSERT INTO speed_profiles (plan_id, name, download_limit_kbps, upload_limit_kbps, burst_download_kbps, burst_upload_kbps, burst_duration_seconds, priority_queue, qos_marking, htb_parent_queue, fq_codel_enabled, device_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id, plan_id, name, download_limit_kbps, upload_limit_kbps, burst_download_kbps, burst_upload_kbps, burst_duration_seconds, priority_queue, qos_marking, htb_parent_queue, fq_codel_enabled, device_type, is_active, created_at, updated_at",
+            ).bind(plan_id).bind(name).bind(download_kbps).bind(upload_kbps).bind(burst_down).bind(burst_up).bind(burst_duration.unwrap_or(30)).bind(priority.unwrap_or(1)).bind(qos).bind(htb_parent).bind(fq_codel.unwrap_or(true)).bind(device_type.unwrap_or("mikrotik")).fetch_one(self.pool).await?;
+            Ok(r)
+        }
+    }
+
+    pub async fn delete_speed_profile(&self, plan_id: i64) -> Result<(), AppError> {
+        sqlx::query("UPDATE speed_profiles SET is_active = false, updated_at = NOW() WHERE plan_id = $1").bind(plan_id).execute(self.pool).await?;
+        Ok(())
+    }
+
+    // ── Plan Pricing ────────────────────────────────────────
+
+    pub async fn list_pricing(&self, plan_id: i64) -> Result<Vec<PlanPricing>, AppError> {
+        let r = sqlx::query_as::<_, PlanPricing>(
+            "SELECT id, plan_id, billing_period_months, price, savings_amount, savings_percent, is_active, created_at, updated_at FROM plan_pricing WHERE plan_id = $1 ORDER BY billing_period_months",
+        ).bind(plan_id).fetch_all(self.pool).await?;
+        Ok(r)
+    }
+
+    pub async fn upsert_pricing(&self, plan_id: i64, months: i32, price: rust_decimal::Decimal) -> Result<PlanPricing, AppError> {
+        let monthly_price = sqlx::query_scalar::<_, rust_decimal::Decimal>("SELECT price_monthly FROM plans WHERE id = $1").bind(plan_id).fetch_optional(self.pool).await?.unwrap_or(rust_decimal::Decimal::ZERO);
+        let expected = monthly_price * rust_decimal::Decimal::from(months);
+        let savings = expected - price;
+        let savings_pct = if expected > rust_decimal::Decimal::ZERO { (savings / expected * rust_decimal::Decimal::from(100)).round_dp(2) } else { rust_decimal::Decimal::ZERO };
+
+        let r = sqlx::query_as::<_, PlanPricing>(
+            "INSERT INTO plan_pricing (plan_id, billing_period_months, price, savings_amount, savings_percent) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (plan_id, billing_period_months) DO UPDATE SET price = $3, savings_amount = $4, savings_percent = $5, updated_at = NOW() RETURNING id, plan_id, billing_period_months, price, savings_amount, savings_percent, is_active, created_at, updated_at",
+        ).bind(plan_id).bind(months).bind(price).bind(savings).bind(savings_pct).fetch_one(self.pool).await?;
         Ok(r)
     }
 }

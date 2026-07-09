@@ -22,6 +22,7 @@ pub struct InvoiceResponse {
     pub due_date: NaiveDate,
     pub paid_at: Option<DateTime<Utc>>,
     pub payment_method: Option<String>,
+    pub review_status: Option<String>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     #[sqlx(default)]

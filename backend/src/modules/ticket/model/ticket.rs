@@ -43,3 +43,28 @@ pub struct TicketComment {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, FromRow)]
+pub struct TicketEscalation {
+    pub id: i64,
+    pub ticket_id: i64,
+    pub from_user_id: i64,
+    pub to_user_id: i64,
+    pub from_priority: Option<String>,
+    pub to_priority: Option<String>,
+    pub reason: String,
+    pub escalated_at: DateTime<Utc>,
+    pub acknowledged_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct TicketStatusHistory {
+    pub id: i64,
+    pub ticket_id: i64,
+    pub old_status: Option<String>,
+    pub new_status: String,
+    pub changed_by: i64,
+    pub reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+}

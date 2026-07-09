@@ -28,3 +28,27 @@ pub struct JournalEntry {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, FromRow)]
+pub struct JournalEntryLine {
+    pub id: i64,
+    pub journal_entry_id: i64,
+    pub account_id: i64,
+    pub debit: Decimal,
+    pub credit: Decimal,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct TrialBalance {
+    pub id: i64,
+    pub period_start: NaiveDate,
+    pub period_end: NaiveDate,
+    pub account_id: i64,
+    pub opening_balance: Decimal,
+    pub total_debit: Decimal,
+    pub total_credit: Decimal,
+    pub closing_balance: Decimal,
+    pub generated_at: DateTime<Utc>,
+}

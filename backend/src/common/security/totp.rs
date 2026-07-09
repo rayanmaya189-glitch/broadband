@@ -1,5 +1,5 @@
 use sha1::Sha1;
-use hmac::{Hmac, Mac, KeyInit};
+use hmac::{Hmac, Mac};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 type HmacSha1 = Hmac<Sha1>;

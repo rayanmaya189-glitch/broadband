@@ -16,3 +16,9 @@ pub struct DiscoveryQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
 }
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct RejectRequest {
+    #[validate(length(min = 1))]
+    pub reason: String,
+}

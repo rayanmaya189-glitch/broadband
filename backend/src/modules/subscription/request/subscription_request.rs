@@ -28,3 +28,17 @@ pub struct ListSubscriptionsQuery {
 pub struct SubscriptionActionRequest {
     pub reason: Option<String>,
 }
+
+// ── Upgrade / Downgrade ─────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct UpgradeDowngradeRequest {
+    pub new_plan_id: i64,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SubscriptionHistoryQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationParams,
+}

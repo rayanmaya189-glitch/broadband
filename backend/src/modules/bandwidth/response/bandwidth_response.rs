@@ -25,6 +25,35 @@ pub struct BandwidthProfileListResponse {
     pub total: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct BandwidthApplicationResponse {
+    pub id: i64,
+    pub profile_id: i64,
+    pub subscription_id: i64,
+    pub device_id: i64,
+    pub status: String,
+    pub applied_at: Option<DateTime<Utc>>,
+    pub failed_reason: Option<String>,
+    pub retry_count: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct BandwidthUsageResponse {
+    pub subscription_id: i64,
+    pub total_download_bytes: i64,
+    pub total_upload_bytes: i64,
+    pub records: Vec<BandwidthUsageRecord>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct BandwidthUsageRecord {
+    pub id: i64,
+    pub download_bytes: i64,
+    pub upload_bytes: i64,
+    pub recorded_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,

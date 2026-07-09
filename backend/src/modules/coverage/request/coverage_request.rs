@@ -15,8 +15,26 @@ pub struct CreateCoverageAreaRequest {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateCoverageAreaRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub area_type: Option<String>,
+    pub fiber_available: Option<bool>,
+    pub estimated_installation_days: Option<i32>,
+    pub max_customers: Option<i32>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CheckAvailabilityRequest {
     pub pincode: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AddPincodeRequest {
+    pub pincode: String,
+    pub city: String,
+    pub district: Option<String>,
+    pub state: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

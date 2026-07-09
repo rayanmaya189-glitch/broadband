@@ -5,10 +5,13 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::Response;
 use futures::{SinkExt, StreamExt};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use tokio::sync::{broadcast, RwLock};
 use tracing::{info, warn};
 
 use crate::app::SharedState;
+use crate::common::config::config::Config;
+use crate::common::middleware::auth_middleware::Claims;
 use crate::modules::realtime::model::realtime::*;
 
 /// WebSocket connection manager
@@ -101,17 +104,42 @@ pub fn resolve_channels(user_id: i64, role: &str, branch_id: Option<i64>) -> Vec
     channels
 }
 
+/// Validate a JWT token and extract claims.
+fn validate_jwt(token: &str) -> Option<Claims> {
+    let config = Config::get();
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
+    decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(config.jwt_secret.as_bytes()),
+        &validation,
+    ).ok().map(|d| d.claims)
+}
+
 /// Handle WebSocket upgrade request
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<SharedState>,
     axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
 ) -> Response {
-    // Extract user info from query params (token passed as query param for WebSocket)
+    // Extract and validate JWT token from query params
     let token = params.get("token").cloned().unwrap_or_default();
-    let user_id = params.get("user_id").and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
-    let role = params.get("role").cloned().unwrap_or_else(|| "customer".to_string());
-    let branch_id = params.get("branch_id").and_then(|v| v.parse::<i64>().ok());
+
+    let claims = match validate_jwt(&token) {
+        Some(c) => c,
+        None => {
+            warn!("WebSocket connection rejected: invalid JWT token");
+            return ws.on_upgrade(|socket| async move {
+                let (mut sender, _) = socket.split();
+                let _ = sender.send(Message::Text("{\"error\":\"unauthorized\"}".into())).await;
+                drop(sender);
+            });
+        }
+    };
+
+    let user_id = claims.sub;
+    let role = claims.role.clone();
+    let branch_id = claims.branch_id;
 
     info!(
         user_id = user_id,
@@ -119,11 +147,8 @@ pub async fn ws_handler(
         "WebSocket upgrade request"
     );
 
-    // TODO: Validate JWT token here
-    // For now, we accept the user info from query params
-
     ws.on_upgrade(move |socket| {
-        handle_socket(socket, state, user_id, role, branch_id, token)
+        handle_socket(socket, state, user_id, role, branch_id)
     })
 }
 
@@ -134,19 +159,23 @@ async fn handle_socket(
     user_id: i64,
     role: String,
     branch_id: Option<i64>,
-    _token: String,
 ) {
     let (mut sender, mut receiver) = socket.split();
 
     // Resolve channels based on user context
-    let channels = resolve_channels(user_id, &role, branch_id);
-    let channel_names: Vec<String> = channels.iter().map(|c| c.to_redis_channel()).collect();
+    let default_channels = resolve_channels(user_id, &role, branch_id);
+    let initial_channel_names: Vec<String> = default_channels.iter().map(|c| c.to_redis_channel()).collect();
+
+    // Shared channel list between send and recv tasks
+    let subscribed_channels = Arc::new(RwLock::new(initial_channel_names.clone()));
 
     info!(
         user_id = user_id,
-        channels = ?channel_names,
+        channels = ?initial_channel_names,
         "WebSocket client connected"
     );
+
+    state.ws_manager.increment_connections(user_id).await;
 
     // Subscribe to broadcast channel
     let mut rx = state.ws_manager.broadcast_tx.subscribe();
@@ -157,7 +186,7 @@ async fn handle_socket(
         "system",
         serde_json::json!({
             "message": "Connected to AeroXe realtime",
-            "channels": channel_names,
+            "channels": initial_channel_names,
             "user_id": user_id,
         }),
     );
@@ -166,10 +195,13 @@ async fn handle_socket(
     }
 
     // Spawn task to forward broadcast messages to this WebSocket client
+    let channels_for_send = subscribed_channels.clone();
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            // Only forward messages for channels this client subscribes to
-            if channel_names.contains(&msg.channel) {
+            // Check current subscribed channels (shared via Arc<RwLock>)
+            let channels = channels_for_send.read().await;
+            if channels.contains(&msg.channel) {
+                drop(channels); // release lock before async send
                 if let Err(e) = sender.send(Message::Text(msg.payload.into())).await {
                     warn!("Failed to send WebSocket message: {}", e);
                     break;
@@ -178,16 +210,39 @@ async fn handle_socket(
         }
     });
 
-    // Handle incoming messages from client
-    let state_clone = state.clone();
+    // Handle incoming messages from client (with dynamic channel management)
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
             match msg {
                 Message::Text(text) => {
-                    handle_client_message(&state_clone, user_id, &role, &text).await;
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                        match json.get("type").and_then(|v| v.as_str()) {
+                            Some("ping") => {
+                                info!(user_id = user_id, "Received ping");
+                            }
+                            Some("subscribe") => {
+                                if let Some(channel) = json.get("channel").and_then(|v| v.as_str()) {
+                                    let mut channels = subscribed_channels.write().await;
+                                    if !channels.contains(&channel.to_string()) {
+                                        channels.push(channel.to_string());
+                                        info!(user_id = user_id, channel = channel, "Client subscribed to channel");
+                                    }
+                                }
+                            }
+                            Some("unsubscribe") => {
+                                if let Some(channel) = json.get("channel").and_then(|v| v.as_str()) {
+                                    let mut channels = subscribed_channels.write().await;
+                                    channels.retain(|c| c != channel);
+                                    info!(user_id = user_id, channel = channel, "Client unsubscribed from channel");
+                                }
+                            }
+                            _ => {
+                                warn!(user_id = user_id, "Unknown message type: {:?}", json.get("type"));
+                            }
+                        }
+                    }
                 }
                 Message::Ping(data) => {
-                    // Pong is handled automatically by axum
                     let _ = data;
                 }
                 Message::Close(_) => {
@@ -208,40 +263,6 @@ async fn handle_socket(
     // Cleanup
     state.ws_manager.decrement_connections(user_id).await;
     info!(user_id = user_id, "WebSocket connection closed");
-}
-
-/// Handle messages from WebSocket clients
-async fn handle_client_message(
-    _state: &SharedState,
-    user_id: i64,
-    _role: &str,
-    text: &str,
-) {
-    // Try to parse as JSON
-    if let Ok(msg) = serde_json::from_str::<serde_json::Value>(text) {
-        match msg.get("type").and_then(|v| v.as_str()) {
-            Some("ping") => {
-                // Client ping - server will respond with pong automatically
-                info!(user_id = user_id, "Received ping");
-            }
-            Some("subscribe") => {
-                // Dynamic channel subscription
-                if let Some(channel) = msg.get("channel").and_then(|v| v.as_str()) {
-                    info!(user_id = user_id, channel = channel, "Client subscribing to channel");
-                    // TODO: Add dynamic subscription logic
-                }
-            }
-            Some("unsubscribe") => {
-                if let Some(channel) = msg.get("channel").and_then(|v| v.as_str()) {
-                    info!(user_id = user_id, channel = channel, "Client unsubscribing from channel");
-                    // TODO: Add dynamic unsubscription logic
-                }
-            }
-            _ => {
-                warn!(user_id = user_id, "Unknown message type: {:?}", msg.get("type"));
-            }
-        }
-    }
 }
 
 /// Realtime broadcaster service for other modules to publish events

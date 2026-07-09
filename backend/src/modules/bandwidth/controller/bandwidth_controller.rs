@@ -1,10 +1,12 @@
-use axum::extract::{Json, Path, State};
+use axum::extract::{Json, Path, Query, State};
 use validator::Validate;
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;
 use crate::modules::bandwidth::request::bandwidth_request::*;
 use crate::modules::bandwidth::response::bandwidth_response::*;
 use crate::modules::bandwidth::service::bandwidth_service::BandwidthService;
+
+// ── Profiles ────────────────────────────────────────────────
 
 pub async fn list_profiles(State(state): State<SharedState>) -> Result<Json<BandwidthProfileListResponse>, AppError> {
     let svc = BandwidthService::new(&state.db);
@@ -30,4 +32,24 @@ pub async fn update_profile(State(state): State<SharedState>, Path(id): Path<i64
 pub async fn delete_profile(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {
     let svc = BandwidthService::new(&state.db);
     Ok(Json(svc.delete_profile(id).await?))
+}
+
+// ── Apply to Subscription ───────────────────────────────────
+
+pub async fn apply_to_subscription(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<ApplyProfileRequest>) -> Result<Json<BandwidthApplicationResponse>, AppError> {
+    req.validate()?;
+    let svc = BandwidthService::new(&state.db);
+    Ok(Json(svc.apply_to_subscription(id, req).await?))
+}
+
+pub async fn list_applications(State(state): State<SharedState>, Query(q): Query<ApplicationQuery>) -> Result<Json<Vec<BandwidthApplicationResponse>>, AppError> {
+    let svc = BandwidthService::new(&state.db);
+    Ok(Json(svc.list_applications(q.profile_id, q.page.unwrap_or(1), q.per_page.unwrap_or(20)).await?))
+}
+
+// ── Usage ───────────────────────────────────────────────────
+
+pub async fn get_usage(State(state): State<SharedState>, Path(subscription_id): Path<i64>, Query(q): Query<UsageQuery>) -> Result<Json<BandwidthUsageResponse>, AppError> {
+    let svc = BandwidthService::new(&state.db);
+    Ok(Json(svc.get_usage(subscription_id, q.page.unwrap_or(1), q.per_page.unwrap_or(50)).await?))
 }

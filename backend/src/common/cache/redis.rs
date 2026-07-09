@@ -1,5 +1,6 @@
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::common::errors::app_error::AppError;
 
@@ -123,6 +124,54 @@ impl RedisService {
             .query_async(&mut conn)
             .await
             .map_err(|e| AppError::External(format!("Redis UNLOCK failed: {e}")))?;
+        Ok(())
+    }
+
+    // ── JSON cache helpers ──────────────────────────────────
+
+    /// Serialize and cache a value as JSON.
+    pub async fn set_json<T: Serialize>(&self, key: &str, value: &T, ttl_secs: u64) -> Result<(), AppError> {
+        let json = serde_json::to_string(value)
+            .map_err(|e| AppError::External(format!("Cache serialize failed: {e}")))?;
+        self.set(key, &json, Some(ttl_secs)).await
+    }
+
+    /// Deserialize a cached JSON value.
+    pub async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, AppError> {
+        match self.get(key).await? {
+            Some(json) => serde_json::from_str(&json)
+                .map(Some)
+                .map_err(|e| AppError::External(format!("Cache deserialize failed: {e}"))),
+            None => Ok(None),
+        }
+    }
+
+    /// Delete all keys matching a prefix pattern using cursor-based SCAN.
+    pub async fn del_prefix(&self, prefix: &str) -> Result<(), AppError> {
+        let pattern = format!("{prefix}*");
+        let mut cursor: u64 = 0;
+        loop {
+            let mut conn = self.conn.clone();
+            let (next_cursor, keys): (u64, Vec<String>) = redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(&pattern)
+                .arg("COUNT")
+                .arg(100)
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| AppError::External(format!("Redis SCAN failed: {e}")))?;
+            if !keys.is_empty() {
+                let key_refs: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+                let mut conn2 = self.conn.clone();
+                let _: () = conn2.del(&key_refs).await
+                    .map_err(|e| AppError::External(format!("Redis DEL failed: {e}")))?;
+            }
+            cursor = next_cursor;
+            if cursor == 0 {
+                break;
+            }
+        }
         Ok(())
     }
 }

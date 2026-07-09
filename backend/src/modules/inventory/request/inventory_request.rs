@@ -15,6 +15,18 @@ pub struct CreateInventoryItemRequest {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+pub struct AssignInventoryRequest {
+    pub user_id: i64,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct TransferInventoryRequest {
+    pub to_branch_id: i64,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InventoryQuery {
     pub branch_id: Option<i64>,
     pub status: Option<String>,

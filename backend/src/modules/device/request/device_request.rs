@@ -41,3 +41,27 @@ pub struct DeviceQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
 }
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PortStatusRequest {
+    pub status: String, // "up", "down", "disabled"
+}
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct FirmwareUpdateRequest {
+    #[validate(length(min = 1))]
+    pub to_version: String,
+}
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct FirmwareStatusRequest {
+    pub status: String, // "pending", "downloading", "installing", "completed", "failed"
+    pub failure_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DeviceLogQuery {
+    pub level: Option<String>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}

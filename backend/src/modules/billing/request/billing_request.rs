@@ -78,3 +78,15 @@ pub struct RefundQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
 }
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct ReviewInvoiceRequest {
+    pub review_status: String,
+    pub review_notes: Option<String>,
+    pub reviewed_by: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct BillingConfigRequest {
+    pub config: serde_json::Value,
+}

@@ -1,9 +1,10 @@
 use utoipa::ToSchema;
 use chrono::{DateTime, NaiveDate, Utc};
-use serde::Serialize;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct SubscriptionResponse {
     pub id: i64,
     pub customer_id: i64,
@@ -22,4 +23,42 @@ pub struct SubscriptionResponse {
 pub type SubscriptionDetailResponse = SubscriptionResponse;
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct MessageResponse { pub message: String }
+pub struct MessageResponse {
+    pub message: String,
+}
+
+// ── Upgrade / Downgrade ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ProRataAdjustment {
+    pub old_plan_id: i64,
+    pub new_plan_id: i64,
+    pub old_plan_price: Decimal,
+    pub new_plan_price: Decimal,
+    pub old_plan_credit: Decimal,
+    pub new_plan_charge: Decimal,
+    pub adjustment: Decimal,
+    pub remaining_days: i32,
+    pub billing_period_days: i32,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpgradeDowngradeResponse {
+    pub subscription: SubscriptionResponse,
+    pub pro_rata: ProRataAdjustment,
+    pub message: String,
+}
+
+// ── Subscription History ────────────────────────────────────
+
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct SubscriptionHistoryEntry {
+    pub id: i64,
+    pub subscription_id: i64,
+    pub action: String,
+    pub old_data: Option<serde_json::Value>,
+    pub new_data: Option<serde_json::Value>,
+    pub performed_by: Option<i64>,
+    pub performed_at: DateTime<Utc>,
+    pub reason: Option<String>,
+}

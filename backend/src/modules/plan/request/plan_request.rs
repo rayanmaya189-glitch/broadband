@@ -47,3 +47,41 @@ pub struct ListPlansQuery {
     pub is_active: Option<bool>,
     pub category: Option<String>,
 }
+
+// ── Speed Profile ──────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct CreateSpeedProfileRequest {
+    #[validate(length(min = 1))]
+    pub name: String,
+    pub download_limit_kbps: i32,
+    pub upload_limit_kbps: i32,
+    pub burst_download_kbps: Option<i32>,
+    pub burst_upload_kbps: Option<i32>,
+    pub burst_duration_seconds: Option<i32>,
+    pub priority_queue: Option<i32>,
+    pub qos_marking: Option<String>,
+    pub htb_parent_queue: Option<String>,
+    pub fq_codel_enabled: Option<bool>,
+    pub device_type: Option<String>,
+}
+
+// ── Publish / Unpublish ───────────────────────────────────
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PublishPlanRequest {
+    pub reason: Option<String>,
+}
+
+// ── Plan Pricing ──────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct UpdatePlanPricingRequest {
+    pub billing_period_months: i32,
+    pub price: rust_decimal::Decimal,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ListPlanPricingQuery {
+    pub plan_id: Option<i64>,
+}

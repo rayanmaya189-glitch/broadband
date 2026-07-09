@@ -25,3 +25,22 @@ pub struct UpdateBandwidthProfileRequest {
     pub burst_upload_kbps: Option<i32>,
     pub is_active: Option<bool>,
 }
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct ApplyProfileRequest {
+    pub subscription_id: i64,
+    pub device_id: i64,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ApplicationQuery {
+    pub profile_id: Option<i64>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UsageQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}

@@ -13,5 +13,8 @@ pub fn subscriptions_routes() -> Router<SharedState> {
         .route("/:id/suspend", post(subscription_controller::suspend_subscription))
         .route("/:id/reactivate", post(subscription_controller::reactivate_subscription))
         .route("/:id/cancel", post(subscription_controller::cancel_subscription))
+        .route("/:id/upgrade", post(subscription_controller::upgrade_subscription))
+        .route("/:id/downgrade", post(subscription_controller::downgrade_subscription))
+        .route("/:id/history", get(subscription_controller::get_subscription_history))
         .layer(middleware::from_fn(jwt_middleware))
 }

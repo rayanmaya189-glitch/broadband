@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::modules::billing::model::billing::{Invoice, Payment, Refund, Discount};
+use crate::modules::billing::model::billing::{Invoice, InvoiceLineItem, Payment, Refund, Discount};
 
 pub struct BillingRepository<'a> {
     pool: &'a PgPool,
@@ -96,5 +96,52 @@ impl<'a> BillingRepository<'a> {
     pub async fn create_discount(&self, name: &str, code: Option<&str>, discount_type: &str, value: rust_decimal::Decimal, max_uses: Option<i32>, valid_from: chrono::NaiveDate, valid_until: chrono::NaiveDate) -> Result<Discount, sqlx::Error> {
         sqlx::query_as::<_, Discount>("INSERT INTO discounts (name, code, type, value, max_uses, valid_from, valid_until) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *")
             .bind(name).bind(code).bind(discount_type).bind(value).bind(max_uses).bind(valid_from).bind(valid_until).fetch_one(self.pool).await
+    }
+
+    // ──── Line Items ────
+    pub async fn create_line_item(&self, invoice_id: i64, description: &str, quantity: rust_decimal::Decimal, unit_price: rust_decimal::Decimal, amount: rust_decimal::Decimal, tax_rate: rust_decimal::Decimal, tax_amount: rust_decimal::Decimal) -> Result<InvoiceLineItem, sqlx::Error> {
+        sqlx::query_as::<_, InvoiceLineItem>("INSERT INTO invoice_line_items (invoice_id, description, quantity, unit_price, amount, tax_rate, tax_amount) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *")
+            .bind(invoice_id).bind(description).bind(quantity).bind(unit_price).bind(amount).bind(tax_rate).bind(tax_amount).fetch_one(self.pool).await
+    }
+
+    pub async fn get_line_items(&self, invoice_id: i64) -> Result<Vec<InvoiceLineItem>, sqlx::Error> {
+        sqlx::query_as::<_, InvoiceLineItem>("SELECT * FROM invoice_line_items WHERE invoice_id = $1 ORDER BY id")
+            .bind(invoice_id).fetch_all(self.pool).await
+    }
+
+    pub async fn review_invoice(&self, id: i64, review_status: &str, review_notes: Option<&str>, reviewed_by: Option<i64>) -> Result<Invoice, sqlx::Error> {
+        sqlx::query_as::<_, Invoice>("UPDATE invoices SET review_status = $2, review_notes = $3, reviewed_by = $4, reviewed_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *")
+            .bind(id).bind(review_status).bind(review_notes).bind(reviewed_by).fetch_one(self.pool).await
+    }
+
+    pub async fn approve_invoice(&self, id: i64, approved_by: i64) -> Result<Invoice, sqlx::Error> {
+        sqlx::query_as::<_, Invoice>("UPDATE invoices SET review_status = 'approved', approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *")
+            .bind(id).bind(approved_by).fetch_one(self.pool).await
+    }
+
+    // ──── Dunning Config ────
+    pub async fn get_dunning_config(&self) -> Result<Option<serde_json::Value>, sqlx::Error> {
+        let row: Option<(serde_json::Value,)> = sqlx::query_as("SELECT config FROM billing_config WHERE key = 'dunning'")
+            .fetch_optional(self.pool).await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    pub async fn upsert_dunning_config(&self, config: serde_json::Value) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT INTO billing_config (key, config) VALUES ('dunning', $1) ON CONFLICT (key) DO UPDATE SET config = $1, updated_at = NOW()")
+            .bind(config).execute(self.pool).await?;
+        Ok(())
+    }
+
+    // ──── Tax Config ────
+    pub async fn get_tax_config(&self) -> Result<Option<serde_json::Value>, sqlx::Error> {
+        let row: Option<(serde_json::Value,)> = sqlx::query_as("SELECT config FROM billing_config WHERE key = 'tax'")
+            .fetch_optional(self.pool).await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    pub async fn upsert_tax_config(&self, config: serde_json::Value) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT INTO billing_config (key, config) VALUES ('tax', $1) ON CONFLICT (key) DO UPDATE SET config = $1, updated_at = NOW()")
+            .bind(config).execute(self.pool).await?;
+        Ok(())
     }
 }

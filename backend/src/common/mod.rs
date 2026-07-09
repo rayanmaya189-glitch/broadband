@@ -6,6 +6,7 @@ pub mod config;
 pub mod database;
 pub mod errors;
 pub mod events;
+pub mod jobs;
 pub mod middleware;
 pub mod security;
 pub mod traits;

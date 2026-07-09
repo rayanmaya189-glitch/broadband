@@ -19,11 +19,24 @@ pub struct ScheduleInstallationRequest {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+pub struct RescheduleInstallationRequest {
+    pub scheduled_date: NaiveDate,
+    pub scheduled_time_slot: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CompleteInstallationRequest {
     pub fiber_drop_length_meters: Option<i32>,
     pub onu_power_dbm: Option<f64>,
     pub equipment_issued: Option<serde_json::Value>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UploadPhotoRequest {
+    pub photo_url: String,
+    pub caption: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -3,6 +3,33 @@ use rust_decimal::Decimal;
 use sqlx::FromRow;
 
 #[derive(Debug, Clone, FromRow)]
+pub struct CustomerWallet {
+    pub id: i64,
+    pub customer_id: i64,
+    pub balance: Decimal,
+    pub total_earned: Decimal,
+    pub total_spent: Decimal,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct WalletTransaction {
+    pub id: i64,
+    pub wallet_id: i64,
+    pub transaction_type: String,
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub reference_type: Option<String>,
+    pub reference_id: Option<i64>,
+    pub description: Option<String>,
+    pub performed_by: Option<i64>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, FromRow)]
 pub struct ReferralProgram {
     pub id: i64,
     pub name: String,

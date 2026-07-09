@@ -12,8 +12,13 @@ impl<'a> InstallationService<'a> {
         let page = query.page.unwrap_or(1);
         let per_page = query.per_page.unwrap_or(20);
         let (orders, total) = self.repo.list(query.branch_id, query.status.as_deref(), page, per_page).await?;
-        let responses: Vec<InstallationResponse> = orders.iter().map(|o| InstallationResponse { id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id, assigned_technician_id: o.assigned_technician_id, status: o.status.clone(), scheduled_date: o.scheduled_date, scheduled_time_slot: o.scheduled_time_slot.clone(), completed_at: o.completed_at, installation_type: o.installation_type.clone(), notes: o.notes.clone(), created_at: o.created_at, customer_name: None, technician_name: None }).collect();
         let total_pages = (total as f64 / per_page as f64).ceil() as i64;
+        let responses: Vec<InstallationResponse> = orders.into_iter().map(|o| InstallationResponse {
+            id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id,
+            assigned_technician_id: o.assigned_technician_id, status: o.status, scheduled_date: o.scheduled_date,
+            scheduled_time_slot: o.scheduled_time_slot, completed_at: o.completed_at, installation_type: o.installation_type,
+            notes: o.notes, created_at: o.created_at, customer_name: None, technician_name: None,
+        }).collect();
         Ok(InstallationListResponse { installations: responses, total, page, per_page, total_pages })
     }
 
@@ -32,6 +37,11 @@ impl<'a> InstallationService<'a> {
         Ok(InstallationResponse { id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id, assigned_technician_id: o.assigned_technician_id, status: o.status, scheduled_date: o.scheduled_date, scheduled_time_slot: o.scheduled_time_slot, completed_at: o.completed_at, installation_type: o.installation_type, notes: o.notes, created_at: o.created_at, customer_name: None, technician_name: None })
     }
 
+    pub async fn reschedule_installation(&self, id: i64, req: RescheduleInstallationRequest) -> Result<InstallationResponse, AppError> {
+        let o = self.repo.reschedule(id, req.scheduled_date, &req.scheduled_time_slot, req.reason.as_deref()).await.map_err(|_| AppError::NotFound("Installation not found".into()))?;
+        Ok(InstallationResponse { id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id, assigned_technician_id: o.assigned_technician_id, status: o.status, scheduled_date: o.scheduled_date, scheduled_time_slot: o.scheduled_time_slot, completed_at: o.completed_at, installation_type: o.installation_type, notes: o.notes, created_at: o.created_at, customer_name: None, technician_name: None })
+    }
+
     pub async fn start_installation(&self, id: i64) -> Result<InstallationResponse, AppError> {
         let o = self.repo.start(id).await.map_err(|_| AppError::NotFound("Installation not found".into()))?;
         Ok(InstallationResponse { id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id, assigned_technician_id: o.assigned_technician_id, status: o.status, scheduled_date: o.scheduled_date, scheduled_time_slot: o.scheduled_time_slot, completed_at: o.completed_at, installation_type: o.installation_type, notes: o.notes, created_at: o.created_at, customer_name: None, technician_name: None })
@@ -47,8 +57,13 @@ impl<'a> InstallationService<'a> {
         Ok(MessageResponse { message: "Installation cancelled".into() })
     }
 
+    pub async fn upload_photo(&self, id: i64, req: UploadPhotoRequest) -> Result<MessageResponse, AppError> {
+        self.repo.add_photo(id, &req.photo_url).await.map_err(|_| AppError::NotFound("Installation not found".into()))?;
+        Ok(MessageResponse { message: "Photo uploaded".into() })
+    }
+
     pub async fn get_my_assignments(&self, technician_id: i64) -> Result<Vec<InstallationResponse>, AppError> {
         let orders = self.repo.get_my_assignments(technician_id).await?;
-        Ok(orders.iter().map(|o| InstallationResponse { id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id, assigned_technician_id: o.assigned_technician_id, status: o.status.clone(), scheduled_date: o.scheduled_date, scheduled_time_slot: o.scheduled_time_slot.clone(), completed_at: o.completed_at, installation_type: o.installation_type.clone(), notes: o.notes.clone(), created_at: o.created_at, customer_name: None, technician_name: None }).collect())
+        Ok(orders.into_iter().map(|o| InstallationResponse { id: o.id, customer_id: o.customer_id, branch_id: o.branch_id, subscription_id: o.subscription_id, assigned_technician_id: o.assigned_technician_id, status: o.status, scheduled_date: o.scheduled_date, scheduled_time_slot: o.scheduled_time_slot, completed_at: o.completed_at, installation_type: o.installation_type, notes: o.notes, created_at: o.created_at, customer_name: None, technician_name: None }).collect())
     }
 }

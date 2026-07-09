@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::{total_pages, PaginatedResponse};
 use crate::modules::subscription::model::subscription::Subscription;
-use crate::modules::subscription::response::subscription_response::SubscriptionResponse;
+use crate::modules::subscription::response::subscription_response::{SubscriptionResponse, SubscriptionHistoryEntry};
 
 pub struct SubscriptionRepository<'a> {
     pool: &'a PgPool,
@@ -11,6 +11,10 @@ pub struct SubscriptionRepository<'a> {
 
 impl<'a> SubscriptionRepository<'a> {
     pub fn new(pool: &'a PgPool) -> Self { Self { pool } }
+
+    pub fn get_pool(&self) -> &'a PgPool {
+        self.pool
+    }
 
     pub async fn find_by_id(&self, id: i64) -> Result<Option<Subscription>, AppError> {
         let r = sqlx::query_as::<_, Subscription>(
@@ -75,5 +79,37 @@ impl<'a> SubscriptionRepository<'a> {
         let subs = dq.fetch_all(self.pool).await?;
         let tp = total_pages(total, limit);
         Ok(PaginatedResponse { data: subs, total, page: (offset / limit) + 1, limit, total_pages: tp })
+    }
+
+    // ── Upgrade / Downgrade ─────────────────────────────────
+
+    pub async fn change_plan(&self, id: i64, new_plan_id: i64, previous_plan_id: i64) -> Result<Subscription, AppError> {
+        let r = sqlx::query_as::<_, Subscription>(
+            "UPDATE subscriptions SET plan_id = $2, previous_plan_id = $3, upgraded_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, customer_id, branch_id, plan_id, status, billing_period_months, start_date, end_date, next_billing_date, auto_renew, created_at, updated_at",
+        ).bind(id).bind(new_plan_id).bind(previous_plan_id).fetch_one(self.pool).await?;
+        Ok(r)
+    }
+
+    pub async fn schedule_downgrade(&self, id: i64, new_plan_id: i64, previous_plan_id: i64, scheduled_date: chrono::NaiveDate) -> Result<Subscription, AppError> {
+        let r = sqlx::query_as::<_, Subscription>(
+            "UPDATE subscriptions SET plan_id = $2, previous_plan_id = $3, downgrade_scheduled_date = $4, updated_at = NOW() WHERE id = $1 RETURNING id, customer_id, branch_id, plan_id, status, billing_period_months, start_date, end_date, next_billing_date, auto_renew, created_at, updated_at",
+        ).bind(id).bind(new_plan_id).bind(previous_plan_id).bind(scheduled_date).fetch_one(self.pool).await?;
+        Ok(r)
+    }
+
+    // ── Subscription History ────────────────────────────────
+
+    pub async fn record_history(&self, subscription_id: i64, action: &str, old_data: Option<&str>, new_data: Option<&str>, performed_by: Option<i64>, reason: Option<&str>) -> Result<(), AppError> {
+        sqlx::query(
+            "INSERT INTO subscription_history (subscription_id, action, old_data, new_data, performed_by, reason) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)",
+        ).bind(subscription_id).bind(action).bind(old_data).bind(new_data).bind(performed_by).bind(reason).execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_history(&self, subscription_id: i64, offset: u32, limit: u32) -> Result<Vec<SubscriptionHistoryEntry>, AppError> {
+        let r = sqlx::query_as::<_, SubscriptionHistoryEntry>(
+            "SELECT id, subscription_id, action, old_data, new_data, performed_by, performed_at, reason FROM subscription_history WHERE subscription_id = $1 ORDER BY performed_at DESC LIMIT $2 OFFSET $3",
+        ).bind(subscription_id).bind(limit as i64).bind(offset as i64).fetch_all(self.pool).await?;
+        Ok(r)
     }
 }
