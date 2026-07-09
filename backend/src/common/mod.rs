@@ -8,6 +8,7 @@ pub mod errors;
 pub mod events;
 pub mod jobs;
 pub mod middleware;
+pub mod seed;
 pub mod security;
 pub mod traits;
 pub mod utils;

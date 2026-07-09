@@ -6,7 +6,9 @@ use sqlx::FromRow;
 pub struct Permission {
     pub id: i64,
     pub name: String,
-    pub description: Option<String>,
+    pub method: String,
+    pub api_url: String,
+    pub guard: String,
     pub module: String,
     pub created_at: DateTime<Utc>,
 }

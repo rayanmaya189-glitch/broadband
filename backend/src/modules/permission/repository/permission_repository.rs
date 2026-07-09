@@ -13,7 +13,7 @@ impl<'a> PermissionRepository<'a> {
     pub fn new(pool: &'a PgPool) -> Self { Self { pool } }
 
     pub async fn find_by_id(&self, id: i64) -> Result<Option<Permission>, AppError> {
-        let r = sqlx::query_as::<_, Permission>("SELECT id, name, description, module, created_at FROM permissions WHERE id = $1").bind(id).fetch_optional(self.pool).await?;
+        let r = sqlx::query_as::<_, Permission>("SELECT id, name, method, api_url, guard, module, created_at FROM permissions WHERE id = $1").bind(id).fetch_optional(self.pool).await?;
         Ok(r)
     }
 
@@ -30,7 +30,7 @@ impl<'a> PermissionRepository<'a> {
         };
 
         let data_sql = format!(
-            "SELECT id, name, description, module, created_at FROM permissions {wc} ORDER BY name LIMIT ${} OFFSET ${}",
+            "SELECT id, name, method, api_url, guard, module, created_at FROM permissions {wc} ORDER BY name LIMIT ${} OFFSET ${}",
             if module.is_some() { 2 } else { 1 },
             if module.is_some() { 3 } else { 2 },
         );
@@ -42,18 +42,19 @@ impl<'a> PermissionRepository<'a> {
         Ok(PaginatedResponse { data: perms, total, page: (offset / limit) + 1, limit, total_pages: tp })
     }
 
-    pub async fn create(&self, name: &str, description: Option<&str>, module: &str) -> Result<Permission, AppError> {
-        let r = sqlx::query_as::<_, Permission>("INSERT INTO permissions (name, description, module) VALUES ($1, $2, $3) RETURNING id, name, description, module, created_at").bind(name).bind(description).bind(module).fetch_one(self.pool).await?;
-        Ok(r)
+    pub async fn create(&self, name: &str, method: &str, api_url: &str, guard: &str, module: &str) -> Result<Permission, AppError> {
+        sqlx::query(
+            "INSERT INTO permissions (name, method, api_url, guard, module) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name, method, api_url) DO NOTHING"
+        ).bind(name).bind(method).bind(api_url).bind(guard).bind(module).execute(self.pool).await?;
+        // Fetch the row (either newly inserted or existing)
+        let perm = sqlx::query_as::<_, Permission>(
+            "SELECT id, name, method, api_url, guard, module, created_at FROM permissions WHERE name = $1 AND method = $2 AND api_url = $3"
+        ).bind(name).bind(method).bind(api_url).fetch_one(self.pool).await?;
+        Ok(perm)
     }
 
     pub async fn delete(&self, id: i64) -> Result<(), AppError> {
         sqlx::query("DELETE FROM permissions WHERE id = $1").bind(id).execute(self.pool).await?;
         Ok(())
-    }
-
-    pub async fn name_exists(&self, name: &str) -> Result<bool, AppError> {
-        let r = sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM permissions WHERE name = $1)").bind(name).fetch_one(self.pool).await?;
-        Ok(r)
     }
 }

@@ -21,8 +21,7 @@ impl<'a> PermissionService<'a> {
     }
 
     pub async fn create_permission(&self, req: &CreatePermissionRequest) -> Result<PermissionResponse, AppError> {
-        if self.repo.name_exists(&req.name).await? { return Err(AppError::Conflict("Permission name already exists".into())); }
-        let perm = self.repo.create(&req.name, req.description.as_deref(), &req.module).await?;
+        let perm = self.repo.create(&req.name, &req.method, &req.api_url, &req.guard, &req.module).await?;
         Ok(permission_to_response(&perm))
     }
 

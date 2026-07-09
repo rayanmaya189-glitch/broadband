@@ -72,6 +72,11 @@ async fn main() {
         }
     };
 
+    // ── Seed permissions on startup ─────────────────────────
+    if let Err(e) = aeraxe_backend::common::seed::permission_seeder::seed_permissions(&state.db).await {
+        tracing::error!(error = %e, "Failed to seed permissions");
+    }
+
     let state = std::sync::Arc::new(state);
 
     let router = Router::new()

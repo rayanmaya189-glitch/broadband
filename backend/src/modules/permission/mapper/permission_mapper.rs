@@ -5,7 +5,9 @@ pub fn permission_to_response(perm: &Permission) -> PermissionResponse {
     PermissionResponse {
         id: perm.id,
         name: perm.name.clone(),
-        description: perm.description.clone(),
+        method: perm.method.clone(),
+        api_url: perm.api_url.clone(),
+        guard: perm.guard.clone(),
         module: perm.module.clone(),
         created_at: perm.created_at,
     }
