@@ -120,11 +120,16 @@ async fn process_dunning(
         _ => return Ok(()),
     };
 
+    // Deduplication: skip if we already sent this customer a dunning notification today
+    let dunning_key = format!("dunning_{}", new_stage);
+    if super::notification_dedup::notification_exists_today(pool, invoice.customer_id, &dunning_key).await? {
+        return Ok(());
+    }
+
     // Record notification
     sqlx::query(
         "INSERT INTO notifications (customer_id, branch_id, type, channel, title, body, metadata)
-         VALUES ($1, $2, 'dunning', 'in_app', $3, $4, $5::jsonb)
-         ON CONFLICT DO NOTHING",
+         VALUES ($1, $2, 'dunning', 'in_app', $3, $4, $5::jsonb)",
     )
     .bind(invoice.customer_id)
     .bind(invoice.branch_id)

@@ -48,11 +48,16 @@ async fn find_expiring_subscriptions(pool: &PgPool) -> Result<Vec<ExpiringSubscr
 }
 
 /// Record a notification event for the renewal reminder.
-/// Uses the notifications table if it exists, otherwise logs to events.
+/// Checks for an existing reminder today before inserting to avoid duplicates.
 async fn record_renewal_reminder(
     pool: &PgPool,
     sub: &ExpiringSubscription,
 ) -> Result<(), sqlx::Error> {
+    // Deduplication: skip if we already sent this customer a renewal reminder today
+    if super::notification_dedup::notification_exists_today(pool, sub.customer_id, "renewal_reminder").await? {
+        return Ok(());
+    }
+
     let message = format!(
         "Subscription renewal reminder: Your {} plan (₹{}/month) will renew on {}. Please ensure sufficient balance.",
         sub.plan_name,
@@ -66,8 +71,7 @@ async fn record_renewal_reminder(
          VALUES ($1, $2, 'renewal_reminder', 'in_app',
                  'Subscription Renewal Reminder',
                  $3,
-                 $4::jsonb)
-         ON CONFLICT DO NOTHING",
+                 $4::jsonb)",
     )
     .bind(sub.customer_id)
     .bind(sub.branch_id)
