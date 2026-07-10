@@ -1,1 +1,1 @@
-pub mod subscription_service_seaorm;
+pub mod subscription_service;

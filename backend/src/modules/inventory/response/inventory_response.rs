@@ -2,9 +2,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InventoryItemResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -21,7 +21,7 @@ pub struct InventoryItemResponse {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InventoryMovementResponse {
     pub id: i64,
     pub item_id: i64,
@@ -54,7 +54,7 @@ pub struct InventoryReportResponse {
     pub total_value: Option<Decimal>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WarrantyAlertResponse {
     pub id: i64,
     pub item_type: String,

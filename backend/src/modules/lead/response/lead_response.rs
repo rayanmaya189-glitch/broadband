@@ -1,9 +1,8 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LeadResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -24,9 +23,7 @@ pub struct LeadResponse {
     pub converted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    #[sqlx(default)]
     pub assigned_to_name: Option<String>,
-    #[sqlx(default)]
     pub branch_name: Option<String>,
 }
 
@@ -39,7 +36,7 @@ pub struct LeadListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LeadActivityResponse {
     pub id: i64,
     pub lead_id: i64,
@@ -49,7 +46,6 @@ pub struct LeadActivityResponse {
     pub scheduled_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
-    #[sqlx(default)]
     pub performer_name: Option<String>,
 }
 

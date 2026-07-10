@@ -1,9 +1,9 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InstallationResponse {
     pub id: i64,
     pub customer_id: i64,
@@ -17,9 +17,7 @@ pub struct InstallationResponse {
     pub installation_type: String,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
-    #[sqlx(default)]
     pub customer_name: Option<String>,
-    #[sqlx(default)]
     pub technician_name: Option<String>,
 }
 

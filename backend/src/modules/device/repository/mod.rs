@@ -1,1 +1,1 @@
-pub mod device_repository_seaorm;
+pub mod device_repository;

@@ -1,1 +1,1 @@
-pub mod customer_service_seaorm;
+pub mod customer_service;

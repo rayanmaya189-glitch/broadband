@@ -1,75 +1,171 @@
-use sqlx::PgPool;
-use crate::modules::bandwidth::model::bandwidth::{BandwidthProfile, BandwidthApplication, BandwidthUsage};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set};
 
-pub struct BandwidthRepository<'a> { pool: &'a PgPool }
+use crate::common::errors::app_error::AppError;
+use crate::modules::bandwidth::model::bandwidth_profile::{self as bandwidth_profile_entity, Model as BandwidthProfile};
+use crate::modules::bandwidth::model::bandwidth_application::{self as bandwidth_application_entity, Model as BandwidthApplication};
+use crate::modules::bandwidth::model::bandwidth_usage::{self as bandwidth_usage_entity, Model as BandwidthUsage};
+
+pub struct BandwidthRepository<'a> {
+    db: &'a DatabaseConnection,
+}
+
 impl<'a> BandwidthRepository<'a> {
-    pub fn new(pool: &'a PgPool) -> Self { Self { pool } }
-    pub fn pool(&self) -> &'a PgPool { self.pool }
-
-    pub async fn list(&self, page: i64, per_page: i64) -> Result<(Vec<BandwidthProfile>, i64), sqlx::Error> {
-        let offset = (page - 1) * per_page;
-        let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM bandwidth_profiles").fetch_one(self.pool).await?;
-        let profiles: Vec<BandwidthProfile> = sqlx::query_as("SELECT * FROM bandwidth_profiles ORDER BY created_at DESC LIMIT $1 OFFSET $2")
-            .bind(per_page).bind(offset).fetch_all(self.pool).await?;
-        Ok((profiles, count_row.0))
+    pub fn new(db: &'a DatabaseConnection) -> Self {
+        Self { db }
     }
 
-    pub async fn get_by_id(&self, id: i64) -> Result<Option<BandwidthProfile>, sqlx::Error> {
-        sqlx::query_as::<_, BandwidthProfile>("SELECT * FROM bandwidth_profiles WHERE id = $1").bind(id).fetch_optional(self.pool).await
+    // ── Profiles ────────────────────────────────────────────
+
+    pub async fn list(&self, page: i64, per_page: i64) -> Result<(Vec<BandwidthProfile>, i64), AppError> {
+        let page_size = per_page.max(1) as u64;
+        let page_num = page.max(1) as u64;
+
+        let paginator = bandwidth_profile_entity::Entity::find()
+            .order_by_desc(bandwidth_profile_entity::Column::CreatedAt)
+            .paginate(self.db, page_size);
+
+        let total = paginator.num_items().await? as i64;
+        let profiles = paginator.fetch_page(page_num - 1).await?;
+        Ok((profiles, total))
     }
 
-    pub async fn create(&self, name: &str, description: Option<&str>, plan_id: Option<i64>, download: i32, upload: i32, burst_down: Option<i32>, burst_up: Option<i32>, burst_dur: Option<i32>, priority: Option<i32>) -> Result<BandwidthProfile, sqlx::Error> {
-        sqlx::query_as::<_, BandwidthProfile>("INSERT INTO bandwidth_profiles (name, description, plan_id, download_kbps, upload_kbps, burst_download_kbps, burst_upload_kbps, burst_duration_seconds, priority) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *")
-            .bind(name).bind(description).bind(plan_id).bind(download).bind(upload).bind(burst_down).bind(burst_up).bind(burst_dur).bind(priority).fetch_one(self.pool).await
+    pub async fn get_by_id(&self, id: i64) -> Result<Option<BandwidthProfile>, AppError> {
+        Ok(bandwidth_profile_entity::Entity::find_by_id(id).one(self.db).await?)
     }
 
-    pub async fn update(&self, id: i64, name: Option<&str>, description: Option<&str>, download: Option<i32>, upload: Option<i32>, burst_down: Option<i32>, burst_up: Option<i32>, is_active: Option<bool>) -> Result<BandwidthProfile, sqlx::Error> {
-        sqlx::query_as::<_, BandwidthProfile>("UPDATE bandwidth_profiles SET name = COALESCE($2, name), description = COALESCE($3, description), download_kbps = COALESCE($4, download_kbps), upload_kbps = COALESCE($5, upload_kbps), burst_download_kbps = COALESCE($6, burst_download_kbps), burst_upload_kbps = COALESCE($7, burst_upload_kbps), is_active = COALESCE($8, is_active), updated_at = NOW() WHERE id = $1 RETURNING *")
-            .bind(id).bind(name).bind(description).bind(download).bind(upload).bind(burst_down).bind(burst_up).bind(is_active).fetch_one(self.pool).await
+    pub async fn create(
+        &self, name: &str, description: Option<&str>, plan_id: Option<i64>,
+        download: i32, upload: i32, burst_down: Option<i32>, burst_up: Option<i32>,
+        burst_dur: Option<i32>, priority: Option<i32>,
+    ) -> Result<BandwidthProfile, AppError> {
+        let now = chrono::Utc::now();
+        let active = bandwidth_profile_entity::ActiveModel {
+            name: Set(name.to_owned()),
+            description: Set(description.map(|s| s.to_owned())),
+            plan_id: Set(plan_id),
+            download_kbps: Set(download),
+            upload_kbps: Set(upload),
+            burst_download_kbps: Set(burst_down),
+            burst_upload_kbps: Set(burst_up),
+            burst_duration_seconds: Set(burst_dur),
+            priority: Set(priority),
+            is_active: Set(true),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(active.insert(self.db).await?)
     }
 
-    pub async fn delete(&self, id: i64) -> Result<bool, sqlx::Error> {
-        let r = sqlx::query("DELETE FROM bandwidth_profiles WHERE id = $1").bind(id).execute(self.pool).await?;
-        Ok(r.rows_affected() > 0)
+    pub async fn update(
+        &self, id: i64, name: Option<&str>, description: Option<&str>,
+        download: Option<i32>, upload: Option<i32>, burst_down: Option<i32>,
+        burst_up: Option<i32>, is_active: Option<bool>,
+    ) -> Result<BandwidthProfile, AppError> {
+        let existing = bandwidth_profile_entity::Entity::find_by_id(id)
+            .one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Profile not found".into()))?;
+        let mut active = existing.into_active_model();
+        if let Some(v) = name { active.name = Set(v.to_owned()); }
+        if let Some(v) = description { active.description = Set(Some(v.to_owned())); }
+        if let Some(v) = download { active.download_kbps = Set(v); }
+        if let Some(v) = upload { active.upload_kbps = Set(v); }
+        if let Some(v) = burst_down { active.burst_download_kbps = Set(Some(v)); }
+        if let Some(v) = burst_up { active.burst_upload_kbps = Set(Some(v)); }
+        if let Some(v) = is_active { active.is_active = Set(v); }
+        active.updated_at = Set(chrono::Utc::now().into());
+        Ok(active.update(self.db).await?)
+    }
+
+    pub async fn delete(&self, id: i64) -> Result<bool, AppError> {
+        let result = bandwidth_profile_entity::Entity::delete_by_id(id).exec(self.db).await?;
+        Ok(result.rows_affected > 0)
     }
 
     // ── Apply to Subscription ──────────────────────────────
 
-    pub async fn apply_to_subscription(&self, profile_id: i64, subscription_id: i64, device_id: i64) -> Result<BandwidthApplication, sqlx::Error> {
-        sqlx::query_as::<_, BandwidthApplication>(
-            "INSERT INTO bandwidth_applications (profile_id, subscription_id, device_id, status) VALUES ($1,$2,$3,'pending') RETURNING *"
-        ).bind(profile_id).bind(subscription_id).bind(device_id).fetch_one(self.pool).await
+    pub async fn apply_to_subscription(
+        &self, profile_id: i64, subscription_id: i64, device_id: i64,
+    ) -> Result<BandwidthApplication, AppError> {
+        let now = chrono::Utc::now();
+        let active = bandwidth_application_entity::ActiveModel {
+            profile_id: Set(profile_id),
+            subscription_id: Set(subscription_id),
+            device_id: Set(device_id),
+            status: Set("pending".to_owned()),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(active.insert(self.db).await?)
     }
 
-    pub async fn list_applications(&self, profile_id: Option<i64>, page: i64, per_page: i64) -> Result<(Vec<BandwidthApplication>, i64), sqlx::Error> {
-        let offset = (page - 1) * per_page;
-        let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM bandwidth_applications WHERE ($1::bigint IS NULL OR profile_id = $1)")
-            .bind(profile_id).fetch_one(self.pool).await?;
-        let apps: Vec<BandwidthApplication> = sqlx::query_as("SELECT * FROM bandwidth_applications WHERE ($1::bigint IS NULL OR profile_id = $1) ORDER BY created_at DESC LIMIT $2 OFFSET $3")
-            .bind(profile_id).bind(per_page).bind(offset).fetch_all(self.pool).await?;
-        Ok((apps, count_row.0))
+    pub async fn list_applications(
+        &self, profile_id: Option<i64>, page: i64, per_page: i64,
+    ) -> Result<(Vec<BandwidthApplication>, i64), AppError> {
+        let page_size = per_page.max(1) as u64;
+        let page_num = page.max(1) as u64;
+
+        let mut select = bandwidth_application_entity::Entity::find();
+        if let Some(pid) = profile_id {
+            select = select.filter(bandwidth_application_entity::Column::ProfileId.eq(pid));
+        }
+
+        let paginator = select
+            .order_by_desc(bandwidth_application_entity::Column::CreatedAt)
+            .paginate(self.db, page_size);
+
+        let total = paginator.num_items().await? as i64;
+        let apps = paginator.fetch_page(page_num - 1).await?;
+        Ok((apps, total))
     }
 
-    pub async fn update_application_status(&self, id: i64, status: &str, failed_reason: Option<&str>) -> Result<BandwidthApplication, sqlx::Error> {
-        sqlx::query_as::<_, BandwidthApplication>(
-            "UPDATE bandwidth_applications SET status = $2, failed_reason = $3, applied_at = CASE WHEN $2 = 'applied' THEN NOW() ELSE applied_at END, retry_count = retry_count + CASE WHEN $2 = 'failed' THEN 1 ELSE 0 END, updated_at = NOW() WHERE id = $1 RETURNING *"
-        ).bind(id).bind(status).bind(failed_reason).fetch_one(self.pool).await
+    pub async fn update_application_status(
+        &self, id: i64, status: &str, failed_reason: Option<&str>,
+    ) -> Result<BandwidthApplication, AppError> {
+        let existing = bandwidth_application_entity::Entity::find_by_id(id)
+            .one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Application not found".into()))?;
+        let mut active = existing.into_active_model();
+        active.status = Set(status.to_owned());
+        active.failed_reason = Set(failed_reason.map(|s| s.to_owned()));
+        if status == "applied" {
+            active.applied_at = Set(Some(chrono::Utc::now().into()));
+        }
+        if status == "failed" {
+            let current = active.retry_count.clone().unwrap();
+            active.retry_count = Set(current + 1);
+        }
+        active.updated_at = Set(chrono::Utc::now().into());
+        Ok(active.update(self.db).await?)
     }
 
     // ── Usage Tracking ─────────────────────────────────────
 
-    pub async fn get_usage(&self, subscription_id: i64, page: i64, per_page: i64) -> Result<(Vec<BandwidthUsage>, i64), sqlx::Error> {
-        let offset = (page - 1) * per_page;
-        let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM bandwidth_usage WHERE subscription_id = $1")
-            .bind(subscription_id).fetch_one(self.pool).await?;
-        let usage: Vec<BandwidthUsage> = sqlx::query_as("SELECT * FROM bandwidth_usage WHERE subscription_id = $1 ORDER BY recorded_at DESC LIMIT $2 OFFSET $3")
-            .bind(subscription_id).bind(per_page).bind(offset).fetch_all(self.pool).await?;
-        Ok((usage, count_row.0))
+    pub async fn get_usage(
+        &self, subscription_id: i64, page: i64, per_page: i64,
+    ) -> Result<(Vec<BandwidthUsage>, i64), AppError> {
+        let page_size = per_page.max(1) as u64;
+        let page_num = page.max(1) as u64;
+
+        let select = bandwidth_usage_entity::Entity::find()
+            .filter(bandwidth_usage_entity::Column::SubscriptionId.eq(subscription_id));
+
+        let paginator = select
+            .order_by_desc(bandwidth_usage_entity::Column::RecordedAt)
+            .paginate(self.db, page_size);
+
+        let total = paginator.num_items().await? as i64;
+        let usage = paginator.fetch_page(page_num - 1).await?;
+        Ok((usage, total))
     }
 
-    pub async fn get_usage_summary(&self, subscription_id: i64) -> Result<(i64, i64), sqlx::Error> {
-        sqlx::query_as(
-            "SELECT COALESCE(SUM(download_bytes), 0), COALESCE(SUM(upload_bytes), 0) FROM bandwidth_usage WHERE subscription_id = $1 AND recorded_at >= date_trunc('month', NOW())"
-        ).bind(subscription_id).fetch_one(self.pool).await
+    pub async fn get_usage_summary(&self, subscription_id: i64) -> Result<(i64, i64), AppError> {
+        let usage = bandwidth_usage_entity::Entity::find()
+            .filter(bandwidth_usage_entity::Column::SubscriptionId.eq(subscription_id))
+            .all(self.db).await?;
+        let total_download: i64 = usage.iter().map(|u| u.download_bytes).sum();
+        let total_upload: i64 = usage.iter().map(|u| u.upload_bytes).sum();
+        Ok((total_download, total_upload))
     }
 }

@@ -143,6 +143,7 @@ async fn main() {
 
     // Spawn signal handler for SIGINT (Ctrl+C) and SIGTERM
     let signal_token = shutdown_token.clone();
+    #[cfg(unix)]
     tokio::spawn(async move {
         let ctrl_c = tokio::signal::ctrl_c();
         let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
@@ -156,6 +157,12 @@ async fn main() {
                 tracing::info!("Received SIGTERM, initiating graceful shutdown");
             }
         }
+        signal_token.cancel();
+    });
+    #[cfg(not(unix))]
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+        tracing::info!("Received SIGINT, initiating graceful shutdown");
         signal_token.cancel();
     });
 

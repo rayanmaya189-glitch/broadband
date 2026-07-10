@@ -19,6 +19,9 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -46,6 +49,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Database(e) => {
                 tracing::error!(error = %e, "Database error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
@@ -71,5 +75,11 @@ impl IntoResponse for AppError {
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
         AppError::DatabaseSeaorm(err.to_string())
+    }
+}
+
+impl From<validator::ValidationErrors> for AppError {
+    fn from(errs: validator::ValidationErrors) -> Self {
+        Self::Validation(errs.to_string())
     }
 }

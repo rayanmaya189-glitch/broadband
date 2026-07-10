@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EntityHistoryResponse {
     pub id: i64,
     pub entity_type: String,

@@ -1,1 +1,1 @@
-pub mod plan_repository_seaorm;
+pub mod plan_repository;

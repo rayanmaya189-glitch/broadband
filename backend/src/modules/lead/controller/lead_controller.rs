@@ -52,7 +52,7 @@ pub async fn get_activities(State(state): State<SharedState>, Path(id): Path<i64
 
 pub async fn convert_lead(State(state): State<SharedState>, user: UserContext, Path(id): Path<i64>, Json(req): Json<ConvertLeadRequest>) -> Result<Json<LeadResponse>, AppError> {
     let svc = LeadService::new(&state.db);
-    Ok(Json(svc.convert_lead(id, &state.db, user.user_id, req).await?))
+    Ok(Json(svc.convert_lead(id, &state.db_seaorm, user.user_id, req).await?))
 }
 
 pub async fn delete_lead(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {

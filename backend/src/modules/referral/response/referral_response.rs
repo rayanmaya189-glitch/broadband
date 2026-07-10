@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReferralProgramResponse {
     pub id: i64,
     pub name: String,
@@ -17,7 +17,7 @@ pub struct ReferralProgramResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReferralTrackingResponse {
     pub id: i64,
     pub program_id: i64,

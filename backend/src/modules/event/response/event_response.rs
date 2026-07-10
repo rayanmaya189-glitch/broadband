@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use serde_json::Value;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EventResponse {
     pub id: i64,
     pub event_type: String,
@@ -27,7 +27,7 @@ pub struct EventListResponse {
     pub per_page: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct EventSubscriptionResponse {
     pub id: i64,
     pub subscriber_name: String,

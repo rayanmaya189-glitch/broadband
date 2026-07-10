@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BandwidthProfileResponse {
     pub id: i64,
     pub name: String,
@@ -25,7 +24,7 @@ pub struct BandwidthProfileListResponse {
     pub total: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BandwidthApplicationResponse {
     pub id: i64,
     pub profile_id: i64,
@@ -46,7 +45,7 @@ pub struct BandwidthUsageResponse {
     pub records: Vec<BandwidthUsageRecord>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BandwidthUsageRecord {
     pub id: i64,
     pub download_bytes: i64,

@@ -1,10 +1,10 @@
 use utoipa::ToSchema;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use serde::Serialize;
-use sqlx::FromRow;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CustomerResponse {
     pub id: i64,
     pub customer_code: String,
@@ -22,6 +22,54 @@ pub struct CustomerResponse {
 }
 
 pub type CustomerDetailResponse = CustomerResponse;
+
+impl CustomerResponse {
+    pub fn from_model(m: crate::modules::customer::model::customer_entity::Model) -> Self {
+        Self {
+            id: m.id, customer_code: m.customer_code, first_name: m.first_name,
+            last_name: m.last_name, email: m.email, phone: m.phone,
+            alternate_phone: m.alternate_phone, status: m.status, branch_id: m.branch_id,
+            kyc_status: m.kyc_status, notes: m.notes,
+            created_at: m.created_at.into(), updated_at: m.updated_at.into(),
+        }
+    }
+}
+
+impl AddressResponse {
+    pub fn from_model(m: crate::modules::customer::model::customer_address_entity::Model) -> Self {
+        Self {
+            id: m.id, customer_id: m.customer_id, address_type: m.address_type,
+            address_line1: m.address_line1, address_line2: m.address_line2,
+            city: m.city, state: m.state, pincode: m.pincode, landmark: m.landmark,
+            is_primary: m.is_primary,
+            created_at: m.created_at.into(), updated_at: m.updated_at.into(),
+        }
+    }
+}
+
+impl CustomerProfileResponse {
+    pub fn from_model(m: crate::modules::customer::model::customer_profile_entity::Model) -> Self {
+        Self {
+            id: m.id, customer_id: m.customer_id, date_of_birth: m.date_of_birth,
+            gender: m.gender, nationality: m.nationality, id_proof_type: m.id_proof_type,
+            id_proof_number: m.id_proof_number, pan_number: m.pan_number, gstin: m.gstin,
+            company_name: m.company_name, occupation: m.occupation,
+            preferred_language: m.preferred_language, communication_opt_in: m.communication_opt_in,
+            notes: m.notes, created_at: m.created_at.into(), updated_at: m.updated_at.into(),
+        }
+    }
+}
+
+impl KycDocumentResponse {
+    pub fn from_model(m: crate::modules::customer::model::kyc_document_entity::Model) -> Self {
+        Self {
+            id: m.id, customer_id: m.customer_id, document_type: m.document_type,
+            document_url: m.document_url, file_name: m.file_name,
+            verification_status: m.verification_status, rejection_reason: m.rejection_reason,
+            uploaded_at: m.uploaded_at.into(), created_at: m.created_at.into(),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse {
@@ -67,7 +115,7 @@ pub struct KycDocumentResponse {
 
 // ── Customer Address ────────────────────────────────────────
 
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AddressResponse {
     pub id: i64,
     pub customer_id: i64,

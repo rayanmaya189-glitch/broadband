@@ -2,9 +2,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AccountResponse {
     pub id: i64,
     pub code: String,
@@ -14,7 +14,7 @@ pub struct AccountResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct JournalEntryResponse {
     pub id: i64,
     pub entry_number: String,
@@ -26,7 +26,7 @@ pub struct JournalEntryResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct JournalEntryLineResponse {
     pub id: i64,
     pub journal_entry_id: i64,
@@ -52,7 +52,7 @@ pub struct TrialBalanceResponse {
     pub total_credit: Decimal,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TrialBalanceAccount {
     pub account_id: i64,
     pub account_code: String,

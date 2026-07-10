@@ -1,1 +1,1 @@
-pub mod billing_service_seaorm;
+pub mod billing_service;

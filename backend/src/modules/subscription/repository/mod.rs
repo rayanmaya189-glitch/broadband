@@ -1,1 +1,1 @@
-pub mod subscription_repository_seaorm;
+pub mod subscription_repository;

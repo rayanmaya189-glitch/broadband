@@ -1,1 +1,1 @@
-pub mod permission_repository_seaorm;
+pub mod permission_repository;

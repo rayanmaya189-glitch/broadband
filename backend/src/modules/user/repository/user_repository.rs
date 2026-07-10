@@ -1,347 +1,366 @@
-use sqlx::PgPool;
+use sea_orm::{*, sea_query::Expr};
 
 use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::{total_pages, PaginatedResponse};
-use crate::modules::user::model::user::{RefreshToken, User};
+use crate::modules::user::model::user_entity::{self, Model as UserModel};
+use crate::modules::user::model::refresh_token_entity::{self, Model as RefreshTokenModel};
 use crate::modules::user::response::user_response::UserResponse;
 
-/// User repository — SQLx queries for user management.
-pub struct UserRepository<'a> {
-    pool: &'a PgPool,
+pub struct UserRepository {
+    db: DatabaseConnection,
 }
 
-impl<'a> UserRepository<'a> {
-    pub fn new(pool: &'a PgPool) -> Self {
-        Self { pool }
+impl UserRepository {
+    pub fn new(db: &DatabaseConnection) -> Self {
+        Self { db: db.clone() }
     }
 
-    pub async fn find_by_id(&self, user_id: i64) -> Result<Option<User>, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, email, password_hash, name, phone, avatar_url, \
-             role_id, branch_id, is_company_wide, is_active, is_locked, \
-             locked_until, failed_attempts, last_login_at, \
-             two_factor_enabled, created_at, updated_at \
-             FROM users WHERE id = $1",
-        )
-        .bind(user_id)
-        .fetch_optional(self.pool)
-        .await?;
-        Ok(user)
+    pub async fn find_by_id(&self, user_id: i64) -> Result<Option<UserModel>, AppError> {
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?;
+        Ok(model)
     }
 
-    pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, email, password_hash, name, phone, avatar_url, \
-             role_id, branch_id, is_company_wide, is_active, is_locked, \
-             locked_until, failed_attempts, last_login_at, \
-             two_factor_enabled, created_at, updated_at \
-             FROM users WHERE email = $1",
-        )
-        .bind(email)
-        .fetch_optional(self.pool)
-        .await?;
-        Ok(user)
+    pub async fn find_by_email(&self, email: &str) -> Result<Option<UserModel>, AppError> {
+        let model = user_entity::Entity::find()
+            .filter(user_entity::Column::Email.eq(email))
+            .one(&self.db)
+            .await
+            ?;
+        Ok(model)
     }
 
-    pub async fn find_by_phone(&self, phone: &str) -> Result<Option<User>, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, email, password_hash, name, phone, avatar_url, \
-             role_id, branch_id, is_company_wide, is_active, is_locked, \
-             locked_until, failed_attempts, last_login_at, \
-             two_factor_enabled, created_at, updated_at \
-             FROM users WHERE phone = $1",
-        )
-        .bind(phone)
-        .fetch_optional(self.pool)
-        .await?;
-        Ok(user)
+    pub async fn find_by_phone(&self, phone: &str) -> Result<Option<UserModel>, AppError> {
+        let model = user_entity::Entity::find()
+            .filter(user_entity::Column::Phone.eq(phone))
+            .one(&self.db)
+            .await
+            ?;
+        Ok(model)
     }
 
     pub async fn create(
-        &self, email: &str, password_hash: &str, name: &str, phone: &str,
-        role_id: i64, branch_id: Option<i64>, is_company_wide: bool,
-    ) -> Result<User, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "INSERT INTO users (email, password_hash, name, phone, role_id, branch_id, is_company_wide) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) \
-             RETURNING id, email, password_hash, name, phone, avatar_url, \
-             role_id, branch_id, is_company_wide, is_active, is_locked, \
-             locked_until, failed_attempts, last_login_at, \
-             two_factor_enabled, created_at, updated_at",
-        )
-        .bind(email).bind(password_hash).bind(name).bind(phone)
-        .bind(role_id).bind(branch_id).bind(is_company_wide)
-        .fetch_one(self.pool).await?;
-        Ok(user)
+        &self,
+        email: &str,
+        password_hash: &str,
+        name: &str,
+        phone: &str,
+        role_id: i64,
+        branch_id: Option<i64>,
+        is_company_wide: bool,
+    ) -> Result<UserModel, AppError> {
+        let active = user_entity::ActiveModel {
+            email: Set(email.to_string()),
+            password_hash: Set(password_hash.to_string()),
+            name: Set(name.to_string()),
+            phone: Set(Some(phone.to_string())),
+            role_id: Set(role_id),
+            branch_id: Set(branch_id),
+            is_company_wide: Set(is_company_wide),
+            ..Default::default()
+        };
+        let model = active
+            .insert(&self.db)
+            .await
+            ?;
+        Ok(model)
     }
 
     pub async fn update(
-        &self, user_id: i64, name: Option<&str>, phone: Option<&str>,
-        branch_id: Option<i64>, avatar_url: Option<&str>,
-    ) -> Result<User, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "UPDATE users SET name = COALESCE($2, name), phone = COALESCE($3, phone), \
-             branch_id = COALESCE($4, branch_id), avatar_url = COALESCE($5, avatar_url), \
-             updated_at = NOW() WHERE id = $1 \
-             RETURNING id, email, password_hash, name, phone, avatar_url, \
-             role_id, branch_id, is_company_wide, is_active, is_locked, \
-             locked_until, failed_attempts, last_login_at, \
-             two_factor_enabled, created_at, updated_at",
-        )
-        .bind(user_id).bind(name).bind(phone).bind(branch_id).bind(avatar_url)
-        .fetch_one(self.pool).await?;
-        Ok(user)
+        &self,
+        user_id: i64,
+        name: Option<&str>,
+        phone: Option<&str>,
+        branch_id: Option<i64>,
+        avatar_url: Option<&str>,
+    ) -> Result<UserModel, AppError> {
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        let mut active: user_entity::ActiveModel = model.into();
+        if let Some(v) = name { active.name = Set(v.to_string()); }
+        if let Some(v) = phone { active.phone = Set(Some(v.to_string())); }
+        if let Some(v) = avatar_url { active.avatar_url = Set(Some(v.to_string())); }
+        if branch_id.is_some() { active.branch_id = Set(branch_id); }
+        active.updated_at = Set(chrono::Utc::now().into());
+
+        let updated = active
+            .update(&self.db)
+            .await
+            ?;
+        Ok(updated)
     }
 
     pub async fn soft_delete(&self, user_id: i64) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).execute(self.pool).await?;
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        let mut active: user_entity::ActiveModel = model.into();
+        active.is_active = Set(false);
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
         Ok(())
     }
 
-    pub async fn update_status(&self, user_id: i64, is_active: bool) -> Result<User, AppError> {
-        let user = sqlx::query_as::<_, User>(
-            "UPDATE users SET is_active = $2, updated_at = NOW() WHERE id = $1 \
-             RETURNING id, email, password_hash, name, phone, avatar_url, \
-             role_id, branch_id, is_company_wide, is_active, is_locked, \
-             locked_until, failed_attempts, last_login_at, \
-             two_factor_enabled, created_at, updated_at",
-        )
-        .bind(user_id).bind(is_active).fetch_one(self.pool).await?;
-        Ok(user)
+    pub async fn update_status(&self, user_id: i64, is_active: bool) -> Result<UserModel, AppError> {
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        let mut active: user_entity::ActiveModel = model.into();
+        active.is_active = Set(is_active);
+        active.updated_at = Set(chrono::Utc::now().into());
+
+        let updated = active
+            .update(&self.db)
+            .await
+            ?;
+        Ok(updated)
     }
 
     pub async fn update_last_login(&self, user_id: i64) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET last_login_at = NOW(), failed_attempts = 0, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).execute(self.pool).await?;
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        let mut active: user_entity::ActiveModel = model.into();
+        active.last_login_at = Set(Some(chrono::Utc::now().into()));
+        active.failed_attempts = Set(0);
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
         Ok(())
     }
 
     pub async fn increment_failed_attempts(&self, user_id: i64) -> Result<i32, AppError> {
-        let result = sqlx::query_scalar::<_, i32>(
-            "UPDATE users SET failed_attempts = failed_attempts + 1, updated_at = NOW() \
-             WHERE id = $1 RETURNING failed_attempts",
-        ).bind(user_id).fetch_one(self.pool).await?;
-        if result >= 5 {
-            sqlx::query("UPDATE users SET is_locked = true, locked_until = NOW() + INTERVAL '30 minutes', updated_at = NOW() WHERE id = $1")
-                .bind(user_id).execute(self.pool).await?;
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        let mut active: user_entity::ActiveModel = model.into();
+        let new_count = active.failed_attempts.clone().unwrap() + 1;
+        active.failed_attempts = Set(new_count);
+        active.updated_at = Set(chrono::Utc::now().into());
+
+        if new_count >= 5 {
+            active.is_locked = Set(true);
+            active.locked_until = Set(Some((chrono::Utc::now() + chrono::Duration::minutes(30)).into()));
         }
-        Ok(result)
+
+        active.update(&self.db).await?;
+        Ok(new_count)
     }
 
     pub async fn update_password(&self, user_id: i64, new_hash: &str) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).bind(new_hash).execute(self.pool).await?;
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db)
+            .await
+            ?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        let mut active: user_entity::ActiveModel = model.into();
+        active.password_hash = Set(new_hash.to_string());
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
         Ok(())
     }
 
     pub async fn list(
-        &self, offset: u32, limit: u32, role_id: Option<i64>,
-        branch_id: Option<i64>, is_active: Option<bool>, search: Option<&str>,
+        &self,
+        offset: u32,
+        limit: u32,
+        role_id: Option<i64>,
+        branch_id: Option<i64>,
+        is_active: Option<bool>,
+        search: Option<&str>,
     ) -> Result<PaginatedResponse<UserResponse>, AppError> {
-        let limit_i64 = limit.min(100) as i64;
-        let offset_i64 = offset as i64;
-        let mut conditions = Vec::new();
-        let mut idx = 1;
+        let page_size = limit.max(1) as u64;
+        let page_num = ((offset / limit) + 1).max(1) as u64;
 
-        if role_id.is_some() { conditions.push(format!("u.role_id = ${idx}")); idx += 1; }
-        if branch_id.is_some() { conditions.push(format!("u.branch_id = ${idx}")); idx += 1; }
-        if is_active.is_some() { conditions.push(format!("u.is_active = ${idx}")); idx += 1; }
-        if search.is_some() {
-            conditions.push(format!("(u.name ILIKE ${idx} OR u.email ILIKE ${idx} OR u.phone ILIKE ${idx})"));
-            idx += 1;
+        let mut select = user_entity::Entity::find();
+        if let Some(rid) = role_id {
+            select = select.filter(user_entity::Column::RoleId.eq(rid));
+        }
+        if let Some(bid) = branch_id {
+            select = select.filter(user_entity::Column::BranchId.eq(bid));
+        }
+        if let Some(active) = is_active {
+            select = select.filter(user_entity::Column::IsActive.eq(active));
+        }
+        if let Some(s) = search {
+            let pattern = format!("%{s}%");
+            select = select.filter(
+                Condition::any()
+                    .add(user_entity::Column::Name.contains(&pattern))
+                    .add(user_entity::Column::Email.contains(&pattern))
+                    .add(user_entity::Column::Phone.contains(&pattern)),
+            );
         }
 
-        let wc = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+        let paginator = select
+            .order_by_desc(user_entity::Column::CreatedAt)
+            .paginate(&self.db, page_size);
 
-        let count_sql = format!("SELECT COUNT(*) FROM users u {wc}");
-        let mut cq = sqlx::query_scalar::<_, i64>(&count_sql);
-        if let Some(v) = role_id { cq = cq.bind(v); }
-        if let Some(v) = branch_id { cq = cq.bind(v); }
-        if let Some(v) = is_active { cq = cq.bind(v); }
-        if let Some(v) = search { cq = cq.bind(format!("%{v}%")); }
-        let total = cq.fetch_one(self.pool).await?;
+        let total = paginator
+            .num_items()
+            .await
+            ? as i64;
 
-        let lp = idx;
-        let op = idx + 1;
-        let data_sql = format!(
-            "SELECT u.id, u.email, u.name, u.phone, u.avatar_url, u.role_id, \
-             r.name as role_name, u.branch_id, u.is_company_wide, u.is_active, \
-             u.is_locked, u.two_factor_enabled, u.last_login_at, u.created_at, u.updated_at \
-             FROM users u LEFT JOIN roles r ON r.id = u.role_id {wc} \
-             ORDER BY u.created_at DESC LIMIT ${lp} OFFSET ${op}"
-        );
-        let mut dq = sqlx::query_as::<_, UserResponse>(&data_sql);
-        if let Some(v) = role_id { dq = dq.bind(v); }
-        if let Some(v) = branch_id { dq = dq.bind(v); }
-        if let Some(v) = is_active { dq = dq.bind(v); }
-        if let Some(v) = search { dq = dq.bind(format!("%{v}%")); }
-        dq = dq.bind(limit_i64).bind(offset_i64);
+        let models = paginator
+            .fetch_page(page_num - 1)
+            .await
+            ?;
 
-        let users = dq.fetch_all(self.pool).await?;
-        let total_pages = total_pages(total, limit);
-        Ok(PaginatedResponse { data: users, total, page: (offset / limit) + 1, limit, total_pages })
+        let data = models.into_iter().map(|m| UserResponse::from_model(m, None)).collect();
+        let tp = total_pages(total, limit);
+        Ok(PaginatedResponse {
+            data,
+            total,
+            page: page_num as u32,
+            limit,
+            total_pages: tp,
+        })
     }
 
     pub async fn email_exists(&self, email: &str, exclude: Option<i64>) -> Result<bool, AppError> {
-        let r = if let Some(id) = exclude {
-            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND id != $2)")
-                .bind(email).bind(id).fetch_one(self.pool).await?
-        } else {
-            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
-                .bind(email).fetch_one(self.pool).await?
-        };
-        Ok(r)
+        let mut select = user_entity::Entity::find()
+            .filter(user_entity::Column::Email.eq(email));
+        if let Some(id) = exclude {
+            select = select.filter(user_entity::Column::Id.ne(id));
+        }
+        let count = select.count(&self.db).await?;
+        Ok(count > 0)
     }
 
     pub async fn phone_exists(&self, phone: &str, exclude: Option<i64>) -> Result<bool, AppError> {
-        let r = if let Some(id) = exclude {
-            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE phone = $1 AND id != $2)")
-                .bind(phone).bind(id).fetch_one(self.pool).await?
-        } else {
-            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE phone = $1)")
-                .bind(phone).fetch_one(self.pool).await?
-        };
-        Ok(r)
-    }
-
-    pub async fn role_exists(&self, role_id: i64) -> Result<bool, AppError> {
-        let r = sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM roles WHERE id = $1)")
-            .bind(role_id).fetch_one(self.pool).await?;
-        Ok(r)
-    }
-
-    pub async fn get_role_name(&self, role_id: i64) -> Result<Option<String>, AppError> {
-        let n = sqlx::query_scalar::<_, String>("SELECT name FROM roles WHERE id = $1")
-            .bind(role_id).fetch_optional(self.pool).await?;
-        Ok(n)
-    }
-
-    pub async fn resolve_permissions(&self, role_id: i64) -> Result<Vec<String>, AppError> {
-        let rows = sqlx::query_scalar::<_, String>(
-            "SELECT DISTINCT p.name FROM permissions p \
-             INNER JOIN role_permissions rp ON rp.permission_id = p.id \
-             WHERE rp.role_id = $1 ORDER BY p.name",
-        ).bind(role_id).fetch_all(self.pool).await?;
-        Ok(rows)
+        let mut select = user_entity::Entity::find()
+            .filter(user_entity::Column::Phone.eq(phone));
+        if let Some(id) = exclude {
+            select = select.filter(user_entity::Column::Id.ne(id));
+        }
+        let count = select.count(&self.db).await?;
+        Ok(count > 0)
     }
 
     // ── Refresh Token queries ────────────────────────────────
 
     pub async fn create_refresh_token(
-        &self, user_id: i64, token_hash: &str, device_info: Option<&str>,
-        ip_address: Option<&str>, expires_at: chrono::DateTime<chrono::Utc>,
-    ) -> Result<RefreshToken, AppError> {
-        let row = sqlx::query_as::<_, RefreshToken>(
-            "INSERT INTO refresh_tokens (user_id, token_hash, device_info, ip_address, expires_at) \
-             VALUES ($1, $2, $3, $4::inet, $5) \
-             RETURNING id, user_id, token_hash, device_info, ip_address::text, expires_at, created_at, revoked_at",
-        )
-        .bind(user_id).bind(token_hash).bind(device_info).bind(ip_address).bind(expires_at)
-        .fetch_one(self.pool).await?;
-        Ok(row)
+        &self,
+        user_id: i64,
+        token_hash: &str,
+        device_info: Option<&str>,
+        ip_address: Option<&str>,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<RefreshTokenModel, AppError> {
+        let active = refresh_token_entity::ActiveModel {
+            user_id: Set(user_id),
+            token_hash: Set(token_hash.to_string()),
+            device_info: Set(device_info.map(|s| s.to_string())),
+            ip_address: Set(ip_address.map(|s| s.to_string())),
+            expires_at: Set(expires_at.into()),
+            ..Default::default()
+        };
+        let model = active
+            .insert(&self.db)
+            .await
+            ?;
+        Ok(model)
     }
 
-    pub async fn find_valid_refresh_token(&self, token_hash: &str) -> Result<Option<RefreshToken>, AppError> {
-        let row = sqlx::query_as::<_, RefreshToken>(
-            "SELECT id, user_id, token_hash, device_info, ip_address::text, expires_at, created_at, revoked_at \
-             FROM refresh_tokens WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW()",
-        ).bind(token_hash).fetch_optional(self.pool).await?;
-        Ok(row)
+    pub async fn find_valid_refresh_token(&self, token_hash: &str) -> Result<Option<RefreshTokenModel>, AppError> {
+        let now = chrono::Utc::now();
+        let model = refresh_token_entity::Entity::find()
+            .filter(refresh_token_entity::Column::TokenHash.eq(token_hash))
+            .filter(refresh_token_entity::Column::RevokedAt.is_null())
+            .filter(refresh_token_entity::Column::ExpiresAt.gt(now))
+            .one(&self.db)
+            .await
+            ?;
+        Ok(model)
     }
 
     pub async fn revoke_refresh_token(&self, token_hash: &str) -> Result<(), AppError> {
-        sqlx::query("UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1 AND revoked_at IS NULL")
-            .bind(token_hash).execute(self.pool).await?;
+        let model = refresh_token_entity::Entity::find()
+            .filter(refresh_token_entity::Column::TokenHash.eq(token_hash))
+            .filter(refresh_token_entity::Column::RevokedAt.is_null())
+            .one(&self.db)
+            .await
+            ?;
+
+        if let Some(model) = model {
+            let mut active: refresh_token_entity::ActiveModel = model.into();
+            active.revoked_at = Set(Some(chrono::Utc::now().into()));
+            active.update(&self.db).await?;
+        }
         Ok(())
     }
 
     pub async fn revoke_all_user_tokens(&self, user_id: i64) -> Result<u64, AppError> {
-        let r = sqlx::query("UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL")
-            .bind(user_id).execute(self.pool).await?;
-        Ok(r.rows_affected())
+        let result = refresh_token_entity::Entity::update_many()
+            .filter(refresh_token_entity::Column::UserId.eq(user_id))
+            .filter(refresh_token_entity::Column::RevokedAt.is_null())
+            .col_expr(
+                refresh_token_entity::Column::RevokedAt,
+                Expr::val(chrono::Utc::now()).into(),
+            )
+            .exec(&self.db)
+            .await
+            ?;
+        Ok(result.rows_affected)
     }
 
     pub async fn count_active_tokens(&self, user_id: i64) -> Result<i64, AppError> {
-        let c = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()",
-        ).bind(user_id).fetch_one(self.pool).await?;
-        Ok(c)
+        let now = chrono::Utc::now();
+        let count = refresh_token_entity::Entity::find()
+            .filter(refresh_token_entity::Column::UserId.eq(user_id))
+            .filter(refresh_token_entity::Column::RevokedAt.is_null())
+            .filter(refresh_token_entity::Column::ExpiresAt.gt(now))
+            .count(&self.db)
+            .await
+            ? as i64;
+        Ok(count)
     }
 
     pub async fn revoke_oldest_token(&self, user_id: i64) -> Result<(), AppError> {
-        sqlx::query(
-            "UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = ( \
-             SELECT id FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL \
-             ORDER BY created_at ASC LIMIT 1)",
-        ).bind(user_id).execute(self.pool).await?;
-        Ok(())
-    }
+        let model = refresh_token_entity::Entity::find()
+            .filter(refresh_token_entity::Column::UserId.eq(user_id))
+            .filter(refresh_token_entity::Column::RevokedAt.is_null())
+            .order_by_asc(refresh_token_entity::Column::CreatedAt)
+            .one(&self.db)
+            .await
+            ?;
 
-    pub async fn list_active_sessions(&self, user_id: i64) -> Result<Vec<RefreshToken>, AppError> {
-        let rows = sqlx::query_as::<_, RefreshToken>(
-            "SELECT id, user_id, token_hash, device_info, ip_address::text, expires_at, created_at, revoked_at \
-             FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW() \
-             ORDER BY created_at DESC",
-        ).bind(user_id).fetch_all(self.pool).await?;
-        Ok(rows)
-    }
-
-    // ── 2FA (TOTP) — Encrypted storage ──────────────────────
-
-    pub async fn store_2fa_secret_pending(&self, user_id: i64, encrypted_secret: &str) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET two_factor_secret = $2, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).bind(format!("pending:{encrypted_secret}")).execute(self.pool).await?;
-        Ok(())
-    }
-
-    pub async fn get_pending_2fa_secret(&self, user_id: i64) -> Result<Option<String>, AppError> {
-        let r = sqlx::query_scalar::<_, String>("SELECT two_factor_secret FROM users WHERE id = $1 AND two_factor_secret LIKE 'pending:%'")
-            .bind(user_id).fetch_optional(self.pool).await?;
-        Ok(r.map(|s| s.strip_prefix("pending:").unwrap_or(&s).to_string()))
-    }
-
-    pub async fn enable_2fa(&self, user_id: i64, encrypted_secret: &str) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET two_factor_enabled = true, two_factor_secret = $2, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).bind(encrypted_secret).execute(self.pool).await?;
-        Ok(())
-    }
-
-    pub async fn disable_2fa(&self, user_id: i64) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET two_factor_enabled = false, two_factor_secret = NULL, backup_codes = NULL, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).execute(self.pool).await?;
-        Ok(())
-    }
-
-    pub async fn get_encrypted_2fa_secret(&self, user_id: i64) -> Result<Option<String>, AppError> {
-        let r = sqlx::query_scalar::<_, String>("SELECT two_factor_secret FROM users WHERE id = $1 AND two_factor_enabled = true AND two_factor_secret IS NOT NULL AND two_factor_secret NOT LIKE 'pending:%'")
-            .bind(user_id).fetch_optional(self.pool).await?;
-        Ok(r)
-    }
-
-    pub async fn store_backup_codes(&self, user_id: i64, codes_json: &str) -> Result<(), AppError> {
-        sqlx::query("UPDATE users SET backup_codes = $2, updated_at = NOW() WHERE id = $1")
-            .bind(user_id).bind(codes_json).execute(self.pool).await?;
-        Ok(())
-    }
-
-    pub async fn get_backup_codes(&self, user_id: i64) -> Result<Option<String>, AppError> {
-        let r = sqlx::query_scalar::<_, String>("SELECT backup_codes FROM users WHERE id = $1 AND backup_codes IS NOT NULL")
-            .bind(user_id).fetch_optional(self.pool).await?;
-        Ok(r)
-    }
-
-    pub async fn consume_backup_code(&self, user_id: i64, code: &str) -> Result<bool, AppError> {
-        let codes_json = self.get_backup_codes(user_id).await?;
-        if let Some(json_str) = codes_json {
-            let mut codes: Vec<String> = serde_json::from_str(&json_str).unwrap_or_default();
-            if let Some(pos) = codes.iter().position(|c| c == code) {
-                codes.remove(pos);
-                let new_json = serde_json::to_string(&codes).unwrap_or_else(|_| "[]".into());
-                self.store_backup_codes(user_id, &new_json).await?;
-                return Ok(true);
-            }
+        if let Some(model) = model {
+            let mut active: refresh_token_entity::ActiveModel = model.into();
+            active.revoked_at = Set(Some(chrono::Utc::now().into()));
+            active.update(&self.db).await?;
         }
-        Ok(false)
+        Ok(())
+    }
+
+    pub async fn list_active_sessions(&self, user_id: i64) -> Result<Vec<RefreshTokenModel>, AppError> {
+        let now = chrono::Utc::now();
+        let models = refresh_token_entity::Entity::find()
+            .filter(refresh_token_entity::Column::UserId.eq(user_id))
+            .filter(refresh_token_entity::Column::RevokedAt.is_null())
+            .filter(refresh_token_entity::Column::ExpiresAt.gt(now))
+            .order_by_desc(refresh_token_entity::Column::CreatedAt)
+            .all(&self.db)
+            .await
+            ?;
+        Ok(models)
     }
 }

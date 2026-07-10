@@ -1,1 +1,1 @@
-pub mod branch_controller_seaorm;
+pub mod branch_controller;

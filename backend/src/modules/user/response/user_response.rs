@@ -1,10 +1,10 @@
 use utoipa::ToSchema;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
-use sqlx::FromRow;
+use serde::{Serialize, Deserialize};
+
 
 /// User list item response.
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserResponse {
     pub id: i64,
     pub email: String,
@@ -25,6 +25,18 @@ pub struct UserResponse {
 
 /// User detail response (same as UserResponse, extensible).
 pub type UserDetailResponse = UserResponse;
+
+impl UserResponse {
+    pub fn from_model(m: crate::modules::user::model::user_entity::Model, role_name: Option<String>) -> Self {
+        Self {
+            id: m.id, email: m.email, name: m.name, phone: m.phone, avatar_url: m.avatar_url,
+            role_id: m.role_id, role_name, branch_id: m.branch_id, is_company_wide: m.is_company_wide,
+            is_active: m.is_active, is_locked: m.is_locked, two_factor_enabled: m.two_factor_enabled,
+            last_login_at: m.last_login_at.map(|v| v.into()),
+            created_at: m.created_at.into(), updated_at: m.updated_at.into(),
+        }
+    }
+}
 
 /// Auth user response (minimal user info for auth endpoints).
 #[derive(Debug, Serialize, ToSchema)]

@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DocumentResponse {
     pub id: i64,
     pub filename: String,
@@ -24,7 +24,7 @@ pub struct UploadResponse {
     pub expires_in: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DocumentAccessLogResponse {
     pub id: i64,
     pub document_id: i64,

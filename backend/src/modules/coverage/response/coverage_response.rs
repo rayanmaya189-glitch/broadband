@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CoverageAreaResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -25,7 +25,7 @@ pub struct AvailabilityCheckResponse {
     pub message: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CoveragePincodeResponse {
     pub id: i64,
     pub pincode: String,

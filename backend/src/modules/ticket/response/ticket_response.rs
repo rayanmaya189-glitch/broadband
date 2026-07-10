@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TicketResponse {
     pub id: i64,
     pub ticket_number: String,
@@ -31,13 +30,9 @@ pub struct TicketResponse {
     pub satisfaction_feedback: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    #[sqlx(default)]
     pub creator_name: Option<String>,
-    #[sqlx(default)]
     pub assignee_name: Option<String>,
-    #[sqlx(default)]
     pub branch_name: Option<String>,
-    #[sqlx(default)]
     pub customer_name: Option<String>,
 }
 
@@ -64,7 +59,7 @@ pub struct TicketCommentResponse {
     pub user_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TicketEscalationResponse {
     pub id: i64,
     pub ticket_id: i64,
@@ -78,7 +73,7 @@ pub struct TicketEscalationResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TicketStatusHistoryResponse {
     pub id: i64,
     pub ticket_id: i64,

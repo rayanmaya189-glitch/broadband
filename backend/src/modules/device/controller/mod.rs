@@ -1,1 +1,1 @@
-pub mod device_controller_seaorm;
+pub mod device_controller;

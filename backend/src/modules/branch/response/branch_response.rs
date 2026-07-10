@@ -1,9 +1,9 @@
 use utoipa::ToSchema;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
-use sqlx::FromRow;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BranchResponse {
     pub id: i64,
     pub name: String,
@@ -29,7 +29,7 @@ pub struct MessageResponse {
 
 // ── Working Hours ──────────────────────────────────────────
 
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WorkingHourResponse {
     pub id: i64,
     pub branch_id: i64,
@@ -41,7 +41,7 @@ pub struct WorkingHourResponse {
 
 // ── User-Branch Assignment ─────────────────────────────────
 
-#[derive(Debug, Serialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BranchUserResponse {
     pub user_id: i64,
     pub user_name: Option<String>,
@@ -59,4 +59,37 @@ pub struct BranchStatsResponse {
     pub active_customers: i64,
     pub total_subscriptions: i64,
     pub active_subscriptions: i64,
+}
+
+// ── from_model implementations ─────────────────────────────
+
+impl BranchResponse {
+    pub fn from_model(m: crate::modules::branch::model::branch_entity::Model) -> Self {
+        Self {
+            id: m.id, name: m.name, code: m.code, address: m.address, city: m.city,
+            state: m.state, pincode: m.pincode, phone: m.phone, email: m.email,
+            is_active: m.is_active, timezone: m.timezone,
+            created_at: m.created_at.into(), updated_at: m.updated_at.into(),
+        }
+    }
+}
+
+impl WorkingHourResponse {
+    pub fn from_model(m: crate::modules::branch::model::branch_working_hour_entity::Model) -> Self {
+        Self {
+            id: m.id, branch_id: m.branch_id, day_of_week: m.day_of_week,
+            open_time: m.open_time.map(|t| t.format("%H:%M").to_string()).unwrap_or_default(),
+            close_time: m.close_time.map(|t| t.format("%H:%M").to_string()).unwrap_or_default(),
+            is_closed: m.is_closed,
+        }
+    }
+}
+
+impl BranchUserResponse {
+    pub fn from_model(m: crate::modules::branch::model::user_branch_entity::Model) -> Self {
+        Self {
+            user_id: m.user_id, user_name: None, user_email: None,
+            is_primary: m.is_primary, assigned_at: m.created_at.into(),
+        }
+    }
 }

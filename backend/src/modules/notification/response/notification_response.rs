@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TemplateResponse {
     pub id: i64,
     pub name: String,
@@ -12,7 +12,7 @@ pub struct TemplateResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct NotificationResponse {
     pub id: i64,
     pub channel: String,
@@ -21,7 +21,7 @@ pub struct NotificationResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct NotificationDetailResponse {
     pub id: i64,
     pub template_id: Option<i64>,
@@ -49,7 +49,7 @@ pub struct NotificationListResponse {
     pub total_pages: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ChannelResponse {
     pub id: i64,
     pub channel: String,
@@ -60,7 +60,7 @@ pub struct ChannelResponse {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct HistoryResponse {
     pub id: i64,
     pub notification_id: i64,
