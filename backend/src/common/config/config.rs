@@ -44,6 +44,10 @@ pub struct Config {
     pub minio_access_key: String,
     pub minio_secret_key: String,
     pub minio_bucket: String,
+
+    // ── Super Admin ──────────────────────────────────────────
+    pub superadmin_email: Option<String>,
+    pub superadmin_password: Option<String>,
 }
 
 static CONFIG: LazyLock<Config> = LazyLock::new(|| {

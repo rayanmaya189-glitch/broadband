@@ -77,6 +77,16 @@ async fn main() {
         tracing::error!(error = %e, "Failed to seed permissions");
     }
 
+    // ── Seed roles with permissions ──────────────────────────
+    if let Err(e) = aeraxe_backend::common::seed::role_seeder::seed_roles(&state.db).await {
+        tracing::error!(error = %e, "Failed to seed roles");
+    }
+
+    // ── Seed superadmin user ────────────────────────────────
+    if let Err(e) = aeraxe_backend::common::seed::admin_user_seeder::seed_admin_user(&state.db).await {
+        tracing::error!(error = %e, "Failed to seed superadmin user");
+    }
+
     let state = std::sync::Arc::new(state);
 
     let router = Router::new()
