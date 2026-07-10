@@ -1,1 +1,1 @@
-pub mod customer_controller;
+pub mod customer_controller_seaorm;

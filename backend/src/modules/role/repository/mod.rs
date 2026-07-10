@@ -1,1 +1,1 @@
-pub mod role_repository;
+pub mod role_repository_seaorm;

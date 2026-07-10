@@ -1,13 +1,14 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
-use serde_json::json;
+use thiserror::Error;
 
-/// Unified application error type shared across all modules.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum AppError {
     #[error("Not found: {0}")]
     NotFound(String),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
 
     #[error("Unauthorized")]
     Unauthorized,
@@ -15,62 +16,60 @@ pub enum AppError {
     #[error("Forbidden: {0}")]
     Forbidden(String),
 
-    #[error("Validation error: {0}")]
-    Validation(String),
-
-    #[error("Bad request: {0}")]
-    BadRequest(String),
-
     #[error("Conflict: {0}")]
     Conflict(String),
+
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("Database error (SeaORM): {0}")]
+    DatabaseSeaorm(String),
+
+    #[error("Internal error: {0}")]
+    Internal(#[from] anyhow::Error),
+
+    #[error("External error: {0}")]
+    External(String),
 
     #[error("Rate limited")]
     RateLimited,
 
-    #[error("Request timeout")]
-    Timeout,
-
-    #[error("Internal server error")]
-    Internal(#[from] anyhow::Error),
-
-    #[error("Database error")]
-    Database(#[from] sqlx::Error),
-
-    #[error("External service error: {0}")]
-    External(String),
-}
-
-impl From<validator::ValidationErrors> for AppError {
-    fn from(errs: validator::ValidationErrors) -> Self {
-        Self::Validation(errs.to_string())
-    }
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
-            Self::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
-            Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".into()),
-            Self::Forbidden(m) => (StatusCode::FORBIDDEN, m.clone()),
-            Self::Validation(m) => (StatusCode::BAD_REQUEST, m.clone()),
-            Self::BadRequest(m) => (StatusCode::BAD_REQUEST, m.clone()),
-            Self::Conflict(m) => (StatusCode::CONFLICT, m.clone()),
-            Self::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limited".into()),
-            Self::Timeout => (StatusCode::REQUEST_TIMEOUT, "Request timeout".into()),
-            Self::Internal(e) => {
-                tracing::error!(error = %e, "Internal server error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
-            }
-            Self::Database(e) => {
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+            AppError::Database(e) => {
                 tracing::error!(error = %e, "Database error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".into())
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
-            Self::External(m) => {
-                tracing::error!(message = %m, "External service error");
-                (StatusCode::BAD_GATEWAY, "External service error".into())
+            AppError::DatabaseSeaorm(msg) => {
+                tracing::error!(error = %msg, "Database error (SeaORM)");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
+            AppError::Internal(e) => {
+                tracing::error!(error = %e, "Internal error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+            }
+            AppError::External(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
+            AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limited".to_string()),
+            AppError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
         };
 
-        (status, Json(json!({ "error": message }))).into_response()
+        let body = serde_json::json!({ "error": message });
+        (status, axum::Json(body)).into_response()
+    }
+}
+
+impl From<sea_orm::DbErr> for AppError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        AppError::DatabaseSeaorm(err.to_string())
     }
 }

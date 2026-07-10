@@ -1,1 +1,1 @@
-pub mod device_service;
+pub mod device_service_seaorm;

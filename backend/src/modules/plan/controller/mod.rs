@@ -1,1 +1,1 @@
-pub mod plan_controller;
+pub mod plan_controller_seaorm;

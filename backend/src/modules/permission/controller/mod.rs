@@ -1,1 +1,1 @@
-pub mod permission_controller;
+pub mod permission_controller_seaorm;

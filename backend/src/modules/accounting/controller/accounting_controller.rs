@@ -14,7 +14,7 @@ pub async fn list_accounts(State(state): State<SharedState>) -> Result<Json<Vec<
 }
 
 pub async fn create_account(State(state): State<SharedState>, Json(req): Json<CreateAccountRequest>) -> Result<Json<AccountResponse>, AppError> {
-    req.validate()?;
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let svc = AccountingService::new(&state.db);
     Ok(Json(svc.create_account(req).await?))
 }
@@ -27,7 +27,7 @@ pub async fn list_journal(State(state): State<SharedState>, Query(q): Query<Acco
 }
 
 pub async fn create_journal(State(state): State<SharedState>, Json(req): Json<CreateJournalEntryRequest>) -> Result<Json<JournalEntryDetailResponse>, AppError> {
-    req.validate()?;
+    req.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     let svc = AccountingService::new(&state.db);
     Ok(Json(svc.create_journal_entry(req).await?))
 }

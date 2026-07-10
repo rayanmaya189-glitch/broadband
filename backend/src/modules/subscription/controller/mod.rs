@@ -1,1 +1,1 @@
-pub mod subscription_controller;
+pub mod subscription_controller_seaorm;

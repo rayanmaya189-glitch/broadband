@@ -1,1 +1,1 @@
-pub mod role_controller;
+pub mod role_controller_seaorm;

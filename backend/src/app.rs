@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use sea_orm::DatabaseConnection;
 
 use crate::common::config::config::Config;
 use crate::common::errors::app_error::AppError;
@@ -13,6 +14,7 @@ use crate::modules::realtime::service::realtime_service::ConnectionManager;
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub db_seaorm: DatabaseConnection,
     pub redis: RedisService,
     pub nats: NatsService,
     pub config: Arc<Config>,
@@ -32,6 +34,11 @@ impl AppState {
             .await?;
 
         tracing::info!(max = config.db_max_connections, "PostgreSQL pool connected");
+
+        let db_seaorm = sea_orm::Database::connect(&config.database_url)
+            .await
+            .map_err(|e| AppError::DatabaseSeaorm(e.to_string()))?;
+        tracing::info!("SeaORM connection ready");
 
         let redis_client = redis::Client::open(config.redis_url.as_str())
             .map_err(|e| AppError::External(format!("Failed to create Redis client: {e}")))?;
@@ -53,6 +60,6 @@ impl AppState {
         let ws_manager = Arc::new(ConnectionManager::new());
         tracing::info!("WebSocket connection manager ready");
 
-        Ok(Self { db, redis, nats, config: Arc::new(config), ws_manager })
+        Ok(Self { db, db_seaorm, redis, nats, config: Arc::new(config), ws_manager })
     }
 }
