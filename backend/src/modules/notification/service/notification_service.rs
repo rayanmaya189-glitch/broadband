@@ -82,4 +82,28 @@ impl<'a> NotificationService<'a> {
         }).collect();
         Ok((responses, total))
     }
+
+    /// Reset a failed notification's status to "queued" so it can be retried.
+    pub async fn retry_notification(&self, id: i64) -> Result<MessageResponse, AppError> {
+        match self.repo.retry_notification(id).await? {
+            true => Ok(MessageResponse { message: "Notification queued for retry".into() }),
+            false => Err(AppError::NotFound("Notification not found or not in failed status".into())),
+        }
+    }
+
+    /// Query notification history with optional notification_id filter and pagination.
+    pub async fn list_history(
+        &self,
+        notification_id: Option<i64>,
+        page: i64,
+        per_page: i64,
+    ) -> Result<HistoryListResponse, AppError> {
+        let (rows, total) = self.repo.list_history(notification_id, page, per_page).await?;
+        let history: Vec<HistoryResponse> = rows.into_iter().map(|r| HistoryResponse {
+            id: r.id, notification_id: r.notification_id, event: r.event,
+            details: r.details, recorded_at: r.recorded_at,
+        }).collect();
+        let total_pages = if per_page > 0 { (total as f64 / per_page as f64).ceil() as i64 } else { 0 };
+        Ok(HistoryListResponse { history, total, page, per_page, total_pages })
+    }
 }

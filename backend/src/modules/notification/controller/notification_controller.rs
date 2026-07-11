@@ -53,10 +53,14 @@ pub async fn list_notifications(State(state): State<SharedState>, Query(q): Quer
     Ok(Json(notifications))
 }
 
-pub async fn retry_notification(State(_state): State<SharedState>, Path(_id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {
-    Ok(Json(MessageResponse { message: "Notification queued for retry".into() }))
+/// Retry a failed notification by resetting its status to "queued".
+pub async fn retry_notification(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {
+    let svc = NotificationService::new(&state.db_seaorm);
+    Ok(Json(svc.retry_notification(id).await?))
 }
 
-pub async fn list_history(State(_state): State<SharedState>, Query(_q): Query<HistoryQuery>) -> Result<Json<serde_json::Value>, AppError> {
-    Ok(Json(serde_json::json!({ "history": [], "total": 0 })))
+/// List notification history events with optional notification_id filter.
+pub async fn list_history(State(state): State<SharedState>, Query(q): Query<HistoryQuery>) -> Result<Json<HistoryListResponse>, AppError> {
+    let svc = NotificationService::new(&state.db_seaorm);
+    Ok(Json(svc.list_history(q.notification_id, q.page.unwrap_or(1), q.per_page.unwrap_or(20)).await?))
 }
