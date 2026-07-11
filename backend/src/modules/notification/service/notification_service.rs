@@ -34,6 +34,22 @@ impl<'a> NotificationService<'a> {
         })
     }
 
+    pub async fn update_template(&self, id: i64, req: UpdateTemplateRequest) -> Result<NotificationTemplateResponse, AppError> {
+        let t = self.repo.update_template(id, req.name.as_deref(), req.channel.as_deref(), req.subject_template.as_deref(), req.body_template.as_deref()).await?;
+        Ok(NotificationTemplateResponse {
+            id: t.id, name: t.name, channel: t.channel, subject_template: t.subject_template,
+            body_template: t.body_template, is_active: t.is_active,
+            created_at: t.created_at.into(), updated_at: t.updated_at.into(),
+        })
+    }
+
+    pub async fn delete_template(&self, id: i64) -> Result<MessageResponse, AppError> {
+        if !self.repo.delete_template(id).await? {
+            return Err(AppError::NotFound("Template not found".into()));
+        }
+        Ok(MessageResponse { message: "Template deleted".into() })
+    }
+
     pub async fn list_channels(&self) -> Result<Vec<NotificationChannelResponse>, AppError> {
         let channels = self.repo.list_channels().await?;
         Ok(channels.into_iter().map(|c| NotificationChannelResponse {

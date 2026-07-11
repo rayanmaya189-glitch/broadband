@@ -15,6 +15,11 @@ pub async fn list(State(state): State<SharedState>, Query(q): Query<InventoryQue
     Ok(Json(items))
 }
 
+pub async fn get_by_id(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InventoryItemResponse>, AppError> {
+    let svc = InventoryService::new(&state.db_seaorm);
+    Ok(Json(svc.get_by_id(id).await?))
+}
+
 pub async fn create(State(state): State<SharedState>, Json(req): Json<CreateInventoryItemRequest>) -> Result<Json<InventoryItemResponse>, AppError> {
     req.validate()?;
     let svc = InventoryService::new(&state.db_seaorm);
@@ -49,4 +54,24 @@ pub async fn transfer(State(state): State<SharedState>, Path(id): Path<i64>, Jso
 pub async fn scrap(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InventoryItemResponse>, AppError> {
     let svc = InventoryService::new(&state.db_seaorm);
     Ok(Json(svc.scrap(id).await?))
+}
+
+pub async fn delete(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {
+    let svc = InventoryService::new(&state.db_seaorm);
+    Ok(Json(svc.delete(id).await?))
+}
+
+pub async fn list_movements(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<Vec<InventoryMovementResponse>>, AppError> {
+    let svc = InventoryService::new(&state.db_seaorm);
+    Ok(Json(svc.list_movements(id).await?))
+}
+
+pub async fn get_report(State(state): State<SharedState>) -> Result<Json<InventoryReportResponse>, AppError> {
+    let svc = InventoryService::new(&state.db_seaorm);
+    Ok(Json(svc.get_report().await?))
+}
+
+pub async fn get_warranty_alerts(State(state): State<SharedState>) -> Result<Json<Vec<WarrantyAlertResponse>>, AppError> {
+    let svc = InventoryService::new(&state.db_seaorm);
+    Ok(Json(svc.get_warranty_alerts().await?))
 }

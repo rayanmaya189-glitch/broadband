@@ -1,4 +1,4 @@
-use axum::{routing::{get, post, put}, Router};
+use axum::{routing::{get, post}, Router};
 
 use crate::app::SharedState;
 use crate::common::middleware::rls_setup;
@@ -8,7 +8,9 @@ pub fn lead_routes() -> Router<SharedState> {
     rls_setup::branch_scoped(
         Router::new()
             .route("/", get(lead_controller::list).post(lead_controller::create))
-            .route("/{id}", put(lead_controller::update).delete(lead_controller::delete))
+            .route("/pipeline", get(lead_controller::get_pipeline))
+            .route("/stats", get(lead_controller::get_stats))
+            .route("/{id}", get(lead_controller::get_by_id).put(lead_controller::update).delete(lead_controller::delete))
             .route("/{id}/status", post(lead_controller::update_status))
             .route("/{id}/assign", post(lead_controller::assign))
             .route("/{id}/activities", get(lead_controller::list_activities).post(lead_controller::add_activity))

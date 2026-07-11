@@ -9,17 +9,21 @@ pub struct EventQuery {
     pub per_page: Option<i64>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, validator::Validate, ToSchema)]
 pub struct PublishEventRequest {
+    #[validate(length(min = 1))]
     pub event_type: String,
+    #[validate(length(min = 1))]
     pub aggregate_type: String,
     pub aggregate_id: i64,
     pub payload: serde_json::Value,
     pub metadata: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, validator::Validate, ToSchema)]
 pub struct CreateSubscriptionRequest {
+    #[validate(length(min = 1))]
     pub subscriber_name: String,
+    #[validate(length(min = 1))]
     pub event_type: String,
 }

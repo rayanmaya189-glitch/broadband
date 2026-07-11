@@ -15,6 +15,11 @@ pub async fn list(State(state): State<SharedState>, Query(q): Query<LeadQuery>) 
     Ok(Json(leads))
 }
 
+pub async fn get_by_id(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<LeadResponse>, AppError> {
+    let svc = LeadService::new(&state.db_seaorm);
+    Ok(Json(svc.get_by_id(id).await?))
+}
+
 pub async fn create(State(state): State<SharedState>, Json(req): Json<CreateLeadRequest>) -> Result<Json<LeadResponse>, AppError> {
     req.validate()?;
     let svc = LeadService::new(&state.db_seaorm);
@@ -55,4 +60,14 @@ pub async fn add_activity(State(state): State<SharedState>, Path(id): Path<i64>,
     req.validate()?;
     let svc = LeadService::new(&state.db_seaorm);
     Ok(Json(svc.add_activity(id, req).await?))
+}
+
+pub async fn get_pipeline(State(state): State<SharedState>) -> Result<Json<LeadPipelineResponse>, AppError> {
+    let svc = LeadService::new(&state.db_seaorm);
+    Ok(Json(svc.get_pipeline().await?))
+}
+
+pub async fn get_stats(State(state): State<SharedState>) -> Result<Json<serde_json::Value>, AppError> {
+    let svc = LeadService::new(&state.db_seaorm);
+    Ok(Json(svc.get_stats().await?))
 }
