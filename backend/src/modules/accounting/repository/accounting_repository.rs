@@ -236,12 +236,12 @@ impl<'a> AccountingRepository<'a> {
         let rows = self.db.query_all(stmt).await?;
         let mut results = Vec::new();
         for row in rows {
-            let invoice_number: String = row.try_get("", "_1")?;
-            let customer_gstin: Option<String> = row.try_get("", "_2").ok();
-            let taxable_value: Decimal = row.try_get("", "_3")?;
-            let cgst: Decimal = row.try_get("", "_4")?;
-            let sgst: Decimal = row.try_get("", "_5")?;
-            let igst: Decimal = row.try_get("", "_6")?;
+            let invoice_number: String = row.try_get("", "invoice_number")?;
+            let customer_gstin: Option<String> = row.try_get("", "customer_gstin").ok();
+            let taxable_value: Decimal = row.try_get("", "taxable_value")?;
+            let cgst: Decimal = row.try_get("", "cgst")?;
+            let sgst: Decimal = row.try_get("", "sgst")?;
+            let igst: Decimal = row.try_get("", "igst")?;
             results.push((invoice_number, customer_gstin, taxable_value, cgst, sgst, igst));
         }
         Ok(results)
