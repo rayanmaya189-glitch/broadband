@@ -1,6 +1,6 @@
 //! SeaORM-based controller for the PaymentGateway domain.
 
-use axum::extract::{Json, Query, State};
+use axum::extract::{Json, Path, Query, State};
 use validator::Validate;
 
 use crate::app::SharedState;
@@ -30,4 +30,19 @@ pub async fn create_transaction(State(state): State<SharedState>, Json(req): Jso
     req.validate()?;
     let svc = PaymentGatewayService::new(&state.db_seaorm);
     Ok(Json(svc.create_transaction(req).await?))
+}
+
+pub async fn get_transaction(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<PaymentTransactionResponse>, AppError> {
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
+    Ok(Json(svc.get_transaction(id).await?))
+}
+
+pub async fn update_gateway(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<UpdateGatewayRequest>) -> Result<Json<GatewayConfigResponse>, AppError> {
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
+    Ok(Json(svc.update_gateway(id, req).await?))
+}
+
+pub async fn process_webhook(State(state): State<SharedState>, Json(req): Json<WebhookPayload>) -> Result<Json<WebhookProcessResponse>, AppError> {
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
+    Ok(Json(svc.process_webhook(req).await?))
 }

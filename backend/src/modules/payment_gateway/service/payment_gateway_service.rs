@@ -55,4 +55,30 @@ impl<'a> PaymentGatewayService<'a> {
             status: t.status, failure_reason: t.failure_reason, created_at: t.created_at.into(),
         })
     }
+
+    pub async fn update_gateway(&self, id: i64, req: crate::modules::payment_gateway::request::payment_gateway_request::UpdateGatewayRequest) -> Result<GatewayConfigResponse, AppError> {
+        let g = self.repo.update_gateway(id, req.name.as_deref(), req.is_primary, req.is_active).await?;
+        Ok(GatewayConfigResponse {
+            id: g.id, gateway_id: g.gateway_id, name: g.name, is_primary: g.is_primary,
+            is_active: g.is_active, supported_methods: Some(g.supported_methods), currency: Some(g.currency),
+            created_at: g.created_at.into(), updated_at: g.updated_at.into(),
+        })
+    }
+
+    pub async fn get_transaction(&self, id: i64) -> Result<PaymentTransactionResponse, AppError> {
+        let t = self.repo.get_transaction(id).await?.ok_or_else(|| AppError::NotFound("Transaction not found".into()))?;
+        Ok(PaymentTransactionResponse {
+            id: t.id, gateway_id: t.gateway_id, invoice_id: t.invoice_id, customer_id: t.customer_id,
+            amount: t.amount, currency: t.currency, payment_method: t.payment_method,
+            gateway_transaction_id: t.gateway_transaction_id,
+            status: t.status, failure_reason: t.failure_reason, created_at: t.created_at.into(),
+        })
+    }
+
+    pub async fn process_webhook(&self, webhook: crate::modules::payment_gateway::request::payment_gateway_request::WebhookPayload) -> Result<crate::modules::payment_gateway::response::payment_gateway_response::WebhookProcessResponse, AppError> {
+        self.repo.log_webhook(&webhook.gateway_id, &webhook.event_type, webhook.payload, true, None).await?;
+        Ok(crate::modules::payment_gateway::response::payment_gateway_response::WebhookProcessResponse {
+            status: "processed".into(), message: "Webhook logged".into(), transaction_id: None,
+        })
+    }
 }

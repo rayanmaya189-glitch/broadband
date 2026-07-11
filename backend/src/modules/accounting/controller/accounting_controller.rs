@@ -40,3 +40,33 @@ pub async fn void_journal(State(state): State<SharedState>, Path(id): Path<i64>)
     let svc = AccountingService::new(&state.db_seaorm);
     Ok(Json(svc.void_entry(id).await?))
 }
+
+pub async fn get_entry_lines(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<Vec<JournalEntryLineResponse>>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.get_entry_lines(id).await?))
+}
+
+pub async fn trial_balance(State(state): State<SharedState>, Query(q): Query<TrialBalanceQuery>) -> Result<Json<TrialBalanceResponse>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.trial_balance(q).await?))
+}
+
+pub async fn profit_loss(State(state): State<SharedState>, Query(q): Query<TrialBalanceQuery>) -> Result<Json<ProfitLossResponse>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.profit_loss_statement(q).await?))
+}
+
+pub async fn balance_sheet(State(state): State<SharedState>, Query(q): Query<TrialBalanceQuery>) -> Result<Json<BalanceSheetResponse>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.balance_sheet(q).await?))
+}
+
+pub async fn cash_flow(State(state): State<SharedState>, Query(q): Query<TrialBalanceQuery>) -> Result<Json<CashFlowResponse>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.cash_flow_statement(q).await?))
+}
+
+pub async fn gst_return_data(State(state): State<SharedState>, Path(return_type): Path<String>, Query(q): Query<GstQuery>) -> Result<Json<GstReturnResponse>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.gst_return_data(&return_type, Some(q.month), Some(q.year)).await?))
+}
