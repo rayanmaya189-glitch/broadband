@@ -53,8 +53,11 @@ pub struct TicketCommentResponse {
     pub is_customer: bool,
     pub comment: String,
     pub is_internal: bool,
+    #[serde(default)]
     pub attachments: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub updated_at: DateTime<Utc>,
     #[serde(default)]
     pub user_name: Option<String>,
 }

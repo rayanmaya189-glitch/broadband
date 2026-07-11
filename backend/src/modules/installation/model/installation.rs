@@ -1,8 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::Value;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct InstallationOrder {
     pub id: i64,
     pub customer_id: i64,
@@ -23,7 +22,7 @@ pub struct InstallationOrder {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct InstallationPhoto {
     pub id: i64,
     pub installation_id: i64,

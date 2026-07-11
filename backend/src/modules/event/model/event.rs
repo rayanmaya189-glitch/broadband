@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Event {
     pub id: i64,
     pub event_type: String,
@@ -17,7 +16,7 @@ pub struct Event {
     pub processed: bool,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct EventSubscription {
     pub id: i64,
     pub subscriber_name: String,
@@ -28,7 +27,7 @@ pub struct EventSubscription {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct EventStats {
     pub total_events: i64,
     pub processed_events: i64,

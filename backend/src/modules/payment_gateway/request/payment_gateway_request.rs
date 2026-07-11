@@ -46,3 +46,17 @@ pub struct RetryPaymentRequest {
     pub transaction_id: i64,
     pub gateway_id: Option<String>,
 }
+
+// Type aliases for backward compatibility
+pub type CreateGatewayRequest = CreateGatewayConfigRequest;
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct CreateTransactionRequest {
+    pub gateway_id: String,
+    pub customer_id: i64,
+    pub invoice_id: Option<i64>,
+    pub amount: rust_decimal::Decimal,
+    pub currency: Option<String>,
+    pub payment_method: String,
+    pub description: Option<String>,
+}

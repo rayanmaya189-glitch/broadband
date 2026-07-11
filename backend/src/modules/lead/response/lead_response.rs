@@ -23,7 +23,9 @@ pub struct LeadResponse {
     pub converted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
     pub assigned_to_name: Option<String>,
+    #[serde(default)]
     pub branch_name: Option<String>,
 }
 
@@ -44,8 +46,10 @@ pub struct LeadActivityResponse {
     pub description: String,
     pub performed_by: i64,
     pub scheduled_at: Option<DateTime<Utc>>,
+    #[serde(default)]
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
     pub performer_name: Option<String>,
 }
 

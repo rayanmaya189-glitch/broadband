@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
 
 /// Row type mapping to the `users` table.
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct User {
     pub id: i64,
     pub email: String,
@@ -24,7 +23,7 @@ pub struct User {
 }
 
 /// Row type mapping to the `refresh_tokens` table.
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct RefreshToken {
     pub id: i64,
     pub user_id: i64,

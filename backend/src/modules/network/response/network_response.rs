@@ -46,13 +46,16 @@ pub struct IpAddressResponse {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PppoeSessionResponse {
     pub id: i64,
+    pub branch_id: i64,
     pub customer_id: i64,
+    pub subscription_id: i64,
     pub username: String,
     pub assigned_ip: Option<String>,
     pub status: String,
     pub session_start: Option<DateTime<Utc>>,
     pub bytes_in: i64,
     pub bytes_out: i64,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -60,6 +63,7 @@ pub struct MacBindingResponse {
     pub id: i64,
     pub branch_id: i64,
     pub customer_id: i64,
+    pub subscription_id: i64,
     pub mac_address: String,
     pub assigned_ip: String,
     pub vlan_id: Option<i64>,

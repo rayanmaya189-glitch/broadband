@@ -1,8 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct CustomerWallet {
     pub id: i64,
     pub customer_id: i64,
@@ -14,7 +13,7 @@ pub struct CustomerWallet {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct WalletTransaction {
     pub id: i64,
     pub wallet_id: i64,
@@ -29,7 +28,7 @@ pub struct WalletTransaction {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct ReferralProgram {
     pub id: i64,
     pub name: String,
@@ -44,7 +43,7 @@ pub struct ReferralProgram {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct ReferralTracking {
     pub id: i64,
     pub program_id: i64,

@@ -1,60 +1,54 @@
+//! SeaORM-based controller for the Installation domain.
+
 use axum::extract::{Json, Path, Query, State};
 use validator::Validate;
+
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;
-use crate::common::middleware::auth_middleware::UserContext;
 use crate::modules::installation::request::installation_request::*;
 use crate::modules::installation::response::installation_response::*;
 use crate::modules::installation::service::installation_service::InstallationService;
 
-pub async fn list_installations(State(state): State<SharedState>, Query(q): Query<InstallationQuery>) -> Result<Json<InstallationListResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.list_installations(q).await?))
+pub async fn list(State(state): State<SharedState>, Query(q): Query<InstallationQuery>) -> Result<Json<Vec<InstallationOrderResponse>>, AppError> {
+    let svc = InstallationService::new(&state.db_seaorm);
+    let (orders, _) = svc.list(q.branch_id, q.status.as_deref(), q.page.unwrap_or(1), q.per_page.unwrap_or(20)).await?;
+    Ok(Json(orders))
 }
 
-pub async fn get_installation(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InstallationResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.get_installation(id).await?))
+pub async fn get_by_id(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InstallationOrderResponse>, AppError> {
+    let svc = InstallationService::new(&state.db_seaorm);
+    Ok(Json(svc.get_by_id(id).await?))
 }
 
-pub async fn create_installation(State(state): State<SharedState>, Json(req): Json<CreateInstallationRequest>) -> Result<Json<InstallationResponse>, AppError> {
+pub async fn create(State(state): State<SharedState>, Json(req): Json<CreateInstallationRequest>) -> Result<Json<InstallationOrderResponse>, AppError> {
     req.validate()?;
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.create_installation(req).await?))
+    let svc = InstallationService::new(&state.db_seaorm);
+    let itype = req.installation_type.as_deref().unwrap_or("standard");
+    Ok(Json(svc.create(req.customer_id, req.branch_id, req.subscription_id, itype).await?))
 }
 
-pub async fn schedule_installation(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<ScheduleInstallationRequest>) -> Result<Json<InstallationResponse>, AppError> {
+pub async fn schedule(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<ScheduleInstallationRequest>) -> Result<Json<InstallationOrderResponse>, AppError> {
     req.validate()?;
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.schedule_installation(id, req).await?))
+    let svc = InstallationService::new(&state.db_seaorm);
+    Ok(Json(svc.schedule(id, req).await?))
 }
 
-pub async fn reschedule_installation(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<RescheduleInstallationRequest>) -> Result<Json<InstallationResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.reschedule_installation(id, req).await?))
+pub async fn start(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InstallationOrderResponse>, AppError> {
+    let svc = InstallationService::new(&state.db_seaorm);
+    Ok(Json(svc.start(id).await?))
 }
 
-pub async fn start_installation(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InstallationResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.start_installation(id).await?))
+pub async fn complete(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<CompleteInstallationRequest>) -> Result<Json<InstallationOrderResponse>, AppError> {
+    let svc = InstallationService::new(&state.db_seaorm);
+    Ok(Json(svc.complete(id, req).await?))
 }
 
-pub async fn complete_installation(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<CompleteInstallationRequest>) -> Result<Json<InstallationResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.complete_installation(id, req).await?))
+pub async fn cancel(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<InstallationOrderResponse>, AppError> {
+    let svc = InstallationService::new(&state.db_seaorm);
+    Ok(Json(svc.cancel(id).await?))
 }
 
-pub async fn cancel_installation(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<MessageResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.cancel_installation(id).await?))
-}
-
-pub async fn upload_photo(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<UploadPhotoRequest>) -> Result<Json<MessageResponse>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.upload_photo(id, req).await?))
-}
-
-pub async fn get_my_assignments(State(state): State<SharedState>, user: UserContext) -> Result<Json<Vec<InstallationResponse>>, AppError> {
-    let svc = InstallationService::new(&state.db);
-    Ok(Json(svc.get_my_assignments(user.user_id).await?))
+pub async fn get_my_assignments(State(state): State<SharedState>, Path(technician_id): Path<i64>) -> Result<Json<Vec<InstallationOrderResponse>>, AppError> {
+    let svc = InstallationService::new(&state.db_seaorm);
+    Ok(Json(svc.get_my_assignments(technician_id).await?))
 }

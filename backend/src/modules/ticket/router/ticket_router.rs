@@ -7,18 +7,10 @@ use crate::modules::ticket::controller::ticket_controller;
 pub fn ticket_routes() -> Router<SharedState> {
     rls_setup::branch_scoped(
         Router::new()
-            .route("/", get(ticket_controller::list_tickets).post(ticket_controller::create_ticket))
-            .route("/dashboard", get(ticket_controller::get_dashboard))
-            .route("/my-assignments", get(ticket_controller::get_my_assignments))
-            .route("/{id}", get(ticket_controller::get_ticket).put(ticket_controller::update_ticket).delete(ticket_controller::delete_ticket))
-            .route("/{id}/assign", post(ticket_controller::assign_ticket))
-            .route("/{id}/escalate", post(ticket_controller::escalate_ticket))
-            .route("/{id}/resolve", post(ticket_controller::resolve_ticket))
-            .route("/{id}/close", post(ticket_controller::close_ticket))
-            .route("/{id}/reopen", post(ticket_controller::reopen_ticket))
-            .route("/{id}/feedback", post(ticket_controller::set_feedback))
-            .route("/{id}/comments", get(ticket_controller::get_comments).post(ticket_controller::add_comment))
-            .route("/{id}/escalations", get(ticket_controller::get_escalations))
-            .route("/{id}/status-history", get(ticket_controller::get_status_history))
+            .route("/", get(ticket_controller::list).post(ticket_controller::create))
+            .route("/{id}", get(ticket_controller::get_by_id))
+            .route("/{id}/status", post(ticket_controller::update_status))
+            .route("/{id}/assign", post(ticket_controller::assign))
+            .route("/{id}/comments", get(ticket_controller::list_comments).post(ticket_controller::add_comment))
     )
 }

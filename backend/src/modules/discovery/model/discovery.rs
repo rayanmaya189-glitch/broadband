@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct DiscoveryScan {
     pub id: i64,
     pub branch_id: i64,
@@ -12,7 +11,7 @@ pub struct DiscoveryScan {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct DiscoveryResult {
     pub id: i64,
     pub scan_id: i64,

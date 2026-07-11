@@ -15,7 +15,7 @@ pub struct CreateInstallationRequest {
 pub struct ScheduleInstallationRequest {
     pub scheduled_date: NaiveDate,
     pub scheduled_time_slot: String,
-    pub technician_id: Option<i64>,
+    pub assigned_technician_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

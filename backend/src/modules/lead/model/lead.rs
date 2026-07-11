@@ -1,7 +1,6 @@
 use chrono::{DateTime, NaiveDate, Utc};
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Lead {
     pub id: i64,
     pub branch_id: i64,
@@ -24,7 +23,7 @@ pub struct Lead {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct LeadActivity {
     pub id: i64,
     pub lead_id: i64,

@@ -1,78 +1,141 @@
-use sqlx::PgPool;
-use crate::modules::coverage::model::coverage::*;
+//! SeaORM-based repository for the Coverage domain.
 
-pub struct CoverageRepository<'a> { pool: &'a PgPool }
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
+
+use crate::common::errors::app_error::AppError;
+use crate::modules::coverage::model::coverage_area_entity::{self, Model as CoverageAreaModel};
+use crate::modules::coverage::model::coverage_pincode_entity::{self, Model as CoveragePincodeModel};
+
+pub struct CoverageRepository<'a> {
+    db: &'a DatabaseConnection,
+}
+
 impl<'a> CoverageRepository<'a> {
-    pub fn new(pool: &'a PgPool) -> Self { Self { pool } }
+    pub fn new(db: &'a DatabaseConnection) -> Self { Self { db } }
 
-    // ── Coverage Areas ──────────────────────────────────────
-
-    pub async fn list(&self, branch_id: Option<i64>) -> Result<Vec<CoverageArea>, sqlx::Error> {
-        sqlx::query_as::<_, CoverageArea>(
-            "SELECT id, branch_id, name, description, area_type, pincodes, is_active, max_customers, current_customers, fiber_available, estimated_installation_days, created_at FROM coverage_areas WHERE ($1::bigint IS NULL OR branch_id = $1) AND is_active = true ORDER BY name"
-        ).bind(branch_id).fetch_all(self.pool).await
+    pub async fn list(&self, branch_id: Option<i64>) -> Result<Vec<CoverageAreaModel>, AppError> {
+        let mut select = coverage_area_entity::Entity::find()
+            .filter(coverage_area_entity::Column::IsActive.eq(true));
+        if let Some(bid) = branch_id {
+            select = select.filter(coverage_area_entity::Column::BranchId.eq(bid));
+        }
+        let areas = select.order_by_asc(coverage_area_entity::Column::Name).all(self.db).await?;
+        Ok(areas)
     }
 
-    pub async fn get_by_id(&self, id: i64) -> Result<Option<CoverageArea>, sqlx::Error> {
-        sqlx::query_as::<_, CoverageArea>(
-            "SELECT id, branch_id, name, description, area_type, pincodes, is_active, max_customers, current_customers, fiber_available, estimated_installation_days, created_at FROM coverage_areas WHERE id = $1"
-        ).bind(id).fetch_optional(self.pool).await
+    pub async fn get_by_id(&self, id: i64) -> Result<Option<CoverageAreaModel>, AppError> {
+        Ok(coverage_area_entity::Entity::find_by_id(id).one(self.db).await?)
     }
 
-    pub async fn create(&self, branch_id: i64, name: &str, description: Option<&str>, area_type: &str, fiber_available: bool, est_days: Option<i32>, max_customers: Option<i32>) -> Result<CoverageArea, sqlx::Error> {
-        sqlx::query_as::<_, CoverageArea>(
-            "INSERT INTO coverage_areas (branch_id, name, description, area_type, fiber_available, estimated_installation_days, max_customers) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, branch_id, name, description, area_type, pincodes, is_active, max_customers, current_customers, fiber_available, estimated_installation_days, created_at"
-        ).bind(branch_id).bind(name).bind(description).bind(area_type).bind(fiber_available).bind(est_days).bind(max_customers).fetch_one(self.pool).await
+    pub async fn create(
+        &self, branch_id: i64, name: &str, description: Option<&str>, area_type: &str,
+        fiber_available: bool, est_days: Option<i32>, max_customers: Option<i32>,
+    ) -> Result<CoverageAreaModel, AppError> {
+        let now = chrono::Utc::now();
+        let active = coverage_area_entity::ActiveModel {
+            branch_id: Set(branch_id),
+            name: Set(name.to_owned()),
+            description: Set(description.map(|s| s.to_owned())),
+            area_type: Set(area_type.to_owned()),
+            fiber_available: Set(fiber_available),
+            estimated_installation_days: Set(est_days),
+            max_customers: Set(max_customers),
+            is_active: Set(true),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(active.insert(self.db).await?)
     }
 
-    pub async fn update(&self, id: i64, name: Option<&str>, description: Option<&str>, area_type: Option<&str>, fiber_available: Option<bool>, est_days: Option<i32>, max_customers: Option<i32>) -> Result<CoverageArea, sqlx::Error> {
-        sqlx::query_as::<_, CoverageArea>(
-            "UPDATE coverage_areas SET name = COALESCE($2, name), description = COALESCE($3, description), area_type = COALESCE($4, area_type), fiber_available = COALESCE($5, fiber_available), estimated_installation_days = COALESCE($6, estimated_installation_days), max_customers = COALESCE($7, max_customers), updated_at = NOW() WHERE id = $1 RETURNING id, branch_id, name, description, area_type, pincodes, is_active, max_customers, current_customers, fiber_available, estimated_installation_days, created_at"
-        ).bind(id).bind(name).bind(description).bind(area_type).bind(fiber_available).bind(est_days).bind(max_customers).fetch_one(self.pool).await
+    pub async fn update(
+        &self, id: i64, name: Option<&str>, description: Option<&str>, area_type: Option<&str>,
+        fiber_available: Option<bool>, est_days: Option<i32>, max_customers: Option<i32>,
+    ) -> Result<CoverageAreaModel, AppError> {
+        let existing = coverage_area_entity::Entity::find_by_id(id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Coverage area not found".into()))?;
+        let mut active = existing.into_active_model();
+        if let Some(v) = name { active.name = Set(v.to_owned()); }
+        if let Some(v) = description { active.description = Set(Some(v.to_owned())); }
+        if let Some(v) = area_type { active.area_type = Set(v.to_owned()); }
+        if let Some(v) = fiber_available { active.fiber_available = Set(v); }
+        if let Some(v) = est_days { active.estimated_installation_days = Set(Some(v)); }
+        if let Some(v) = max_customers { active.max_customers = Set(Some(v)); }
+        active.updated_at = Set(chrono::Utc::now().into());
+        Ok(active.update(self.db).await?)
     }
 
-    pub async fn check_pincode(&self, pincode: &str) -> Result<Option<CoverageArea>, sqlx::Error> {
-        sqlx::query_as::<_, CoverageArea>(
-            "SELECT ca.id, ca.branch_id, ca.name, ca.description, ca.area_type, ca.pincodes, ca.is_active, ca.max_customers, ca.current_customers, ca.fiber_available, ca.estimated_installation_days, ca.created_at FROM coverage_areas ca JOIN coverage_pincode_map cpm ON ca.id = cpm.coverage_area_id WHERE cpm.pincode = $1 AND ca.is_active = true LIMIT 1"
-        ).bind(pincode).fetch_optional(self.pool).await
+    pub async fn deactivate(&self, id: i64) -> Result<bool, AppError> {
+        let existing = coverage_area_entity::Entity::find_by_id(id).one(self.db).await?;
+        match existing {
+            Some(e) => {
+                let mut active = e.into_active_model();
+                active.is_active = Set(false);
+                active.updated_at = Set(chrono::Utc::now().into());
+                active.update(self.db).await?;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
-    pub async fn deactivate(&self, id: i64) -> Result<bool, sqlx::Error> {
-        let r = sqlx::query("UPDATE coverage_areas SET is_active = false WHERE id = $1").bind(id).execute(self.pool).await?;
-        Ok(r.rows_affected() > 0)
+    pub async fn check_pincode(&self, pincode: &str) -> Result<Option<CoverageAreaModel>, AppError> {
+        // Complex join query - use raw SQL
+        let stmt = sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT ca.* FROM coverage_areas ca JOIN coverage_pincode_map cpm ON ca.id = cpm.coverage_area_id WHERE cpm.pincode = $1 AND ca.is_active = true LIMIT 1".to_string()
+        );
+        let results = coverage_area_entity::Entity::find()
+            .from_raw_sql(stmt)
+            .all(self.db).await?;
+        Ok(results.into_iter().next())
     }
 
-    // ── Pincode Management ──────────────────────────────────
-
-    pub async fn list_pincodes(&self, area_id: i64) -> Result<Vec<CoveragePincode>, sqlx::Error> {
-        sqlx::query_as::<_, CoveragePincode>(
-            "SELECT id, coverage_area_id, pincode, city, district, state, is_active, created_at FROM coverage_pincode_map WHERE coverage_area_id = $1 ORDER BY pincode"
-        ).bind(area_id).fetch_all(self.pool).await
+    pub async fn list_pincodes(&self, area_id: i64) -> Result<Vec<CoveragePincodeModel>, AppError> {
+        let pincodes = coverage_pincode_entity::Entity::find()
+            .filter(coverage_pincode_entity::Column::CoverageAreaId.eq(area_id))
+            .order_by_asc(coverage_pincode_entity::Column::Pincode)
+            .all(self.db).await?;
+        Ok(pincodes)
     }
 
-    pub async fn add_pincode(&self, area_id: i64, pincode: &str, city: &str, district: Option<&str>, state: Option<&str>) -> Result<CoveragePincode, sqlx::Error> {
-        sqlx::query_as::<_, CoveragePincode>(
-            "INSERT INTO coverage_pincode_map (coverage_area_id, pincode, city, district, state) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (coverage_area_id, pincode) DO UPDATE SET is_active = true RETURNING id, coverage_area_id, pincode, city, district, state, is_active, created_at"
-        ).bind(area_id).bind(pincode).bind(city).bind(district).bind(state).fetch_one(self.pool).await
+    pub async fn add_pincode(&self, area_id: i64, pincode: &str, city: &str, district: Option<&str>, state: Option<&str>) -> Result<CoveragePincodeModel, AppError> {
+        // Check if exists
+        let existing = coverage_pincode_entity::Entity::find()
+            .filter(coverage_pincode_entity::Column::CoverageAreaId.eq(area_id))
+            .filter(coverage_pincode_entity::Column::Pincode.eq(pincode))
+            .one(self.db).await?;
+        match existing {
+            Some(e) => {
+                let mut active = e.into_active_model();
+                active.is_active = Set(true);
+                Ok(active.update(self.db).await?)
+            }
+            None => {
+                let now = chrono::Utc::now();
+                let active = coverage_pincode_entity::ActiveModel {
+                    coverage_area_id: Set(area_id),
+                    pincode: Set(pincode.to_owned()),
+                    city: Set(city.to_owned()),
+                    district: Set(district.map(|s| s.to_owned())),
+                    state: Set(state.map(|s| s.to_owned())),
+                    is_active: Set(true),
+                    created_at: Set(now.into()),
+                    ..Default::default()
+                };
+                Ok(active.insert(self.db).await?)
+            }
+        }
     }
 
-    pub async fn remove_pincode(&self, area_id: i64, pincode: &str) -> Result<bool, sqlx::Error> {
-        let r = sqlx::query("DELETE FROM coverage_pincode_map WHERE coverage_area_id = $1 AND pincode = $2")
-            .bind(area_id).bind(pincode).execute(self.pool).await?;
-        Ok(r.rows_affected() > 0)
-    }
-
-    // ── Stats ───────────────────────────────────────────────
-
-    pub async fn get_stats(&self) -> Result<CoverageStats, sqlx::Error> {
-        let row = sqlx::query_as::<_, (i64, i64, i64, i64, i64)>(
-            "SELECT
-                (SELECT COUNT(*) FROM coverage_areas) as total_areas,
-                (SELECT COUNT(*) FROM coverage_areas WHERE is_active = true) as active_areas,
-                (SELECT COUNT(*) FROM coverage_pincode_map WHERE is_active = true) as total_pincodes,
-                (SELECT COALESCE(SUM(current_customers), 0) FROM coverage_areas) as total_customers,
-                (SELECT COUNT(*) FROM coverage_areas WHERE fiber_available = true AND is_active = true) as fiber_available_areas"
-        ).fetch_one(self.pool).await?;
-        Ok(CoverageStats { total_areas: row.0, active_areas: row.1, total_pincodes: row.2, total_customers: row.3, fiber_available_areas: row.4 })
+    pub async fn remove_pincode(&self, area_id: i64, pincode: &str) -> Result<bool, AppError> {
+        let result = coverage_pincode_entity::Entity::delete_many()
+            .filter(coverage_pincode_entity::Column::CoverageAreaId.eq(area_id))
+            .filter(coverage_pincode_entity::Column::Pincode.eq(pincode))
+            .exec(self.db).await?;
+        Ok(result.rows_affected > 0)
     }
 }

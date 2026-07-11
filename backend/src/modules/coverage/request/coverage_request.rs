@@ -29,8 +29,9 @@ pub struct CheckAvailabilityRequest {
     pub pincode: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct AddPincodeRequest {
+    #[validate(length(min = 1, max = 10))]
     pub pincode: String,
     pub city: String,
     pub district: Option<String>,

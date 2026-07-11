@@ -22,10 +22,13 @@ pub struct UpdateTemplateRequest {
 pub struct SendNotificationRequest {
     pub channel: String,
     pub recipient_id: i64,
-    pub recipient_address: String,
+    pub address: String,
     pub subject: Option<String>,
     pub body: String,
 }
+
+// Type alias for backward compatibility
+pub type CreateNotificationTemplateRequest = CreateTemplateRequest;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct UpsertChannelRequest {

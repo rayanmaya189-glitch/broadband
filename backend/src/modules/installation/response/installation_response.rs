@@ -4,7 +4,7 @@ use utoipa::ToSchema;
 
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct InstallationResponse {
+pub struct InstallationOrderResponse {
     pub id: i64,
     pub customer_id: i64,
     pub branch_id: i64,
@@ -15,11 +15,17 @@ pub struct InstallationResponse {
     pub scheduled_time_slot: Option<String>,
     pub completed_at: Option<DateTime<Utc>>,
     pub installation_type: String,
+    pub equipment_issued: Option<serde_json::Value>,
+    pub fiber_drop_length_meters: Option<i32>,
+    pub onu_power_dbm: Option<f64>,
     pub notes: Option<String>,
+    pub photos: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
-    pub customer_name: Option<String>,
-    pub technician_name: Option<String>,
+    pub updated_at: DateTime<Utc>,
 }
+
+/// Alias for backward compatibility
+pub type InstallationResponse = InstallationOrderResponse;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct InstallationListResponse {

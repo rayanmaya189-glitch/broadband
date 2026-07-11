@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
+use serde_json::Value;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct DocumentFile {
     pub id: i64,
     pub filename: String,
@@ -16,12 +16,12 @@ pub struct DocumentFile {
     pub entity_type: Option<String>,
     pub entity_id: Option<i64>,
     pub status: String,
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct DocumentAccessLog {
     pub id: i64,
     pub document_id: i64,

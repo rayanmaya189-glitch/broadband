@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct AuditLog {
     pub id: i64,
     pub user_id: Option<i64>,
@@ -20,7 +19,7 @@ pub struct AuditLog {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct AuditStats {
     pub total_logs: i64,
     pub granted_count: i64,

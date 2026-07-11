@@ -4,7 +4,7 @@ use utoipa::ToSchema;
 
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ScanResponse {
+pub struct DiscoveryScanResponse {
     pub id: i64,
     pub branch_id: i64,
     pub name: String,
@@ -14,8 +14,11 @@ pub struct ScanResponse {
     pub created_at: DateTime<Utc>,
 }
 
+/// Alias for backward compatibility
+pub type ScanResponse = DiscoveryScanResponse;
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ResultResponse {
+pub struct DiscoveryResultResponse {
     pub id: i64,
     pub scan_id: i64,
     pub discovered_ip: String,
@@ -25,6 +28,9 @@ pub struct ResultResponse {
     pub status: String,
     pub discovered_at: DateTime<Utc>,
 }
+
+/// Alias for backward compatibility
+pub type ResultResponse = DiscoveryResultResponse;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DashboardResponse {

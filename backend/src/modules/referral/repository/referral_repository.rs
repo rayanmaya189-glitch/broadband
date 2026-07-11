@@ -1,117 +1,195 @@
-use sqlx::PgPool;
-use rust_decimal::Decimal;
-use crate::modules::referral::model::referral::{ReferralProgram, ReferralTracking, CustomerWallet, WalletTransaction};
+//! SeaORM-based repository for the Referral domain.
 
-pub struct ReferralRepository<'a> { pool: &'a PgPool }
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
+
+use crate::common::errors::app_error::AppError;
+use crate::modules::referral::model::referral_program_entity::{self, Model as ReferralProgramModel};
+use crate::modules::referral::model::referral_tracking_entity::{self, Model as ReferralTrackingModel};
+use crate::modules::referral::model::customer_wallet_entity::{self, Model as CustomerWalletModel};
+use crate::modules::referral::model::wallet_transaction_entity::{self, Model as WalletTransactionModel};
+
+pub struct ReferralRepository<'a> {
+    db: &'a DatabaseConnection,
+}
+
 impl<'a> ReferralRepository<'a> {
-    pub fn new(pool: &'a PgPool) -> Self { Self { pool } }
-    pub fn pool(&self) -> &'a PgPool { self.pool }
+    pub fn new(db: &'a DatabaseConnection) -> Self { Self { db } }
 
-    // ── Programs ───────────────────────────────────────────
-
-    pub async fn list_programs(&self) -> Result<Vec<ReferralProgram>, sqlx::Error> {
-        sqlx::query_as::<_, ReferralProgram>("SELECT * FROM referral_programs ORDER BY created_at DESC")
-            .fetch_all(self.pool).await
+    pub async fn list_programs(&self) -> Result<Vec<ReferralProgramModel>, AppError> {
+        Ok(referral_program_entity::Entity::find().order_by_desc(referral_program_entity::Column::CreatedAt).all(self.db).await?)
     }
 
-    pub async fn get_program(&self, id: i64) -> Result<Option<ReferralProgram>, sqlx::Error> {
-        sqlx::query_as::<_, ReferralProgram>("SELECT * FROM referral_programs WHERE id = $1")
-            .bind(id).fetch_optional(self.pool).await
+    pub async fn get_program(&self, id: i64) -> Result<Option<ReferralProgramModel>, AppError> {
+        Ok(referral_program_entity::Entity::find_by_id(id).one(self.db).await?)
     }
 
-    pub async fn create_program(&self, name: &str, rr_type: &str, rr_val: rust_decimal::Decimal, rf_type: &str, rf_val: rust_decimal::Decimal, max_referrals: Option<i32>, start: chrono::NaiveDate, end: chrono::NaiveDate) -> Result<ReferralProgram, sqlx::Error> {
-        sqlx::query_as::<_, ReferralProgram>("INSERT INTO referral_programs (name, referrer_reward_type, referrer_reward_value, referee_reward_type, referee_reward_value, max_referrals_per_customer, start_date, end_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *")
-            .bind(name).bind(rr_type).bind(rr_val).bind(rf_type).bind(rf_val).bind(max_referrals).bind(start).bind(end).fetch_one(self.pool).await
+    pub async fn create_program(&self, name: &str, rr_type: &str, rr_val: rust_decimal::Decimal, rf_type: &str, rf_val: rust_decimal::Decimal, max_referrals: Option<i32>, start: chrono::NaiveDate, end: chrono::NaiveDate) -> Result<ReferralProgramModel, AppError> {
+        let now = chrono::Utc::now();
+        let active = referral_program_entity::ActiveModel {
+            name: Set(name.to_owned()),
+            status: Set("active".to_owned()),
+            referrer_reward_type: Set(rr_type.to_owned()),
+            referrer_reward_value: Set(rr_val),
+            referee_reward_type: Set(rf_type.to_owned()),
+            referee_reward_value: Set(rf_val),
+            max_referrals_per_customer: Set(max_referrals),
+            start_date: Set(start),
+            end_date: Set(end),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(active.insert(self.db).await?)
     }
 
-    pub async fn update_program(&self, id: i64, name: Option<&str>, status: Option<&str>) -> Result<ReferralProgram, sqlx::Error> {
-        sqlx::query_as::<_, ReferralProgram>("UPDATE referral_programs SET name = COALESCE($2, name), status = COALESCE($3, status), updated_at = NOW() WHERE id = $1 RETURNING *")
-            .bind(id).bind(name).bind(status).fetch_one(self.pool).await
+    pub async fn update_program(&self, id: i64, name: Option<&str>, status: Option<&str>) -> Result<ReferralProgramModel, AppError> {
+        let existing = referral_program_entity::Entity::find_by_id(id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Program not found".into()))?;
+        let mut active = existing.into_active_model();
+        if let Some(v) = name { active.name = Set(v.to_owned()); }
+        if let Some(v) = status { active.status = Set(v.to_owned()); }
+        active.updated_at = Set(chrono::Utc::now().into());
+        Ok(active.update(self.db).await?)
     }
 
-    // ── Tracking ───────────────────────────────────────────
-
-    pub async fn list_tracking(&self, referrer_id: Option<i64>, status: Option<&str>, page: i64, per_page: i64) -> Result<(Vec<ReferralTracking>, i64), sqlx::Error> {
-        let offset = (page - 1) * per_page;
-        let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM referral_tracking WHERE ($1::bigint IS NULL OR referrer_id = $1) AND ($2::text IS NULL OR status = $2)")
-            .bind(referrer_id).bind(status).fetch_one(self.pool).await?;
-        let tracking: Vec<ReferralTracking> = sqlx::query_as("SELECT * FROM referral_tracking WHERE ($1::bigint IS NULL OR referrer_id = $1) AND ($2::text IS NULL OR status = $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4")
-            .bind(referrer_id).bind(status).bind(per_page).bind(offset).fetch_all(self.pool).await?;
-        Ok((tracking, count_row.0))
+    pub async fn list_tracking(&self, referrer_id: Option<i64>, status: Option<&str>, page: i64, per_page: i64) -> Result<(Vec<ReferralTrackingModel>, i64), AppError> {
+        let page_size = per_page as u64;
+        let page_num = if per_page > 0 { ((page - 1).max(0) as u64 * page_size) / page_size } else { 0 };
+        let mut select = referral_tracking_entity::Entity::find();
+        if let Some(rid) = referrer_id { select = select.filter(referral_tracking_entity::Column::ReferrerId.eq(rid)); }
+        if let Some(s) = status { select = select.filter(referral_tracking_entity::Column::Status.eq(s)); }
+        let total = select.clone().count(self.db).await?;
+        let tracking = select.order_by_desc(referral_tracking_entity::Column::CreatedAt).paginate(self.db, page_size).fetch_page(page_num).await?;
+        Ok((tracking, total as i64))
     }
 
-    pub async fn create_tracking(&self, program_id: i64, referrer_id: i64, referral_code: &str, referee_phone: &str) -> Result<ReferralTracking, sqlx::Error> {
-        sqlx::query_as::<_, ReferralTracking>("INSERT INTO referral_tracking (program_id, referrer_id, referral_code, referee_phone, status) VALUES ($1,$2,$3,$4,'pending') RETURNING *")
-            .bind(program_id).bind(referrer_id).bind(referral_code).bind(referee_phone).fetch_one(self.pool).await
+    pub async fn create_tracking(&self, program_id: i64, referrer_id: i64, referral_code: &str, referee_phone: &str) -> Result<ReferralTrackingModel, AppError> {
+        let now = chrono::Utc::now();
+        let active = referral_tracking_entity::ActiveModel {
+            program_id: Set(program_id),
+            referrer_id: Set(referrer_id),
+            referral_code: Set(referral_code.to_owned()),
+            referee_phone: Set(referee_phone.to_owned()),
+            status: Set("pending".to_owned()),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(active.insert(self.db).await?)
     }
 
-    pub async fn update_tracking_status(&self, id: i64, status: &str, referee_id: Option<i64>) -> Result<ReferralTracking, sqlx::Error> {
-        sqlx::query_as::<_, ReferralTracking>("UPDATE referral_tracking SET status = $2, referee_id = COALESCE($3, referee_id), updated_at = NOW() WHERE id = $1 RETURNING *")
-            .bind(id).bind(status).bind(referee_id).fetch_one(self.pool).await
+    pub async fn update_tracking_status(&self, id: i64, status: &str, referee_id: Option<i64>) -> Result<ReferralTrackingModel, AppError> {
+        let existing = referral_tracking_entity::Entity::find_by_id(id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Tracking not found".into()))?;
+        let mut active = existing.into_active_model();
+        active.status = Set(status.to_owned());
+        if let Some(rid) = referee_id { active.referee_id = Set(Some(rid)); }
+        active.updated_at = Set(chrono::Utc::now().into());
+        Ok(active.update(self.db).await?)
     }
 
-    // ── Stats ──────────────────────────────────────────────
-
-    pub async fn get_stats(&self, referrer_id: i64) -> Result<(i64, i64, i64), sqlx::Error> {
-        sqlx::query_as(
-            "SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'activated'), COUNT(*) FILTER (WHERE status = 'rewarded') FROM referral_tracking WHERE referrer_id = $1"
-        ).bind(referrer_id).fetch_one(self.pool).await
+    pub async fn get_wallet(&self, customer_id: i64) -> Result<Option<CustomerWalletModel>, AppError> {
+        Ok(customer_wallet_entity::Entity::find()
+            .filter(customer_wallet_entity::Column::CustomerId.eq(customer_id))
+            .one(self.db).await?)
     }
 
-    pub async fn get_program_stats(&self) -> Result<Vec<(String, i64)>, sqlx::Error> {
-        sqlx::query_as("SELECT status, COUNT(*) FROM referral_tracking GROUP BY status ORDER BY count DESC")
-            .fetch_all(self.pool).await
-    }
-
-    // ── Wallet ──────────────────────────────────────────────
-
-    pub async fn get_wallet(&self, customer_id: i64) -> Result<Option<CustomerWallet>, sqlx::Error> {
-        sqlx::query_as::<_, CustomerWallet>("SELECT * FROM customer_wallets WHERE customer_id = $1")
-            .bind(customer_id).fetch_optional(self.pool).await
-    }
-
-    pub async fn get_or_create_wallet(&self, customer_id: i64) -> Result<CustomerWallet, sqlx::Error> {
-        sqlx::query_as::<_, CustomerWallet>(
-            "INSERT INTO customer_wallets (customer_id) VALUES ($1) ON CONFLICT (customer_id) DO UPDATE SET updated_at = NOW() RETURNING *"
-        ).bind(customer_id).fetch_one(self.pool).await
-    }
-
-    pub async fn credit_wallet(&self, wallet_id: i64, amount: Decimal, txn_type: &str, ref_type: Option<&str>, ref_id: Option<i64>, desc: Option<&str>, performed_by: Option<i64>) -> Result<WalletTransaction, sqlx::Error> {
-        sqlx::query("UPDATE customer_wallets SET balance = balance + $2, total_earned = total_earned + $2, updated_at = NOW() WHERE id = $1")
-            .bind(wallet_id).bind(amount).execute(self.pool).await?;
-        let wallet = sqlx::query_as::<_, CustomerWallet>("SELECT * FROM customer_wallets WHERE id = $1")
-            .bind(wallet_id).fetch_one(self.pool).await?;
-        sqlx::query_as::<_, WalletTransaction>(
-            "INSERT INTO wallet_transactions (wallet_id, transaction_type, amount, balance_after, reference_type, reference_id, description, performed_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *"
-        ).bind(wallet_id).bind(txn_type).bind(amount).bind(wallet.balance)
-            .bind(ref_type).bind(ref_id).bind(desc).bind(performed_by)
-            .fetch_one(self.pool).await
-    }
-
-    pub async fn debit_wallet(&self, wallet_id: i64, amount: Decimal, txn_type: &str, ref_type: Option<&str>, ref_id: Option<i64>, desc: Option<&str>, performed_by: Option<i64>) -> Result<WalletTransaction, sqlx::Error> {
-        // Atomic check-and-deduct: WHERE balance >= $2 prevents overdrafts.
-        // If no rows are affected, the balance was insufficient.
-        let result = sqlx::query("UPDATE customer_wallets SET balance = balance - $2, total_spent = total_spent + $2, updated_at = NOW() WHERE id = $1 AND balance >= $2")
-            .bind(wallet_id).bind(amount).execute(self.pool).await?;
-        if result.rows_affected() == 0 {
-            return Err(sqlx::Error::RowNotFound);
+    pub async fn get_or_create_wallet(&self, customer_id: i64) -> Result<CustomerWalletModel, AppError> {
+        let existing = customer_wallet_entity::Entity::find()
+            .filter(customer_wallet_entity::Column::CustomerId.eq(customer_id))
+            .one(self.db).await?;
+        match existing {
+            Some(w) => Ok(w),
+            None => {
+                let now = chrono::Utc::now();
+                let active = customer_wallet_entity::ActiveModel {
+                    customer_id: Set(customer_id),
+                    balance: Set(rust_decimal::Decimal::ZERO),
+                    total_earned: Set(rust_decimal::Decimal::ZERO),
+                    total_spent: Set(rust_decimal::Decimal::ZERO),
+                    status: Set("active".to_owned()),
+                    created_at: Set(now.into()),
+                    updated_at: Set(now.into()),
+                    ..Default::default()
+                };
+                Ok(active.insert(self.db).await?)
+            }
         }
-        let wallet = sqlx::query_as::<_, CustomerWallet>("SELECT * FROM customer_wallets WHERE id = $1")
-            .bind(wallet_id).fetch_one(self.pool).await?;
-        sqlx::query_as::<_, WalletTransaction>(
-            "INSERT INTO wallet_transactions (wallet_id, transaction_type, amount, balance_after, reference_type, reference_id, description, performed_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *"
-        ).bind(wallet_id).bind(txn_type).bind(amount).bind(wallet.balance)
-            .bind(ref_type).bind(ref_id).bind(desc).bind(performed_by)
-            .fetch_one(self.pool).await
     }
 
-    pub async fn list_wallet_transactions(&self, wallet_id: i64, page: i64, per_page: i64) -> Result<(Vec<WalletTransaction>, i64), sqlx::Error> {
-        let offset = (page - 1) * per_page;
-        let count_row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM wallet_transactions WHERE wallet_id = $1")
-            .bind(wallet_id).fetch_one(self.pool).await?;
-        let txns: Vec<WalletTransaction> = sqlx::query_as::<_, WalletTransaction>(
-            "SELECT * FROM wallet_transactions WHERE wallet_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
-        ).bind(wallet_id).bind(per_page).bind(offset).fetch_all(self.pool).await?;
-        Ok((txns, count_row.0))
+    pub async fn credit_wallet(&self, wallet_id: i64, amount: rust_decimal::Decimal, txn_type: &str, ref_type: Option<&str>, ref_id: Option<i64>, desc: Option<&str>, performed_by: Option<i64>) -> Result<WalletTransactionModel, AppError> {
+        let wallet = customer_wallet_entity::Entity::find_by_id(wallet_id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Wallet not found".into()))?;
+        // Save values before moving wallet into active model
+        let current_balance = wallet.balance;
+        let current_earned = wallet.total_earned;
+        let new_balance = current_balance + amount;
+
+        let mut wallet_active = wallet.into_active_model();
+        wallet_active.balance = Set(new_balance);
+        wallet_active.total_earned = Set(current_earned + amount);
+        wallet_active.updated_at = Set(chrono::Utc::now().into());
+        wallet_active.update(self.db).await?;
+
+        let now = chrono::Utc::now();
+        let txn_active = wallet_transaction_entity::ActiveModel {
+            wallet_id: Set(wallet_id),
+            transaction_type: Set(txn_type.to_owned()),
+            amount: Set(amount),
+            balance_after: Set(new_balance),
+            reference_type: Set(ref_type.map(|s| s.to_owned())),
+            reference_id: Set(ref_id),
+            description: Set(desc.map(|s| s.to_owned())),
+            performed_by: Set(performed_by),
+            created_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(txn_active.insert(self.db).await?)
+    }
+
+    pub async fn debit_wallet(&self, wallet_id: i64, amount: rust_decimal::Decimal, txn_type: &str, ref_type: Option<&str>, ref_id: Option<i64>, desc: Option<&str>, performed_by: Option<i64>) -> Result<WalletTransactionModel, AppError> {
+        let wallet = customer_wallet_entity::Entity::find_by_id(wallet_id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Wallet not found".into()))?;
+        if wallet.balance < amount {
+            return Err(AppError::Validation("Insufficient wallet balance".into()));
+        }
+        // Save values before moving wallet into active model
+        let current_balance = wallet.balance;
+        let current_spent = wallet.total_spent;
+        let new_balance = current_balance - amount;
+
+        let mut wallet_active = wallet.into_active_model();
+        wallet_active.balance = Set(new_balance);
+        wallet_active.total_spent = Set(current_spent + amount);
+        wallet_active.updated_at = Set(chrono::Utc::now().into());
+        wallet_active.update(self.db).await?;
+
+        let now = chrono::Utc::now();
+        let txn_active = wallet_transaction_entity::ActiveModel {
+            wallet_id: Set(wallet_id),
+            transaction_type: Set(txn_type.to_owned()),
+            amount: Set(amount),
+            balance_after: Set(new_balance),
+            reference_type: Set(ref_type.map(|s| s.to_owned())),
+            reference_id: Set(ref_id),
+            description: Set(desc.map(|s| s.to_owned())),
+            performed_by: Set(performed_by),
+            created_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(txn_active.insert(self.db).await?)
+    }
+
+    pub async fn list_wallet_transactions(&self, wallet_id: i64, page: i64, per_page: i64) -> Result<(Vec<WalletTransactionModel>, i64), AppError> {
+        let page_size = per_page as u64;
+        let page_num = if per_page > 0 { ((page - 1).max(0) as u64 * page_size) / page_size } else { 0 };
+        let select = wallet_transaction_entity::Entity::find()
+            .filter(wallet_transaction_entity::Column::WalletId.eq(wallet_id));
+        let total = select.clone().count(self.db).await?;
+        let txns = select.order_by_desc(wallet_transaction_entity::Column::CreatedAt).paginate(self.db, page_size).fetch_page(page_num).await?;
+        Ok((txns, total as i64))
     }
 }

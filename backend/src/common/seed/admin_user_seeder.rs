@@ -3,6 +3,14 @@ use sqlx::PgPool;
 use crate::common::config::config::Config;
 use crate::common::security::crypto::hash_password;
 
+/// Minimal user row type for sqlx queries in the seeder.
+/// Separate from the SeaORM entity to avoid requiring `FromRow` on the entity.
+#[derive(Debug, sqlx::FromRow)]
+struct UserRow {
+    id: i64,
+    email: String,
+}
+
 /// Seed the superadmin user on server startup.
 /// Reads credentials from environment variables SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD,
 /// falling back to defaults (admin/Admin@123) if not set.
@@ -46,13 +54,10 @@ pub async fn seed_admin_user(pool: &PgPool) -> Result<(), sqlx::Error> {
     };
 
     // Create the superadmin user
-    let user = sqlx::query_as::<_, crate::modules::user::model::user::User>(
+    let user = sqlx::query_as::<_, UserRow>(
         "INSERT INTO users (email, password_hash, name, phone, role_id, is_company_wide, is_active) 
          VALUES ($1, $2, $3, $4, $5, true, true) 
-         RETURNING id, email, password_hash, name, phone, avatar_url, 
-         role_id, branch_id, is_company_wide, is_active, is_locked, 
-         locked_until, failed_attempts, last_login_at, 
-         two_factor_enabled, created_at, updated_at"
+         RETURNING id, email"
     )
     .bind(email)
     .bind(&password_hash)

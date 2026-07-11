@@ -5,11 +5,8 @@ use crate::modules::document::controller::document_controller;
 
 pub fn document_routes() -> Router<SharedState> {
     Router::new()
-        .route("/", get(document_controller::list_documents))
-        .route("/upload-url", post(document_controller::upload_url))
-        .route("/:id", get(document_controller::get_document).delete(document_controller::delete_document))
+        .route("/", get(document_controller::list))
+        .route("/:id", get(document_controller::get_by_id).delete(document_controller::soft_delete))
         .route("/:id/confirm", post(document_controller::confirm_upload))
-        .route("/:id/associate", put(document_controller::associate_entity))
-        .route("/:id/access-logs", get(document_controller::get_access_logs))
         .layer(middleware::from_fn(jwt_middleware))
 }

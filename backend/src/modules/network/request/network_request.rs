@@ -47,12 +47,14 @@ pub struct AllocateIpRequest {
     pub allocated_to_id: i64,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateMacBindingRequest {
     pub branch_id: i64,
     pub customer_id: i64,
     pub subscription_id: i64,
+    #[validate(length(min = 1, max = 17))]
     pub mac_address: String,
+    #[validate(length(min = 1))]
     pub assigned_ip: String,
     pub vlan_id: Option<i64>,
 }
@@ -75,4 +77,11 @@ pub struct IpPoolQuery {
 pub struct ReleaseIpRequest {
     pub pool_id: i64,
     pub ip_id: i64,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SessionQuery {
+    pub branch_id: Option<i64>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }

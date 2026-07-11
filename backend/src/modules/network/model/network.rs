@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Vlan {
     pub id: i64,
     pub branch_id: i64,
@@ -13,7 +12,7 @@ pub struct Vlan {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct IpPool {
     pub id: i64,
     pub branch_id: i64,
@@ -31,7 +30,7 @@ pub struct IpPool {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct IpAddress {
     pub id: i64,
     pub ip_pool_id: i64,
@@ -44,7 +43,7 @@ pub struct IpAddress {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct PppoeSession {
     pub id: i64,
     pub branch_id: i64,
@@ -59,7 +58,7 @@ pub struct PppoeSession {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct MacBinding {
     pub id: i64,
     pub branch_id: i64,
@@ -73,7 +72,7 @@ pub struct MacBinding {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct DhcpLease {
     pub id: i64,
     pub branch_id: i64,
@@ -91,7 +90,7 @@ pub struct DhcpLease {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct CustomerSession {
     pub id: i64,
     pub branch_id: i64,
@@ -108,7 +107,7 @@ pub struct CustomerSession {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct NetworkTopology {
     pub total_vlans: i64,
     pub total_ip_pools: i64,

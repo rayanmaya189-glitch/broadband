@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct GatewayConfig {
     pub id: i64,
     pub gateway_id: String,
@@ -15,7 +14,7 @@ pub struct GatewayConfig {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct PaymentTransaction {
     pub id: i64,
     pub gateway_id: String,
@@ -33,7 +32,7 @@ pub struct PaymentTransaction {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct PaymentLink {
     pub id: i64,
     pub transaction_id: i64,
@@ -44,7 +43,7 @@ pub struct PaymentLink {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct WebhookLog {
     pub id: i64,
     pub gateway_id: String,

@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct NotificationTemplate {
     pub id: i64,
     pub name: String,
@@ -15,7 +14,7 @@ pub struct NotificationTemplate {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct NotificationChannel {
     pub id: i64,
     pub channel: String,
@@ -26,7 +25,7 @@ pub struct NotificationChannel {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Notification {
     pub id: i64,
     pub template_id: Option<i64>,
@@ -46,7 +45,7 @@ pub struct Notification {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct NotificationHistory {
     pub id: i64,
     pub notification_id: i64,

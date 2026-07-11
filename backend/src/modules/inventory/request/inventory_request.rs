@@ -34,3 +34,9 @@ pub struct InventoryQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
 }
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateInventoryStatusRequest {
+    pub status: String,
+    pub notes: Option<String>,
+}

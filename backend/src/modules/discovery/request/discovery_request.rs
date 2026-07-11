@@ -22,3 +22,13 @@ pub struct RejectRequest {
     #[validate(length(min = 1))]
     pub reason: String,
 }
+
+// Type aliases for backward compatibility
+pub type CreateDiscoveryScanRequest = CreateScanRequest;
+pub type RejectDiscoveryRequest = RejectRequest;
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DiscoveryResultQuery {
+    pub status: Option<String>,
+    pub branch_id: Option<i64>,
+}

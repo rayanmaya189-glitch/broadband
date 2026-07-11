@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Ticket {
     pub id: i64,
     pub ticket_number: String,
@@ -31,7 +30,7 @@ pub struct Ticket {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct TicketComment {
     pub id: i64,
     pub ticket_id: i64,
@@ -44,7 +43,7 @@ pub struct TicketComment {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct TicketEscalation {
     pub id: i64,
     pub ticket_id: i64,
@@ -58,7 +57,7 @@ pub struct TicketEscalation {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct TicketStatusHistory {
     pub id: i64,
     pub ticket_id: i64,

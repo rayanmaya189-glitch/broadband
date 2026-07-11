@@ -1,64 +1,91 @@
-use sqlx::PgPool;
-use crate::modules::discovery::model::discovery::{DiscoveryScan, DiscoveryResult};
+//! SeaORM-based repository for the Discovery domain.
 
-pub struct DiscoveryRepository<'a> { pool: &'a PgPool }
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
+    QueryFilter, QueryOrder, Set,
+};
+
+use crate::common::errors::app_error::AppError;
+use crate::modules::discovery::model::discovery_scan_entity::{self, Model as DiscoveryScanModel};
+use crate::modules::discovery::model::discovery_result_entity::{self, Model as DiscoveryResultModel};
+
+pub struct DiscoveryRepository<'a> {
+    db: &'a DatabaseConnection,
+}
+
 impl<'a> DiscoveryRepository<'a> {
-    pub fn new(pool: &'a PgPool) -> Self { Self { pool } }
+    pub fn new(db: &'a DatabaseConnection) -> Self { Self { db } }
 
-    // ── Scans ──────────────────────────────────────────────
-
-    pub async fn list_scans(&self, branch_id: Option<i64>) -> Result<Vec<DiscoveryScan>, sqlx::Error> {
-        sqlx::query_as::<_, DiscoveryScan>("SELECT * FROM discovery_scans WHERE ($1::bigint IS NULL OR branch_id = $1) ORDER BY created_at DESC")
-            .bind(branch_id).fetch_all(self.pool).await
+    pub async fn list_scans(&self, branch_id: Option<i64>) -> Result<Vec<DiscoveryScanModel>, AppError> {
+        let mut select = discovery_scan_entity::Entity::find();
+        if let Some(bid) = branch_id {
+            select = select.filter(discovery_scan_entity::Column::BranchId.eq(bid));
+        }
+        let scans = select.order_by_desc(discovery_scan_entity::Column::CreatedAt).all(self.db).await?;
+        Ok(scans)
     }
 
-    pub async fn create_scan(&self, branch_id: i64, name: &str, scan_type: &str) -> Result<DiscoveryScan, sqlx::Error> {
-        sqlx::query_as::<_, DiscoveryScan>("INSERT INTO discovery_scans (branch_id, name, scan_type) VALUES ($1,$2,$3) RETURNING *")
-            .bind(branch_id).bind(name).bind(scan_type).fetch_one(self.pool).await
+    pub async fn create_scan(&self, branch_id: i64, name: &str, scan_type: &str) -> Result<DiscoveryScanModel, AppError> {
+        let now = chrono::Utc::now();
+        let active = discovery_scan_entity::ActiveModel {
+            branch_id: Set(branch_id),
+            name: Set(name.to_owned()),
+            scan_type: Set(scan_type.to_owned()),
+            is_active: Set(true),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+        Ok(active.insert(self.db).await?)
     }
 
-    pub async fn update_scan_active(&self, id: i64, is_active: bool) -> Result<bool, sqlx::Error> {
-        let r = sqlx::query("UPDATE discovery_scans SET is_active = $2, updated_at = NOW() WHERE id = $1")
-            .bind(id).bind(is_active).execute(self.pool).await?;
-        Ok(r.rows_affected() > 0)
+    pub async fn update_scan_active(&self, id: i64, is_active: bool) -> Result<bool, AppError> {
+        let existing = discovery_scan_entity::Entity::find_by_id(id).one(self.db).await?;
+        match existing {
+            Some(e) => {
+                let mut active = e.into_active_model();
+                active.is_active = Set(is_active);
+                active.updated_at = Set(chrono::Utc::now().into());
+                active.update(self.db).await?;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
-    // ── Results ────────────────────────────────────────────
-
-    pub async fn list_results(&self, status: Option<&str>, branch_id: Option<i64>) -> Result<Vec<DiscoveryResult>, sqlx::Error> {
-        sqlx::query_as::<_, DiscoveryResult>(
-            "SELECT dr.* FROM discovery_results dr
-             JOIN discovery_scans ds ON ds.id = dr.scan_id
-             WHERE ($1::text IS NULL OR dr.status = $1) AND ($2::bigint IS NULL OR ds.branch_id = $2)
-             ORDER BY dr.discovered_at DESC"
-        ).bind(status).bind(branch_id).fetch_all(self.pool).await
+    pub async fn list_results(&self, status: Option<&str>, branch_id: Option<i64>) -> Result<Vec<DiscoveryResultModel>, AppError> {
+        let mut select = discovery_result_entity::Entity::find();
+        if let Some(s) = status {
+            select = select.filter(discovery_result_entity::Column::Status.eq(s));
+        }
+        let results = select.order_by_desc(discovery_result_entity::Column::DiscoveredAt).all(self.db).await?;
+        Ok(results)
     }
 
-    pub async fn approve_result(&self, id: i64, reviewed_by: i64) -> Result<DiscoveryResult, sqlx::Error> {
-        sqlx::query_as::<_, DiscoveryResult>("UPDATE discovery_results SET status = 'approved', reviewed_by = $2, reviewed_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *")
-            .bind(id).bind(reviewed_by).fetch_one(self.pool).await
+    pub async fn approve_result(&self, id: i64, reviewed_by: i64) -> Result<DiscoveryResultModel, AppError> {
+        let existing = discovery_result_entity::Entity::find_by_id(id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Result not found".into()))?;
+        if existing.status != "pending" {
+            return Err(AppError::Validation("Only pending results can be approved".into()));
+        }
+        let mut active = existing.into_active_model();
+        active.status = Set("approved".to_owned());
+        active.reviewed_by = Set(Some(reviewed_by));
+        active.reviewed_at = Set(Some(chrono::Utc::now().into()));
+        Ok(active.update(self.db).await?)
     }
 
-    pub async fn reject_result(&self, id: i64, reviewed_by: i64, reason: &str) -> Result<DiscoveryResult, sqlx::Error> {
-        sqlx::query_as::<_, DiscoveryResult>("UPDATE discovery_results SET status = 'rejected', reviewed_by = $2, reviewed_at = NOW(), rejection_reason = $3 WHERE id = $1 AND status = 'pending' RETURNING *")
-            .bind(id).bind(reviewed_by).bind(reason).fetch_one(self.pool).await
-    }
-
-    // ── Dashboard ──────────────────────────────────────────
-
-    pub async fn get_dashboard_stats(&self) -> Result<(i64, i64, i64, i64), sqlx::Error> {
-        sqlx::query_as(
-            "SELECT
-                COUNT(*) FILTER (WHERE status = 'pending'),
-                COUNT(*) FILTER (WHERE status = 'approved'),
-                COUNT(*) FILTER (WHERE status = 'rejected'),
-                COUNT(*) FILTER (WHERE discovered_at >= NOW() - INTERVAL '24 hours')
-             FROM discovery_results"
-        ).fetch_one(self.pool).await
-    }
-
-    pub async fn get_vendor_counts(&self) -> Result<Vec<(String, i64)>, sqlx::Error> {
-        sqlx::query_as("SELECT COALESCE(vendor, 'Unknown'), COUNT(*) FROM discovery_results GROUP BY vendor ORDER BY count DESC")
-            .fetch_all(self.pool).await
+    pub async fn reject_result(&self, id: i64, reviewed_by: i64, reason: &str) -> Result<DiscoveryResultModel, AppError> {
+        let existing = discovery_result_entity::Entity::find_by_id(id).one(self.db).await?
+            .ok_or_else(|| AppError::NotFound("Result not found".into()))?;
+        if existing.status != "pending" {
+            return Err(AppError::Validation("Only pending results can be rejected".into()));
+        }
+        let mut active = existing.into_active_model();
+        active.status = Set("rejected".to_owned());
+        active.reviewed_by = Set(Some(reviewed_by));
+        active.reviewed_at = Set(Some(chrono::Utc::now().into()));
+        active.rejection_reason = Set(Some(reason.to_owned()));
+        Ok(active.update(self.db).await?)
     }
 }

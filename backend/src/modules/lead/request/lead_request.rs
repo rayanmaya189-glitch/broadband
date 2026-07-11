@@ -55,9 +55,12 @@ pub struct AddActivityRequest {
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ConvertLeadRequest {
-    pub plan_id: Option<i64>,
-    pub branch_id: Option<i64>,
+    pub customer_id: i64,
 }
+
+// Type aliases for backward compatibility
+pub type UpdateLeadStatusRequest = LeadStatusRequest;
+pub type AddLeadActivityRequest = AddActivityRequest;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LeadQuery {

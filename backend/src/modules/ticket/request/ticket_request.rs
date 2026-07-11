@@ -92,3 +92,19 @@ fn default_priority() -> String {
 fn default_source() -> String {
     "customer".to_string()
 }
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct UpdateTicketStatusRequest {
+    #[validate(length(min = 1, max = 30))]
+    pub status: String,
+    pub resolution_notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct AddTicketCommentRequest {
+    pub user_id: i64,
+    pub is_customer: bool,
+    #[validate(length(min = 1))]
+    pub comment: String,
+    pub is_internal: Option<bool>,
+}

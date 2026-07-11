@@ -11,6 +11,5 @@ pub fn coverage_routes() -> Router<SharedState> {
             .route("/areas/:id/pincodes", get(coverage_controller::list_pincodes).post(coverage_controller::add_pincode))
             .route("/areas/:id/pincodes/:pincode", delete(coverage_controller::remove_pincode))
             .route("/check", post(coverage_controller::check_availability))
-            .route("/stats", get(coverage_controller::get_stats))
     )
 }

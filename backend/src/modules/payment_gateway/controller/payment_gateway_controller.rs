@@ -1,192 +1,33 @@
+//! SeaORM-based controller for the PaymentGateway domain.
+
 use axum::extract::{Json, Path, Query, State};
-use axum::http::HeaderMap;
-use bytes::Bytes;
 use validator::Validate;
+
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;
-use crate::common::utils::webhook_verify;
 use crate::modules::payment_gateway::request::payment_gateway_request::*;
 use crate::modules::payment_gateway::response::payment_gateway_response::*;
 use crate::modules::payment_gateway::service::payment_gateway_service::PaymentGatewayService;
 
 pub async fn list_gateways(State(state): State<SharedState>) -> Result<Json<Vec<GatewayConfigResponse>>, AppError> {
-    let svc = PaymentGatewayService::new(&state.db);
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
     Ok(Json(svc.list_gateways().await?))
 }
 
-pub async fn create_gateway(State(state): State<SharedState>, Json(req): Json<CreateGatewayConfigRequest>) -> Result<Json<GatewayConfigResponse>, AppError> {
+pub async fn create_gateway(State(state): State<SharedState>, Json(req): Json<CreateGatewayRequest>) -> Result<Json<GatewayConfigResponse>, AppError> {
     req.validate()?;
-    let svc = PaymentGatewayService::new(&state.db);
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
     Ok(Json(svc.create_gateway(req).await?))
 }
 
-pub async fn update_gateway(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<UpdateGatewayRequest>) -> Result<Json<GatewayConfigResponse>, AppError> {
-    let svc = PaymentGatewayService::new(&state.db);
-    Ok(Json(svc.update_gateway(id, req).await?))
+pub async fn list_transactions(State(state): State<SharedState>, Query(q): Query<TransactionQuery>) -> Result<Json<Vec<PaymentTransactionResponse>>, AppError> {
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
+    let (txns, _) = svc.list_transactions(q.gateway_id.as_deref(), q.status.as_deref(), q.page.unwrap_or(1), q.per_page.unwrap_or(20)).await?;
+    Ok(Json(txns))
 }
 
-pub async fn create_payment_link(State(state): State<SharedState>, Json(req): Json<CreatePaymentLinkRequest>) -> Result<Json<PaymentLinkResponse>, AppError> {
+pub async fn create_transaction(State(state): State<SharedState>, Json(req): Json<CreateTransactionRequest>) -> Result<Json<PaymentTransactionResponse>, AppError> {
     req.validate()?;
-    let svc = PaymentGatewayService::new(&state.db);
-    Ok(Json(svc.create_payment_link(req).await?))
-}
-
-pub async fn list_transactions(State(state): State<SharedState>, Query(q): Query<TransactionQuery>) -> Result<Json<TransactionListResponse>, AppError> {
-    let svc = PaymentGatewayService::new(&state.db);
-    Ok(Json(svc.list_transactions(q).await?))
-}
-
-/// Razorpay webhook handler with signature verification.
-///
-/// Verifies the `X-Razorpay-Signature` header using HMAC-SHA256 with the
-/// configured webhook secret before processing the payment event.
-pub async fn process_webhook_razorpay(
-    State(state): State<SharedState>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Result<Json<WebhookProcessResponse>, AppError> {
-    let signature = headers
-        .get("X-Razorpay-Signature")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::Validation("Missing X-Razorpay-Signature header".into()))?;
-
-    let secret = get_webhook_secret(&state, "razorpay").await?;
-    webhook_verify::verify_razorpay(&body, signature, &secret)
-        .map_err(|e| AppError::Forbidden(format!("Webhook verification failed: {}", e)))?;
-
-    // Parse as generic JSON first, then extract event type per gateway format
-    let raw: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| AppError::Validation(format!("Invalid webhook payload: {}", e)))?;
-
-    // Razorpay format: { "event": "payment.captured", "payload": {...} }
-    let event_type = raw.get("event").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let payload_data = raw.get("payload").cloned().unwrap_or(raw.clone());
-
-    let svc = PaymentGatewayService::new(&state.db);
-    let webhook_req = WebhookPayload {
-        event_type: event_type.to_string(),
-        gateway_id: "razorpay".into(),
-        payload: payload_data,
-        signature: Some(signature.to_string()),
-    };
-    Ok(Json(svc.process_webhook(webhook_req).await?))
-}
-
-/// PayU webhook handler with signature verification.
-///
-/// Verifies the `X-PayU-Signature` header using HMAC-SHA256 with the
-/// configured webhook secret before processing the payment event.
-pub async fn process_webhook_payu(
-    State(state): State<SharedState>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Result<Json<WebhookProcessResponse>, AppError> {
-    let signature = headers
-        .get("X-PayU-Signature")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::Validation("Missing X-PayU-Signature header".into()))?;
-
-    let secret = get_webhook_secret(&state, "payu").await?;
-
-    webhook_verify::verify_payu(&body, signature, &secret)
-        .map_err(|e| AppError::Forbidden(format!("Webhook verification failed: {}", e)))?;
-
-    // Parse as generic JSON first, then extract per PayU format
-    let raw: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| AppError::Validation(format!("Invalid webhook payload: {}", e)))?;
-
-    // PayU format: { "status": "success", "mihpayid": "...", ... }
-    let status = raw.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let event_type = match status {
-        "success" => "payment.captured",
-        "failure" => "payment.failed",
-        _ => "payment.unknown",
-    };
-
-    let svc = PaymentGatewayService::new(&state.db);
-    let webhook_req = WebhookPayload {
-        event_type: event_type.to_string(),
-        gateway_id: "payu".into(),
-        payload: raw,
-        signature: Some(signature.to_string()),
-    };
-    Ok(Json(svc.process_webhook(webhook_req).await?))
-}
-
-/// InstaMojo webhook handler with Svix-based signature verification.
-///
-/// Verifies the `Svix-Id`, `Svix-Timestamp`, and `Svix-Signature` headers
-/// using HMAC-SHA256 with the configured webhook secret before processing
-/// the payment event.
-pub async fn process_webhook_instamojo(
-    State(state): State<SharedState>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Result<Json<WebhookProcessResponse>, AppError> {
-    let svix_id = headers
-        .get("Svix-Id")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::Validation("Missing Svix-Id header".into()))?;
-
-    let svix_timestamp = headers
-        .get("Svix-Timestamp")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::Validation("Missing Svix-Timestamp header".into()))?;
-
-    let svix_signature = headers
-        .get("Svix-Signature")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::Validation("Missing Svix-Signature header".into()))?;
-
-    let secret = get_webhook_secret(&state, "instamojo").await?;
-
-    webhook_verify::verify_instamojo(&body, svix_id, svix_timestamp, svix_signature, &secret)
-        .map_err(|e| AppError::Forbidden(format!("Webhook verification failed: {}", e)))?;
-
-    // Parse as generic JSON first, then extract per InstaMojo/Svix format
-    let raw: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| AppError::Validation(format!("Invalid webhook payload: {}", e)))?;
-
-    // InstaMojo/Svix format: { "id": "...", "type": "payment.success", "data": {...} }
-    let event_type = raw.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let payload_data = raw.get("data").cloned().unwrap_or(raw.clone());
-
-    let svc = PaymentGatewayService::new(&state.db);
-    let webhook_req = WebhookPayload {
-        event_type: event_type.to_string(),
-        gateway_id: "instamojo".into(),
-        payload: payload_data,
-        signature: Some(svix_signature.to_string()),
-    };
-    Ok(Json(svc.process_webhook(webhook_req).await?))
-}
-
-pub async fn retry_payment(State(state): State<SharedState>, Json(req): Json<RetryPaymentRequest>) -> Result<Json<PaymentLinkResponse>, AppError> {
-    let svc = PaymentGatewayService::new(&state.db);
-    Ok(Json(svc.retry_payment(req).await?))
-}
-
-/// Retrieve the webhook signing secret for a given gateway from the database.
-/// Falls back to environment variable if not found in DB.
-async fn get_webhook_secret(state: &SharedState, gateway_id: &str) -> Result<String, AppError> {
-    // Try to get from payment_gateways table first
-    let result = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT webhook_secret FROM payment_gateways WHERE gateway_id = $1 AND is_active = true"
-    )
-    .bind(gateway_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| AppError::External(format!("Database error: {}", e)))?;
-
-    if let Some(Some(secret)) = result {
-        return Ok(secret);
-    }
-
-    // Fallback to environment variables
-    let env_key = format!("{}_WEBHOOK_SECRET", gateway_id.to_uppercase());
-    std::env::var(&env_key)
-        .map_err(|_| AppError::External(format!(
-            "Webhook secret not configured for gateway '{}'. Set {} in environment or database.",
-            gateway_id, env_key
-        )))
+    let svc = PaymentGatewayService::new(&state.db_seaorm);
+    Ok(Json(svc.create_transaction(req).await?))
 }

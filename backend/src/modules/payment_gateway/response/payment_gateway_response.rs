@@ -11,7 +11,12 @@ pub struct GatewayConfigResponse {
     pub name: String,
     pub is_primary: bool,
     pub is_active: bool,
+    #[serde(default)]
+    pub supported_methods: Option<serde_json::Value>,
+    #[serde(default)]
+    pub currency: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -23,6 +28,7 @@ pub struct PaymentTransactionResponse {
     pub amount: Decimal,
     pub currency: String,
     pub payment_method: String,
+    #[serde(default)]
     pub gateway_transaction_id: Option<String>,
     pub status: String,
     pub failure_reason: Option<String>,

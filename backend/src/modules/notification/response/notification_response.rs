@@ -4,19 +4,28 @@ use utoipa::ToSchema;
 
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct TemplateResponse {
+pub struct NotificationTemplateResponse {
     pub id: i64,
     pub name: String,
     pub channel: String,
+    pub subject_template: Option<String>,
+    pub body_template: String,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
+
+/// Alias for backward compatibility
+pub type TemplateResponse = NotificationTemplateResponse;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct NotificationResponse {
     pub id: i64,
     pub channel: String,
-    pub recipient_address: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
     pub status: String,
     pub created_at: DateTime<Utc>,
 }
@@ -50,7 +59,7 @@ pub struct NotificationListResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ChannelResponse {
+pub struct NotificationChannelResponse {
     pub id: i64,
     pub channel: String,
     pub provider: String,
@@ -59,6 +68,9 @@ pub struct ChannelResponse {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// Alias for backward compatibility
+pub type ChannelResponse = NotificationChannelResponse;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct HistoryResponse {

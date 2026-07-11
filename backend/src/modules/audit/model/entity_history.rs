@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct EntityHistory {
     pub id: i64,
     pub entity_type: String,
@@ -19,7 +18,7 @@ pub struct EntityHistory {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct EntityHistoryStats {
     pub total_entries: i64,
     pub total_entities: i64,

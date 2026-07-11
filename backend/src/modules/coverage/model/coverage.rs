@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct CoverageArea {
     pub id: i64,
     pub branch_id: i64,
@@ -17,7 +16,7 @@ pub struct CoverageArea {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct CoveragePincode {
     pub id: i64,
     pub coverage_area_id: i64,
@@ -29,7 +28,7 @@ pub struct CoveragePincode {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct CoverageStats {
     pub total_areas: i64,
     pub active_areas: i64,

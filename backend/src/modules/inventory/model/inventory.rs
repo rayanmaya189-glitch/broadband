@@ -1,8 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sqlx::FromRow;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct InventoryItem {
     pub id: i64,
     pub branch_id: i64,
@@ -22,7 +21,7 @@ pub struct InventoryItem {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct InventoryMovement {
     pub id: i64,
     pub item_id: i64,
@@ -36,7 +35,7 @@ pub struct InventoryMovement {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct InventoryReport {
     pub total_items: i64,
     pub in_stock: i64,
@@ -47,7 +46,7 @@ pub struct InventoryReport {
     pub total_value: Option<Decimal>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct WarrantyAlert {
     pub id: i64,
     pub item_type: String,
