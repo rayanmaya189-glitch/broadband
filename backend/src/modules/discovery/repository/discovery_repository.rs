@@ -53,7 +53,7 @@ impl<'a> DiscoveryRepository<'a> {
         }
     }
 
-    pub async fn list_results(&self, status: Option<&str>, branch_id: Option<i64>) -> Result<Vec<DiscoveryResultModel>, AppError> {
+    pub async fn list_results(&self, status: Option<&str>, _branch_id: Option<i64>) -> Result<Vec<DiscoveryResultModel>, AppError> {
         let mut select = discovery_result_entity::Entity::find();
         if let Some(s) = status {
             select = select.filter(discovery_result_entity::Column::Status.eq(s));

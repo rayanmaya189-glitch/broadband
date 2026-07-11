@@ -1,8 +1,7 @@
 //! SeaORM-based repository for the Coverage domain.
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, Set,
 };
 
 use crate::common::errors::app_error::AppError;
@@ -82,7 +81,7 @@ impl<'a> CoverageRepository<'a> {
         }
     }
 
-    pub async fn check_pincode(&self, pincode: &str) -> Result<Option<CoverageAreaModel>, AppError> {
+    pub async fn check_pincode(&self, _pincode: &str) -> Result<Option<CoverageAreaModel>, AppError> {
         // Complex join query - use raw SQL
         let stmt = sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,

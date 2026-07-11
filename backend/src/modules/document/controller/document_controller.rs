@@ -1,7 +1,6 @@
 //! SeaORM-based controller for the Document domain.
 
 use axum::extract::{Json, Path, Query, State};
-use validator::Validate;
 
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;

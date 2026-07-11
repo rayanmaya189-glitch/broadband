@@ -1,6 +1,6 @@
 //! SeaORM-based controller for the Audit domain.
 
-use axum::extract::{Json, Path, Query, State};
+use axum::extract::{Json, Path, State};
 
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;

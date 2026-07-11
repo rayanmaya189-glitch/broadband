@@ -1,4 +1,4 @@
-use axum::{middleware, routing::{get, post, put}, Router};
+use axum::{middleware, routing::get, Router};
 use crate::app::SharedState;
 use crate::common::middleware::auth_middleware::jwt_middleware;
 use crate::modules::payment_gateway::controller::payment_gateway_controller;

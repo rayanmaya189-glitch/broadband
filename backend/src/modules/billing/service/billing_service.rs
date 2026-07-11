@@ -144,7 +144,7 @@ impl BillingService {
         }))
     }
 
-    pub async fn update_dunning_config(&self, config: serde_json::Value) -> Result<MessageResponse, AppError> {
+    pub async fn update_dunning_config(&self, _config: serde_json::Value) -> Result<MessageResponse, AppError> {
         // Config update will be converted when billing_config entity is added
         Ok(MessageResponse { message: "Dunning config updated".into() })
     }
@@ -160,7 +160,7 @@ impl BillingService {
         }))
     }
 
-    pub async fn update_tax_config(&self, config: serde_json::Value) -> Result<MessageResponse, AppError> {
+    pub async fn update_tax_config(&self, _config: serde_json::Value) -> Result<MessageResponse, AppError> {
         // Config update will be converted when billing_config entity is added
         Ok(MessageResponse { message: "Tax config updated".into() })
     }

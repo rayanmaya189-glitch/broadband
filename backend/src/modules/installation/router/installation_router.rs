@@ -1,4 +1,4 @@
-use axum::{routing::{get, post, put}, Router};
+use axum::{routing::{get, put}, Router};
 use crate::app::SharedState;
 use crate::common::middleware::rls_setup;
 use crate::modules::installation::controller::installation_controller;

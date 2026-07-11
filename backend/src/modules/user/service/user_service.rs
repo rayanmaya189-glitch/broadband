@@ -1,11 +1,8 @@
-use sea_orm::*;
-
 use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::PaginatedResponse;
 use crate::modules::user::repository::user_repository::UserRepository;
 use crate::modules::user::request::user_request::*;
 use crate::modules::user::response::user_response::*;
-use crate::modules::user::model::user_entity::Model as UserModel;
 use crate::modules::user::model::refresh_token_entity::Model as RefreshTokenModel;
 
 pub struct UserService {

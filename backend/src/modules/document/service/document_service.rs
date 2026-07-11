@@ -4,7 +4,6 @@ use sea_orm::DatabaseConnection;
 
 use crate::common::errors::app_error::AppError;
 use crate::modules::document::repository::document_repository::DocumentRepository;
-use crate::modules::document::request::document_request::*;
 use crate::modules::document::response::document_response::*;
 
 pub struct DocumentService<'a> {

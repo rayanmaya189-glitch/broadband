@@ -1,6 +1,6 @@
 //! SeaORM-based controller for the Notification domain.
 
-use axum::extract::{Json, Path, Query, State};
+use axum::extract::{Json, Query, State};
 use validator::Validate;
 
 use crate::app::SharedState;

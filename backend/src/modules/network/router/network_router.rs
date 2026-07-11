@@ -1,4 +1,4 @@
-use axum::{routing::{delete, get, post, put}, Router};
+use axum::{routing::get, Router};
 use crate::app::SharedState;
 use crate::common::middleware::rls_setup;
 use crate::modules::network::controller::network_controller;

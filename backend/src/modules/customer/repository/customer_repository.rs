@@ -6,7 +6,7 @@ use crate::modules::customer::model::customer_entity::{self, Model as CustomerMo
 use crate::modules::customer::model::customer_profile_entity::{self, Model as ProfileModel};
 use crate::modules::customer::model::kyc_document_entity::{self, Model as KycDocModel};
 use crate::modules::customer::model::customer_address_entity::{self, Model as AddressModel};
-use crate::modules::customer::response::customer_response::{CustomerResponse, AddressResponse};
+use crate::modules::customer::response::customer_response::CustomerResponse;
 
 pub struct CustomerRepository {
     db: DatabaseConnection,

@@ -1,6 +1,6 @@
 //! SeaORM-based controller for the Referral domain.
 
-use axum::extract::{Json, Path, Query, State};
+use axum::extract::{Json, Path, State};
 use validator::Validate;
 
 use crate::app::SharedState;

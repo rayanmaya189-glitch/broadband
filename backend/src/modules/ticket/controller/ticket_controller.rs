@@ -16,7 +16,7 @@ pub async fn list(State(state): State<SharedState>, Query(q): Query<TicketQuery>
 }
 
 pub async fn get_by_id(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let _svc = TicketService::new(&state.db_seaorm);
     let repo = crate::modules::ticket::repository::ticket_repository::TicketRepository::new(&state.db_seaorm);
     let t = repo.get_by_id(id).await?.ok_or_else(|| AppError::NotFound("Ticket not found".into()))?;
     Ok(Json(TicketResponse {

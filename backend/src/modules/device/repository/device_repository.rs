@@ -25,7 +25,7 @@ impl<'a> DeviceRepository<'a> {
 
     pub async fn list_devices(&self, branch_id: Option<i64>, status: Option<&str>, page: i64, per_page: i64) -> Result<(Vec<NetworkDeviceModel>, i64), AppError> {
         let page_size = (per_page.max(1)) as u64;
-        let page_num = ((page.max(1) - 1) as u64);
+        let page_num = (page.max(1) - 1) as u64;
         let mut select = network_device_entity::Entity::find();
         if let Some(bid) = branch_id {
             select = select.filter(network_device_entity::Column::BranchId.eq(bid));
@@ -231,7 +231,7 @@ impl<'a> DeviceRepository<'a> {
 
     pub async fn list_logs(&self, device_id: i64, level: Option<&str>, page: i64, per_page: i64) -> Result<(Vec<DeviceLogModel>, i64), AppError> {
         let page_size = (per_page.max(1)) as u64;
-        let page_num = ((page.max(1) - 1) as u64);
+        let page_num = (page.max(1) - 1) as u64;
         let mut select = device_log_entity::Entity::find()
             .filter(device_log_entity::Column::DeviceId.eq(device_id));
         if let Some(l) = level {

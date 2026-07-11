@@ -70,7 +70,7 @@ impl SubscriptionService {
     pub async fn suspend_subscription(
         &self,
         id: i64,
-        reason: Option<&str>,
+        _reason: Option<&str>,
     ) -> Result<SubscriptionResponse, AppError> {
         let model = self
             .repo
@@ -111,7 +111,7 @@ impl SubscriptionService {
     pub async fn cancel_subscription(
         &self,
         id: i64,
-        reason: Option<&str>,
+        _reason: Option<&str>,
     ) -> Result<MessageResponse, AppError> {
         let model = self
             .repo
@@ -208,7 +208,7 @@ impl SubscriptionService {
     pub async fn get_history(
         &self,
         id: i64,
-        query: &SubscriptionHistoryQuery,
+        _query: &SubscriptionHistoryQuery,
     ) -> Result<Vec<SubscriptionHistoryEntry>, AppError> {
         self.repo
             .find_by_id(id)

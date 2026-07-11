@@ -93,7 +93,7 @@ impl<'a> NotificationRepository<'a> {
         }
     }
 
-    pub async fn send(&self, channel: &str, recipient_id: i64, address: &str, subject: Option<&str>, body: &str) -> Result<NotificationModel, AppError> {
+    pub async fn send(&self, channel: &str, _recipient_id: i64, _address: &str, subject: Option<&str>, body: &str) -> Result<NotificationModel, AppError> {
         let now = chrono::Utc::now();
         let active = notification_entity::ActiveModel {
             r#type: Set("direct".to_owned()),

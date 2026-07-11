@@ -129,7 +129,7 @@ impl<'a> AccountingRepository<'a> {
 
     // ── Trial Balance ──────────────────────────────────────
 
-    pub async fn generate_trial_balance(&self, period_start: NaiveDate, period_end: NaiveDate) -> Result<Vec<TrialBalanceModel>, AppError> {
+    pub async fn generate_trial_balance(&self, _period_start: NaiveDate, _period_end: NaiveDate) -> Result<Vec<TrialBalanceModel>, AppError> {
         // For complex aggregation queries, we use sea_orm's raw query
         let stmt = sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -162,7 +162,7 @@ impl<'a> AccountingRepository<'a> {
         Ok(Vec::new())
     }
 
-    pub async fn get_gst_invoices(&self, month: i32, year: i32) -> Result<Vec<(String, Option<String>, Decimal, Decimal, Decimal, Decimal)>, AppError> {
+    pub async fn get_gst_invoices(&self, _month: i32, _year: i32) -> Result<Vec<(String, Option<String>, Decimal, Decimal, Decimal, Decimal)>, AppError> {
         // Complex aggregate query - returns unimplemented for now
         Err(AppError::Internal(anyhow::anyhow!("GST invoice query not yet fully ported")))
     }

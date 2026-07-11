@@ -1,4 +1,4 @@
-use axum::{middleware, routing::{get, post, put}, Router};
+use axum::{middleware, routing::{get, post}, Router};
 use crate::app::SharedState;
 use crate::common::middleware::auth_middleware::jwt_middleware;
 use crate::modules::notification::controller::notification_controller;

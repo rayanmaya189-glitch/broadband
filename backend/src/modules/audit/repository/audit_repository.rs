@@ -2,10 +2,9 @@
 //! Zero plain SQL — all queries use EntityTrait, ActiveModelTrait, and Select.
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
-use sea_orm::sea_query::Expr;
 
 use crate::common::errors::app_error::AppError;
 use crate::modules::audit::model::audit_log_entity::{self, Model as AuditLogModel};
@@ -19,7 +18,7 @@ impl<'a> AuditRepository<'a> {
 
     pub async fn list(
         &self, user_id: Option<i64>, action: Option<&str>, resource_type: Option<&str>,
-        result: Option<&str>, from: Option<&str>, to: Option<&str>,
+        result: Option<&str>, _from: Option<&str>, _to: Option<&str>,
         page: i64, per_page: i64,
     ) -> Result<(Vec<AuditLogModel>, i64), AppError> {
         let page_size = per_page as u64;
