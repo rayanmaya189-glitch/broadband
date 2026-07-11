@@ -17,8 +17,22 @@ pub async fn list(State(state): State<SharedState>, Query(q): Query<TicketQuery>
 
 pub async fn get_by_id(State(state): State<SharedState>, Path(id): Path<i64>) -> Result<Json<TicketResponse>, AppError> {
     let svc = TicketService::new(&state.db_seaorm);
-    let (tickets, _) = svc.list(None, None, None, None, None, None, 1, 1).await?;
-    Ok(Json(tickets.into_iter().next().ok_or_else(|| AppError::NotFound("Ticket not found".into()))?))
+    let repo = crate::modules::ticket::repository::ticket_repository::TicketRepository::new(&state.db_seaorm);
+    let t = repo.get_by_id(id).await?.ok_or_else(|| AppError::NotFound("Ticket not found".into()))?;
+    Ok(Json(TicketResponse {
+        id: t.id, ticket_number: t.ticket_number, branch_id: t.branch_id,
+        customer_id: t.customer_id, subscription_id: t.subscription_id,
+        created_by: t.created_by, assigned_to: t.assigned_to, escalated_to: t.escalated_to,
+        category: t.category, subcategory: t.subcategory, priority: t.priority, status: t.status,
+        subject: t.subject, description: t.description, source: t.source,
+        resolution_notes: t.resolution_notes, sla_response_at: None, sla_resolution_at: None,
+        first_response_at: None, resolved_at: t.resolved_at.map(|v| v.into()),
+        closed_at: t.closed_at.map(|v| v.into()),
+        reopen_count: t.reopen_count,
+        satisfaction_rating: t.satisfaction_rating, satisfaction_feedback: t.satisfaction_feedback,
+        created_at: t.created_at.into(), updated_at: t.updated_at.into(),
+        creator_name: None, assignee_name: None, branch_name: None, customer_name: None,
+    }))
 }
 
 pub async fn create(State(state): State<SharedState>, Json(req): Json<CreateTicketRequest>) -> Result<Json<TicketResponse>, AppError> {

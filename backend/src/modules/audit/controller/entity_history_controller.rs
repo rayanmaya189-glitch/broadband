@@ -4,12 +4,10 @@ use axum::extract::{Json, Path, Query, State};
 
 use crate::app::SharedState;
 use crate::common::errors::app_error::AppError;
-use crate::modules::audit::service::audit_service::AuditService;
 
 pub async fn search_history(
     State(state): State<SharedState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = AuditService::new(&state.db_seaorm);
     let repo = crate::modules::audit::repository::entity_history_repository::EntityHistoryRepository::new(&state.db_seaorm);
     let (entries, total) = repo.search(None, None, None, None, None, None, 1, 100).await?;
     let results: Vec<serde_json::Value> = entries.iter().map(|e| {
