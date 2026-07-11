@@ -1,49 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use sea_orm::{DatabaseConnection, SqlxPostgresConnector, EntityTrait, Set, ActiveModelTrait, QueryFilter, ColumnTrait};
-    use crate::modules::notification::model::notification_entity::{self, Entity as NotificationEntity};
+    use sea_orm::{DatabaseConnection, SqlxPostgresConnector, EntityTrait};
+    use crate::modules::notification::model::notification_entity::Entity as NotificationEntity;
     use crate::modules::notification::repository::notification_repository::NotificationRepository;
-
-    /// Helper: create the notifications table in a fresh test database.
-    async fn setup_schema(db: &DatabaseConnection) {
-        db.execute(sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "CREATE TABLE IF NOT EXISTS notifications (
-                id BIGSERIAL PRIMARY KEY,
-                customer_id BIGINT,
-                branch_id BIGINT,
-                type VARCHAR(30) NOT NULL,
-                channel VARCHAR(30) NOT NULL,
-                title VARCHAR(255),
-                body TEXT,
-                metadata JSONB,
-                status VARCHAR(20) NOT NULL DEFAULT 'queued',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )".to_string(),
-        )).await.unwrap();
-    }
-
-    /// Helper: insert a notification with a given status and return its id.
-    async fn insert_notification(db: &DatabaseConnection, status: &str, channel: &str) -> i64 {
-        let active = notification_entity::ActiveModel {
-            r#type: Set("direct".to_owned()),
-            channel: Set(channel.to_owned()),
-            title: Set(Some("Test Title".to_owned())),
-            body: Set(Some("Test body content".to_owned())),
-            status: Set(status.to_owned()),
-            created_at: Set(chrono::Utc::now().into()),
-            ..Default::default()
-        };
-        let model = active.insert(db).await.unwrap();
-        model.id
-    }
+    use crate::common::test_utils::{setup_notifications_schema, insert_test_notification};
 
     // ── send notification tests ────────────────────────────────
 
     #[sqlx::test(migrations = false)]
     async fn test_send_creates_notification_with_correct_fields(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
@@ -60,7 +27,7 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_send_without_subject(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
@@ -76,7 +43,7 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_send_different_channels(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
@@ -88,7 +55,6 @@ mod tests {
             assert_eq!(model.r#type, "direct", "type should always be 'direct'");
         }
 
-        // Verify all 4 notifications exist
         let (notifications, total) = repo.list_notifications(None, None, 1, 100).await.unwrap();
         assert_eq!(total, 4, "should have 4 notifications");
         let channels_in_db: Vec<&str> = notifications.iter().map(|n| n.channel.as_str()).collect();
@@ -100,13 +66,12 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_send_persists_in_database(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
         let model = repo.send("email", 7, "user@example.com", Some("Invoice Ready"), "Your invoice is ready for review.").await.unwrap();
 
-        // Verify it was persisted by querying it back
         let fetched = NotificationEntity::find_by_id(model.id).one(&db).await.unwrap();
         assert!(fetched.is_some(), "notification should exist in DB after send");
         let fetched = fetched.unwrap();
@@ -119,7 +84,7 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_send_long_body(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
@@ -133,17 +98,15 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_send_multiple_notifications(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
-        // Send multiple notifications to the same channel
         let model1 = repo.send("email", 1, "a@test.com", Some("Subject 1"), "Body 1").await.unwrap();
         let model2 = repo.send("email", 2, "b@test.com", Some("Subject 2"), "Body 2").await.unwrap();
 
         assert_ne!(model1.id, model2.id, "each notification should get a unique id");
 
-        // Both should be queued
         let (queued, total) = repo.list_notifications(None, Some("queued"), 1, 100).await.unwrap();
         assert_eq!(total, 2);
         assert!(queued.iter().all(|n| n.status == "queued"));
@@ -154,10 +117,10 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_retry_notification_success(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
-        let id = insert_notification(&db, "failed", "sms").await;
+        let id = insert_test_notification(&db, "failed", "sms").await;
 
         let result = repo.retry_notification(id).await.unwrap();
         assert!(result, "retry_notification should return true for a failed notification");
@@ -169,19 +132,19 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_retry_notification_not_failed(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
-        let id_queued = insert_notification(&db, "queued", "email").await;
+        let id_queued = insert_test_notification(&db, "queued", "email").await;
         let result = repo.retry_notification(id_queued).await.unwrap();
         assert!(!result, "retry_notification should return false for a queued notification");
 
-        let id_sent = insert_notification(&db, "sent", "sms").await;
+        let id_sent = insert_test_notification(&db, "sent", "sms").await;
         let result = repo.retry_notification(id_sent).await.unwrap();
         assert!(!result, "retry_notification should return false for a sent notification");
 
-        let id_delivered = insert_notification(&db, "delivered", "push").await;
+        let id_delivered = insert_test_notification(&db, "delivered", "push").await;
         let result = repo.retry_notification(id_delivered).await.unwrap();
         assert!(!result, "retry_notification should return false for a delivered notification");
     }
@@ -189,7 +152,7 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_retry_notification_not_found(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
@@ -202,18 +165,17 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_list_history_all_events(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
-        insert_notification(&db, "queued", "sms").await;
-        insert_notification(&db, "sent", "email").await;
-        insert_notification(&db, "delivered", "push").await;
-        insert_notification(&db, "failed", "sms").await;
+        insert_test_notification(&db, "queued", "sms").await;
+        insert_test_notification(&db, "sent", "email").await;
+        insert_test_notification(&db, "delivered", "push").await;
+        insert_test_notification(&db, "failed", "sms").await;
 
         let (history, total) = repo.list_history(None, 1, 100).await.unwrap();
 
-        // queued: 1 event, sent: 2, delivered: 2, failed: 2 = 7 total events
         assert_eq!(total, 7, "should have 7 total history events");
         assert!(history.len() <= 7, "should not return more events than total");
 
@@ -227,11 +189,11 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_list_history_by_notification_id(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
-        let id = insert_notification(&db, "sent", "email").await;
+        let id = insert_test_notification(&db, "sent", "email").await;
 
         let (history, total) = repo.list_history(Some(id), 1, 100).await.unwrap();
 
@@ -254,7 +216,7 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_list_history_nonexistent_notification(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
@@ -267,13 +229,13 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_list_history_pagination(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
         for i in 0..10 {
             let status = if i % 2 == 0 { "sent" } else { "queued" };
-            insert_notification(&db, status, "sms").await;
+            insert_test_notification(&db, status, "sms").await;
         }
 
         let (page1, total) = repo.list_history(None, 1, 5).await.unwrap();
@@ -293,11 +255,11 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_list_history_failed_notification_details(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
-        let id = insert_notification(&db, "failed", "sms").await;
+        let id = insert_test_notification(&db, "failed", "sms").await;
 
         let (history, total) = repo.list_history(Some(id), 1, 100).await.unwrap();
 
@@ -316,11 +278,11 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn test_retry_then_list_history(pool: sqlx::PgPool) {
         let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_schema(&db).await;
+        setup_notifications_schema(&db).await;
 
         let repo = NotificationRepository::new(&db);
 
-        let id = insert_notification(&db, "failed", "email").await;
+        let id = insert_test_notification(&db, "failed", "email").await;
 
         let (history_before, total_before) = repo.list_history(Some(id), 1, 100).await.unwrap();
         assert_eq!(total_before, 2);
