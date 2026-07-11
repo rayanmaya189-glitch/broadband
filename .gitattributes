@@ -1,0 +1,41 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files
+*.rs text diff=rust
+*.toml text
+*.json text
+*.ts text
+*.tsx text
+*.css text
+*.html text
+*.md text
+*.sql text
+*.sh text eol=lf
+*.bash text eol=lf
+*.yml text
+*.yaml text
+
+# Declare binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+
+# Docker
+Dockerfile text
+docker-compose*.yml text
+
+# Config files
+.gitignore text
+.gitattributes text
+.editorconfig text
+*.lock text -diff
