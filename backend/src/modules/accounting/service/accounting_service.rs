@@ -77,7 +77,6 @@ impl<'a> AccountingService<'a> {
     }
 
     pub async fn trial_balance(&self, q: TrialBalanceQuery) -> Result<TrialBalanceResponse, AppError> {
-        let _rows = self.repo.generate_trial_balance(q.period_start, q.period_end).await?;
         let balances = self.repo.get_account_balances_by_type(q.period_start, q.period_end).await?;
         let accounts: Vec<TrialBalanceAccount> = balances.into_iter().map(|b| TrialBalanceAccount {
             account_id: b.0, account_code: b.1, account_name: b.2, account_type: b.3,
