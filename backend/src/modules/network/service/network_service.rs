@@ -57,7 +57,10 @@ impl<'a> NetworkService<'a> {
         Ok(IpAddressResponse { id: a.id, ip_pool_id: a.ip_pool_id, ip_address: a.ip_address, status: a.status, allocated_to_type: a.allocated_to_type, allocated_to_id: a.allocated_to_id, allocated_at: a.allocated_at.map(|v| v.into()), created_at: a.created_at.into() })
     }
 
-    pub async fn release_ip(&self, _pool_id: i64, _ip_id: i64) -> Result<MessageResponse, AppError> {
+    pub async fn release_ip(&self, pool_id: i64, ip_id: i64) -> Result<MessageResponse, AppError> {
+        if !self.repo.release_ip(pool_id, ip_id).await? {
+            return Err(AppError::NotFound("IP address not found, not allocated, or does not belong to this pool".into()));
+        }
         Ok(MessageResponse { message: "IP released".into() })
     }
 

@@ -119,6 +119,34 @@ impl<'a> NetworkRepository<'a> {
         Ok(result)
     }
 
+    pub async fn release_ip(&self, pool_id: i64, ip_id: i64) -> Result<bool, AppError> {
+        let existing = ip_address_entity::Entity::find_by_id(ip_id).one(self.db).await?;
+        match existing {
+            Some(ip) if ip.status == "allocated" && ip.ip_pool_id == pool_id => {
+                let target_pool_id = ip.ip_pool_id;
+                let mut active = ip.into_active_model();
+                active.status = Set("available".to_owned());
+                active.allocated_to_type = Set(None);
+                active.allocated_to_id = Set(None);
+                active.allocated_at = Set(None);
+                active.released_at = Set(Some(chrono::Utc::now().into()));
+                active.update(self.db).await?;
+                // Decrement pool allocated_count
+                if let Some(pool) = ip_pool_entity::Entity::find_by_id(target_pool_id).one(self.db).await? {
+                    let current_count = pool.allocated_count;
+                    if current_count > 0 {
+                        let mut pool_active = pool.into_active_model();
+                        pool_active.allocated_count = Set(current_count - 1);
+                        pool_active.update(self.db).await?;
+                    }
+                }
+                Ok(true)
+            }
+            Some(_) => Ok(false), // IP exists but is not allocated or doesn't belong to this pool
+            None => Ok(false),
+        }
+    }
+
     // ── PPPoE Sessions ───────────────────────────────────────
 
     pub async fn list_pppoe_sessions(&self, branch_id: Option<i64>, page: i64, per_page: i64) -> Result<(Vec<PppoeSessionModel>, i64), AppError> {
@@ -149,12 +177,52 @@ impl<'a> NetworkRepository<'a> {
     pub async fn terminate_session(&self, id: i64) -> Result<bool, AppError> {
         let existing = pppoe_session_entity::Entity::find_by_id(id).one(self.db).await?;
         match existing {
-            Some(e) => {
+            Some(e) if e.status == "active" => {
+                let assigned_ip = e.assigned_ip.clone();
+                let customer_id = e.customer_id;
                 let mut active = e.into_active_model();
                 active.status = Set("terminated".to_owned());
                 active.update(self.db).await?;
+                // Update the customer session to mark offline
+                if let Some(cs) = customer_session_entity::Entity::find()
+                    .filter(customer_session_entity::Column::CustomerId.eq(customer_id))
+                    .filter(customer_session_entity::Column::IsOnline.eq(true))
+                    .one(self.db).await?
+                {
+                    let mut cs_active = cs.into_active_model();
+                    cs_active.is_online = Set(false);
+                    cs_active.disconnected_at = Set(Some(chrono::Utc::now().into()));
+                    cs_active.update(self.db).await?;
+                }
+                // Release the assigned IP if any
+                if let Some(ip_str) = assigned_ip {
+                    if let Some(ip) = ip_address_entity::Entity::find()
+                        .filter(ip_address_entity::Column::IpAddress.eq(&ip_str))
+                        .filter(ip_address_entity::Column::Status.eq("allocated"))
+                        .one(self.db).await?
+                    {
+                        let target_pool_id = ip.ip_pool_id;
+                        let mut ip_active = ip.into_active_model();
+                        ip_active.status = Set("available".to_owned());
+                        ip_active.allocated_to_type = Set(None);
+                        ip_active.allocated_to_id = Set(None);
+                        ip_active.allocated_at = Set(None);
+                        ip_active.released_at = Set(Some(chrono::Utc::now().into()));
+                        ip_active.update(self.db).await?;
+                        // Decrement pool count
+                        if let Some(pool) = ip_pool_entity::Entity::find_by_id(target_pool_id).one(self.db).await? {
+                            let current_count = pool.allocated_count;
+                            if current_count > 0 {
+                                let mut pool_active = pool.into_active_model();
+                                pool_active.allocated_count = Set(current_count - 1);
+                                pool_active.update(self.db).await?;
+                            }
+                        }
+                    }
+                }
                 Ok(true)
             }
+            Some(_) => Ok(false), // session exists but is not active
             None => Ok(false),
         }
     }
