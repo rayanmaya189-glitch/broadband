@@ -2,8 +2,8 @@
 //! Zero plain SQL — all queries use EntityTrait, ActiveModelTrait, and Select.
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, EntityTrait,
+    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set, Statement,
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -13,6 +13,17 @@ use crate::modules::accounting::model::chart_of_account_entity::{self, Model as 
 use crate::modules::accounting::model::journal_entry_entity::{self, Model as JournalEntryModel};
 use crate::modules::accounting::model::journal_entry_line_entity::{self, Model as JournalEntryLineModel};
 use crate::modules::accounting::model::trial_balance_entity::{self, Model as TrialBalanceModel};
+
+/// Struct for raw SQL account balance results
+#[derive(Debug, Clone)]
+pub struct AccountBalanceRow {
+    pub account_id: i64,
+    pub account_code: String,
+    pub account_name: String,
+    pub account_type: String,
+    pub total_debit: Decimal,
+    pub total_credit: Decimal,
+}
 
 pub struct AccountingRepository<'a> {
     db: &'a DatabaseConnection,
@@ -129,10 +140,10 @@ impl<'a> AccountingRepository<'a> {
 
     // ── Trial Balance ──────────────────────────────────────
 
-    pub async fn generate_trial_balance(&self, _period_start: NaiveDate, _period_end: NaiveDate) -> Result<Vec<TrialBalanceModel>, AppError> {
-        // For complex aggregation queries, we use sea_orm's raw query
-        let stmt = sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
+    pub async fn generate_trial_balance(&self, period_start: NaiveDate, period_end: NaiveDate) -> Result<Vec<TrialBalanceModel>, AppError> {
+        // For complex aggregation queries, we use sea_orm's raw query with bound parameters
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
             "INSERT INTO trial_balances (period_start, period_end, account_id, total_debit, total_credit, closing_balance)
              SELECT $1, $2, coa.id,
                 COALESCE(SUM(jel.debit), 0),
@@ -149,7 +160,8 @@ impl<'a> AccountingRepository<'a> {
                 total_credit = EXCLUDED.total_credit,
                 closing_balance = EXCLUDED.closing_balance,
                 generated_at = NOW()
-             RETURNING *"
+             RETURNING *",
+            vec![period_start.into(), period_end.into()],
         );
         let results = trial_balance_entity::Entity::find()
             .from_raw_sql(stmt)
@@ -157,13 +169,81 @@ impl<'a> AccountingRepository<'a> {
         Ok(results)
     }
 
-    pub async fn get_account_balances_by_type(&self, _period_start: NaiveDate, _period_end: NaiveDate) -> Result<Vec<(i64, String, String, String, Decimal, Decimal)>, AppError> {
-        // TODO: Implement with proper SeaORM raw query when needed
-        Ok(Vec::new())
+    /// Get account balances aggregated by account type for financial statements.
+    /// Returns account_id, code, name, type, total_debit, total_credit.
+    pub async fn get_account_balances_by_type(&self, period_start: NaiveDate, period_end: NaiveDate) -> Result<Vec<AccountBalanceRow>, AppError> {
+        let sql = "SELECT
+                coa.id AS account_id,
+                coa.code AS account_code,
+                coa.name AS account_name,
+                coa.account_type AS account_type,
+                COALESCE(SUM(jel.debit), 0) AS total_debit,
+                COALESCE(SUM(jel.credit), 0) AS total_credit
+             FROM chart_of_accounts coa
+             LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
+             LEFT JOIN journal_entries je
+                ON je.id = jel.journal_entry_id
+                AND je.status = 'posted'
+                AND je.entry_date BETWEEN $1 AND $2
+             WHERE coa.is_active = true
+             GROUP BY coa.id, coa.code, coa.name, coa.account_type
+             HAVING COALESCE(SUM(jel.debit), 0) != 0 OR COALESCE(SUM(jel.credit), 0) != 0
+             ORDER BY coa.code";
+
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            sql,
+            vec![period_start.into(), period_end.into()],
+        );
+        let rows = self.db.query_all(stmt).await?;
+        let mut results = Vec::new();
+        for row in rows {
+            let account_id: i64 = row.try_get("", "account_id")?;
+            let account_code: String = row.try_get("", "account_code")?;
+            let account_name: String = row.try_get("", "account_name")?;
+            let account_type: String = row.try_get("", "account_type")?;
+            let total_debit: Decimal = row.try_get("", "total_debit")?;
+            let total_credit: Decimal = row.try_get("", "total_credit")?;
+            results.push(AccountBalanceRow {
+                account_id, account_code, account_name, account_type,
+                total_debit, total_credit,
+            });
+        }
+        Ok(results)
     }
 
-    pub async fn get_gst_invoices(&self, _month: i32, _year: i32) -> Result<Vec<(String, Option<String>, Decimal, Decimal, Decimal, Decimal)>, AppError> {
-        // Complex aggregate query - returns unimplemented for now
-        Err(AppError::Internal(anyhow::anyhow!("GST invoice query not yet fully ported")))
+    /// Get GST invoice data for a given month/year.
+    pub async fn get_gst_invoices(&self, month: i32, year: i32) -> Result<Vec<(String, Option<String>, Decimal, Decimal, Decimal, Decimal)>, AppError> {
+        let sql = "SELECT
+                i.invoice_number AS invoice_number,
+                c.gstin AS customer_gstin,
+                i.taxable_value AS taxable_value,
+                i.cgst_amount AS cgst,
+                i.sgst_amount AS sgst,
+                i.igst_amount AS igst
+             FROM invoices i
+             JOIN customers c ON i.customer_id = c.id
+             WHERE EXTRACT(MONTH FROM i.billing_period_start) = $1
+               AND EXTRACT(YEAR FROM i.billing_period_start) = $2
+               AND i.status = 'paid'
+             ORDER BY i.invoice_number";
+
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            sql,
+            vec![month.into(), year.into()],
+        );
+        let rows = self.db.query_all(stmt).await?;
+        let mut results = Vec::new();
+        for row in rows {
+            let invoice_number: String = row.try_get("", "_1")?;
+            let customer_gstin: Option<String> = row.try_get("", "_2").ok();
+            let taxable_value: Decimal = row.try_get("", "_3")?;
+            let cgst: Decimal = row.try_get("", "_4")?;
+            let sgst: Decimal = row.try_get("", "_5")?;
+            let igst: Decimal = row.try_get("", "_6")?;
+            results.push((invoice_number, customer_gstin, taxable_value, cgst, sgst, igst));
+        }
+        Ok(results)
     }
 }

@@ -79,8 +79,8 @@ impl<'a> AccountingService<'a> {
     pub async fn trial_balance(&self, q: TrialBalanceQuery) -> Result<TrialBalanceResponse, AppError> {
         let balances = self.repo.get_account_balances_by_type(q.period_start, q.period_end).await?;
         let accounts: Vec<TrialBalanceAccount> = balances.into_iter().map(|b| TrialBalanceAccount {
-            account_id: b.0, account_code: b.1, account_name: b.2, account_type: b.3,
-            total_debit: b.4, total_credit: b.5, closing_balance: b.4 - b.5,
+            account_id: b.account_id, account_code: b.account_code, account_name: b.account_name, account_type: b.account_type,
+            total_debit: b.total_debit, total_credit: b.total_credit, closing_balance: b.total_debit - b.total_credit,
         }).collect();
         let total_debit: rust_decimal::Decimal = accounts.iter().map(|a| a.total_debit).sum();
         let total_credit: rust_decimal::Decimal = accounts.iter().map(|a| a.total_credit).sum();
@@ -92,8 +92,8 @@ impl<'a> AccountingService<'a> {
         let mut revenue = Vec::new();
         let mut expenses = Vec::new();
         for b in balances {
-            let item = AccountLineItem { account_id: b.0, account_code: b.1, account_name: b.2.clone(), amount: b.4 - b.5 };
-            match b.3.as_str() {
+            let item = AccountLineItem { account_id: b.account_id, account_code: b.account_code, account_name: b.account_name.clone(), amount: b.total_debit - b.total_credit };
+            match b.account_type.as_str() {
                 "revenue" => revenue.push(item),
                 "expense" => expenses.push(item),
                 _ => {}
@@ -110,8 +110,8 @@ impl<'a> AccountingService<'a> {
         let mut liabilities = Vec::new();
         let mut equity = Vec::new();
         for b in balances {
-            let item = AccountLineItem { account_id: b.0, account_code: b.1, account_name: b.2.clone(), amount: b.4 - b.5 };
-            match b.3.as_str() {
+            let item = AccountLineItem { account_id: b.account_id, account_code: b.account_code, account_name: b.account_name.clone(), amount: b.total_debit - b.total_credit };
+            match b.account_type.as_str() {
                 "asset" => assets.push(item),
                 "liability" => liabilities.push(item),
                 "equity" => equity.push(item),
@@ -126,8 +126,8 @@ impl<'a> AccountingService<'a> {
 
     pub async fn cash_flow_statement(&self, q: TrialBalanceQuery) -> Result<CashFlowResponse, AppError> {
         let balances = self.repo.get_account_balances_by_type(q.period_start, q.period_end).await?;
-        let operating: Vec<AccountLineItem> = balances.iter().filter(|b| b.3 == "revenue" || b.3 == "expense")
-            .map(|b| AccountLineItem { account_id: b.0, account_code: b.1.clone(), account_name: b.2.clone(), amount: b.4 - b.5 }).collect();
+        let operating: Vec<AccountLineItem> = balances.iter().filter(|b| b.account_type == "revenue" || b.account_type == "expense")
+            .map(|b| AccountLineItem { account_id: b.account_id, account_code: b.account_code.clone(), account_name: b.account_name.clone(), amount: b.total_debit - b.total_credit }).collect();
         let net_cash_operating: rust_decimal::Decimal = operating.iter().map(|i| i.amount).sum();
         Ok(CashFlowResponse {
             period_start: q.period_start, period_end: q.period_end,
