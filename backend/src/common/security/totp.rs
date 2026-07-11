@@ -96,8 +96,8 @@ mod tests {
 
     #[test]
     fn test_base32_decode() {
-        // "Hello" in base32 is "JBSWY3DPEE"
-        let decoded = base32_decode("JBSWY3DPEE").unwrap();
+        // "Hello" in base32 is "JBSWY3DP" (5 bytes = 8 base32 chars)
+        let decoded = base32_decode("JBSWY3DP").unwrap();
         assert_eq!(decoded, b"Hello");
     }
 
