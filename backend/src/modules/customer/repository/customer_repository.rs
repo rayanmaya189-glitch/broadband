@@ -302,6 +302,30 @@ impl CustomerRepository {
         Ok(())
     }
 
+    // ── KYC Status Updates ──────────────────────────────────
+
+    pub async fn update_kyc_status(&self, customer_id: i64, kyc_status: &str) -> Result<(), AppError> {
+        let model = customer_entity::Entity::find_by_id(customer_id)
+            .one(&self.db).await?
+            .ok_or_else(|| AppError::NotFound("Customer not found".into()))?;
+        let mut active: customer_entity::ActiveModel = model.into();
+        active.kyc_status = Set(kyc_status.to_string());
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
+        Ok(())
+    }
+
+    pub async fn update_kyc_verified_at(&self, customer_id: i64) -> Result<(), AppError> {
+        let model = customer_entity::Entity::find_by_id(customer_id)
+            .one(&self.db).await?
+            .ok_or_else(|| AppError::NotFound("Customer not found".into()))?;
+        let mut active: customer_entity::ActiveModel = model.into();
+        active.kyc_status = Set("verified".to_string());
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
+        Ok(())
+    }
+
     // ── Addresses ───────────────────────────────────────────
 
     pub async fn list_addresses(&self, customer_id: i64) -> Result<Vec<AddressModel>, AppError> {

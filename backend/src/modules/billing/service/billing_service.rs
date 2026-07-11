@@ -132,36 +132,40 @@ impl BillingService {
     // ── Dunning & Tax Config ────────────────────────────────────
 
     pub async fn get_dunning_config(&self) -> Result<serde_json::Value, AppError> {
-        // Config is stored in billing_config table via sqlx
-        // For now return defaults - will be converted when billing_config entity is added
-        Ok(serde_json::json!({
+        let defaults = serde_json::json!({
             "reminder_days": [3, 7],
             "suspension_day": 10,
             "termination_day": 30,
             "late_fee_percent": 2.0,
             "late_fee_cap_percent": 10.0,
             "channels": ["sms", "email", "whatsapp"]
-        }))
+        });
+        match self.repo.get_config("dunning").await? {
+            Some(model) => Ok(model.config_value),
+            None => Ok(defaults),
+        }
     }
 
-    pub async fn update_dunning_config(&self, _config: serde_json::Value) -> Result<MessageResponse, AppError> {
-        // Config update will be converted when billing_config entity is added
+    pub async fn update_dunning_config(&self, config: serde_json::Value) -> Result<MessageResponse, AppError> {
+        self.repo.upsert_config("dunning", config, None).await?;
         Ok(MessageResponse { message: "Dunning config updated".into() })
     }
 
     pub async fn get_tax_config(&self) -> Result<serde_json::Value, AppError> {
-        // Config is stored in billing_config table via sqlx
-        // For now return defaults - will be converted when billing_config entity is added
-        Ok(serde_json::json!({
+        let defaults = serde_json::json!({
             "cgst_rate": 9.0, "sgst_rate": 9.0, "igst_rate": 18.0,
             "applicable_state": "Maharashtra",
             "hsn_code": "998421", "sac_code": "998421",
             "tax_name": "GST on Internet Services"
-        }))
+        });
+        match self.repo.get_config("tax").await? {
+            Some(model) => Ok(model.config_value),
+            None => Ok(defaults),
+        }
     }
 
-    pub async fn update_tax_config(&self, _config: serde_json::Value) -> Result<MessageResponse, AppError> {
-        // Config update will be converted when billing_config entity is added
+    pub async fn update_tax_config(&self, config: serde_json::Value) -> Result<MessageResponse, AppError> {
+        self.repo.upsert_config("tax", config, None).await?;
         Ok(MessageResponse { message: "Tax config updated".into() })
     }
 }

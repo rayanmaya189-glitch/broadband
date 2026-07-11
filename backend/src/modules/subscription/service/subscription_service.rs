@@ -156,12 +156,12 @@ impl SubscriptionService {
             pro_rata: ProRataAdjustment {
                 old_plan_id: model.plan_id,
                 new_plan_id: req.new_plan_id,
-                old_plan_price: rust_decimal::Decimal::ZERO,
-                new_plan_price: rust_decimal::Decimal::ZERO,
+                old_plan_price: self.repo.get_plan_price(model.plan_id).await.unwrap_or(rust_decimal::Decimal::ZERO),
+                new_plan_price: self.repo.get_plan_price(req.new_plan_id).await.unwrap_or(rust_decimal::Decimal::ZERO),
                 old_plan_credit: rust_decimal::Decimal::ZERO,
                 new_plan_charge: rust_decimal::Decimal::ZERO,
                 adjustment: rust_decimal::Decimal::ZERO,
-                remaining_days: 0,
+                remaining_days: self.repo.get_remaining_days(model.id).await.unwrap_or(0),
                 billing_period_days: model.billing_period_months * 30,
             },
             message: "Upgrade complete".into(),
@@ -193,12 +193,12 @@ impl SubscriptionService {
             pro_rata: ProRataAdjustment {
                 old_plan_id: model.plan_id,
                 new_plan_id: req.new_plan_id,
-                old_plan_price: rust_decimal::Decimal::ZERO,
-                new_plan_price: rust_decimal::Decimal::ZERO,
+                old_plan_price: self.repo.get_plan_price(model.plan_id).await.unwrap_or(rust_decimal::Decimal::ZERO),
+                new_plan_price: self.repo.get_plan_price(req.new_plan_id).await.unwrap_or(rust_decimal::Decimal::ZERO),
                 old_plan_credit: rust_decimal::Decimal::ZERO,
                 new_plan_charge: rust_decimal::Decimal::ZERO,
                 adjustment: rust_decimal::Decimal::ZERO,
-                remaining_days: 0,
+                remaining_days: self.repo.get_remaining_days(model.id).await.unwrap_or(0),
                 billing_period_days: model.billing_period_months * 30,
             },
             message: "Downgrade applied".into(),
@@ -214,8 +214,16 @@ impl SubscriptionService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| AppError::NotFound("Subscription not found".into()))?;
-        // History queries still use sqlx via background jobs
-        // For now return empty - will be converted when subscription_history table is added
-        Ok(vec![])
+        let entries = self.repo.get_history(id).await?;
+        Ok(entries.into_iter().map(|e| SubscriptionHistoryEntry {
+            id: e.id,
+            subscription_id: e.subscription_id,
+            action: e.change_type,
+            old_data: e.old_value.and_then(|v| serde_json::from_str(&v).ok()),
+            new_data: e.new_value.and_then(|v| serde_json::from_str(&v).ok()),
+            performed_by: e.changed_by,
+            performed_at: e.created_at.into(),
+            reason: e.notes,
+        }).collect())
     }
 }

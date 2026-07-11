@@ -143,13 +143,14 @@ impl<'a> NetworkService<'a> {
         let (bindings, total_bindings) = self.repo.list_mac_bindings(None, 1, 100000).await?;
         let active_sessions = sessions.iter().filter(|s| s.status == "active").count() as i64;
         let active_bindings = bindings.iter().filter(|b| b.is_active).count() as i64;
+        let active_dhcp_leases = self.repo.count_active_dhcp_leases().await?;
         Ok(NetworkTopologyResponse {
             total_vlans,
             total_ip_pools: total_pools,
             total_active_sessions: active_sessions,
             total_mac_bindings: total_bindings,
             active_pppoe_sessions: active_sessions,
-            active_dhcp_leases: 0,
+            active_dhcp_leases,
             online_customers: active_bindings,
         })
     }

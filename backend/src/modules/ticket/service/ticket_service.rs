@@ -135,13 +135,18 @@ impl<'a> TicketService<'a> {
         let (open, _) = self.repo.list(None, Some("open"), None, None, None, None, 1, 1).await?;
         let (in_progress, _) = self.repo.list(None, Some("in_progress"), None, None, None, None, 1, 1).await?;
         let (resolved_today, _) = self.repo.list(None, Some("resolved"), None, None, None, None, 1, 1).await?;
+        let total_overdue = self.repo.count_overdue().await?;
+        let by_priority_raw = self.repo.count_by_priority().await?;
+        let by_category_raw = self.repo.count_by_category().await?;
+        let by_priority: Vec<PriorityCount> = by_priority_raw.into_iter().map(|(p, c)| PriorityCount { priority: p, count: c }).collect();
+        let by_category: Vec<CategoryCount> = by_category_raw.into_iter().map(|(c, n)| CategoryCount { category: c, count: n }).collect();
         Ok(TicketDashboardResponse {
             total_open: open.len() as i64,
             total_in_progress: in_progress.len() as i64,
             total_resolved_today: resolved_today.len() as i64,
-            total_overdue: 0,
-            by_priority: vec![],
-            by_category: vec![],
+            total_overdue,
+            by_priority,
+            by_category,
         })
     }
 }

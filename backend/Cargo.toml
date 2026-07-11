@@ -7,7 +7,7 @@ description = "AeroXe ISP Platform — Modular Monolith Backend"
 license = "MIT"
 
 [dependencies]
-sea-orm = "1"
+sea-orm = { version = "1", features = ["sqlx-postgres"] }
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }

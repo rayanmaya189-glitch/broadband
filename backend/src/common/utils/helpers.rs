@@ -14,6 +14,12 @@ pub struct PaginationParams {
     pub search: Option<String>,
 }
 
+impl Default for PaginationParams {
+    fn default() -> Self {
+        Self { page: 1, limit: 25, sort_by: None, sort_order: None, search: None }
+    }
+}
+
 fn default_page() -> u32 {
     1
 }

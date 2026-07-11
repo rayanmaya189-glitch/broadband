@@ -281,6 +281,14 @@ impl<'a> NetworkRepository<'a> {
         Ok((leases, total as i64))
     }
 
+    /// Count active DHCP leases (status = "active")
+    pub async fn count_active_dhcp_leases(&self) -> Result<i64, AppError> {
+        let count = dhcp_lease_entity::Entity::find()
+            .filter(dhcp_lease_entity::Column::Status.eq("active"))
+            .count(self.db).await? as i64;
+        Ok(count)
+    }
+
     // ── Customer Sessions ────────────────────────────────────
 
     pub async fn list_customer_sessions(&self, branch_id: Option<i64>, is_online: Option<bool>, page: i64, per_page: i64) -> Result<(Vec<CustomerSessionModel>, i64), AppError> {

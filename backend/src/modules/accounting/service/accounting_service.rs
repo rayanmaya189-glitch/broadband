@@ -140,8 +140,36 @@ impl<'a> AccountingService<'a> {
 
     pub async fn gst_return_data(&self, _return_type: &str, month: Option<i32>, year: Option<i32>) -> Result<GstReturnResponse, AppError> {
         use chrono::Datelike;
-        let _m = month.unwrap_or(chrono::Utc::now().month() as i32);
-        let _y = year.unwrap_or(chrono::Utc::now().year());
-        Err(AppError::Internal(anyhow::anyhow!("GST invoice query not yet fully ported to SeaORM")))
+        let m = month.unwrap_or(chrono::Utc::now().month() as i32);
+        let y = year.unwrap_or(chrono::Utc::now().year());
+        let invoices = self.repo.get_gst_invoices(m, y).await?;
+        let mut total_taxable = rust_decimal::Decimal::ZERO;
+        let mut total_cgst = rust_decimal::Decimal::ZERO;
+        let mut total_sgst = rust_decimal::Decimal::ZERO;
+        let mut total_igst = rust_decimal::Decimal::ZERO;
+        let items: Vec<GstInvoiceLine> = invoices.into_iter().map(|(num, gstin, taxable, cgst, sgst, igst)| {
+            total_taxable += taxable;
+            total_cgst += cgst;
+            total_sgst += sgst;
+            total_igst += igst;
+            GstInvoiceLine {
+                invoice_number: num,
+                customer_gstin: gstin,
+                taxable_value: taxable,
+                cgst,
+                sgst,
+                igst,
+            }
+        }).collect();
+        Ok(GstReturnResponse {
+            return_type: _return_type.to_string(),
+            period_month: m,
+            period_year: y,
+            total_taxable_value: total_taxable,
+            total_cgst: total_cgst,
+            total_sgst: total_sgst,
+            total_igst: total_igst,
+            invoices: items,
+        })
     }
 }

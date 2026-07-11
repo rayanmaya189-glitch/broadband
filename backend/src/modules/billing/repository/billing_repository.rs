@@ -6,6 +6,7 @@ use crate::modules::billing::model::invoice_line_item_entity::{self, Model as Li
 use crate::modules::billing::model::payment_entity::{self, Model as PaymentModel};
 use crate::modules::billing::model::refund_entity::{self, Model as RefundModel};
 use crate::modules::billing::model::discount_entity::{self, Model as DiscountModel};
+use crate::modules::billing::model::billing_config_entity::{self, Model as BillingConfigModel};
 
 pub struct BillingRepository {
     db: DatabaseConnection,
@@ -361,5 +362,36 @@ impl BillingRepository {
         };
         let model = active.insert(&self.db).await?;
         Ok(model)
+    }
+
+    // ──── Billing Config (Dunning & Tax) ────
+
+    pub async fn get_config(&self, config_key: &str) -> Result<Option<BillingConfigModel>, AppError> {
+        let model = billing_config_entity::Entity::find()
+            .filter(billing_config_entity::Column::ConfigKey.eq(config_key))
+            .one(&self.db).await?;
+        Ok(model)
+    }
+
+    pub async fn upsert_config(&self, config_key: &str, config_value: serde_json::Value, updated_by: Option<i64>) -> Result<BillingConfigModel, AppError> {
+        let now = chrono::Utc::now();
+        let existing = self.get_config(config_key).await?;
+        if let Some(model) = existing {
+            let mut active: billing_config_entity::ActiveModel = model.into();
+            active.config_value = Set(config_value);
+            active.updated_by = Set(updated_by);
+            active.updated_at = Set(now.into());
+            let updated = active.update(&self.db).await?;
+            Ok(updated)
+        } else {
+            let active = billing_config_entity::ActiveModel {
+                config_key: Set(config_key.to_string()),
+                config_value: Set(config_value),
+                updated_by: Set(updated_by),
+                ..Default::default()
+            };
+            let model = active.insert(&self.db).await?;
+            Ok(model)
+        }
     }
 }

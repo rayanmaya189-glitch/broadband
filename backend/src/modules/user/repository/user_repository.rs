@@ -4,6 +4,8 @@ use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::{total_pages, PaginatedResponse};
 use crate::modules::user::model::user_entity::{self, Model as UserModel};
 use crate::modules::user::model::refresh_token_entity::{self, Model as RefreshTokenModel};
+use crate::modules::user::model::otp_entity::{self, Model as OtpModel};
+use crate::modules::user::model::password_reset_entity::{self, Model as PasswordResetModel};
 use crate::modules::user::response::user_response::UserResponse;
 
 pub struct UserRepository {
@@ -362,5 +364,108 @@ impl UserRepository {
             .await
             ?;
         Ok(models)
+    }
+
+    // ── OTP queries ─────────────────────────────────────────
+
+    pub async fn create_otp(
+        &self,
+        user_id: i64,
+        phone: &str,
+        otp_hash: &str,
+        purpose: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<OtpModel, AppError> {
+        let active = otp_entity::ActiveModel {
+            user_id: Set(user_id),
+            phone: Set(phone.to_string()),
+            otp_code: Set(otp_hash.to_string()),
+            purpose: Set(purpose.to_string()),
+            expires_at: Set(expires_at.into()),
+            ..Default::default()
+        };
+        let model = active.insert(&self.db).await?;
+        Ok(model)
+    }
+
+    pub async fn verify_otp(&self, user_id: i64, otp_hash: &str, purpose: &str) -> Result<bool, AppError> {
+        let now = chrono::Utc::now();
+        let model = otp_entity::Entity::find()
+            .filter(otp_entity::Column::UserId.eq(user_id))
+            .filter(otp_entity::Column::OtpCode.eq(otp_hash))
+            .filter(otp_entity::Column::Purpose.eq(purpose))
+            .filter(otp_entity::Column::VerifiedAt.is_null())
+            .filter(otp_entity::Column::ExpiresAt.gt(now))
+            .order_by_desc(otp_entity::Column::CreatedAt)
+            .one(&self.db).await?;
+        if let Some(model) = model {
+            let mut active: otp_entity::ActiveModel = model.into();
+            active.verified_at = Set(Some(chrono::Utc::now().into()));
+            active.update(&self.db).await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    // ── Password Reset queries ──────────────────────────────
+
+    pub async fn create_password_reset(
+        &self,
+        user_id: i64,
+        token_hash: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<PasswordResetModel, AppError> {
+        let active = password_reset_entity::ActiveModel {
+            user_id: Set(user_id),
+            token_hash: Set(token_hash.to_string()),
+            expires_at: Set(expires_at.into()),
+            ..Default::default()
+        };
+        let model = active.insert(&self.db).await?;
+        Ok(model)
+    }
+
+    pub async fn find_valid_password_reset(&self, token_hash: &str) -> Result<Option<PasswordResetModel>, AppError> {
+        let now = chrono::Utc::now();
+        let model = password_reset_entity::Entity::find()
+            .filter(password_reset_entity::Column::TokenHash.eq(token_hash))
+            .filter(password_reset_entity::Column::UsedAt.is_null())
+            .filter(password_reset_entity::Column::ExpiresAt.gt(now))
+            .one(&self.db).await?;
+        Ok(model)
+    }
+
+    pub async fn mark_password_reset_used(&self, id: i64) -> Result<(), AppError> {
+        if let Some(model) = password_reset_entity::Entity::find_by_id(id).one(&self.db).await? {
+            let mut active: password_reset_entity::ActiveModel = model.into();
+            active.used_at = Set(Some(chrono::Utc::now().into()));
+            active.update(&self.db).await?;
+        }
+        Ok(())
+    }
+
+    // ── 2FA queries ─────────────────────────────────────────
+
+    pub async fn enable_two_factor(&self, user_id: i64) -> Result<(), AppError> {
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db).await?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        let mut active: user_entity::ActiveModel = model.into();
+        active.two_factor_enabled = Set(true);
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
+        Ok(())
+    }
+
+    pub async fn disable_two_factor(&self, user_id: i64) -> Result<(), AppError> {
+        let model = user_entity::Entity::find_by_id(user_id)
+            .one(&self.db).await?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        let mut active: user_entity::ActiveModel = model.into();
+        active.two_factor_enabled = Set(false);
+        active.updated_at = Set(chrono::Utc::now().into());
+        active.update(&self.db).await?;
+        Ok(())
     }
 }

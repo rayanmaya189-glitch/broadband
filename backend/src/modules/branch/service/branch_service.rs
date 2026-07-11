@@ -163,12 +163,6 @@ impl BranchService {
     }
 
     pub async fn get_branch_stats(&self, branch_id: i64) -> Result<BranchStatsResponse, AppError> {
-        if self.repo.find_by_id(branch_id).await?.is_none() {
-            return Err(AppError::NotFound("Branch not found".into()));
-        }
-        Ok(BranchStatsResponse {
-            branch_id, total_customers: 0, active_customers: 0,
-            total_subscriptions: 0, active_subscriptions: 0,
-        })
+        self.repo.get_branch_stats(branch_id).await
     }
 }

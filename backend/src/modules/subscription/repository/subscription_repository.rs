@@ -3,6 +3,7 @@ use sea_orm::*;
 use crate::common::errors::app_error::AppError;
 use crate::common::utils::helpers::{total_pages, PaginatedResponse};
 use crate::modules::subscription::model::subscription_entity::{self, Model as SubscriptionModel};
+use crate::modules::subscription::model::subscription_history_entity::{self, Model as HistoryModel};
 use crate::modules::subscription::response::subscription_response::SubscriptionResponse;
 
 pub struct SubscriptionRepository {
@@ -157,5 +158,49 @@ impl SubscriptionRepository {
             .await
             ?;
         Ok(updated)
+    }
+
+    // ── Subscription History ───────────────────────────────
+
+    pub async fn add_history(&self, subscription_id: i64, change_type: &str, old_value: Option<&str>, new_value: Option<&str>, changed_by: Option<i64>, notes: Option<&str>) -> Result<HistoryModel, AppError> {
+        let active = subscription_history_entity::ActiveModel {
+            subscription_id: Set(subscription_id),
+            change_type: Set(change_type.to_string()),
+            old_value: Set(old_value.map(|s| s.to_string())),
+            new_value: Set(new_value.map(|s| s.to_string())),
+            changed_by: Set(changed_by),
+            notes: Set(notes.map(|s| s.to_string())),
+            ..Default::default()
+        };
+        let model = active.insert(&self.db).await?;
+        Ok(model)
+    }
+
+    pub async fn get_history(&self, subscription_id: i64) -> Result<Vec<HistoryModel>, AppError> {
+        let models = subscription_history_entity::Entity::find()
+            .filter(subscription_history_entity::Column::SubscriptionId.eq(subscription_id))
+            .order_by_desc(subscription_history_entity::Column::CreatedAt)
+            .all(&self.db).await?;
+        Ok(models)
+    }
+
+    // ── Plan Price & Remaining Days ─────────────────────────
+
+    pub async fn get_plan_price(&self, plan_id: i64) -> Result<rust_decimal::Decimal, AppError> {
+        let result = crate::modules::plan::model::plan_entity::Entity::find_by_id(plan_id)
+            .one(&self.db).await?;
+        Ok(result.map(|p| p.price_monthly).unwrap_or(rust_decimal::Decimal::ZERO))
+    }
+
+    pub async fn get_remaining_days(&self, subscription_id: i64) -> Result<i32, AppError> {
+        let model = subscription_entity::Entity::find_by_id(subscription_id)
+            .one(&self.db).await?
+            .ok_or_else(|| AppError::NotFound("Subscription not found".into()))?;
+        let now = chrono::Utc::now().date_naive();
+        let end = model.end_date.unwrap_or_else(|| {
+            model.start_date + chrono::Duration::days((model.billing_period_months * 30) as i64)
+        });
+        let remaining = (end - now).num_days().max(0) as i32;
+        Ok(remaining)
     }
 }

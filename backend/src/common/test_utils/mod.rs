@@ -3,7 +3,7 @@
 //! Provides reusable helpers for setting up test database schemas
 //! and inserting test data, so test files don't duplicate boilerplate.
 
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set, Statement};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set, Statement};
 
 // ── Notification helpers ────────────────────────────────────
 

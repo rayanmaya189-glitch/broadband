@@ -276,4 +276,31 @@ impl BranchRepository {
             ?;
         Ok(models)
     }
+
+    // ── Branch Statistics ─────────────────────────────────
+
+    pub async fn get_branch_stats(&self, branch_id: i64) -> Result<BranchStatsResponse, AppError> {
+        use crate::modules::customer::model::customer_entity;
+        use crate::modules::subscription::model::subscription_entity;
+
+        let total_customers = customer_entity::Entity::find()
+            .filter(customer_entity::Column::BranchId.eq(branch_id))
+            .count(&self.db).await? as i64;
+        let active_customers = customer_entity::Entity::find()
+            .filter(customer_entity::Column::BranchId.eq(branch_id))
+            .filter(customer_entity::Column::Status.eq("active"))
+            .count(&self.db).await? as i64;
+        let total_subscriptions = subscription_entity::Entity::find()
+            .filter(subscription_entity::Column::BranchId.eq(branch_id))
+            .count(&self.db).await? as i64;
+        let active_subscriptions = subscription_entity::Entity::find()
+            .filter(subscription_entity::Column::BranchId.eq(branch_id))
+            .filter(subscription_entity::Column::Status.eq("active"))
+            .count(&self.db).await? as i64;
+
+        Ok(BranchStatsResponse {
+            branch_id, total_customers, active_customers,
+            total_subscriptions, active_subscriptions,
+        })
+    }
 }

@@ -136,11 +136,32 @@ impl CustomerService {
         Ok(MessageResponse { message: "Address deleted".into() })
     }
 
-    pub async fn submit_kyc(&self, _id: i64, _req: &SubmitKycRequest) -> Result<MessageResponse, AppError> {
-        Ok(MessageResponse { message: "KYC submitted".into() })
+    pub async fn submit_kyc(&self, id: i64, req: &SubmitKycRequest) -> Result<MessageResponse, AppError> {
+        self.repo.find_by_id(id).await?.ok_or_else(|| AppError::NotFound("Customer not found".into()))?;
+        // Update customer profile with KYC details
+        self.repo.upsert_profile(
+            id, None, None, None,
+            Some(&req.id_proof_type), Some(&req.id_proof_number),
+            None, None, None, None, None, None, None, None, None, None,
+        ).await?;
+        // Mark KYC as pending review
+        self.repo.update_kyc_status(id, "pending").await?;
+        Ok(MessageResponse { message: "KYC submitted for verification".into() })
     }
 
-    pub async fn verify_kyc(&self, _id: i64, _req: &VerifyKycRequest) -> Result<MessageResponse, AppError> {
-        Ok(MessageResponse { message: "KYC verified".into() })
+    pub async fn verify_kyc(&self, id: i64, req: &VerifyKycRequest) -> Result<MessageResponse, AppError> {
+        self.repo.find_by_id(id).await?.ok_or_else(|| AppError::NotFound("Customer not found".into()))?;
+        match req.status.as_str() {
+            "verified" => {
+                self.repo.update_kyc_verified_at(id).await?;
+                Ok(MessageResponse { message: "KYC verified successfully".into() })
+            }
+            "rejected" => {
+                self.repo.update_kyc_status(id, "rejected").await?;
+                let reason = req.rejection_reason.as_deref().unwrap_or("No reason provided");
+                Ok(MessageResponse { message: format!("KYC rejected: {reason}") })
+            }
+            _ => Err(AppError::Validation("Status must be 'verified' or 'rejected'".into())),
+        }
     }
 }

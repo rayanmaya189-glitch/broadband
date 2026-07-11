@@ -153,4 +153,52 @@ impl UserService {
     pub async fn list_active_sessions(&self, user_id: i64) -> Result<Vec<RefreshTokenModel>, AppError> {
         self.repo.list_active_sessions(user_id).await
     }
+
+    // ── Auth proxy methods ──────────────────────────────────
+
+    pub async fn find_by_email(&self, email: &str) -> Result<Option<crate::modules::user::model::user_entity::Model>, AppError> {
+        self.repo.find_by_email(email).await
+    }
+
+    pub async fn find_by_phone(&self, phone: &str) -> Result<Option<crate::modules::user::model::user_entity::Model>, AppError> {
+        self.repo.find_by_phone(phone).await
+    }
+
+    pub async fn find_user_by_id(&self, user_id: i64) -> Result<Option<crate::modules::user::model::user_entity::Model>, AppError> {
+        self.repo.find_by_id(user_id).await
+    }
+
+    pub async fn create_otp(&self, user_id: i64, phone: &str, otp_hash: &str, purpose: &str, expires_at: chrono::DateTime<chrono::Utc>) -> Result<(), AppError> {
+        self.repo.create_otp(user_id, phone, otp_hash, purpose, expires_at).await?;
+        Ok(())
+    }
+
+    pub async fn create_password_reset(&self, user_id: i64, token_hash: &str, expires_at: chrono::DateTime<chrono::Utc>) -> Result<(), AppError> {
+        self.repo.create_password_reset(user_id, token_hash, expires_at).await?;
+        Ok(())
+    }
+
+    pub async fn verify_otp(&self, user_id: i64, otp_hash: &str, purpose: &str) -> Result<bool, AppError> {
+        self.repo.verify_otp(user_id, otp_hash, purpose).await
+    }
+
+    pub async fn find_valid_password_reset(&self, token_hash: &str) -> Result<Option<crate::modules::user::model::password_reset_entity::Model>, AppError> {
+        self.repo.find_valid_password_reset(token_hash).await
+    }
+
+    pub async fn update_password(&self, user_id: i64, new_hash: &str) -> Result<(), AppError> {
+        self.repo.update_password(user_id, new_hash).await
+    }
+
+    pub async fn mark_password_reset_used(&self, id: i64) -> Result<(), AppError> {
+        self.repo.mark_password_reset_used(id).await
+    }
+
+    pub async fn enable_two_factor(&self, user_id: i64) -> Result<(), AppError> {
+        self.repo.enable_two_factor(user_id).await
+    }
+
+    pub async fn disable_two_factor(&self, user_id: i64) -> Result<(), AppError> {
+        self.repo.disable_two_factor(user_id).await
+    }
 }

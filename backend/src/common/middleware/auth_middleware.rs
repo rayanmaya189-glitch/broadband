@@ -33,6 +33,7 @@ pub struct UserContext {
     pub branch_id: Option<i64>,
     pub is_company_wide: bool,
     pub permissions: Vec<String>,
+    pub jti: String,
 }
 
 /// Branch filter injected by the branch-scoping middleware.
@@ -108,6 +109,7 @@ pub async fn jwt_middleware(mut req: Request, next: Next) -> Result<Response, Ap
         branch_id: claims.branch_id,
         is_company_wide: claims.is_company_wide,
         permissions: claims.permissions.clone(),
+        jti: claims.jti.clone(),
     };
 
     req.extensions_mut().insert(user_ctx);

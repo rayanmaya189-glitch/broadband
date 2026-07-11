@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use sea_orm::{DatabaseConnection, SqlxPostgresConnector, EntityTrait};
+    use sea_orm::{SqlxPostgresConnector, EntityTrait};
     use crate::modules::notification::model::notification_entity::Entity as NotificationEntity;
     use crate::modules::notification::repository::notification_repository::NotificationRepository;
     use crate::common::test_utils::{setup_notifications_schema, insert_test_notification};

@@ -179,6 +179,46 @@ impl<'a> TicketRepository<'a> {
             .all(self.db).await?)
     }
 
+    // ──── Dashboard Stats ────
+
+    /// Count of open tickets that are past expected SLA (created > 24h and not resolved/closed)
+    pub async fn count_overdue(&self) -> Result<i64, AppError> {
+        let cutoff = chrono::Utc::now() - chrono::Duration::hours(24);
+        let count = ticket_entity::Entity::find()
+            .filter(ticket_entity::Column::Status.is_not_in(vec!["resolved", "closed"]))
+            .filter(ticket_entity::Column::CreatedAt.lt(cutoff))
+            .count(self.db).await? as i64;
+        Ok(count)
+    }
+
+    /// Count of tickets grouped by priority
+    pub async fn count_by_priority(&self) -> Result<Vec<(String, i64)>, AppError> {
+        let rows: Vec<ticket_entity::Model> = ticket_entity::Entity::find()
+            .filter(ticket_entity::Column::Status.is_not_in(vec!["resolved", "closed"]))
+            .all(self.db).await?;
+        let mut counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for row in &rows {
+            *counts.entry(row.priority.clone()).or_default() += 1;
+        }
+        let mut result: Vec<(String, i64)> = counts.into_iter().collect();
+        result.sort_by(|a, b| b.1.cmp(&a.1));
+        Ok(result)
+    }
+
+    /// Count of tickets grouped by category
+    pub async fn count_by_category(&self) -> Result<Vec<(String, i64)>, AppError> {
+        let rows: Vec<ticket_entity::Model> = ticket_entity::Entity::find()
+            .filter(ticket_entity::Column::Status.is_not_in(vec!["resolved", "closed"]))
+            .all(self.db).await?;
+        let mut counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for row in &rows {
+            *counts.entry(row.category.clone()).or_default() += 1;
+        }
+        let mut result: Vec<(String, i64)> = counts.into_iter().collect();
+        result.sort_by(|a, b| b.1.cmp(&a.1));
+        Ok(result)
+    }
+
     // ──── Status History ────
 
     pub async fn create_status_history(&self, ticket_id: i64, old_status: Option<&str>, new_status: &str, changed_by: i64, reason: Option<&str>) -> Result<TicketStatusHistoryModel, AppError> {
