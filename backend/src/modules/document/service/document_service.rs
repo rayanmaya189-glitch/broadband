@@ -62,7 +62,8 @@ impl<'a> DocumentService<'a> {
         Ok(MessageResponse { message: "Document deleted".into() })
     }
 
-    pub async fn confirm_upload(&self, id: i64, _file_hash: Option<&str>, _storage_url: Option<&str>) -> Result<DocumentFileResponse, AppError> {
+    pub async fn confirm_upload(&self, id: i64, file_hash: Option<&str>, storage_url: Option<&str>) -> Result<DocumentFileResponse, AppError> {
+        self.repo.confirm_upload(id, file_hash, storage_url).await?;
         self.get_by_id(id).await
     }
 
@@ -71,7 +72,13 @@ impl<'a> DocumentService<'a> {
         self.get_by_id(id).await
     }
 
-    pub async fn get_access_logs(&self, _id: i64) -> Result<serde_json::Value, AppError> {
-        Ok(serde_json::json!({ "logs": [] }))
+    pub async fn get_access_logs(&self, id: i64) -> Result<serde_json::Value, AppError> {
+        let logs = self.repo.get_access_logs(id).await?;
+        let items: Vec<serde_json::Value> = logs.into_iter().map(|l| serde_json::json!({
+            "id": l.id, "document_id": l.document_id, "accessed_by": l.accessed_by,
+            "access_type": l.access_type, "ip_address": l.ip_address,
+            "accessed_at": l.accessed_at,
+        })).collect();
+        Ok(serde_json::json!({ "logs": items, "total": items.len() }))
     }
 }
