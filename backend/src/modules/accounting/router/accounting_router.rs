@@ -14,8 +14,9 @@ pub fn accounting_routes() -> Router<SharedState> {
         .route("/profit-loss", get(accounting_controller::profit_loss))
         .route("/balance-sheet", get(accounting_controller::balance_sheet))
         .route("/cash-flow", get(accounting_controller::cash_flow))
-        .route("/gst/:return_type", get(accounting_controller::gst_return_data))
+        // Literal routes MUST come before parameterized routes (axum greedy matching)
         .route("/gst/gstr1", get(accounting_controller::gstr1))
         .route("/gst/gstr3b", get(accounting_controller::gstr3b))
+        .route("/gst/:return_type", get(accounting_controller::gst_return_data))
         .layer(middleware::from_fn(jwt_middleware))
 }
