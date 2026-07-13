@@ -371,6 +371,8 @@ impl BillingRepository {
     }
 
     // ──── Branch & Customer State Helpers ────
+    // NOTE: get_branch_state and get_branch_gstin are in accounting_repository.rs
+    // to avoid duplication. Billing service accesses them via the accounting repo.
 
     pub async fn get_branch_state(&self, branch_id: i64) -> Result<Option<String>, AppError> {
         use crate::modules::branch::model::branch_entity;
