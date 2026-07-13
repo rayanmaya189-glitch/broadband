@@ -2,8 +2,8 @@
 //! Zero plain SQL — all queries use EntityTrait, ActiveModelTrait, and Select.
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, EntityTrait,
-    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set, Statement,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
+    IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -141,108 +141,234 @@ impl<'a> AccountingRepository<'a> {
     // ── Trial Balance ──────────────────────────────────────
 
     pub async fn generate_trial_balance(&self, period_start: NaiveDate, period_end: NaiveDate) -> Result<Vec<TrialBalanceModel>, AppError> {
-        // For complex aggregation queries, we use sea_orm's raw query with bound parameters
-        let stmt = Statement::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            "INSERT INTO trial_balances (period_start, period_end, account_id, total_debit, total_credit, closing_balance)
-             SELECT $1, $2, coa.id,
-                COALESCE(SUM(jel.debit), 0),
-                COALESCE(SUM(jel.credit), 0),
-                COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0)
-             FROM chart_of_accounts coa
-             LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-             LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.status = 'posted' AND je.entry_date BETWEEN $1 AND $2
-             WHERE coa.is_active = true
-             GROUP BY coa.id
-             HAVING COALESCE(SUM(jel.debit), 0) > 0 OR COALESCE(SUM(jel.credit), 0) > 0
-             ON CONFLICT (period_start, period_end, account_id) DO UPDATE SET
-                total_debit = EXCLUDED.total_debit,
-                total_credit = EXCLUDED.total_credit,
-                closing_balance = EXCLUDED.closing_balance,
-                generated_at = NOW()
-             RETURNING *",
-            vec![period_start.into(), period_end.into()],
-        );
-        let results = trial_balance_entity::Entity::find()
-            .from_raw_sql(stmt)
+        use std::collections::HashMap;
+
+        // 1. Fetch all active accounts
+        let accounts = chart_of_account_entity::Entity::find()
+            .filter(chart_of_account_entity::Column::IsActive.eq(true))
             .all(self.db).await?;
-        Ok(results)
-    }
 
-    /// Get account balances aggregated by account type for financial statements.
-    /// Returns account_id, code, name, type, total_debit, total_credit.
-    pub async fn get_account_balances_by_type(&self, period_start: NaiveDate, period_end: NaiveDate) -> Result<Vec<AccountBalanceRow>, AppError> {
-        let sql = "SELECT
-                coa.id AS account_id,
-                coa.code AS account_code,
-                coa.name AS account_name,
-                coa.account_type AS account_type,
-                COALESCE(SUM(jel.debit), 0) AS total_debit,
-                COALESCE(SUM(jel.credit), 0) AS total_credit
-             FROM chart_of_accounts coa
-             LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-             LEFT JOIN journal_entries je
-                ON je.id = jel.journal_entry_id
-                AND je.status = 'posted'
-                AND je.entry_date BETWEEN $1 AND $2
-             WHERE coa.is_active = true
-             GROUP BY coa.id, coa.code, coa.name, coa.account_type
-             HAVING COALESCE(SUM(jel.debit), 0) != 0 OR COALESCE(SUM(jel.credit), 0) != 0
-             ORDER BY coa.code";
+        // 2. Fetch all posted journal entries in the period
+        let posted_entries = journal_entry_entity::Entity::find()
+            .filter(journal_entry_entity::Column::Status.eq("posted"))
+            .filter(journal_entry_entity::Column::EntryDate.gte(period_start))
+            .filter(journal_entry_entity::Column::EntryDate.lte(period_end))
+            .all(self.db).await?;
+        let posted_entry_ids: Vec<i64> = posted_entries.iter().map(|e| e.id).collect();
 
-        let stmt = Statement::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            sql,
-            vec![period_start.into(), period_end.into()],
-        );
-        let rows = self.db.query_all(stmt).await?;
+        // 3. Fetch journal entry lines for those entries
+        let lines = if posted_entry_ids.is_empty() {
+            Vec::new()
+        } else {
+            journal_entry_line_entity::Entity::find()
+                .filter(journal_entry_line_entity::Column::JournalEntryId.is_in(posted_entry_ids))
+                .all(self.db).await?
+        };
+
+        // 4. Aggregate debit/credit per account
+        let mut balances: HashMap<i64, (Decimal, Decimal)> = HashMap::new();
+        for line in &lines {
+            let entry = balances.entry(line.account_id).or_insert((Decimal::ZERO, Decimal::ZERO));
+            entry.0 += line.debit;
+            entry.1 += line.credit;
+        }
+
+        // 5. Insert or update trial balance rows (only accounts with activity)
         let mut results = Vec::new();
-        for row in rows {
-            let account_id: i64 = row.try_get("", "account_id")?;
-            let account_code: String = row.try_get("", "account_code")?;
-            let account_name: String = row.try_get("", "account_name")?;
-            let account_type: String = row.try_get("", "account_type")?;
-            let total_debit: Decimal = row.try_get("", "total_debit")?;
-            let total_credit: Decimal = row.try_get("", "total_credit")?;
-            results.push(AccountBalanceRow {
-                account_id, account_code, account_name, account_type,
-                total_debit, total_credit,
-            });
+        let now = chrono::Utc::now();
+        for account in &accounts {
+            if let Some((total_debit, total_credit)) = balances.get(&account.id) {
+                let closing_balance = total_debit - total_credit;
+                // Upsert: check if row exists
+                let existing = trial_balance_entity::Entity::find()
+                    .filter(trial_balance_entity::Column::PeriodStart.eq(period_start))
+                    .filter(trial_balance_entity::Column::PeriodEnd.eq(period_end))
+                    .filter(trial_balance_entity::Column::AccountId.eq(account.id))
+                    .one(self.db).await?;
+
+                match existing {
+                    Some(tb) => {
+                        let mut active = tb.into_active_model();
+                        active.total_debit = Set(*total_debit);
+                        active.total_credit = Set(*total_credit);
+                        active.closing_balance = Set(closing_balance);
+                        active.generated_at = Set(now.into());
+                        let updated = active.update(self.db).await?;
+                        results.push(updated);
+                    }
+                    None => {
+                        let active = trial_balance_entity::ActiveModel {
+                            period_start: Set(period_start),
+                            period_end: Set(period_end),
+                            account_id: Set(account.id),
+                            opening_balance: Set(Decimal::ZERO),
+                            total_debit: Set(*total_debit),
+                            total_credit: Set(*total_credit),
+                            closing_balance: Set(closing_balance),
+                            generated_at: Set(now.into()),
+                            ..Default::default()
+                        };
+                        let inserted = active.insert(self.db).await?;
+                        results.push(inserted);
+                    }
+                }
+            }
         }
         Ok(results)
     }
 
-    /// Get GST invoice data for a given month/year.
-    pub async fn get_gst_invoices(&self, month: i32, year: i32) -> Result<Vec<(String, Option<String>, Decimal, Decimal, Decimal, Decimal)>, AppError> {
-        let sql = "SELECT
-                i.invoice_number AS invoice_number,
-                c.gstin AS customer_gstin,
-                i.taxable_value AS taxable_value,
-                i.cgst_amount AS cgst,
-                i.sgst_amount AS sgst,
-                i.igst_amount AS igst
-             FROM invoices i
-             JOIN customers c ON i.customer_id = c.id
-             WHERE EXTRACT(MONTH FROM i.billing_period_start) = $1
-               AND EXTRACT(YEAR FROM i.billing_period_start) = $2
-               AND i.status = 'paid'
-             ORDER BY i.invoice_number";
+    /// Get account balances aggregated by account type for financial statements.
+    /// Uses pure SeaORM queries with application-level aggregation.
+    pub async fn get_account_balances_by_type(&self, period_start: NaiveDate, period_end: NaiveDate) -> Result<Vec<AccountBalanceRow>, AppError> {
+        use std::collections::HashMap;
 
-        let stmt = Statement::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            sql,
-            vec![month.into(), year.into()],
-        );
-        let rows = self.db.query_all(stmt).await?;
+        // 1. Fetch all active accounts
+        let accounts = chart_of_account_entity::Entity::find()
+            .filter(chart_of_account_entity::Column::IsActive.eq(true))
+            .all(self.db).await?;
+
+        // 2. Fetch posted journal entry IDs in the date range
+        let posted_entries = journal_entry_entity::Entity::find()
+            .filter(journal_entry_entity::Column::Status.eq("posted"))
+            .filter(journal_entry_entity::Column::EntryDate.gte(period_start))
+            .filter(journal_entry_entity::Column::EntryDate.lte(period_end))
+            .all(self.db).await?;
+        let posted_entry_ids: Vec<i64> = posted_entries.iter().map(|e| e.id).collect();
+
+        // 3. Fetch journal entry lines for those entries
+        let lines = if posted_entry_ids.is_empty() {
+            Vec::new()
+        } else {
+            journal_entry_line_entity::Entity::find()
+                .filter(journal_entry_line_entity::Column::JournalEntryId.is_in(posted_entry_ids))
+                .all(self.db).await?
+        };
+
+        // 4. Aggregate debit/credit per account
+        let mut balances: HashMap<i64, (Decimal, Decimal)> = HashMap::new();
+        for line in &lines {
+            let entry = balances.entry(line.account_id).or_insert((Decimal::ZERO, Decimal::ZERO));
+            entry.0 += line.debit;
+            entry.1 += line.credit;
+        }
+
+        // 5. Build results — only accounts with non-zero activity
         let mut results = Vec::new();
-        for row in rows {
-            let invoice_number: String = row.try_get("", "invoice_number")?;
-            let customer_gstin: Option<String> = row.try_get("", "customer_gstin").ok();
-            let taxable_value: Decimal = row.try_get("", "taxable_value")?;
-            let cgst: Decimal = row.try_get("", "cgst")?;
-            let sgst: Decimal = row.try_get("", "sgst")?;
-            let igst: Decimal = row.try_get("", "igst")?;
-            results.push((invoice_number, customer_gstin, taxable_value, cgst, sgst, igst));
+        for account in &accounts {
+            if let Some((total_debit, total_credit)) = balances.get(&account.id) {
+                if *total_debit != Decimal::ZERO || *total_credit != Decimal::ZERO {
+                    results.push(AccountBalanceRow {
+                        account_id: account.id,
+                        account_code: account.code.clone(),
+                        account_name: account.name.clone(),
+                        account_type: account.account_type.clone(),
+                        total_debit: *total_debit,
+                        total_credit: *total_credit,
+                    });
+                }
+            }
+        }
+        results.sort_by(|a, b| a.account_code.cmp(&b.account_code));
+        Ok(results)
+    }
+
+    /// Get GST invoice data for a given month/year using pure SeaORM.
+    // ── Branch & Customer Helpers ─────────────────────────
+
+    pub async fn get_branch_state(&self, branch_id: i64) -> Result<Option<String>, AppError> {
+        use crate::modules::branch::model::branch_entity;
+        let branch = branch_entity::Entity::find_by_id(branch_id)
+            .one(self.db).await?;
+        Ok(branch.and_then(|b| b.state))
+    }
+
+    pub async fn get_branch_gstin(&self, branch_id: i64) -> Option<String> {
+        use crate::modules::branch::model::branch_entity;
+        branch_entity::Entity::find_by_id(branch_id)
+            .one(self.db).await
+            .ok()
+            .flatten()
+            .and_then(|b| b.gstin)
+    }
+
+    /// Get customer name by ID.
+    pub async fn get_customer_name(&self, customer_id: i64) -> Result<String, AppError> {
+        use crate::modules::customer::model::customer_entity;
+        let c = customer_entity::Entity::find_by_id(customer_id)
+            .one(self.db).await?;
+        Ok(c.map(|c| format!("{} {}", c.first_name, c.last_name.unwrap_or_default()))
+            .unwrap_or_else(|| "Unknown".to_string()))
+    }
+
+    /// Get customer GSTIN from profile.
+    pub async fn get_customer_gstin(&self, customer_id: i64) -> Result<Option<String>, AppError> {
+        use crate::modules::customer::model::customer_profile_entity;
+        let p = customer_profile_entity::Entity::find()
+            .filter(customer_profile_entity::Column::CustomerId.eq(customer_id))
+            .one(self.db).await?;
+        Ok(p.and_then(|p| p.gstin))
+    }
+
+    /// Fetch paid invoices for a month/year range.
+    pub async fn get_paid_invoices_for_period(&self, month: i32, year: i32) -> Result<Vec<crate::modules::billing::model::invoice_entity::Model>, AppError> {
+        use crate::modules::billing::model::invoice_entity;
+        use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month as u32, 1)
+            .ok_or_else(|| AppError::Validation("Invalid month/year".into()))?;
+        let end_date = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
+        }
+        .ok_or_else(|| AppError::Validation("Invalid month/year".into()))?;
+        let invoices = invoice_entity::Entity::find()
+            .filter(invoice_entity::Column::Status.eq("paid"))
+            .filter(invoice_entity::Column::BillingPeriodStart.gte(start_date))
+            .filter(invoice_entity::Column::BillingPeriodStart.lt(end_date))
+            .order_by_asc(invoice_entity::Column::InvoiceNumber)
+            .all(self.db).await?;
+        Ok(invoices)
+    }
+
+    /// Get GST invoice data for a given month/year using pure SeaORM.
+    pub async fn get_gst_invoices(&self, month: i32, year: i32) -> Result<Vec<(String, Option<String>, Decimal, Decimal, Decimal, Decimal)>, AppError> {
+        use crate::modules::billing::model::invoice_entity;
+
+        // Calculate date range for the month
+        let start_date = chrono::NaiveDate::from_ymd_opt(year, month as u32, 1)
+            .ok_or_else(|| AppError::Validation("Invalid month/year".into()))?;
+        let end_date = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
+        }
+        .ok_or_else(|| AppError::Validation("Invalid month/year".into()))?;
+
+        // Query paid invoices in the date range
+        let invoices = invoice_entity::Entity::find()
+            .filter(invoice_entity::Column::Status.eq("paid"))
+            .filter(invoice_entity::Column::BillingPeriodStart.gte(start_date))
+            .filter(invoice_entity::Column::BillingPeriodStart.lt(end_date))
+            .order_by_asc(invoice_entity::Column::InvoiceNumber)
+            .all(self.db).await?;
+
+        let mut results = Vec::new();
+        for inv in invoices {
+            // Fetch customer profile for GSTIN
+            let profile = crate::modules::customer::model::customer_profile_entity::Entity::find()
+                .filter(crate::modules::customer::model::customer_profile_entity::Column::CustomerId.eq(inv.customer_id))
+                .one(self.db).await?;
+            let customer_gstin = profile.and_then(|p| p.gstin);
+
+            // Use actual CGST/SGST/IGST columns from invoice
+            results.push((
+                inv.invoice_number,
+                customer_gstin,
+                inv.subtotal,
+                inv.cgst_amount,
+                inv.sgst_amount,
+                inv.igst_amount,
+            ));
         }
         Ok(results)
     }

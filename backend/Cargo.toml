@@ -88,6 +88,12 @@ sha1 = "0.10"
 hmac = "0.12"
 base64 = "0.22"
 
+# HTTP client (Telegram Bot, WhatsApp Business API)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Email (SMTP delivery)
+lettre = { version = "0.11", features = ["tokio1-native-tls"] }
+
 [dev-dependencies]
 tokio-test = "0.4"
 tower = { version = "0.5", features = ["util"] }

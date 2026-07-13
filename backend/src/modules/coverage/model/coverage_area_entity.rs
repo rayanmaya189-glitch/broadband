@@ -22,6 +22,15 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::coverage_pincode_entity::Entity")]
+    Pincode,
+}
+
+impl Related<super::coverage_pincode_entity::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Pincode.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

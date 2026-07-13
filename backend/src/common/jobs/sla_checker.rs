@@ -1,14 +1,23 @@
+//! SLA breach checker — auto-escalates tickets past their SLA deadline.
+//!
+//! Converted from raw sqlx to SeaORM for consistency with the rest of the codebase.
+
 use std::time::Duration;
 
-use sqlx::FromRow;
+use sea_orm::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn, error};
 
 use crate::app::SharedState;
+use crate::modules::ticket::model::ticket_entity::{self, Entity as TicketEntity};
+use crate::modules::ticket::model::ticket_escalation_entity::{self};
+use crate::modules::ticket::model::ticket_status_history_entity::{self};
+use crate::modules::role::model::role_entity::{self, Entity as RoleEntity};
+use crate::modules::role::model::user_role_entity::{self, Entity as UserRoleEntity};
 
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 300;
 
-fn escalation_target(priority: &str) -> Option<&str> {
+fn escalation_target(priority: &str) -> Option<&'static str> {
     match priority {
         "low" => Some("medium"),
         "medium" => Some("high"),
@@ -18,115 +27,167 @@ fn escalation_target(priority: &str) -> Option<&str> {
     }
 }
 
+/// Find tickets whose SLA resolution deadline has passed.
 async fn find_sla_breached_tickets(
-    conn: &mut sqlx::PgConnection,
-) -> Result<Vec<SLABreachedTicket>, sqlx::Error> {
-    sqlx::query_as::<_, SLABreachedTicket>(
-        "SELECT id, ticket_number, priority, status, assigned_to, sla_resolution_at
-         FROM tickets
-         WHERE status IN ('open', 'assigned', 'in_progress')
-           AND sla_resolution_at IS NOT NULL
-           AND sla_resolution_at < NOW()
-         ORDER BY sla_resolution_at ASC
-         LIMIT 100",
-    )
-    .fetch_all(&mut *conn)
-    .await
+    db: &DatabaseConnection,
+) -> Result<Vec<ticket_entity::Model>, DbErr> {
+    let now = chrono::Utc::now();
+    let statuses = vec!["open".to_string(), "assigned".to_string(), "in_progress".to_string()];
+
+    TicketEntity::find()
+        .filter(ticket_entity::Column::Status.is_in(statuses))
+        .filter(ticket_entity::Column::SlaResolutionAt.is_not_null())
+        .filter(ticket_entity::Column::SlaResolutionAt.lt(now))
+        .order_by_asc(ticket_entity::Column::SlaResolutionAt)
+        .limit(100)
+        .all(db)
+        .await
 }
 
-async fn auto_escalate_ticket(
-    conn: &mut sqlx::PgConnection,
-    ticket: &SLABreachedTicket,
-) -> Result<(), sqlx::Error> {
-    let escalate_to = find_escalation_target_user(conn, ticket.assigned_to).await;
-    let new_priority = escalation_target(&ticket.priority).map(|s| s.to_string());
+/// Find the best escalation target: a user with noc_engineer/network_admin/admin/super_admin role
+/// who has the fewest open tickets.
+async fn find_escalation_target_user(
+    db: &DatabaseConnection,
+    assigned_to: Option<i64>,
+) -> i64 {
+    let eligible_roles = vec![
+        "noc_engineer".to_string(),
+        "network_admin".to_string(),
+        "admin".to_string(),
+        "super_admin".to_string(),
+    ];
 
-    let result = sqlx::query(
-        "UPDATE tickets
-         SET escalated_to = $2, priority = COALESCE($3, priority),
-             escalated_at = NOW(), status = 'escalated', updated_at = NOW()
-         WHERE id = $1",
-    )
-    .bind(ticket.id)
-    .bind(escalate_to)
-    .bind(new_priority.as_deref())
-    .execute(&mut *conn)
-    .await?;
+    let eligible_role_ids: Vec<i64> = match RoleEntity::find()
+        .filter(role_entity::Column::Name.is_in(eligible_roles))
+        .all(db)
+        .await
+    {
+        Ok(roles) => roles.into_iter().map(|r| r.id).collect(),
+        Err(_) => return 1,
+    };
 
-    if result.rows_affected() == 0 {
-        return Ok(());
+    if eligible_role_ids.is_empty() {
+        return 1;
     }
 
-    sqlx::query(
-        "INSERT INTO ticket_escalations (ticket_id, from_user_id, to_user_id, from_priority, to_priority, reason)
-         VALUES ($1, $2, $3, $4, $5, $6)",
-    )
-    .bind(ticket.id)
-    .bind(1i64)
-    .bind(escalate_to)
-    .bind(&ticket.priority)
-    .bind(new_priority.as_deref())
-    .bind(format!("Auto-escalated: SLA breach at {}", ticket.sla_resolution_at.map(|t| t.to_rfc3339()).unwrap_or_default()))
-    .execute(&mut *conn)
-    .await?;
+    let mut user_select = UserRoleEntity::find()
+        .filter(user_role_entity::Column::RoleId.is_in(eligible_role_ids.clone()))
+        .filter(user_role_entity::Column::IsActive.eq(true));
 
-    sqlx::query(
-        "INSERT INTO ticket_status_history (ticket_id, old_status, new_status, changed_by, reason)
-         VALUES ($1, $2, 'escalated', 1, $3)",
-    )
-    .bind(ticket.id)
-    .bind(&ticket.status)
-    .bind(format!("Auto-escalated due to SLA breach (deadline: {})", ticket.sla_resolution_at.map(|t| t.to_rfc3339()).unwrap_or_default()))
-    .execute(&mut *conn)
-    .await?;
+    if let Some(uid) = assigned_to {
+        user_select = user_select.filter(user_role_entity::Column::UserId.ne(uid));
+    }
 
-    info!(ticket_id = ticket.id, ticket_number = %ticket.ticket_number, "Ticket auto-escalated due to SLA breach");
+    let user_roles = match user_select.all(db).await {
+        Ok(ur) => ur,
+        Err(_) => return 1,
+    };
+
+    let candidate_ids: Vec<i64> = user_roles.into_iter().map(|ur| ur.user_id).collect();
+
+    if candidate_ids.is_empty() {
+        return 1;
+    }
+
+    let mut best_id = candidate_ids[0];
+    let mut best_count = i64::MAX;
+
+    for user_id in &candidate_ids {
+        let count = TicketEntity::find()
+            .filter(ticket_entity::Column::AssignedTo.eq(*user_id))
+            .filter(ticket_entity::Column::Status.is_not_in(vec![
+                "resolved".to_string(),
+                "closed".to_string(),
+            ]))
+            .count(db)
+            .await
+            .unwrap_or(0) as i64;
+
+        if count < best_count {
+            best_count = count;
+            best_id = *user_id;
+        }
+    }
+
+    best_id
+}
+
+/// Escalate a single ticket: update ticket, create escalation record, add status history.
+async fn auto_escalate_ticket(
+    db: &DatabaseConnection,
+    ticket: &ticket_entity::Model,
+) -> Result<(), DbErr> {
+    let escalate_to = find_escalation_target_user(db, ticket.assigned_to).await;
+    let new_priority = escalation_target(&ticket.priority);
+
+    let now = chrono::Utc::now();
+    let mut ticket_active: ticket_entity::ActiveModel = ticket.clone().into();
+    ticket_active.escalated_to = Set(Some(escalate_to));
+    if let Some(p) = new_priority {
+        ticket_active.priority = Set(p.to_string());
+    }
+    ticket_active.status = Set("escalated".to_string());
+    ticket_active.updated_at = Set(now.into());
+    ticket_active.update(db).await?;
+
+    let escalation_active = ticket_escalation_entity::ActiveModel {
+        ticket_id: Set(ticket.id),
+        from_user_id: Set(ticket.assigned_to.unwrap_or(1)),
+        to_user_id: Set(escalate_to),
+        from_priority: Set(Some(ticket.priority.clone())),
+        to_priority: Set(new_priority.map(|s| s.to_string())),
+        reason: Set(format!(
+            "Auto-escalated: SLA breach at {}",
+            ticket.sla_resolution_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default()
+        )),
+        escalated_at: Set(now.into()),
+        ..Default::default()
+    };
+    escalation_active.insert(db).await?;
+
+    let history_active = ticket_status_history_entity::ActiveModel {
+        ticket_id: Set(ticket.id),
+        old_status: Set(Some(ticket.status.clone())),
+        new_status: Set("escalated".to_string()),
+        changed_by: Set(1),
+        reason: Set(Some(format!(
+            "Auto-escalated due to SLA breach (deadline: {})",
+            ticket.sla_resolution_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default()
+        ))),
+        ..Default::default()
+    };
+    history_active.insert(db).await?;
+
+    info!(
+        ticket_id = ticket.id,
+        ticket_number = %ticket.ticket_number,
+        "Ticket auto-escalated due to SLA breach"
+    );
     Ok(())
-}
-
-async fn find_escalation_target_user(conn: &mut sqlx::PgConnection, assigned_to: Option<i64>) -> i64 {
-    let result: Option<(i64,)> = sqlx::query_as(
-        "SELECT u.id FROM users u
-         JOIN user_roles ur ON ur.user_id = u.id
-         JOIN roles r ON r.id = ur.role_id
-         WHERE r.name IN ('noc_engineer', 'network_admin', 'admin', 'super_admin')
-           AND u.is_active = true AND u.id != COALESCE($1, 0)
-         ORDER BY (SELECT COUNT(*) FROM tickets t WHERE t.assigned_to = u.id AND t.status NOT IN ('resolved', 'closed')) ASC, u.id ASC
-         LIMIT 1",
-    )
-    .bind(assigned_to)
-    .fetch_optional(&mut *conn)
-    .await
-    .ok()
-    .flatten();
-
-    result.map(|r| r.0).unwrap_or(1)
-}
-
-#[derive(Debug, FromRow)]
-struct SLABreachedTicket {
-    id: i64,
-    ticket_number: String,
-    priority: String,
-    status: String,
-    assigned_to: Option<i64>,
-    sla_resolution_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub async fn run_sla_checker(state: SharedState, token: CancellationToken) {
     let interval_secs = std::env::var("SLA_CHECK_INTERVAL_SECS")
-        .ok().and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_CHECK_INTERVAL_SECS);
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_CHECK_INTERVAL_SECS);
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
     info!(interval_secs = interval_secs, "SLA breach checker background job started");
 
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                let mut tx = match super::rls_bypass::begin_bypass_transaction(&state.db).await {
-                    Ok(t) => t,
-                    Err(e) => { warn!(error = %e, "Failed to begin RLS bypass transaction"); continue; }
-                };
-                match find_sla_breached_tickets(&mut tx).await {
+                // Set RLS bypass for background job queries
+                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                    warn!(error = %e, "Failed to set RLS bypass context");
+                    continue;
+                }
+
+                match find_sla_breached_tickets(&state.db_seaorm).await {
                     Ok(tickets) if tickets.is_empty() => {}
                     Ok(tickets) => {
                         let count = tickets.len();
@@ -134,18 +195,23 @@ pub async fn run_sla_checker(state: SharedState, token: CancellationToken) {
                         let mut escalated = 0u64;
                         let mut failed = 0u64;
                         for ticket in &tickets {
-                            match auto_escalate_ticket(&mut tx, ticket).await {
+                            match auto_escalate_ticket(&state.db_seaorm, ticket).await {
                                 Ok(()) => escalated += 1,
-                                Err(e) => { failed += 1; warn!(ticket_id = ticket.id, error = %e, "Failed to auto-escalate ticket"); }
+                                Err(e) => {
+                                    failed += 1;
+                                    warn!(ticket_id = ticket.id, error = %e, "Failed to auto-escalate ticket");
+                                }
                             }
                         }
                         info!(total = count, escalated = escalated, failed = failed, "SLA checker batch complete");
                     }
                     Err(e) => error!(error = %e, "Failed to query SLA-breached tickets"),
                 }
-                if let Err(e) = tx.commit().await { error!(error = %e, "Failed to commit RLS bypass transaction"); }
             }
-            _ = token.cancelled() => { info!("SLA breach checker shutting down gracefully"); break; }
+            _ = token.cancelled() => {
+                info!("SLA breach checker shutting down gracefully");
+                break;
+            }
         }
     }
 }

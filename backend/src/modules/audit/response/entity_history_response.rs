@@ -34,6 +34,15 @@ pub struct EntityHistoryStatsResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RollbackResponse {
+    pub history_id: i64,
+    pub entity_type: String,
+    pub entity_id: i64,
+    pub restored_from: i64,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
 }

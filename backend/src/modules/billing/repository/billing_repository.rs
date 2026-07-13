@@ -69,6 +69,9 @@ impl BillingRepository {
         subtotal: rust_decimal::Decimal,
         discount: rust_decimal::Decimal,
         tax: rust_decimal::Decimal,
+        cgst: rust_decimal::Decimal,
+        sgst: rust_decimal::Decimal,
+        igst: rust_decimal::Decimal,
         total: rust_decimal::Decimal,
         due_date: chrono::NaiveDate,
         notes: Option<&str>,
@@ -83,6 +86,9 @@ impl BillingRepository {
             subtotal: Set(subtotal),
             discount_amount: Set(discount),
             tax_amount: Set(tax),
+            cgst_amount: Set(cgst),
+            sgst_amount: Set(sgst),
+            igst_amount: Set(igst),
             total_amount: Set(total),
             due_date: Set(due_date),
             notes: Set(notes.map(|s| s.to_string())),
@@ -362,6 +368,53 @@ impl BillingRepository {
         };
         let model = active.insert(&self.db).await?;
         Ok(model)
+    }
+
+    // ──── Branch & Customer State Helpers ────
+
+    pub async fn get_branch_state(&self, branch_id: i64) -> Result<Option<String>, AppError> {
+        use crate::modules::branch::model::branch_entity;
+        let branch = branch_entity::Entity::find_by_id(branch_id)
+            .one(&self.db).await?;
+        Ok(branch.and_then(|b| b.state))
+    }
+
+    pub async fn get_branch_gstin(&self, branch_id: i64) -> Option<String> {
+        use crate::modules::branch::model::branch_entity;
+        branch_entity::Entity::find_by_id(branch_id)
+            .one(&self.db).await
+            .ok()
+            .flatten()
+            .and_then(|b| b.gstin)
+    }
+
+    pub async fn get_customer_state(&self, customer_id: i64) -> Result<Option<String>, AppError> {
+        use crate::modules::customer::model::customer_address_entity;
+        use crate::modules::customer::model::customer_profile_entity;
+        use crate::modules::billing::utils::gst::extract_state_from_gstin;
+
+        // 1. Try primary address first (most reliable)
+        let addr = customer_address_entity::Entity::find()
+            .filter(customer_address_entity::Column::CustomerId.eq(customer_id))
+            .filter(customer_address_entity::Column::IsPrimary.eq(true))
+            .one(&self.db).await?;
+        if let Some(a) = addr {
+            return Ok(Some(a.state));
+        }
+
+        // 2. Fallback: extract state from customer's GSTIN
+        let profile = customer_profile_entity::Entity::find()
+            .filter(customer_profile_entity::Column::CustomerId.eq(customer_id))
+            .one(&self.db).await?;
+        if let Some(p) = profile {
+            if let Some(gstin) = &p.gstin {
+                if let Some(state_code) = extract_state_from_gstin(gstin) {
+                    return Ok(Some(state_code));
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     // ──── Billing Config (Dunning & Tax) ────

@@ -14,6 +14,7 @@ pub struct Model {
     pub pincode: Option<String>,
     pub phone: Option<String>,
     pub email: Option<String>,
+    pub gstin: Option<String>,
     pub is_active: bool,
     pub timezone: String,
     pub created_at: DateTimeWithTimeZone,

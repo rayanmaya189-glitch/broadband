@@ -7,3 +7,4 @@ pub mod response;
 pub mod repository;
 pub mod service;
 pub mod router;
+pub mod utils;

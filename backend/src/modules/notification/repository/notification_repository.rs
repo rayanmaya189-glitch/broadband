@@ -1,8 +1,8 @@
 //! SeaORM-based repository for the Notification domain.
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection,
-    EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set, Statement,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection,
+    EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use chrono::{DateTime, Utc};
 
@@ -154,8 +154,12 @@ impl<'a> NotificationRepository<'a> {
         }
     }
 
-    /// Query notification history via raw SQL (no dedicated entity for this table).
-    /// Derives history events from the notifications table itself.
+    /// Query notification history using pure SeaORM queries with app-level combination.
+    ///
+    /// Derives history events from the notifications table:
+    /// - Every notification produces a 'created' event
+    /// - Notifications with status in (sent, delivered, failed) also produce a 'status_changed' event
+    ///
     /// Returns paginated history records with optional notification_id filter.
     pub async fn list_history(
         &self,
@@ -163,72 +167,53 @@ impl<'a> NotificationRepository<'a> {
         page: i64,
         per_page: i64,
     ) -> Result<(Vec<NotificationHistoryRow>, i64), AppError> {
-        let page_size = per_page as u64;
-        let page_num = (page - 1).max(0) as u64;
-        let offset = (page_num * page_size) as i64;
-        let limit = page_size as i64;
+        let status_events = ["sent", "delivered", "failed"];
 
-        // Build parameterized queries with proper binding
-        let (page_sql, page_values, count_sql, count_values) = if let Some(nid) = notification_id {
-            (
-                "SELECT id, notification_id, event, details, recorded_at FROM (
-                    SELECT id, id AS notification_id, 'created' AS event, NULL::jsonb AS details, created_at AS recorded_at FROM notifications
-                    UNION ALL
-                    SELECT id, id AS notification_id, 'status_changed' AS event,
-                           jsonb_build_object('status', status) AS details, created_at AS recorded_at FROM notifications
-                    WHERE status IN ('sent', 'delivered', 'failed')
-                ) h WHERE h.notification_id = $1
-                ORDER BY h.recorded_at DESC LIMIT $2 OFFSET $3",
-                vec![nid.into(), limit.into(), offset.into()],
-                "SELECT COUNT(*) as count FROM (
-                    SELECT 1 FROM notifications WHERE id = $1
-                    UNION ALL
-                    SELECT 1 FROM notifications WHERE id = $1 AND status IN ('sent', 'delivered', 'failed')
-                ) sub",
-                vec![nid.into()],
-            )
-        } else {
-            (
-                "SELECT id, notification_id, event, details, recorded_at FROM (
-                    SELECT id, id AS notification_id, 'created' AS event, NULL::jsonb AS details, created_at AS recorded_at FROM notifications
-                    UNION ALL
-                    SELECT id, id AS notification_id, 'status_changed' AS event,
-                           jsonb_build_object('status', status) AS details, created_at AS recorded_at FROM notifications
-                    WHERE status IN ('sent', 'delivered', 'failed')
-                ) h ORDER BY h.recorded_at DESC LIMIT $1 OFFSET $2",
-                vec![limit.into(), offset.into()],
-                "SELECT COUNT(*) as count FROM (
-                    SELECT 1 FROM notifications
-                    UNION ALL
-                    SELECT 1 FROM notifications WHERE status IN ('sent', 'delivered', 'failed')
-                ) sub",
-                vec![],
-            )
-        };
+        // 1. Fetch relevant notifications using SeaORM
+        let mut select = notification_entity::Entity::find();
+        if let Some(nid) = notification_id {
+            select = select.filter(notification_entity::Column::Id.eq(nid));
+        }
+        let notifications = select
+            .order_by_desc(notification_entity::Column::CreatedAt)
+            .all(self.db).await?;
 
-        // Get total count
-        let count_stmt = Statement::from_sql_and_values(DatabaseBackend::Postgres, count_sql, count_values);
-        let count_rows = self.db.query_all(count_stmt).await?;
-        let total: i64 = count_rows.first()
-            .and_then(|r| r.try_get::<i64>("", "count").ok())
-            .unwrap_or(0);
-
-        // Get page of results
-        let stmt = Statement::from_sql_and_values(DatabaseBackend::Postgres, page_sql, page_values);
-        let rows = self.db.query_all(stmt).await?;
-
-        let mut results = Vec::new();
-        for row in rows {
-            let id: i64 = row.try_get("", "id")?;
-            let nid: i64 = row.try_get("", "notification_id")?;
-            let event: String = row.try_get("", "event")?;
-            let details: Option<serde_json::Value> = row.try_get("", "details").ok();
-            let recorded_at: DateTime<Utc> = row.try_get("", "recorded_at")?;
-            results.push(NotificationHistoryRow {
-                id, notification_id: nid, event, details, recorded_at,
+        // 2. Build history rows in application code (simulates UNION ALL)
+        let mut all_events: Vec<NotificationHistoryRow> = Vec::new();
+        for n in &notifications {
+            // 'created' event for every notification
+            all_events.push(NotificationHistoryRow {
+                id: n.id,
+                notification_id: n.id,
+                event: "created".to_owned(),
+                details: None,
+                recorded_at: n.created_at.into(),
             });
+            // 'status_changed' event for sent/delivered/failed
+            if status_events.contains(&n.status.as_str()) {
+                all_events.push(NotificationHistoryRow {
+                    id: n.id,
+                    notification_id: n.id,
+                    event: "status_changed".to_owned(),
+                    details: Some(serde_json::json!({"status": n.status})),
+                    recorded_at: n.created_at.into(),
+                });
+            }
         }
 
-        Ok((results, total))
+        // 3. Sort by recorded_at descending
+        all_events.sort_by(|a, b| b.recorded_at.cmp(&a.recorded_at));
+
+        // 4. Compute total and paginate
+        let total = all_events.len() as i64;
+        let start = ((page - 1).max(0) as usize) * per_page as usize;
+        let end = (start + per_page as usize).min(all_events.len());
+        let page_events = if start < all_events.len() {
+            all_events[start..end].to_vec()
+        } else {
+            Vec::new()
+        };
+
+        Ok((page_events, total))
     }
 }

@@ -195,7 +195,14 @@ async fn main() {
     tokio::spawn(async move {
         aeraxe_backend::common::jobs::data_cleanup::run_data_cleanup(bg6, t6).await;
     });
-    tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry, partition manager, data cleanup");
+    // Spawn notification delivery orchestrator
+    let t7 = shutdown_token.clone();
+    let db_seaorm = std::sync::Arc::new(state.db_seaorm.clone());
+    tokio::spawn(async move {
+        let orchestrator = aeraxe_backend::modules::notification::delivery::NotificationOrchestrator::new(db_seaorm);
+        orchestrator.run(t7).await;
+    });
+    tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry, partition manager, data cleanup, notification orchestrator");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await

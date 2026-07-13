@@ -17,6 +17,9 @@ pub struct Model {
     pub subtotal: Decimal,
     pub discount_amount: Decimal,
     pub tax_amount: Decimal,
+    pub cgst_amount: Decimal,
+    pub sgst_amount: Decimal,
+    pub igst_amount: Decimal,
     pub total_amount: Decimal,
     pub currency: String,
     pub status: String,
@@ -43,6 +46,13 @@ pub enum Relation {
 
     #[sea_orm(has_many = "super::payment_entity::Entity")]
     Payment,
+
+    #[sea_orm(
+        belongs_to = "crate::modules::customer::model::customer_entity::Entity",
+        from = "Column::CustomerId",
+        to = "crate::modules::customer::model::customer_entity::Column::Id"
+    )]
+    Customer,
 }
 
 impl Related<super::invoice_line_item_entity::Entity> for Entity {
@@ -54,6 +64,12 @@ impl Related<super::invoice_line_item_entity::Entity> for Entity {
 impl Related<super::payment_entity::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Payment.def()
+    }
+}
+
+impl Related<crate::modules::customer::model::customer_entity::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Customer.def()
     }
 }
 

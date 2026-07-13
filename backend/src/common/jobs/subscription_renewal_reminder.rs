@@ -1,80 +1,164 @@
+//! Subscription renewal reminder — sends notifications for subscriptions expiring within 7 days.
+//!
+//! Converted from raw sqlx to SeaORM for consistency.
+
 use std::time::Duration;
 
-use sqlx::FromRow;
+use sea_orm::*;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn, error};
 
 use crate::app::SharedState;
+use crate::modules::subscription::model::subscription_entity::{self, Entity as SubscriptionEntity};
+use crate::modules::customer::model::customer_entity::{self, Entity as CustomerEntity};
+use crate::modules::plan::model::plan_entity::{self, Entity as PlanEntity};
+use crate::modules::notification::model::notification_entity;
+use crate::modules::event::model::event_entity;
 
 const DEFAULT_INTERVAL_SECS: u64 = 86400;
 const REMINDER_DAYS_AHEAD: i32 = 7;
 
-#[derive(Debug, FromRow)]
-struct ExpiringSubscription {
-    id: i64, customer_id: i64, #[allow(dead_code)] plan_id: i64, branch_id: i64,
-    next_billing_date: Option<chrono::NaiveDate>,
-    #[allow(dead_code)] customer_name: String, #[allow(dead_code)] customer_phone: String,
-    plan_name: String, price_monthly: rust_decimal::Decimal,
+/// Find subscriptions that are active, auto-renew, and expiring within the reminder window.
+async fn find_expiring_subscriptions(
+    db: &DatabaseConnection,
+) -> Result<Vec<(subscription_entity::Model, customer_entity::Model, plan_entity::Model)>, DbErr> {
+    let today = chrono::Utc::now().date_naive();
+    let deadline = today + chrono::Duration::days(REMINDER_DAYS_AHEAD as i64);
+
+    let subscriptions = SubscriptionEntity::find()
+        .filter(subscription_entity::Column::Status.eq("active"))
+        .filter(subscription_entity::Column::AutoRenew.eq(true))
+        .filter(subscription_entity::Column::NextBillingDate.is_not_null())
+        .filter(subscription_entity::Column::NextBillingDate.lte(deadline))
+        .filter(subscription_entity::Column::NextBillingDate.gte(today))
+        .order_by_asc(subscription_entity::Column::NextBillingDate)
+        .limit(200)
+        .all(db)
+        .await?;
+
+    let mut results = Vec::new();
+    for sub in subscriptions {
+        let customer = match CustomerEntity::find_by_id(sub.customer_id)
+            .one(db)
+            .await
+        {
+            Ok(Some(c)) => c,
+            _ => continue,
+        };
+
+        let plan = match PlanEntity::find_by_id(sub.plan_id).one(db).await {
+            Ok(Some(p)) => p,
+            _ => continue,
+        };
+
+        results.push((sub, customer, plan));
+    }
+
+    Ok(results)
 }
 
-async fn find_expiring_subscriptions(conn: &mut sqlx::PgConnection) -> Result<Vec<ExpiringSubscription>, sqlx::Error> {
-    sqlx::query_as::<_, ExpiringSubscription>(
-        "SELECT s.id, s.customer_id, s.plan_id, s.branch_id, s.next_billing_date,
-                c.first_name || COALESCE(' ' || c.last_name, '') as customer_name,
-                c.phone as customer_phone, p.name as plan_name, p.price_monthly
-         FROM subscriptions s
-         JOIN customers c ON c.id = s.customer_id AND c.deleted_at IS NULL
-         JOIN plans p ON p.id = s.plan_id
-         WHERE s.status = 'active' AND s.auto_renew = true
-           AND s.next_billing_date IS NOT NULL
-           AND s.next_billing_date <= CURRENT_DATE + INTERVAL '7 days'
-           AND s.next_billing_date >= CURRENT_DATE
-         ORDER BY s.next_billing_date ASC LIMIT 200",
-    ).fetch_all(&mut *conn).await
-}
+/// Record a renewal reminder notification for a subscription.
+async fn record_renewal_reminder(
+    db: &DatabaseConnection,
+    sub: &subscription_entity::Model,
+    customer: &customer_entity::Model,
+    plan: &plan_entity::Model,
+) -> Result<(), DbErr> {
+    let customer_name = format!(
+        "{}{}",
+        customer.first_name,
+        customer
+            .last_name
+            .as_ref()
+            .map(|ln| format!(" {ln}"))
+            .unwrap_or_default()
+    );
 
-async fn record_renewal_reminder(conn: &mut sqlx::PgConnection, sub: &ExpiringSubscription) -> Result<(), sqlx::Error> {
-    if super::notification_dedup::notification_exists_today(&mut *conn, sub.customer_id, "renewal_reminder").await? { return Ok(()); }
-    let message = format!("Renewal reminder: Your {} plan (₹{}/month) renews on {}. Ensure sufficient balance.", sub.plan_name, sub.price_monthly, sub.next_billing_date.map(|d| d.to_string()).unwrap_or_default());
-    sqlx::query("INSERT INTO notifications (customer_id, branch_id, type, channel, title, body, metadata) VALUES ($1, $2, 'renewal_reminder', 'in_app', 'Subscription Renewal Reminder', $3, $4::jsonb)")
-        .bind(sub.customer_id).bind(sub.branch_id).bind(&message)
-        .bind(serde_json::json!({"subscription_id": sub.id, "plan_name": sub.plan_name, "renewal_date": sub.next_billing_date, "amount": sub.price_monthly}))
-        .execute(&mut *conn).await?;
-    sqlx::query("INSERT INTO events (event_type, entity_type, entity_id, payload, branch_id) VALUES ('subscription.renewal_reminder', 'subscription', $1, $2::jsonb, $3)")
-        .bind(sub.id).bind(serde_json::json!({"customer_id": sub.customer_id, "plan_name": sub.plan_name}))
-        .bind(sub.branch_id).execute(&mut *conn).await?;
+    let message = format!(
+        "Renewal reminder: Your {} plan (₹{}/month) renews on {}. Ensure sufficient balance.",
+        plan.name,
+        plan.price_monthly,
+        sub.next_billing_date
+            .map(|d| d.to_string())
+            .unwrap_or_default()
+    );
+
+    let notification_active = notification_entity::ActiveModel {
+        customer_id: Set(Some(sub.customer_id)),
+        branch_id: Set(Some(sub.branch_id)),
+        r#type: Set("renewal_reminder".to_string()),
+        channel: Set("in_app".to_string()),
+        title: Set(Some("Subscription Renewal Reminder".to_string())),
+        body: Set(Some(message)),
+        status: Set("queued".to_string()),
+        ..Default::default()
+    };
+    notification_active.insert(db).await?;
+
+    let event_active = event_entity::ActiveModel {
+        event_type: Set("subscription.renewal_reminder".to_string()),
+        aggregate_type: Set("subscription".to_string()),
+        aggregate_id: Set(sub.id),
+        payload: Set(serde_json::json!({
+            "customer_id": sub.customer_id,
+            "customer_name": customer_name,
+            "plan_name": plan.name,
+            "renewal_date": sub.next_billing_date,
+            "amount": plan.price_monthly,
+        })),
+        processed: Set(false),
+        ..Default::default()
+    };
+    event_active.insert(db).await?;
+
     Ok(())
 }
 
 pub async fn run_subscription_renewal_reminder(state: SharedState, token: CancellationToken) {
-    let interval_secs = std::env::var("RENEWAL_REMINDER_INTERVAL_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_INTERVAL_SECS);
+    let interval_secs = std::env::var("RENEWAL_REMINDER_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_INTERVAL_SECS);
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
-    info!(interval_secs = interval_secs, reminder_days = REMINDER_DAYS_AHEAD, "Subscription renewal reminder job started");
+    info!(
+        interval_secs = interval_secs,
+        reminder_days = REMINDER_DAYS_AHEAD,
+        "Subscription renewal reminder job started"
+    );
 
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                let mut tx = match super::rls_bypass::begin_bypass_transaction(&state.db).await {
-                    Ok(t) => t, Err(e) => { warn!(error = %e, "Failed to begin RLS bypass transaction"); continue; }
-                };
-                match find_expiring_subscriptions(&mut tx).await {
+                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                    warn!(error = %e, "Failed to set RLS bypass context");
+                    continue;
+                }
+
+                match find_expiring_subscriptions(&state.db_seaorm).await {
                     Ok(subs) if subs.is_empty() => {}
                     Ok(subs) => {
-                        let count = subs.len(); info!(count = count, "Found expiring subscriptions, sending reminders");
-                        let mut sent = 0u64; let mut failed = 0u64;
-                        for sub in &subs {
-                            match record_renewal_reminder(&mut tx, sub).await {
+                        let count = subs.len();
+                        info!(count = count, "Found expiring subscriptions, sending reminders");
+                        let mut sent = 0u64;
+                        let mut failed = 0u64;
+                        for (sub, customer, plan) in &subs {
+                            match record_renewal_reminder(&state.db_seaorm, sub, customer, plan).await {
                                 Ok(()) => sent += 1,
-                                Err(e) => { failed += 1; warn!(subscription_id = sub.id, error = %e, "Failed to record renewal reminder"); }
+                                Err(e) => {
+                                    failed += 1;
+                                    warn!(subscription_id = sub.id, error = %e, "Failed to record renewal reminder");
+                                }
                             }
                         }
                         info!(total = count, sent = sent, failed = failed, "Renewal reminder batch complete");
                     }
                     Err(e) => error!(error = %e, "Failed to query expiring subscriptions"),
                 }
-                if let Err(e) = tx.commit().await { error!(error = %e, "Failed to commit RLS bypass transaction"); }
             }
-            _ = token.cancelled() => { info!("Subscription renewal reminder shutting down gracefully"); break; }
+            _ = token.cancelled() => {
+                info!("Subscription renewal reminder shutting down gracefully");
+                break;
+            }
         }
     }
 }

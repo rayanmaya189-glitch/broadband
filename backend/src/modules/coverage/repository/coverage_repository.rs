@@ -81,16 +81,23 @@ impl<'a> CoverageRepository<'a> {
         }
     }
 
-    pub async fn check_pincode(&self, _pincode: &str) -> Result<Option<CoverageAreaModel>, AppError> {
-        // Complex join query - use raw SQL
-        let stmt = sea_orm::Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT ca.* FROM coverage_areas ca JOIN coverage_pincode_map cpm ON ca.id = cpm.coverage_area_id WHERE cpm.pincode = $1 AND ca.is_active = true LIMIT 1".to_string()
-        );
-        let results = coverage_area_entity::Entity::find()
-            .from_raw_sql(stmt)
-            .all(self.db).await?;
-        Ok(results.into_iter().next())
+    pub async fn check_pincode(&self, pincode: &str) -> Result<Option<CoverageAreaModel>, AppError> {
+        // Find the pincode mapping first, then load the related coverage area
+        let pincode_mapping = coverage_pincode_entity::Entity::find()
+            .filter(coverage_pincode_entity::Column::Pincode.eq(pincode))
+            .filter(coverage_pincode_entity::Column::IsActive.eq(true))
+            .one(self.db).await?;
+
+        match pincode_mapping {
+            Some(pm) => {
+                // Load the related coverage area and verify it's active
+                let area = coverage_area_entity::Entity::find_by_id(pm.coverage_area_id)
+                    .filter(coverage_area_entity::Column::IsActive.eq(true))
+                    .one(self.db).await?;
+                Ok(area)
+            }
+            None => Ok(None),
+        }
     }
 
     pub async fn list_pincodes(&self, area_id: i64) -> Result<Vec<CoveragePincodeModel>, AppError> {

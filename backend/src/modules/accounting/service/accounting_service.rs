@@ -172,4 +172,126 @@ impl<'a> AccountingService<'a> {
             invoices: items,
         })
     }
+
+    /// Generate GSTR-1 report — outward supplies with invoice-level detail.
+    /// Separates B2B (with GSTIN) from B2C (without GSTIN) invoices.
+    pub async fn gstr1(&self, month: i32, year: i32) -> Result<Gstr1Response, AppError> {
+        let invoices = self.repo.get_paid_invoices_for_period(month, year).await?;
+        let supplier_gstin = self.repo.get_branch_gstin(invoices.first().map(|i| i.branch_id).unwrap_or(0)).await;
+
+        let mut gstr1_invoices = Vec::new();
+        let mut b2c = Gstr1B2cSummary {
+            total_taxable_value: rust_decimal::Decimal::ZERO,
+            total_cgst: rust_decimal::Decimal::ZERO,
+            total_sgst: rust_decimal::Decimal::ZERO,
+            total_igst: rust_decimal::Decimal::ZERO,
+            invoice_count: 0,
+        };
+        let mut total_taxable = rust_decimal::Decimal::ZERO;
+        let mut total_cgst = rust_decimal::Decimal::ZERO;
+        let mut total_sgst = rust_decimal::Decimal::ZERO;
+        let mut total_igst = rust_decimal::Decimal::ZERO;
+
+        for inv in &invoices {
+            let customer_name = self.repo.get_customer_name(inv.customer_id).await?;
+            let customer_gstin = self.repo.get_customer_gstin(inv.customer_id).await?;
+            let branch_state = self.repo.get_branch_state(inv.branch_id).await?
+                .unwrap_or_else(|| "Maharashtra".to_string());
+
+            let invoice_line = Gstr1Invoice {
+                invoice_number: inv.invoice_number.clone(),
+                invoice_date: inv.billing_period_start,
+                customer_gstin: customer_gstin.clone(),
+                customer_name,
+                place_of_supply: branch_state,
+                supply_type: "Regular".to_string(),
+                taxable_value: inv.subtotal,
+                cgst: inv.cgst_amount,
+                sgst: inv.sgst_amount,
+                igst: inv.igst_amount,
+                invoice_value: inv.total_amount,
+            };
+
+            total_taxable += inv.subtotal;
+            total_cgst += inv.cgst_amount;
+            total_sgst += inv.sgst_amount;
+            total_igst += inv.igst_amount;
+
+            if customer_gstin.is_some() {
+                gstr1_invoices.push(invoice_line);
+            } else {
+                b2c.total_taxable_value += inv.subtotal;
+                b2c.total_cgst += inv.cgst_amount;
+                b2c.total_sgst += inv.sgst_amount;
+                b2c.total_igst += inv.igst_amount;
+                b2c.invoice_count += 1;
+            }
+        }
+
+        Ok(Gstr1Response {
+            period_month: month,
+            period_year: year,
+            supplier_gstin,
+            total_taxable_value: total_taxable,
+            total_cgst,
+            total_sgst,
+            total_igst,
+            total_invoices: invoices.len() as i64,
+            invoices: gstr1_invoices,
+            b2c_summary: b2c,
+        })
+    }
+
+    /// Generate GSTR-3B report — monthly summary return with tax liability.
+    pub async fn gstr3b(&self, month: i32, year: i32) -> Result<Gstr3bResponse, AppError> {
+        let invoices = self.repo.get_paid_invoices_for_period(month, year).await?;
+        let first_branch_id = invoices.first().map(|i| i.branch_id).unwrap_or(0);
+        let supplier_gstin = self.repo.get_branch_gstin(first_branch_id).await;
+        let supplier_state = self.repo.get_branch_state(first_branch_id).await?;
+
+        let mut outward_taxable = rust_decimal::Decimal::ZERO;
+        let mut outward_cgst = rust_decimal::Decimal::ZERO;
+        let mut outward_sgst = rust_decimal::Decimal::ZERO;
+        let mut outward_igst = rust_decimal::Decimal::ZERO;
+        let mut interstate_taxable = rust_decimal::Decimal::ZERO;
+        let mut interstate_igst = rust_decimal::Decimal::ZERO;
+
+        for inv in &invoices {
+            outward_taxable += inv.subtotal;
+            outward_cgst += inv.cgst_amount;
+            outward_sgst += inv.sgst_amount;
+            outward_igst += inv.igst_amount;
+
+            if inv.igst_amount > rust_decimal::Decimal::ZERO {
+                interstate_taxable += inv.subtotal;
+                interstate_igst += inv.igst_amount;
+            }
+        }
+
+        let outward_total = outward_cgst + outward_sgst + outward_igst;
+
+        Ok(Gstr3bResponse {
+            period_month: month,
+            period_year: year,
+            supplier_gstin,
+            supplier_state,
+            outward: Gstr3bOutward {
+                taxable_value: outward_taxable,
+                cgst: outward_cgst,
+                sgst: outward_sgst,
+                igst: outward_igst,
+                total: outward_total,
+            },
+            interstate: Gstr3bInterstate {
+                taxable_value: interstate_taxable,
+                igst: interstate_igst,
+            },
+            tax_payable: Gstr3bTaxPayable {
+                total_cgst: outward_cgst,
+                total_sgst: outward_sgst,
+                total_igst: outward_igst,
+                total_tax: outward_total,
+            },
+        })
+    }
 }

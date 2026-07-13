@@ -1,4 +1,4 @@
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 
 use crate::app::SharedState;
@@ -10,6 +10,7 @@ pub fn entity_history_admin_routes() -> Router<SharedState> {
         Router::new()
             .route("/", get(entity_history_controller::search_history))
             .route("/{id}", get(entity_history_controller::get_history_entry))
+            .route("/{id}/rollback", post(entity_history_controller::rollback))
             .route("/entity/{entity_type}/{entity_id}", get(entity_history_controller::get_entity_history))
     )
 }

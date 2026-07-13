@@ -1,9 +1,11 @@
 use sea_orm::DatabaseConnection;
+use rust_decimal_macros::dec;
 
 use crate::common::errors::app_error::AppError;
 use crate::modules::billing::repository::billing_repository::BillingRepository;
 use crate::modules::billing::request::billing_request::*;
 use crate::modules::billing::response::billing_response::*;
+use crate::modules::billing::utils::gst;
 
 pub struct BillingService {
     repo: BillingRepository,
@@ -35,22 +37,43 @@ impl BillingService {
 
     pub async fn create_invoice(&self, req: CreateInvoiceRequest) -> Result<InvoiceResponse, AppError> {
         let invoice_number = self.repo.generate_invoice_number().await?;
+
+        // Fetch branch state for GST calculation
+        let branch_state = self.repo.get_branch_state(req.branch_id).await?
+            .unwrap_or_else(|| "Maharashtra".to_string()); // Default fallback
+
+        // Fetch customer state from their primary address
+        let customer_state = self.repo.get_customer_state(req.customer_id).await?
+            .unwrap_or_else(|| branch_state.clone()); // Default to branch state if no address
+
+        // Determine GST rate from tax config (use igst_rate as the total GST rate)
+        let tax_config = self.repo.get_config("tax").await?;
+        let gst_rate: rust_decimal::Decimal = tax_config
+            .and_then(|c| c.config_value.get("igst_rate").and_then(|v| v.as_f64()))
+            .map(|r| (r * 100.0).round() as i64)
+            .map(|r| rust_decimal::Decimal::new(r, 2))
+            .unwrap_or(dec!(18.0));
+
+        // Calculate subtotal from line items
         let subtotal: rust_decimal::Decimal = req.line_items.iter()
             .map(|li| li.unit_price * li.quantity.unwrap_or(rust_decimal::Decimal::ONE))
             .sum();
-        let tax: rust_decimal::Decimal = req.line_items.iter()
-            .map(|li| li.unit_price * li.quantity.unwrap_or(rust_decimal::Decimal::ONE) * li.tax_rate.unwrap_or(rust_decimal::Decimal::ZERO) / rust_decimal::Decimal::from(100))
-            .sum();
-        let total = subtotal + tax;
+
+        // Calculate GST using the utility module
+        let gst = gst::calculate_gst(subtotal, &branch_state, &customer_state, Some(gst_rate));
+
         let invoice = self.repo.create_invoice(
             &invoice_number, req.customer_id, req.branch_id, req.subscription_id,
             req.billing_period_start, req.billing_period_end, subtotal,
-            rust_decimal::Decimal::ZERO, tax, total, req.due_date, req.notes.as_deref(),
+            rust_decimal::Decimal::ZERO, gst.total_tax, gst.cgst_amount, gst.sgst_amount, gst.igst_amount,
+            gst.total_amount, req.due_date, req.notes.as_deref(),
         ).await?;
+
+        // Create line items with GST breakdown
         for li in &req.line_items {
             let qty = li.quantity.unwrap_or(rust_decimal::Decimal::ONE);
             let amount = li.unit_price * qty;
-            let tax_rate = li.tax_rate.unwrap_or(rust_decimal::Decimal::ZERO);
+            let tax_rate = li.tax_rate.unwrap_or(gst_rate);
             let tax_amt = amount * tax_rate / rust_decimal::Decimal::from(100);
             self.repo.create_line_item(invoice.id, &li.description, qty, li.unit_price, amount, tax_rate, tax_amt).await?;
         }

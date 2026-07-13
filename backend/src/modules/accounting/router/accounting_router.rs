@@ -15,5 +15,7 @@ pub fn accounting_routes() -> Router<SharedState> {
         .route("/balance-sheet", get(accounting_controller::balance_sheet))
         .route("/cash-flow", get(accounting_controller::cash_flow))
         .route("/gst/:return_type", get(accounting_controller::gst_return_data))
+        .route("/gst/gstr1", get(accounting_controller::gstr1))
+        .route("/gst/gstr3b", get(accounting_controller::gstr3b))
         .layer(middleware::from_fn(jwt_middleware))
 }

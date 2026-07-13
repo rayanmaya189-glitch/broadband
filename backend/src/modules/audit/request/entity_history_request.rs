@@ -1,5 +1,6 @@
-use utoipa::ToSchema;
 use serde::Deserialize;
+use utoipa::ToSchema;
+use validator::Validate;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct EntityHistoryQuery {
@@ -13,9 +14,12 @@ pub struct EntityHistoryQuery {
     pub per_page: Option<i64>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+/// Request body for rolling back an entity to a previous state.
+/// The `history_id` comes from the URL path, not the body.
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct RollbackRequest {
-    pub history_id: i64,
+    #[validate(range(min = 1, message = "User ID must be a positive integer"))]
     pub user_id: i64,
+    #[validate(length(min = 1, message = "Reason is required for rollback"))]
     pub reason: String,
 }

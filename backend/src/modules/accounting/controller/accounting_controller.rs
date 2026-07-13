@@ -70,3 +70,13 @@ pub async fn gst_return_data(State(state): State<SharedState>, Path(return_type)
     let svc = AccountingService::new(&state.db_seaorm);
     Ok(Json(svc.gst_return_data(&return_type, Some(q.month), Some(q.year)).await?))
 }
+
+pub async fn gstr1(State(state): State<SharedState>, Query(q): Query<GstQuery>) -> Result<Json<Gstr1Response>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.gstr1(q.month, q.year).await?))
+}
+
+pub async fn gstr3b(State(state): State<SharedState>, Query(q): Query<GstQuery>) -> Result<Json<Gstr3bResponse>, AppError> {
+    let svc = AccountingService::new(&state.db_seaorm);
+    Ok(Json(svc.gstr3b(q.month, q.year).await?))
+}
