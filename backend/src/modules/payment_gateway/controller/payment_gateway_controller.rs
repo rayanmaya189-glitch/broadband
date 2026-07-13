@@ -9,37 +9,96 @@ use crate::modules::payment_gateway::request::payment_gateway_request::*;
 use crate::modules::payment_gateway::response::payment_gateway_response::*;
 use crate::modules::payment_gateway::service::payment_gateway_service::PaymentGatewayService;
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/payments/gateways",
+    tag = "Payment Gateway",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of gateways", body = Vec<GatewayConfigResponse>),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn list_gateways(State(state): State<SharedState>) -> Result<Json<Vec<GatewayConfigResponse>>, AppError> {
     let svc = PaymentGatewayService::new(&state.db);
     Ok(Json(svc.list_gateways().await?))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/payments/gateways",
+    tag = "Payment Gateway",
+    security(("bearer_auth" = [])),
+    request_body = CreateGatewayConfigRequest,
+    responses(
+        (status = 200, description = "Gateway created", body = GatewayConfigResponse),
+        (status = 422, description = "Validation error")
+    )
+)]
 pub async fn create_gateway(State(state): State<SharedState>, Json(req): Json<CreateGatewayConfigRequest>) -> Result<Json<GatewayConfigResponse>, AppError> {
     req.validate()?;
     let svc = PaymentGatewayService::new(&state.db);
     Ok(Json(svc.create_gateway(req).await?))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/payments/gateways/{id}",
+    tag = "Payment Gateway",
+    security(("bearer_auth" = [])),
+    params(("id" = i64, Path, description = "Gateway ID")),
+    request_body = UpdateGatewayRequest,
+    responses(
+        (status = 200, description = "Gateway updated", body = GatewayConfigResponse),
+        (status = 404, description = "Gateway not found")
+    )
+)]
 pub async fn update_gateway(State(state): State<SharedState>, Path(id): Path<i64>, Json(req): Json<UpdateGatewayRequest>) -> Result<Json<GatewayConfigResponse>, AppError> {
     let svc = PaymentGatewayService::new(&state.db);
     Ok(Json(svc.update_gateway(id, req).await?))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/payments/create-link",
+    tag = "Payment Gateway",
+    security(("bearer_auth" = [])),
+    request_body = CreatePaymentLinkRequest,
+    responses(
+        (status = 200, description = "Payment link created", body = PaymentLinkResponse),
+        (status = 422, description = "Validation error")
+    )
+)]
 pub async fn create_payment_link(State(state): State<SharedState>, Json(req): Json<CreatePaymentLinkRequest>) -> Result<Json<PaymentLinkResponse>, AppError> {
     req.validate()?;
     let svc = PaymentGatewayService::new(&state.db);
     Ok(Json(svc.create_payment_link(req).await?))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/payments",
+    tag = "Payment Gateway",
+    security(("bearer_auth" = [])),
+    params(
+        ("page" = Option<i64>, Query, description = "Page number"),
+        ("per_page" = Option<i64>, Query, description = "Items per page"),
+        ("gateway_id" = Option<String>, Query, description = "Filter by gateway"),
+        ("status" = Option<String>, Query, description = "Filter by status")
+    ),
+    responses(
+        (status = 200, description = "List of transactions"),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn list_transactions(State(state): State<SharedState>, Query(q): Query<TransactionQuery>) -> Result<Json<TransactionListResponse>, AppError> {
     let svc = PaymentGatewayService::new(&state.db);
     Ok(Json(svc.list_transactions(q).await?))
 }
 
 /// Razorpay webhook handler with signature verification.
-///
-/// Verifies the `X-Razorpay-Signature` header using HMAC-SHA256 with the
-/// configured webhook secret before processing the payment event.
+// Note: Not annotated with #[utoipa::path] because it accepts raw Bytes
+// which doesn't implement ToSchema. Documented manually in openapi.rs.
 pub async fn process_webhook_razorpay(
     State(state): State<SharedState>,
     headers: HeaderMap,
@@ -54,11 +113,9 @@ pub async fn process_webhook_razorpay(
     webhook_verify::verify_razorpay(&body, signature, &secret)
         .map_err(|e| AppError::Forbidden(format!("Webhook verification failed: {}", e)))?;
 
-    // Parse as generic JSON first, then extract event type per gateway format
     let raw: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::Validation(format!("Invalid webhook payload: {}", e)))?;
 
-    // Razorpay format: { "event": "payment.captured", "payload": {...} }
     let event_type = raw.get("event").and_then(|v| v.as_str()).unwrap_or("unknown");
     let payload_data = raw.get("payload").cloned().unwrap_or(raw.clone());
 
@@ -73,9 +130,8 @@ pub async fn process_webhook_razorpay(
 }
 
 /// PayU webhook handler with signature verification.
-///
-/// Verifies the `X-PayU-Signature` header using HMAC-SHA256 with the
-/// configured webhook secret before processing the payment event.
+// Note: Not annotated with #[utoipa::path] because it accepts raw Bytes
+// which doesn't implement ToSchema. Documented manually in openapi.rs.
 pub async fn process_webhook_payu(
     State(state): State<SharedState>,
     headers: HeaderMap,
@@ -91,11 +147,9 @@ pub async fn process_webhook_payu(
     webhook_verify::verify_payu(&body, signature, &secret)
         .map_err(|e| AppError::Forbidden(format!("Webhook verification failed: {}", e)))?;
 
-    // Parse as generic JSON first, then extract per PayU format
     let raw: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::Validation(format!("Invalid webhook payload: {}", e)))?;
 
-    // PayU format: { "status": "success", "mihpayid": "...", ... }
     let status = raw.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
     let event_type = match status {
         "success" => "payment.captured",
@@ -114,10 +168,8 @@ pub async fn process_webhook_payu(
 }
 
 /// InstaMojo webhook handler with Svix-based signature verification.
-///
-/// Verifies the `Svix-Id`, `Svix-Timestamp`, and `Svix-Signature` headers
-/// using HMAC-SHA256 with the configured webhook secret before processing
-/// the payment event.
+// Note: Not annotated with #[utoipa::path] because it accepts raw Bytes
+// which doesn't implement ToSchema. Documented manually in openapi.rs.
 pub async fn process_webhook_instamojo(
     State(state): State<SharedState>,
     headers: HeaderMap,
@@ -143,11 +195,9 @@ pub async fn process_webhook_instamojo(
     webhook_verify::verify_instamojo(&body, svix_id, svix_timestamp, svix_signature, &secret)
         .map_err(|e| AppError::Forbidden(format!("Webhook verification failed: {}", e)))?;
 
-    // Parse as generic JSON first, then extract per InstaMojo/Svix format
     let raw: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::Validation(format!("Invalid webhook payload: {}", e)))?;
 
-    // InstaMojo/Svix format: { "id": "...", "type": "payment.success", "data": {...} }
     let event_type = raw.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
     let payload_data = raw.get("data").cloned().unwrap_or(raw.clone());
 
@@ -161,15 +211,24 @@ pub async fn process_webhook_instamojo(
     Ok(Json(svc.process_webhook(webhook_req).await?))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/payments/{id}/retry",
+    tag = "Payment Gateway",
+    security(("bearer_auth" = [])),
+    params(("id" = i64, Path, description = "Payment ID")),
+    responses(
+        (status = 200, description = "Payment retried", body = PaymentLinkResponse),
+        (status = 404, description = "Payment not found")
+    )
+)]
 pub async fn retry_payment(State(state): State<SharedState>, Json(req): Json<RetryPaymentRequest>) -> Result<Json<PaymentLinkResponse>, AppError> {
     let svc = PaymentGatewayService::new(&state.db);
     Ok(Json(svc.retry_payment(req).await?))
 }
 
 /// Retrieve the webhook signing secret for a given gateway from the database.
-/// Falls back to environment variable if not found in DB.
 async fn get_webhook_secret(state: &SharedState, gateway_id: &str) -> Result<String, AppError> {
-    // Try to get from payment_gateways table first
     let result = sqlx::query_scalar::<_, Option<String>>(
         "SELECT webhook_secret FROM payment_gateways WHERE gateway_id = $1 AND is_active = true"
     )
@@ -182,7 +241,6 @@ async fn get_webhook_secret(state: &SharedState, gateway_id: &str) -> Result<Str
         return Ok(secret);
     }
 
-    // Fallback to environment variables
     let env_key = format!("{}_WEBHOOK_SECRET", gateway_id.to_uppercase());
     std::env::var(&env_key)
         .map_err(|_| AppError::External(format!(

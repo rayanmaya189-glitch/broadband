@@ -5,6 +5,16 @@ use crate::common::errors::app_error::AppError;
 use crate::modules::realtime::response::realtime_response::*;
 
 /// Health check endpoint
+#[utoipa::path(
+    get,
+    path = "/api/v1/realtime/health",
+    tag = "Realtime",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Health check", body = HealthResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn health(State(state): State<SharedState>) -> Result<Json<HealthResponse>, AppError> {
     let connections = state.ws_manager.total_connections().await;
     Ok(Json(HealthResponse {
@@ -14,6 +24,16 @@ pub async fn health(State(state): State<SharedState>) -> Result<Json<HealthRespo
 }
 
 /// List available WebSocket channels
+#[utoipa::path(
+    get,
+    path = "/api/v1/realtime/channels",
+    tag = "Realtime",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List of channels", body = Vec<ChannelInfo>),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn channels(
     State(state): State<SharedState>,
 ) -> Result<Json<Vec<ChannelInfo>>, AppError> {
@@ -59,6 +79,16 @@ pub async fn channels(
 }
 
 /// Get connection statistics
+#[utoipa::path(
+    get,
+    path = "/api/v1/realtime/stats",
+    tag = "Realtime",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Connection stats"),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn stats(
     State(state): State<SharedState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
