@@ -4,10 +4,10 @@ use axum::response::Response;
 
 use crate::app::SharedState;
 
-/// Tower middleware: inject PgPool into request extensions.
+/// Tower middleware: inject SeaORM DatabaseConnection into request extensions.
 ///
 /// This must run as an outer layer so that downstream middleware
-/// (like rls_middleware) can access the pool from extensions.
+/// (like rls_middleware) can access the connection from extensions.
 pub async fn inject_pool_middleware(
     State(state): State<SharedState>,
     mut req: Request,

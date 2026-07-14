@@ -11,7 +11,7 @@ pub async fn list_branches(
     State(state): State<SharedState>,
     Query(query): Query<ListBranchesQuery>,
 ) -> Result<Json<crate::common::utils::helpers::PaginatedResponse<BranchResponse>>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.list_branches(&query).await?))
 }
 
@@ -20,7 +20,7 @@ pub async fn create_branch(
     Json(req): Json<CreateBranchRequest>,
 ) -> Result<Json<BranchResponse>, AppError> {
     req.validate()?;
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.create_branch(&req).await?))
 }
 
@@ -28,7 +28,7 @@ pub async fn get_branch(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<BranchResponse>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.get_branch(id).await?))
 }
 
@@ -38,7 +38,7 @@ pub async fn update_branch(
     Json(req): Json<UpdateBranchRequest>,
 ) -> Result<Json<BranchResponse>, AppError> {
     req.validate()?;
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.update_branch(id, &req).await?))
 }
 
@@ -46,7 +46,7 @@ pub async fn deactivate_branch(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.deactivate_branch(id).await?))
 }
 
@@ -56,7 +56,7 @@ pub async fn get_working_hours(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<WorkingHourResponse>>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.get_working_hours(id).await?))
 }
 
@@ -65,7 +65,7 @@ pub async fn update_working_hours(
     Path(id): Path<i64>,
     Json(req): Json<UpdateWorkingHoursRequest>,
 ) -> Result<Json<Vec<WorkingHourResponse>>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.update_working_hours(id, &req).await?))
 }
 
@@ -76,7 +76,7 @@ pub async fn assign_user(
     Path(id): Path<i64>,
     Json(req): Json<AssignUserToBranchRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.assign_user(id, &req).await?))
 }
 
@@ -84,7 +84,7 @@ pub async fn remove_user(
     State(state): State<SharedState>,
     Path((id, uid)): Path<(i64, i64)>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.remove_user(id, uid).await?))
 }
 
@@ -92,7 +92,7 @@ pub async fn list_branch_users(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<BranchUserResponse>>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.list_branch_users(id).await?))
 }
 
@@ -100,6 +100,6 @@ pub async fn get_branch_stats(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<crate::modules::branch::response::branch_response::BranchStatsResponse>, AppError> {
-    let svc = BranchService::new(&state.db_seaorm);
+    let svc = BranchService::new(&state.db);
     Ok(Json(svc.get_branch_stats(id).await?))
 }

@@ -1,8 +1,10 @@
-use sqlx::PgPool;
+use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter, Set, ActiveModelTrait};
+
+use crate::modules::permission::model::permission_entity;
 
 /// Seed all API permissions into the database on server startup.
 /// Uses ON CONFLICT DO NOTHING to ensure no duplicates are inserted.
-pub async fn seed_permissions(pool: &PgPool) -> Result<u64, sqlx::Error> {
+pub async fn seed_permissions(db: &DatabaseConnection) -> Result<u64, sea_orm::DbErr> {
     let permissions = vec![
         // ── Auth ─────────────────────────────────────────────
         ("auth.login", "POST", "/api/v1/auth/login", "public", "auth"),
@@ -341,17 +343,26 @@ pub async fn seed_permissions(pool: &PgPool) -> Result<u64, sqlx::Error> {
 
     let mut count: u64 = 0;
     for (name, method, api_url, guard, module) in &permissions {
-        let result = sqlx::query(
-            "INSERT INTO permissions (name, method, api_url, guard, module) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name, method, api_url) DO NOTHING"
-        )
-        .bind(name)
-        .bind(method)
-        .bind(api_url)
-        .bind(guard)
-        .bind(module)
-        .execute(pool)
-        .await?;
-        count += result.rows_affected();
+        // Check if permission already exists
+        let existing = permission_entity::Entity::find()
+            .filter(permission_entity::Column::Name.eq(*name))
+            .filter(permission_entity::Column::Method.eq(*method))
+            .filter(permission_entity::Column::ApiUrl.eq(*api_url))
+            .one(db)
+            .await?;
+
+        if existing.is_none() {
+            let new_perm = permission_entity::ActiveModel {
+                name: Set(name.to_string()),
+                method: Set(method.to_string()),
+                api_url: Set(api_url.to_string()),
+                guard: Set(guard.to_string()),
+                module: Set(module.to_string()),
+                ..Default::default()
+            };
+            new_perm.insert(db).await?;
+            count += 1;
+        }
     }
 
     let total = permissions.len() as u64;

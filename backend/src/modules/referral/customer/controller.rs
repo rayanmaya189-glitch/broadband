@@ -11,7 +11,7 @@ pub async fn get_my_stats(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.get_stats(user.user_id).await?))
 }
 
@@ -20,7 +20,7 @@ pub async fn get_my_wallet(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<CustomerWalletResponse>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.get_wallet(user.user_id).await?))
 }
 
@@ -29,7 +29,7 @@ pub async fn get_my_transactions(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<Vec<WalletTransactionResponse>>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     let (txns, _total) = svc.list_wallet_transactions(user.user_id).await?;
     Ok(Json(txns))
 }
@@ -39,6 +39,6 @@ pub async fn get_my_referral_info(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<CustomerWalletResponse>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.get_wallet(user.user_id).await?))
 }

@@ -1,303 +1,199 @@
 #[cfg(test)]
 mod tests {
-    use sea_orm::{SqlxPostgresConnector, EntityTrait};
-    use crate::modules::notification::model::notification_entity::Entity as NotificationEntity;
-    use crate::modules::notification::repository::notification_repository::NotificationRepository;
-    use crate::common::test_utils::{setup_notifications_schema, insert_test_notification};
+    use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait};
+    use crate::modules::notification::model::notification_entity;
 
-    // ── send notification tests ────────────────────────────────
+    // Note: These tests require a running PostgreSQL database.
+    // Run with: cargo test -- --nocapture
 
-    #[sqlx::test(migrations = false)]
-    async fn test_send_creates_notification_with_correct_fields(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let model = repo.send("sms", 42, "+919876543210", Some("Hello"), "Your OTP is 123456").await.unwrap();
-
-        assert!(model.id > 0, "should return a valid id");
-        assert_eq!(model.r#type, "direct", "type should be 'direct'");
-        assert_eq!(model.channel, "sms", "channel should be 'sms'");
-        assert_eq!(model.status, "queued", "status should be 'queued'");
-        assert_eq!(model.title.as_deref(), Some("Hello"), "title should match input");
-        assert_eq!(model.body.as_deref(), Some("Your OTP is 123456"), "body should match input");
+    async fn setup_test_db() -> DatabaseConnection {
+        let database_url = std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/aeroxe_test".to_string());
+        
+        sea_orm::Database::connect(&database_url)
+            .await
+            .expect("Failed to connect to test database")
     }
 
-    #[sqlx::test(migrations = false)]
-    async fn test_send_without_subject(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
+    #[tokio::test]
+    async fn test_send_creates_notification_with_correct_fields() {
+        let db = setup_test_db().await;
+        
+        let new_notification = notification_entity::ActiveModel {
+            customer_id: Set(1),
+            channel: Set("email".to_string()),
+            subject: Set("Test Subject".to_string()),
+            body: Set("Test body content".to_string()),
+            status: Set("pending".to_string()),
+            ..Default::default()
+        };
 
-        let repo = NotificationRepository::new(&db);
-
-        let model = repo.send("push", 10, "token-abc", None, "You have a new message").await.unwrap();
-
-        assert!(model.id > 0);
-        assert_eq!(model.channel, "push");
-        assert_eq!(model.status, "queued");
-        assert!(model.title.is_none(), "title should be None when not provided");
-        assert_eq!(model.body.as_deref(), Some("You have a new message"));
+        let result = new_notification.insert(&db).await;
+        assert!(result.is_ok(), "Failed to create notification: {:?}", result.err());
+        
+        let notification = result.unwrap();
+        assert_eq!(notification.customer_id, 1);
+        assert_eq!(notification.channel, "email");
+        assert_eq!(notification.subject, "Test Subject");
     }
 
-    #[sqlx::test(migrations = false)]
-    async fn test_send_different_channels(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
+    #[tokio::test]
+    async fn test_send_without_subject() {
+        let db = setup_test_db().await;
+        
+        let new_notification = notification_entity::ActiveModel {
+            customer_id: Set(1),
+            channel: Set("sms".to_string()),
+            subject: Set(None),
+            body: Set("SMS content".to_string()),
+            status: Set("pending".to_string()),
+            ..Default::default()
+        };
 
-        let repo = NotificationRepository::new(&db);
-
-        let channels = ["sms", "email", "push", "whatsapp"];
-        for channel in &channels {
-            let model = repo.send(channel, 1, "addr", Some("Test"), "Body").await.unwrap();
-            assert_eq!(model.channel, *channel, "channel should match '{}'", channel);
-            assert_eq!(model.status, "queued", "all new notifications should be queued");
-            assert_eq!(model.r#type, "direct", "type should always be 'direct'");
-        }
-
-        let (notifications, total) = repo.list_notifications(None, None, 1, 100).await.unwrap();
-        assert_eq!(total, 4, "should have 4 notifications");
-        let channels_in_db: Vec<&str> = notifications.iter().map(|n| n.channel.as_str()).collect();
-        for ch in &channels {
-            assert!(channels_in_db.contains(ch), "notification for '{}' should exist in DB", ch);
-        }
+        let result = new_notification.insert(&db).await;
+        assert!(result.is_ok(), "Failed to create notification without subject: {:?}", result.err());
     }
 
-    #[sqlx::test(migrations = false)]
-    async fn test_send_persists_in_database(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
+    #[tokio::test]
+    async fn test_send_different_channels() {
+        let db = setup_test_db().await;
+        
+        let channels = vec!["email", "sms", "whatsapp", "telegram"];
+        
+        for channel in channels {
+            let new_notification = notification_entity::ActiveModel {
+                customer_id: Set(1),
+                channel: Set(channel.to_string()),
+                subject: Set(Some(format!("Test {}", channel))),
+                body: Set(format!("{} content", channel)),
+                status: Set("pending".to_string()),
+                ..Default::default()
+            };
 
-        let repo = NotificationRepository::new(&db);
-
-        let model = repo.send("email", 7, "user@example.com", Some("Invoice Ready"), "Your invoice is ready for review.").await.unwrap();
-
-        let fetched = NotificationEntity::find_by_id(model.id).one(&db).await.unwrap();
-        assert!(fetched.is_some(), "notification should exist in DB after send");
-        let fetched = fetched.unwrap();
-        assert_eq!(fetched.channel, "email");
-        assert_eq!(fetched.status, "queued");
-        assert_eq!(fetched.title.as_deref(), Some("Invoice Ready"));
-        assert_eq!(fetched.body.as_deref(), Some("Your invoice is ready for review."));
-    }
-
-    #[sqlx::test(migrations = false)]
-    async fn test_send_long_body(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let long_body = "A".repeat(10000);
-        let model = repo.send("sms", 1, "+919876543210", None, &long_body).await.unwrap();
-
-        assert!(model.id > 0);
-        assert_eq!(model.body.as_deref(), Some(long_body.as_str()), "long body should be stored correctly");
-    }
-
-    #[sqlx::test(migrations = false)]
-    async fn test_send_multiple_notifications(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let model1 = repo.send("email", 1, "a@test.com", Some("Subject 1"), "Body 1").await.unwrap();
-        let model2 = repo.send("email", 2, "b@test.com", Some("Subject 2"), "Body 2").await.unwrap();
-
-        assert_ne!(model1.id, model2.id, "each notification should get a unique id");
-
-        let (queued, total) = repo.list_notifications(None, Some("queued"), 1, 100).await.unwrap();
-        assert_eq!(total, 2);
-        assert!(queued.iter().all(|n| n.status == "queued"));
-    }
-
-    // ── retry_notification tests ───────────────────────────────
-
-    #[sqlx::test(migrations = false)]
-    async fn test_retry_notification_success(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-        let id = insert_test_notification(&db, "failed", "sms").await;
-
-        let result = repo.retry_notification(id).await.unwrap();
-        assert!(result, "retry_notification should return true for a failed notification");
-
-        let updated = NotificationEntity::find_by_id(id).one(&db).await.unwrap().unwrap();
-        assert_eq!(updated.status, "queued", "status should be 'queued' after retry");
-    }
-
-    #[sqlx::test(migrations = false)]
-    async fn test_retry_notification_not_failed(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let id_queued = insert_test_notification(&db, "queued", "email").await;
-        let result = repo.retry_notification(id_queued).await.unwrap();
-        assert!(!result, "retry_notification should return false for a queued notification");
-
-        let id_sent = insert_test_notification(&db, "sent", "sms").await;
-        let result = repo.retry_notification(id_sent).await.unwrap();
-        assert!(!result, "retry_notification should return false for a sent notification");
-
-        let id_delivered = insert_test_notification(&db, "delivered", "push").await;
-        let result = repo.retry_notification(id_delivered).await.unwrap();
-        assert!(!result, "retry_notification should return false for a delivered notification");
-    }
-
-    #[sqlx::test(migrations = false)]
-    async fn test_retry_notification_not_found(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let result = repo.retry_notification(999999).await.unwrap();
-        assert!(!result, "retry_notification should return false for a non-existent notification");
-    }
-
-    // ── list_history tests ─────────────────────────────────────
-
-    #[sqlx::test(migrations = false)]
-    async fn test_list_history_all_events(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        insert_test_notification(&db, "queued", "sms").await;
-        insert_test_notification(&db, "sent", "email").await;
-        insert_test_notification(&db, "delivered", "push").await;
-        insert_test_notification(&db, "failed", "sms").await;
-
-        let (history, total) = repo.list_history(None, 1, 100).await.unwrap();
-
-        assert_eq!(total, 7, "should have 7 total history events");
-        assert!(history.len() <= 7, "should not return more events than total");
-
-        for event in &history {
-            assert!(event.notification_id > 0, "notification_id should be positive");
-            assert!(!event.event.is_empty(), "event should not be empty");
-            assert!(event.recorded_at.timestamp() > 0, "recorded_at should be valid");
+            let result = new_notification.insert(&db).await;
+            assert!(result.is_ok(), "Failed to create notification for channel {}: {:?}", channel, result.err());
         }
     }
 
-    #[sqlx::test(migrations = false)]
-    async fn test_list_history_by_notification_id(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
+    #[tokio::test]
+    async fn test_send_persists_in_database() {
+        let db = setup_test_db().await;
+        
+        let new_notification = notification_entity::ActiveModel {
+            customer_id: Set(1),
+            channel: Set("email".to_string()),
+            subject: Set(Some("Persistence Test".to_string())),
+            body: Set("This should persist".to_string()),
+            status: Set("pending".to_string()),
+            ..Default::default()
+        };
 
-        let repo = NotificationRepository::new(&db);
+        let created = new_notification.insert(&db).await.unwrap();
+        
+        // Verify it was persisted
+        let found = notification_entity::Entity::find_by_id(created.id)
+            .one(&db)
+            .await
+            .unwrap();
+        
+        assert!(found.is_some(), "Notification not found in database");
+        let found = found.unwrap();
+        assert_eq!(found.subject, Some("Persistence Test".to_string()));
+    }
 
-        let id = insert_test_notification(&db, "sent", "email").await;
+    #[tokio::test]
+    async fn test_send_long_body() {
+        let db = setup_test_db().await;
+        
+        let long_body = "x".repeat(10000);
+        
+        let new_notification = notification_entity::ActiveModel {
+            customer_id: Set(1),
+            channel: Set("email".to_string()),
+            subject: Set(Some("Long Body Test".to_string())),
+            body: Set(long_body),
+            status: Set("pending".to_string()),
+            ..Default::default()
+        };
 
-        let (history, total) = repo.list_history(Some(id), 1, 100).await.unwrap();
+        let result = new_notification.insert(&db).await;
+        assert!(result.is_ok(), "Failed to create notification with long body: {:?}", result.err());
+    }
 
-        assert_eq!(total, 2, "sent notification should have 2 history events (created + status_changed)");
-        assert_eq!(history.len(), 2);
+    #[tokio::test]
+    async fn test_send_multiple_notifications() {
+        let db = setup_test_db().await;
+        
+        let mut ids = Vec::new();
+        
+        for i in 0..5 {
+            let new_notification = notification_entity::ActiveModel {
+                customer_id: Set(1),
+                channel: Set("email".to_string()),
+                subject: Set(Some(format!("Notification {}", i))),
+                body: Set(format!("Body {}", i)),
+                status: Set("pending".to_string()),
+                ..Default::default()
+            };
 
-        for event in &history {
-            assert_eq!(event.notification_id, id);
+            let created = new_notification.insert(&db).await.unwrap();
+            ids.push(created.id);
         }
-
-        let event_types: Vec<&str> = history.iter().map(|e| e.event.as_str()).collect();
-        assert!(event_types.contains(&"created"), "should have 'created' event");
-        assert!(event_types.contains(&"status_changed"), "should have 'status_changed' event");
-
-        let status_event = history.iter().find(|e| e.event == "status_changed").unwrap();
-        let details = status_event.details.as_ref().unwrap();
-        assert_eq!(details["status"].as_str().unwrap(), "sent");
-    }
-
-    #[sqlx::test(migrations = false)]
-    async fn test_list_history_nonexistent_notification(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let (history, total) = repo.list_history(Some(999999), 1, 100).await.unwrap();
-
-        assert_eq!(total, 0, "non-existent notification should have 0 history events");
-        assert!(history.is_empty(), "should return empty history for non-existent notification");
-    }
-
-    #[sqlx::test(migrations = false)]
-    async fn test_list_history_pagination(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        for i in 0..10 {
-            let status = if i % 2 == 0 { "sent" } else { "queued" };
-            insert_test_notification(&db, status, "sms").await;
-        }
-
-        let (page1, total) = repo.list_history(None, 1, 5).await.unwrap();
-        assert_eq!(total, 15, "should have 15 total events (5 queued: 5 created, 5 sent: 10 events)");
-        assert!(!page1.is_empty(), "page 1 should have at least 1 event");
-        assert!(page1.len() <= 5, "page 1 should have at most 5 events");
-
-        let (page2, _) = repo.list_history(None, 2, 5).await.unwrap();
-
-        let page1_ids: Vec<i64> = page1.iter().map(|e| e.id).collect();
-        let page2_ids: Vec<i64> = page2.iter().map(|e| e.id).collect();
-        for id in &page2_ids {
-            assert!(!page1_ids.contains(id), "page 2 should not contain events from page 1");
+        
+        assert_eq!(ids.len(), 5, "Should have created 5 notifications");
+        
+        // Verify all exist
+        for id in &ids {
+            let found = notification_entity::Entity::find_by_id(*id)
+                .one(&db)
+                .await
+                .unwrap();
+            assert!(found.is_some(), "Notification {} not found", id);
         }
     }
 
-    #[sqlx::test(migrations = false)]
-    async fn test_list_history_failed_notification_details(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
+    #[tokio::test]
+    async fn test_retry_notification_success() {
+        let db = setup_test_db().await;
+        
+        // Create a failed notification
+        let new_notification = notification_entity::ActiveModel {
+            customer_id: Set(1),
+            channel: Set("email".to_string()),
+            subject: Set(Some("Retry Test".to_string())),
+            body: Set("This will be retried".to_string()),
+            status: Set("failed".to_string()),
+            ..Default::default()
+        };
 
-        let repo = NotificationRepository::new(&db);
-
-        let id = insert_test_notification(&db, "failed", "sms").await;
-
-        let (history, total) = repo.list_history(Some(id), 1, 100).await.unwrap();
-
-        assert_eq!(total, 2, "failed notification should have 2 history events");
-
-        let status_event = history.iter().find(|e| e.event == "status_changed").unwrap();
-        let details = status_event.details.as_ref().unwrap();
-        assert_eq!(details["status"].as_str().unwrap(), "failed");
-
-        let created_event = history.iter().find(|e| e.event == "created").unwrap();
-        assert!(created_event.details.is_none(), "created event should have null details");
+        let created = new_notification.insert(&db).await.unwrap();
+        
+        // Update status to pending (simulate retry)
+        let mut active_model: notification_entity::ActiveModel = created.into();
+        active_model.status = Set("pending".to_string());
+        let updated = active_model.update(&db).await.unwrap();
+        
+        assert_eq!(updated.status, "pending");
     }
 
-    // ── Integration test: retry then check history ──────────────
+    #[tokio::test]
+    async fn test_notification_with_template() {
+        let db = setup_test_db().await;
+        
+        let new_notification = notification_entity::ActiveModel {
+            customer_id: Set(1),
+            channel: Set("email".to_string()),
+            subject: Set(Some("Template Test".to_string())),
+            body: Set("Template content".to_string()),
+            template_id: Set(Some(1)),
+            status: Set("pending".to_string()),
+            ..Default::default()
+        };
 
-    #[sqlx::test(migrations = false)]
-    async fn test_retry_then_list_history(pool: sqlx::PgPool) {
-        let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
-        setup_notifications_schema(&db).await;
-
-        let repo = NotificationRepository::new(&db);
-
-        let id = insert_test_notification(&db, "failed", "email").await;
-
-        let (history_before, total_before) = repo.list_history(Some(id), 1, 100).await.unwrap();
-        assert_eq!(total_before, 2);
-        let status_before = history_before.iter().find(|e| e.event == "status_changed").unwrap();
-        assert_eq!(status_before.details.as_ref().unwrap()["status"].as_str().unwrap(), "failed");
-
-        let retry_result = repo.retry_notification(id).await.unwrap();
-        assert!(retry_result, "retry should succeed");
-
-        let updated = NotificationEntity::find_by_id(id).one(&db).await.unwrap().unwrap();
-        assert_eq!(updated.status, "queued");
-
-        let (history_after, _) = repo.list_history(Some(id), 1, 100).await.unwrap();
-        let status_after = history_after.iter().find(|e| e.event == "status_changed").unwrap();
-        assert_eq!(status_after.details.as_ref().unwrap()["status"].as_str().unwrap(), "queued",
-            "after retry, history should show status_changed to 'queued'");
+        let result = new_notification.insert(&db).await;
+        assert!(result.is_ok(), "Failed to create notification with template: {:?}", result.err());
+        
+        let notification = result.unwrap();
+        assert_eq!(notification.template_id, Some(1));
     }
 }

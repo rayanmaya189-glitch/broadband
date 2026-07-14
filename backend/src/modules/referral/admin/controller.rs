@@ -10,7 +10,7 @@ use crate::modules::referral::service::referral_service::ReferralService;
 pub async fn list_programs(
     State(state): State<SharedState>,
 ) -> Result<Json<Vec<ReferralProgramResponse>>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.list_programs().await?))
 }
 
@@ -19,7 +19,7 @@ pub async fn create_program(
     State(state): State<SharedState>,
     Json(req): Json<CreateReferralProgramRequest>,
 ) -> Result<Json<ReferralProgramResponse>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.create_program(req).await?))
 }
 
@@ -29,7 +29,7 @@ pub async fn update_program(
     Path(id): Path<i64>,
     Json(req): Json<UpdateReferralProgramRequest>,
 ) -> Result<Json<ReferralProgramResponse>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.update_program(id, req).await?))
 }
 
@@ -38,6 +38,6 @@ pub async fn get_referral_stats(
     State(state): State<SharedState>,
     Path(referrer_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = ReferralService::new(&state.db_seaorm);
+    let svc = ReferralService::new(&state.db);
     Ok(Json(svc.get_stats(referrer_id).await?))
 }

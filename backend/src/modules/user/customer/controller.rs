@@ -14,7 +14,7 @@ pub async fn get_me(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<UserResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.get_user(user.user_id).await?))
 }
 
@@ -25,7 +25,7 @@ pub async fn update_me(
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let update = UpdateUserRequest {
         name: req.name,
         phone: req.phone,
@@ -42,7 +42,7 @@ pub async fn change_password(
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.change_password(user.user_id, &req).await?))
 }
 
@@ -52,7 +52,7 @@ pub async fn list_sessions(
     user: UserContext,
     claims: Claims,
 ) -> Result<Json<Vec<SessionResponse>>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let sessions = svc.list_active_sessions(user.user_id).await?;
     let current_jti = &claims.jti;
     let response: Vec<SessionResponse> = sessions.into_iter().map(|s| {
@@ -78,7 +78,7 @@ pub async fn logout(
     _user: UserContext,
     Json(req): Json<LogoutRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     if let Some(ref token) = req.refresh_token {
         let hash = crypto::sha256(token.as_bytes());
         svc.revoke_refresh_token(&hash).await?;
@@ -91,7 +91,7 @@ pub async fn logout_all(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let revoked = svc.revoke_all_user_tokens(user.user_id).await?;
     Ok(Json(MessageResponse { message: format!("All sessions logged out ({revoked} tokens revoked)") }))
 }
@@ -117,7 +117,7 @@ pub async fn enable_2fa(
         (secret_base32, temp_token, temp_hash, otpauth_url)
     };
 
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let user_model = svc.find_user_by_id(user.user_id).await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
     if user_model.two_factor_enabled {
@@ -160,7 +160,7 @@ pub async fn confirm_2fa(
     Json(req): Json<Confirm2FaRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let sessions = svc.list_active_sessions(user.user_id).await?;
     let setup_session = sessions.iter()
         .find(|s| s.device_info.as_deref() == Some("2fa_setup"))
@@ -182,7 +182,7 @@ pub async fn disable_2fa(
     user: UserContext,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let user_model = svc.find_user_by_id(user.user_id).await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
     if !user_model.two_factor_enabled {

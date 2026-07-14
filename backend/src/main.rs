@@ -197,7 +197,7 @@ async fn main() {
     });
     // Spawn notification delivery orchestrator
     let t7 = shutdown_token.clone();
-    let db_seaorm = std::sync::Arc::new(state.db_seaorm.clone());
+    let db_seaorm = std::sync::Arc::new(state.db.clone());
     tokio::spawn(async move {
         let orchestrator = aeraxe_backend::modules::notification::delivery::NotificationOrchestrator::new(db_seaorm);
         orchestrator.run(t7).await;

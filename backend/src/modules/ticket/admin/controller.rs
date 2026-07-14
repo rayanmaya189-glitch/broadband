@@ -12,7 +12,7 @@ pub async fn list(
     State(state): State<SharedState>,
     Query(query): Query<TicketQuery>,
 ) -> Result<Json<(Vec<TicketResponse>, i64)>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     let (tickets, total) = svc.list(
         query.branch_id, query.status.as_deref(), query.priority.as_deref(),
         query.category.as_deref(), query.assigned_to, query.customer_id,
@@ -27,7 +27,7 @@ pub async fn create(
     user: UserContext,
     Json(req): Json<CreateTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.create(req.branch_id, user.user_id, req).await?))
 }
 
@@ -36,7 +36,7 @@ pub async fn get_by_id(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.get_by_id(id).await?))
 }
 
@@ -46,7 +46,7 @@ pub async fn update(
     Path(id): Path<i64>,
     Json(req): Json<UpdateTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.update(id, &req).await?))
 }
 
@@ -55,7 +55,7 @@ pub async fn delete(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.delete(id).await?))
 }
 
@@ -65,7 +65,7 @@ pub async fn update_status(
     Path(id): Path<i64>,
     Json(req): Json<UpdateTicketStatusRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.update_status(id, &req.status, req.resolution_notes.as_deref()).await?))
 }
 
@@ -75,7 +75,7 @@ pub async fn assign(
     Path(id): Path<i64>,
     Json(req): Json<AssignTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.assign(id, req.assigned_to).await?))
 }
 
@@ -85,7 +85,7 @@ pub async fn escalate(
     Path(id): Path<i64>,
     Json(req): Json<EscalateTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.escalate(id, req.escalated_to, req.new_priority.as_deref()).await?))
 }
 
@@ -95,7 +95,7 @@ pub async fn resolve(
     Path(id): Path<i64>,
     Json(req): Json<ResolveTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.update_status(id, "resolved", Some(&req.resolution_notes)).await?))
 }
 
@@ -104,7 +104,7 @@ pub async fn close(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.update_status(id, "closed", None).await?))
 }
 
@@ -113,7 +113,7 @@ pub async fn reopen(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.reopen(id).await?))
 }
 
@@ -121,7 +121,7 @@ pub async fn reopen(
 pub async fn get_dashboard(
     State(state): State<SharedState>,
 ) -> Result<Json<TicketDashboardResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.get_dashboard().await?))
 }
 
@@ -130,7 +130,7 @@ pub async fn get_my_assignments(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<Vec<TicketResponse>>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.get_my_assignments(user.user_id).await?))
 }
 
@@ -139,7 +139,7 @@ pub async fn get_escalations(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<TicketEscalationResponse>>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.get_escalations(id).await?))
 }
 
@@ -148,6 +148,6 @@ pub async fn get_status_history(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<TicketStatusHistoryResponse>>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.get_status_history(id).await?))
 }

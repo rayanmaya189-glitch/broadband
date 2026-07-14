@@ -13,7 +13,7 @@ pub async fn create(
     user: UserContext,
     Json(req): Json<CreateTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     Ok(Json(svc.create(req.branch_id, user.user_id, req).await?))
 }
 
@@ -22,7 +22,7 @@ pub async fn get_my_tickets(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<Vec<TicketResponse>>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     let (tickets, _) = svc.list(None, None, None, None, None, Some(user.user_id), 1, 100).await?;
     Ok(Json(tickets))
 }
@@ -33,7 +33,7 @@ pub async fn get_by_id(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     let ticket = svc.get_by_id(id).await?;
     if ticket.customer_id != Some(user.user_id) {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -48,7 +48,7 @@ pub async fn add_comment(
     Path(id): Path<i64>,
     Json(req): Json<AddCommentRequest>,
 ) -> Result<Json<TicketCommentResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     let ticket = svc.get_by_id(id).await?;
     if ticket.customer_id != Some(user.user_id) {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -62,7 +62,7 @@ pub async fn list_comments(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<TicketCommentResponse>>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     let ticket = svc.get_by_id(id).await?;
     if ticket.customer_id != Some(user.user_id) {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -77,7 +77,7 @@ pub async fn set_feedback(
     Path(id): Path<i64>,
     Json(req): Json<TicketFeedbackRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
-    let svc = TicketService::new(&state.db_seaorm);
+    let svc = TicketService::new(&state.db);
     let ticket = svc.get_by_id(id).await?;
     if ticket.customer_id != Some(user.user_id) {
         return Err(AppError::Forbidden("Access denied".into()));

@@ -11,7 +11,7 @@ use crate::modules::plan::service::plan_service::PlanService;
 pub async fn list_plans(
     State(state): State<SharedState>,
 ) -> Result<Json<PaginatedResponse<PlanResponse>>, AppError> {
-    let svc = PlanService::new(&state.db_seaorm, &state.redis);
+    let svc = PlanService::new(&state.db, &state.redis);
     let query = ListPlansQuery {
         pagination: PaginationParams { page: 1, limit: 50, sort_by: None, sort_order: None, search: None },
         is_active: Some(true),
@@ -25,7 +25,7 @@ pub async fn get_plan(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<PlanDetailResponse>, AppError> {
-    let svc = PlanService::new(&state.db_seaorm, &state.redis);
+    let svc = PlanService::new(&state.db, &state.redis);
     let plan = svc.get_plan(id).await?;
     if !plan.is_active {
         return Err(AppError::NotFound("Plan not found".into()));

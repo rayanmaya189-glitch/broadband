@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 sea-orm = { version = "1", features = ["sqlx-postgres"] }
+sea-orm-migration = "1"
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws"] }
 axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }
@@ -20,19 +21,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 futures = "0.3"
 bytes = "1"
 
-# Database (PostgreSQL)
-sqlx = { version = "0.8", features = [
-    "runtime-tokio",
-    "tls-rustls",
-    "postgres",
-    "chrono",
-    "uuid",
-    "json",
-    "ipnetwork",
-    "bigdecimal",
-    "rust_decimal",
-    "migrate",
-] }
+# Database (PostgreSQL) - SeaORM only, no sqlx
 
 # Cache
 redis = { version = "0.29", features = ["tokio-comp", "connection-manager", "aio"] }

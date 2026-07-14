@@ -87,12 +87,12 @@ pub async fn run_partition_manager(state: SharedState, token: CancellationToken)
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                if let Err(e) = super::set_rls_bypass(&state.db).await {
                     warn!(error = %e, "Failed to set RLS bypass context");
                     continue;
                 }
 
-                match create_monthly_partitions(&state.db_seaorm).await {
+                match create_monthly_partitions(&state.db).await {
                     Ok(created) if created > 0 => {
                         info!(created = created, "Monthly partitions created successfully");
                     }

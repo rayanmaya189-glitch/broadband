@@ -182,12 +182,12 @@ pub async fn run_sla_checker(state: SharedState, token: CancellationToken) {
         tokio::select! {
             _ = interval.tick() => {
                 // Set RLS bypass for background job queries
-                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                if let Err(e) = super::set_rls_bypass(&state.db).await {
                     warn!(error = %e, "Failed to set RLS bypass context");
                     continue;
                 }
 
-                match find_sla_breached_tickets(&state.db_seaorm).await {
+                match find_sla_breached_tickets(&state.db).await {
                     Ok(tickets) if tickets.is_empty() => {}
                     Ok(tickets) => {
                         let count = tickets.len();
@@ -195,7 +195,7 @@ pub async fn run_sla_checker(state: SharedState, token: CancellationToken) {
                         let mut escalated = 0u64;
                         let mut failed = 0u64;
                         for ticket in &tickets {
-                            match auto_escalate_ticket(&state.db_seaorm, ticket).await {
+                            match auto_escalate_ticket(&state.db, ticket).await {
                                 Ok(()) => escalated += 1,
                                 Err(e) => {
                                     failed += 1;

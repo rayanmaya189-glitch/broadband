@@ -175,12 +175,12 @@ pub async fn run_invoice_dunning(state: SharedState, token: CancellationToken) {
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                if let Err(e) = super::set_rls_bypass(&state.db).await {
                     warn!(error = %e, "Failed to set RLS bypass context");
                     continue;
                 }
 
-                match find_overdue_invoices(&state.db_seaorm).await {
+                match find_overdue_invoices(&state.db).await {
                     Ok(invoices) if invoices.is_empty() => {}
                     Ok(invoices) => {
                         let count = invoices.len();
@@ -189,7 +189,7 @@ pub async fn run_invoice_dunning(state: SharedState, token: CancellationToken) {
                         let mut skipped = 0u64;
                         let mut failed = 0u64;
                         for (invoice, customer) in &invoices {
-                            match process_dunning(&state.db_seaorm, invoice, customer).await {
+                            match process_dunning(&state.db, invoice, customer).await {
                                 Ok(true) => processed += 1,
                                 Ok(false) => skipped += 1,
                                 Err(e) => {

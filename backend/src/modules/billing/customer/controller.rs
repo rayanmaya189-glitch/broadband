@@ -12,7 +12,7 @@ pub async fn get_my_invoices(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<InvoiceListResponse>, AppError> {
-    let svc = BillingService::new(&state.db_seaorm);
+    let svc = BillingService::new(&state.db);
     let query = InvoiceQuery {
         status: None,
         customer_id: Some(user.user_id),
@@ -29,7 +29,7 @@ pub async fn get_invoice(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<InvoiceResponse>, AppError> {
-    let svc = BillingService::new(&state.db_seaorm);
+    let svc = BillingService::new(&state.db);
     let invoice = svc.get_invoice(id).await?;
     if invoice.customer_id != user.user_id {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -43,7 +43,7 @@ pub async fn get_line_items(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<InvoiceLineItemResponse>>, AppError> {
-    let svc = BillingService::new(&state.db_seaorm);
+    let svc = BillingService::new(&state.db);
     let invoice = svc.get_invoice(id).await?;
     if invoice.customer_id != user.user_id {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -56,7 +56,7 @@ pub async fn get_my_payments(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<PaymentListResponse>, AppError> {
-    let svc = BillingService::new(&state.db_seaorm);
+    let svc = BillingService::new(&state.db);
     let query = PaymentQuery {
         status: None,
         customer_id: Some(user.user_id),
@@ -73,7 +73,7 @@ pub async fn make_payment(
     user: UserContext,
     Json(req): Json<crate::modules::billing::request::billing_request::RecordPaymentRequest>,
 ) -> Result<Json<PaymentResponse>, AppError> {
-    let svc = BillingService::new(&state.db_seaorm);
+    let svc = BillingService::new(&state.db);
     // Verify the invoice belongs to this customer
     let invoice = svc.get_invoice(req.invoice_id).await?;
     if invoice.customer_id != user.user_id {

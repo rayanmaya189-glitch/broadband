@@ -115,12 +115,12 @@ pub async fn run_wallet_expiry_cleanup(state: SharedState, token: CancellationTo
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                if let Err(e) = super::set_rls_bypass(&state.db).await {
                     warn!(error = %e, "Failed to set RLS bypass context");
                     continue;
                 }
 
-                match find_expired_credits(&state.db_seaorm).await {
+                match find_expired_credits(&state.db).await {
                     Ok(credits) if credits.is_empty() => {}
                     Ok(credits) => {
                         let count = credits.len();
@@ -128,7 +128,7 @@ pub async fn run_wallet_expiry_cleanup(state: SharedState, token: CancellationTo
                         let mut processed = 0u64;
                         let mut failed = 0u64;
                         for credit in &credits {
-                            match process_expiry(&state.db_seaorm, credit).await {
+                            match process_expiry(&state.db, credit).await {
                                 Ok(()) => processed += 1,
                                 Err(e) => {
                                     failed += 1;

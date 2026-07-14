@@ -13,7 +13,7 @@ pub async fn list_users(
     State(state): State<SharedState>,
     Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<crate::common::utils::helpers::PaginatedResponse<UserResponse>>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.list_users(&query).await?))
 }
 
@@ -23,7 +23,7 @@ pub async fn create_user(
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.create_user(&req).await?))
 }
 
@@ -32,7 +32,7 @@ pub async fn get_user(
     State(state): State<SharedState>,
     Path(user_id): Path<i64>,
 ) -> Result<Json<UserResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.get_user(user_id).await?))
 }
 
@@ -43,7 +43,7 @@ pub async fn update_user(
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.update_user(user_id, &req).await?))
 }
 
@@ -53,7 +53,7 @@ pub async fn delete_user(
     user: UserContext,
     Path(user_id): Path<i64>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.delete_user(user_id, user.user_id).await?))
 }
 
@@ -65,6 +65,6 @@ pub async fn update_user_status(
     Json(req): Json<UpdateUserStatusRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.update_status(user_id, &req, user.user_id).await?))
 }

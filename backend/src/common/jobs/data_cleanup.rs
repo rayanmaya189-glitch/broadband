@@ -93,12 +93,12 @@ pub async fn run_data_cleanup(state: SharedState, token: CancellationToken) {
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                if let Err(e) = super::set_rls_bypass(&state.db).await {
                     warn!(error = %e, "Failed to set RLS bypass context");
                     continue;
                 }
 
-                match cleanup_expired_data(&state.db_seaorm).await {
+                match cleanup_expired_data(&state.db).await {
                     Ok(deleted) if deleted > 0 => {
                         info!(total_deleted = deleted, "Data cleanup batch complete");
                     }

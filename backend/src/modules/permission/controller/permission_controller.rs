@@ -14,7 +14,7 @@ pub async fn list_permissions(
     State(state): State<SharedState>,
     Query(query): Query<ListPermissionsQuery>,
 ) -> Result<Json<PaginatedResponse<PermissionResponse>>, AppError> {
-    let svc = PermissionService::new(&state.db_seaorm);
+    let svc = PermissionService::new(&state.db);
     Ok(Json(svc.list_permissions(&query).await?))
 }
 
@@ -23,7 +23,7 @@ pub async fn create_permission(
     Json(req): Json<CreatePermissionRequest>,
 ) -> Result<Json<PermissionResponse>, AppError> {
     req.validate()?;
-    let svc = PermissionService::new(&state.db_seaorm);
+    let svc = PermissionService::new(&state.db);
     Ok(Json(svc.create_permission(&req).await?))
 }
 
@@ -31,6 +31,6 @@ pub async fn delete_permission(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = PermissionService::new(&state.db_seaorm);
+    let svc = PermissionService::new(&state.db);
     Ok(Json(svc.delete_permission(id).await?))
 }

@@ -129,12 +129,12 @@ pub async fn run_subscription_renewal_reminder(state: SharedState, token: Cancel
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                if let Err(e) = super::set_rls_bypass(&state.db_seaorm).await {
+                if let Err(e) = super::set_rls_bypass(&state.db).await {
                     warn!(error = %e, "Failed to set RLS bypass context");
                     continue;
                 }
 
-                match find_expiring_subscriptions(&state.db_seaorm).await {
+                match find_expiring_subscriptions(&state.db).await {
                     Ok(subs) if subs.is_empty() => {}
                     Ok(subs) => {
                         let count = subs.len();
@@ -142,7 +142,7 @@ pub async fn run_subscription_renewal_reminder(state: SharedState, token: Cancel
                         let mut sent = 0u64;
                         let mut failed = 0u64;
                         for (sub, customer, plan) in &subs {
-                            match record_renewal_reminder(&state.db_seaorm, sub, customer, plan).await {
+                            match record_renewal_reminder(&state.db, sub, customer, plan).await {
                                 Ok(()) => sent += 1,
                                 Err(e) => {
                                     failed += 1;

@@ -23,10 +23,7 @@ pub enum AppError {
     BadRequest(String),
 
     #[error("Database error: {0}")]
-    Database(#[from] sqlx::Error),
-
-    #[error("Database error (SeaORM): {0}")]
-    DatabaseSeaorm(String),
+    Database(String),
 
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
@@ -54,10 +51,6 @@ impl IntoResponse for AppError {
                 tracing::error!(error = %e, "Database error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
-            AppError::DatabaseSeaorm(msg) => {
-                tracing::error!(error = %msg, "Database error (SeaORM)");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
-            }
             AppError::Internal(e) => {
                 tracing::error!(error = %e, "Internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
@@ -74,7 +67,7 @@ impl IntoResponse for AppError {
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
-        AppError::DatabaseSeaorm(err.to_string())
+        AppError::Database(err.to_string())
     }
 }
 

@@ -1,12 +1,12 @@
-//! Migration runner — uses sqlx migrate! macro for PostgreSQL schema management.
+//! Migration runner — uses sea-orm-cli for PostgreSQL schema management.
 //! See connection.rs for database pool setup.
 
-use sqlx::PgPool;
+use sea_orm::DatabaseConnection;
 
 /// Run pending database migrations.
-pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    sqlx::migrate!("./migrations")
-        .run(pool)
-        .await?;
+/// Migrations are managed via sea-orm-cli: `sea-orm-cli migrate up`
+/// This function is a placeholder for runtime migration support.
+pub async fn run_migrations(_pool: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
+    tracing::info!("Migrations should be run via: sea-orm-cli migrate up");
     Ok(())
 }

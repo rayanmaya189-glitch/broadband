@@ -13,7 +13,7 @@ pub async fn get_my_subscriptions(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<Vec<SubscriptionResponse>>, AppError> {
-    let svc = SubscriptionService::new(&state.db_seaorm);
+    let svc = SubscriptionService::new(&state.db);
     let query = ListSubscriptionsQuery {
         pagination: PaginationParams { page: 1, limit: 100, sort_by: None, sort_order: None, search: None },
         status: None,
@@ -30,7 +30,7 @@ pub async fn get_subscription(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<SubscriptionResponse>, AppError> {
-    let svc = SubscriptionService::new(&state.db_seaorm);
+    let svc = SubscriptionService::new(&state.db);
     let sub = svc.get_subscription(id).await?;
     if sub.customer_id != user.user_id {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -45,7 +45,7 @@ pub async fn upgrade_subscription(
     Path(id): Path<i64>,
     Json(req): Json<UpgradeDowngradeRequest>,
 ) -> Result<Json<UpgradeDowngradeResponse>, AppError> {
-    let svc = SubscriptionService::new(&state.db_seaorm);
+    let svc = SubscriptionService::new(&state.db);
     let sub = svc.get_subscription(id).await?;
     if sub.customer_id != user.user_id {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -60,7 +60,7 @@ pub async fn downgrade_subscription(
     Path(id): Path<i64>,
     Json(req): Json<UpgradeDowngradeRequest>,
 ) -> Result<Json<UpgradeDowngradeResponse>, AppError> {
-    let svc = SubscriptionService::new(&state.db_seaorm);
+    let svc = SubscriptionService::new(&state.db);
     let sub = svc.get_subscription(id).await?;
     if sub.customer_id != user.user_id {
         return Err(AppError::Forbidden("Access denied".into()));
@@ -74,7 +74,7 @@ pub async fn get_subscription_history(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<SubscriptionHistoryEntry>>, AppError> {
-    let svc = SubscriptionService::new(&state.db_seaorm);
+    let svc = SubscriptionService::new(&state.db);
     let sub = svc.get_subscription(id).await?;
     if sub.customer_id != user.user_id {
         return Err(AppError::Forbidden("Access denied".into()));

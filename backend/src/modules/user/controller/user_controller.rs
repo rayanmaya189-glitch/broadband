@@ -15,7 +15,7 @@ pub async fn list_users(
     State(state): State<SharedState>,
     Query(query): Query<ListUsersQuery>,
 ) -> Result<Json<crate::common::utils::helpers::PaginatedResponse<UserResponse>>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.list_users(&query).await?))
 }
 
@@ -24,7 +24,7 @@ pub async fn create_user(
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.create_user(&req).await?))
 }
 
@@ -32,7 +32,7 @@ pub async fn get_user(
     State(state): State<SharedState>,
     Path(user_id): Path<i64>,
 ) -> Result<Json<UserResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.get_user(user_id).await?))
 }
 
@@ -42,7 +42,7 @@ pub async fn update_user(
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.update_user(user_id, &req).await?))
 }
 
@@ -51,7 +51,7 @@ pub async fn delete_user(
     user: UserContext,
     Path(user_id): Path<i64>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.delete_user(user_id, user.user_id).await?))
 }
 
@@ -62,7 +62,7 @@ pub async fn update_user_status(
     Json(req): Json<UpdateUserStatusRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.update_status(user_id, &req, user.user_id).await?))
 }
 
@@ -70,7 +70,7 @@ pub async fn get_me(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<UserResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.get_user(user.user_id).await?))
 }
 
@@ -80,7 +80,7 @@ pub async fn update_me(
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let update = UpdateUserRequest {
         name: req.name,
         phone: req.phone,
@@ -96,7 +96,7 @@ pub async fn change_password(
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.change_password(user.user_id, &req).await?))
 }
 
@@ -107,8 +107,8 @@ pub async fn login(
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
-    let repo = RoleRepository::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
+    let repo = RoleRepository::new(&state.db);
 
     // Find user by email
     let user = svc.find_by_email(&req.email).await?
@@ -196,7 +196,7 @@ pub async fn register(
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.create_user(&req).await?))
 }
 
@@ -205,7 +205,7 @@ pub async fn logout(
     _user: UserContext,
     Json(req): Json<LogoutRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     // Revoke specific refresh token if provided
     if let Some(ref token) = req.refresh_token {
@@ -220,7 +220,7 @@ pub async fn logout_all(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let revoked = svc.revoke_all_user_tokens(user.user_id).await?;
     Ok(Json(MessageResponse { message: format!("All sessions logged out ({revoked} tokens revoked)") }))
 }
@@ -230,8 +230,8 @@ pub async fn refresh_token(
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
-    let repo = RoleRepository::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
+    let repo = RoleRepository::new(&state.db);
 
     // Hash the incoming refresh token
     let hash = crypto::sha256(req.refresh_token.as_bytes());
@@ -283,7 +283,7 @@ pub async fn me(
     State(state): State<SharedState>,
     user: UserContext,
 ) -> Result<Json<UserResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     Ok(Json(svc.get_user(user.user_id).await?))
 }
 
@@ -292,7 +292,7 @@ pub async fn send_otp(
     Json(req): Json<SendOtpRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     // Find user by phone
     let user = svc.find_by_phone(&req.phone).await?
@@ -323,8 +323,8 @@ pub async fn verify_otp(
     Json(req): Json<VerifyOtpRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
-    let repo = RoleRepository::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
+    let repo = RoleRepository::new(&state.db);
 
     // Find user by phone
     let user = svc.find_by_phone(&req.phone).await?
@@ -381,7 +381,7 @@ pub async fn request_password_reset(
     Json(req): Json<PasswordResetRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     // Find user by email (always return success to prevent user enumeration)
     if let Some(user) = svc.find_by_email(&req.email).await? {
@@ -402,7 +402,7 @@ pub async fn confirm_password_reset(
     State(state): State<SharedState>,
     Json(req): Json<PasswordResetConfirmRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     let token_hash = crypto::sha256(req.token.as_bytes());
 
@@ -430,7 +430,7 @@ pub async fn list_sessions(
     user: UserContext,
     claims: Claims,
 ) -> Result<Json<Vec<SessionResponse>>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
     let sessions = svc.list_active_sessions(user.user_id).await?;
 
     // Mark the session whose device_info contains the current access token's JTI as current.
@@ -477,7 +477,7 @@ pub async fn enable_2fa(
         (secret_base32, temp_token, temp_hash, otpauth_url)
     }; // rng is dropped here, before any .await
 
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     // Check if already enabled
     let user_model = svc.find_user_by_id(user.user_id).await?
@@ -524,7 +524,7 @@ pub async fn confirm_2fa(
     Json(req): Json<Confirm2FaRequest>,
 ) -> Result<Json<MessageResponse>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     // Find the 2FA setup token
     let sessions = svc.list_active_sessions(user.user_id).await?;
@@ -558,7 +558,7 @@ pub async fn disable_2fa(
     user: UserContext,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<MessageResponse>, AppError> {
-    let svc = UserService::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
 
     let user_model = svc.find_user_by_id(user.user_id).await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
@@ -586,8 +586,8 @@ pub async fn verify_2fa_login(
     Json(req): Json<Verify2FaRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     req.validate()?;
-    let svc = UserService::new(&state.db_seaorm);
-    let repo = RoleRepository::new(&state.db_seaorm);
+    let svc = UserService::new(&state.db);
+    let repo = RoleRepository::new(&state.db);
 
     // Find the temp 2FA token
     let temp_hash = crypto::sha256(req.temp_token.as_bytes());

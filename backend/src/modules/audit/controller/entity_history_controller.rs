@@ -13,7 +13,7 @@ pub async fn search_history(
     State(state): State<SharedState>,
     Query(q): Query<EntityHistoryQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = EntityHistoryService::new(&state.db_seaorm);
+    let svc = EntityHistoryService::new(&state.db);
     let (entries, total) = svc.search(
         q.entity_type.as_deref(), q.entity_id, q.action.as_deref(),
         q.user_id, q.from.as_deref(), q.to.as_deref(),
@@ -40,7 +40,7 @@ pub async fn get_history_entry(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = EntityHistoryService::new(&state.db_seaorm);
+    let svc = EntityHistoryService::new(&state.db);
     let entry = svc.get_by_id(id).await?;
     Ok(Json(serde_json::json!({
         "id": entry.id,
@@ -61,7 +61,7 @@ pub async fn get_entity_history(
     State(state): State<SharedState>,
     Path((entity_type, entity_id)): Path<(String, i64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = EntityHistoryService::new(&state.db_seaorm);
+    let svc = EntityHistoryService::new(&state.db);
     let entries = svc.get_entity_history(&entity_type, entity_id).await?;
     let results: Vec<serde_json::Value> = entries.iter().map(|e| {
         serde_json::json!({
@@ -96,7 +96,7 @@ pub async fn rollback(
     Json(payload): Json<RollbackRequest>,
 ) -> Result<Json<RollbackResponse>, AppError> {
     payload.validate()?;
-    let svc = EntityHistoryService::new(&state.db_seaorm);
+    let svc = EntityHistoryService::new(&state.db);
     let result = svc.rollback(history_id, payload.user_id, &payload.reason).await?;
     let message = format!("Successfully rolled back {} #{}", result.entity_type, result.entity_id);
     Ok(Json(RollbackResponse {

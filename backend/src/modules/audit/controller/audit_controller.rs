@@ -9,7 +9,7 @@ use crate::modules::audit::service::audit_service::AuditService;
 pub async fn list_logs(
     State(state): State<SharedState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = AuditService::new(&state.db_seaorm);
+    let svc = AuditService::new(&state.db);
     let (logs, total) = svc.list(None, None, None, None, None, None, 1, 100).await?;
     let results: Vec<serde_json::Value> = logs.iter().map(|l| {
         serde_json::json!({
@@ -29,7 +29,7 @@ pub async fn get_log(
     State(state): State<SharedState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let svc = AuditService::new(&state.db_seaorm);
+    let svc = AuditService::new(&state.db);
     let log = svc.get_by_id(id).await?;
     Ok(Json(serde_json::json!({
         "id": log.id,
