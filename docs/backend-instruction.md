@@ -581,7 +581,7 @@ async fn customer_created_event_creates_first_invoice() {
     tokio::spawn(async move { subscriber.run().await });
 
     // Publish customer.created.v1
-    let event = CustomerCreatedV1 { customer_id: Uuid::new_v4(), email: "a@b.com".into() };
+    let event = CustomerCreatedV1 { customer_id: i64, email: "a@b.com".into() };
     let envelope = EventEnvelope::new(event, "customer-service".to_string());
     nats.publish("aeroxe.customer.created.v1", serde_json::to_vec(&envelope).unwrap()).await.unwrap();
 

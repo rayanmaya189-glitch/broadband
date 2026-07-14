@@ -202,7 +202,30 @@ async fn main() {
         let orchestrator = aeroxe_broadband::modules::notification::delivery::NotificationOrchestrator::new(db_seaorm);
         orchestrator.run(t7).await;
     });
-    tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry, partition manager, data cleanup, notification orchestrator");
+
+    // ── Spawn workers ──────────────────────────────────────
+    let w1 = state.clone();
+    let wt1 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeroxe_broadband::workers::device_sync_worker::run_device_sync_worker(w1, wt1).await;
+    });
+    let w2 = state.clone();
+    let wt2 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeroxe_broadband::workers::bandwidth_worker::run_bandwidth_worker(w2, wt2).await;
+    });
+    let w3 = state.clone();
+    let wt3 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeroxe_broadband::workers::billing_worker::run_billing_worker(w3, wt3).await;
+    });
+    let w4 = state.clone();
+    let wt4 = shutdown_token.clone();
+    tokio::spawn(async move {
+        aeroxe_broadband::workers::notification_worker::run_notification_worker(w4, wt4).await;
+    });
+
+    tracing::info!("Background jobs & workers spawned: SLA checker, renewal reminders, dunning, wallet expiry, partition manager, data cleanup, notification orchestrator, device sync, bandwidth monitor, billing, notification worker");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
