@@ -110,12 +110,14 @@ impl<'a> EntityHistoryRepository<'a> {
 
     /// Perform a full rollback: safety checks → restore entity data → record rollback history.
     ///
+    /// The entity restore and rollback history record are wrapped in a SeaORM
+    /// transaction so they either both succeed or both fail atomically.
+    ///
     /// This is the main entry point for rollback operations. It:
-    /// 1. Fetches the history entry
+    /// 1. Fetches the history entry (outside tx — read-only)
     /// 2. Validates old_data exists
-    /// 3. Runs entity-type-specific safety checks
-    /// 4. Restores the entity data via dynamic UPDATE
-    /// 5. Records a rollback history entry
+    /// 3. Runs entity-type-specific safety checks (outside tx — read-only)
+    /// 4. Inside a transaction: restores entity data + records rollback history
     pub async fn rollback(&self, history_id: i64, user_id: i64, reason: &str) -> Result<RollbackResult, AppError> {
         // 1. Fetch the history entry
         let entry = entity_history_entity::Entity::find_by_id(history_id)
@@ -133,28 +135,42 @@ impl<'a> EntityHistoryRepository<'a> {
             )));
         }
 
-        // 4. Run safety checks
+        // 4. Run safety checks (read-only, outside transaction)
         self.validate_rollback_safety(&entry.entity_type, entry.entity_id, &old_data).await?;
 
-        // 5. Restore the entity data
-        self.restore_entity_data(&entry.entity_type, entry.entity_id, &old_data).await?;
+        // 5. Restore entity data + record rollback history — atomically in a transaction
+        let restored_from = history_id;
+        let entity_type = entry.entity_type.clone();
+        let entity_id = entry.entity_id;
+        let current_new_data = entry.new_data.clone();
+        let current_changed_fields = entry.changed_fields.clone();
+        let reason_owned = reason.to_owned();
 
-        // 6. Record rollback history entry
-        let now = chrono::Utc::now();
-        let rollback_active = entity_history_entity::ActiveModel {
-            entity_type: Set(entry.entity_type.clone()),
-            entity_id: Set(entry.entity_id),
-            action: Set("rollback".to_owned()),
-            old_data: Set(entry.new_data.clone()),  // Current state (before rollback)
-            new_data: Set(Some(old_data)),           // Restored state
-            changed_fields: Set(entry.changed_fields.clone()),
-            user_id: Set(Some(user_id)),
-            reason: Set(Some(reason.to_owned())),
-            rollback_reference: Set(Some(history_id)),
-            created_at: Set(now.into()),
-            ..Default::default()
-        };
-        let rollback_entry = rollback_active.insert(self.db).await?;
+        let rollback_entry = self.db.transaction::<_, entity_history_entity::Model, AppError>(|tx| {
+            Box::pin(async move {
+                // Restore the entity data
+                Self::restore_entity_data(tx, &entity_type, entity_id, &old_data).await?;
+
+                // Record rollback history entry
+                let now = chrono::Utc::now();
+                let rollback_active = entity_history_entity::ActiveModel {
+                    entity_type: Set(entity_type),
+                    entity_id: Set(entity_id),
+                    action: Set("rollback".to_owned()),
+                    old_data: Set(current_new_data),       // Current state (before rollback)
+                    new_data: Set(Some(old_data)),          // Restored state
+                    changed_fields: Set(current_changed_fields),
+                    user_id: Set(Some(user_id)),
+                    reason: Set(Some(reason_owned)),
+                    rollback_reference: Set(Some(restored_from)),
+                    created_at: Set(now.into()),
+                    ..Default::default()
+                };
+                let rollback_entry = rollback_active.insert(tx).await?;
+                Ok(rollback_entry)
+            })
+        }).await
+        .map_err(|e| AppError::Validation(format!("Transaction failed during rollback: {e}")))?;
 
         Ok(RollbackResult {
             history_id: rollback_entry.id,
@@ -268,8 +284,10 @@ impl<'a> EntityHistoryRepository<'a> {
     ///
     /// Uses a dynamic UPDATE query built from the old_data JSONB keys,
     /// skipping immutable fields (id, created_at, updated_at).
+    ///
+    /// Accepts a `db` reference so it can operate inside a transaction.
     async fn restore_entity_data(
-        &self, entity_type: &str, entity_id: i64, old_data: &JsonValue,
+        db: &(impl sea_orm::ConnectionTrait + Send + Sync), entity_type: &str, entity_id: i64, old_data: &JsonValue,
     ) -> Result<(), AppError> {
         let table_name = match entity_type {
             "customers" => "customers",
@@ -306,7 +324,7 @@ impl<'a> EntityHistoryRepository<'a> {
         }
 
         // Add updated_at = NOW()
-        set_clauses.push(format!("updated_at = NOW()"));
+        set_clauses.push("updated_at = NOW()".to_owned());
 
         let sql = format!(
             "UPDATE {} SET {} WHERE id = ${}",
@@ -317,7 +335,7 @@ impl<'a> EntityHistoryRepository<'a> {
         params.push(sea_orm::Value::BigInt(Some(entity_id)));
 
         let stmt = Statement::from_sql_and_values(DatabaseBackend::Postgres, &sql, params);
-        let result = self.db.execute(stmt).await?;
+        let result = db.execute(stmt).await?;
 
         if result.rows_affected() == 0 {
             return Err(AppError::NotFound(format!(
