@@ -293,23 +293,7 @@ impl<'a> AccountingRepository<'a> {
         crate::common::branch_helpers::get_branch_gstin(self.db, branch_id).await
     }
 
-    /// Get customer name by ID.
-    pub async fn get_customer_name(&self, customer_id: i64) -> Result<String, AppError> {
-        use crate::modules::customer::model::customer_entity;
-        let c = customer_entity::Entity::find_by_id(customer_id)
-            .one(self.db).await?;
-        Ok(c.map(|c| format!("{} {}", c.first_name, c.last_name.unwrap_or_default()))
-            .unwrap_or_else(|| "Unknown".to_string()))
-    }
 
-    /// Get customer GSTIN from profile.
-    pub async fn get_customer_gstin(&self, customer_id: i64) -> Result<Option<String>, AppError> {
-        use crate::modules::customer::model::customer_profile_entity;
-        let p = customer_profile_entity::Entity::find()
-            .filter(customer_profile_entity::Column::CustomerId.eq(customer_id))
-            .one(self.db).await?;
-        Ok(p.and_then(|p| p.gstin))
-    }
 
     /// Batch-fetch customer name and GSTIN for multiple customers in 2 queries.
     /// Returns a HashMap keyed by customer_id.
