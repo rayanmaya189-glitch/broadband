@@ -32,3 +32,6 @@ pub mod reporting;
 pub mod scheduler;
 pub mod traffic;
 pub mod workflow;
+pub mod gateway;
+pub mod compliance;
+pub mod integrations;
