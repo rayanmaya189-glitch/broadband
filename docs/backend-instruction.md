@@ -56,6 +56,17 @@ aeroxe-broadband-backend/
     │   └── settings.rs
     │
     ├── modules/                         # Bounded contexts (business domains)
+    │   ├── gateway/                    # NEW: API Gateway layer
+    │   │   ├── auth/
+    │   │   │     ├──  jwt_validator.rs
+    │   │   │     └──  api_key_validator.rs
+    │   │   ├── rate_limiter/
+    │   │   │     └──  token_bucket.rs
+    │   │   ├── request_validator/
+    │   │   │     └──  schemas/
+    │   │   ├── api_versioning/
+    │   │   │     └──  router.rs
+    │   │   └── mod.rs
     │   ├── identity/                    # Authentication & authorisation basics
     │   │   ├── domain/
     │   │   │   ├── aggregates/
@@ -148,8 +159,25 @@ aeroxe-broadband-backend/
     │   │   ├── infrastructure/ ...
     │   │   └── api/ ...
     │   │
+    │   ├── branches/
+    │   │   ├── domain/ ...                      # Aggregate: Branches
+    │   │   ├── application/ ...
+    │   │   ├── infrastructure/ ...
+    │   │   └── api/ ...
+    │   │
     │   ├── network/
-    │   │   ├── domain/ ...                      # Aggregate: NetworkDevice, VLAN
+    │   │   ├── domain/                        # Aggregate: NetworkDevice, VLAN
+    │   │   │   └── aggregates/
+    │   │   │       ├── radius
+    │   │   │       ├── pppoe
+    │   │   │       ├── dhcp
+    │   │   │       ├── ip_pool
+    │   │   │       ├── vlan
+    │   │   │       ├── olt
+    │   │   │       ├── onu
+    │   │   │       ├── mikrotik
+    │   │   │       ├── qos
+    │   │   │       └──  firewall
     │   │   ├── application/ ...
     │   │   ├── infrastructure/ ...
     │   │   └── api/ ...
@@ -283,7 +311,7 @@ aeroxe-broadband-backend/
     └── shared/                          # Shared kernel (used by all modules)
         ├── errors/
         │   └── app_error.rs
-        ├── events/                      # Versioned domain event definitions
+        ├── event_contracts/                      # Versioned domain event contracts definitions
         │   ├── customer/
         │   │   ├── customer_created_v1.rs
         │   │   └── customer_suspended_v1.rs
@@ -294,8 +322,8 @@ aeroxe-broadband-backend/
         │   │   ├── device_online_v1.rs
         │   │   └── bandwidth_applied_v1.rs
         │   └── ...
-        ├── types/
-        │   └── ids.rs                  # Shared ID types (CustomerId, etc.)
+        ├── primitives/
+        │   └── ids.rs                  # Shared ID primitives (CustomerId, etc.)
         └── utils/
             └── datetime.rs
 ```
