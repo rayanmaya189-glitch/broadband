@@ -1,7 +1,7 @@
 //! Create VLAN command handler.
 
 use crate::common::errors::app_error::AppError;
-use crate::modules::network::domain::aggregates::vlan::vlan::{Vlan, VlanError};
+use crate::modules::network::domain::aggregates::vlan::vlan::Vlan;
 use crate::modules::network::domain::rules::network_rules;
 
 /// Command to create a VLAN.

@@ -1,7 +1,7 @@
 //! Create IP pool command handler.
 
 use crate::common::errors::app_error::AppError;
-use crate::modules::network::domain::aggregates::ip_pool::ip_pool::{IpPool, IpPoolError};
+use crate::modules::network::domain::aggregates::ip_pool::ip_pool::IpPool;
 use crate::modules::network::domain::rules::network_rules;
 
 /// Command to create an IP pool.

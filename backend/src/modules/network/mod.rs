@@ -5,3 +5,6 @@ pub mod repository;
 pub mod service;
 pub mod controller;
 pub mod router;
+pub mod domain;
+pub mod application;
+pub mod infrastructure;

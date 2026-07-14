@@ -4,7 +4,7 @@ use rust_decimal::Decimal;
 
 use crate::common::errors::app_error::AppError;
 use crate::modules::billing::domain::aggregates::invoice::invoice::Invoice;
-use crate::modules::billing::domain::aggregates::payment::payment::{Payment, PaymentMethod, PaymentEvent};
+use crate::modules::billing::domain::aggregates::payment::payment::{Payment, PaymentMethod};
 use crate::modules::billing::domain::rules::billing_rules;
 
 /// Command to process a payment.

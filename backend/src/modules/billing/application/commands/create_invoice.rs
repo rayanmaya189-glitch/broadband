@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
 use crate::common::errors::app_error::AppError;
-use crate::modules::billing::domain::aggregates::invoice::invoice::{Invoice, InvoiceError};
+use crate::modules::billing::domain::aggregates::invoice::invoice::Invoice;
 use crate::modules::billing::domain::rules::billing_rules;
 
 /// Command to create an invoice.
