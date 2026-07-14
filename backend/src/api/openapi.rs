@@ -3,6 +3,8 @@ use utoipa::OpenApi;
 use crate::modules::accounting::request::accounting_request::*;
 use crate::modules::accounting::response::accounting_response::*;
 use crate::modules::audit::response::audit_response::*;
+use crate::modules::automation::request::automation_request::{AddActionRequest, AddTriggerRequest, CreateRuleRequest, ExecutionQuery as AutomationExecutionQuery};
+use crate::modules::automation::response::automation_response::{ExecutionResponse as AutomationExecutionResponse, RuleResponse};
 use crate::modules::bandwidth::request::bandwidth_request::*;
 use crate::modules::bandwidth::response::bandwidth_response::*;
 use crate::modules::billing::request::billing_request::*;
@@ -11,6 +13,8 @@ use crate::modules::branch::request::branch_request::*;
 use crate::modules::branch::response::branch_response::*;
 use crate::modules::coverage::request::coverage_request::*;
 use crate::modules::coverage::response::coverage_response::*;
+use crate::modules::crm::request::crm_request::*;
+use crate::modules::crm::response::crm_response::*;
 use crate::modules::customer::request::customer_request::*;
 use crate::modules::customer::response::customer_response::*;
 use crate::modules::device::request::device_request::*;
@@ -26,6 +30,8 @@ use crate::modules::inventory::request::inventory_request::*;
 use crate::modules::inventory::response::inventory_response::*;
 use crate::modules::lead::request::lead_request::*;
 use crate::modules::lead::response::lead_response::*;
+use crate::modules::monitoring::request::monitoring_request::*;
+use crate::modules::monitoring::response::monitoring_response::*;
 use crate::modules::network::request::network_request::*;
 use crate::modules::network::response::network_response::*;
 use crate::modules::notification::request::notification_request::*;
@@ -38,6 +44,10 @@ use crate::modules::plan::request::plan_request::*;
 use crate::modules::plan::response::plan_response::*;
 use crate::modules::realtime::response::realtime_response::*;
 use crate::modules::referral::request::referral_request::*;
+use crate::modules::reporting::request::report_request::*;
+use crate::modules::reporting::response::report_response::*;
+use crate::modules::scheduler::request::scheduler_request::{CreateTaskRequest, ExecutionQuery as SchedulerExecutionQuery};
+use crate::modules::scheduler::response::scheduler_response::{ExecutionResponse as SchedulerExecutionResponse, TaskResponse};
 use crate::modules::referral::response::referral_response::*;
 use crate::modules::role::request::role_request::*;
 use crate::modules::role::response::role_response::*;
@@ -45,8 +55,12 @@ use crate::modules::subscription::request::subscription_request::*;
 use crate::modules::subscription::response::subscription_response::*;
 use crate::modules::ticket::request::ticket_request::*;
 use crate::modules::ticket::response::ticket_response::*;
+use crate::modules::traffic::request::traffic_request::*;
+use crate::modules::traffic::response::traffic_response::*;
 use crate::modules::user::request::user_request::*;
 use crate::modules::user::response::user_response::*;
+use crate::modules::workflow::request::workflow_request::*;
+use crate::modules::workflow::response::workflow_response::*;
 
 /// Central OpenAPI documentation for AeroXe Broadband ISP Platform
 ///
@@ -210,6 +224,61 @@ use crate::modules::user::response::user_response::*;
         // === Audit ===
         AuditLogResponse,
         AuditListResponse,
+        // === CRM ===
+        CreateInteractionRequest,
+        CreateNoteRequest,
+        CreateTagRequest,
+        CreateSegmentRequest,
+        InteractionQuery,
+        TagQuery,
+        InteractionResponse,
+        NoteResponse,
+        TagResponse,
+        SegmentResponse,
+        // === Reporting ===
+        GenerateReportRequest,
+        CreateScheduleRequest,
+        ReportQuery,
+        ReportResponse,
+        ScheduleResponse,
+        // === Monitoring ===
+        RecordHealthCheckRequest,
+        RecordMetricRequest,
+        CreateAlertRuleRequest,
+        HealthCheckQuery,
+        AlertQuery,
+        HealthCheckResponse,
+        MetricResponse,
+        AlertResponse,
+        AlertRuleResponse,
+        // === Traffic ===
+        RecordSampleRequest,
+        CreatePolicyRequest,
+        SampleQuery,
+        AggregateQuery,
+        SampleResponse,
+        PolicyResponse,
+        AggregateResponse,
+        // === Automation ===
+        CreateRuleRequest,
+        AddTriggerRequest,
+        AddActionRequest,
+        AutomationExecutionQuery,
+        RuleResponse,
+        AutomationExecutionResponse,
+        // === Scheduler ===
+        CreateTaskRequest,
+        SchedulerExecutionQuery,
+        SchedulerExecutionResponse,
+        TaskResponse,
+        // === Workflow ===
+        CreateDefinitionRequest,
+        AddStepRequest,
+        StartInstanceRequest,
+        StepDecisionRequest,
+        InstanceQuery,
+        DefinitionResponse,
+        InstanceResponse,
     )),
     tags(
         (name = "Auth", description = "Authentication & Authorization"),
@@ -237,6 +306,13 @@ use crate::modules::user::response::user_response::*;
         (name = "Discovery", description = "Network device discovery"),
         (name = "Realtime", description = "WebSocket health & channel info"),
         (name = "Audit", description = "Audit trail logs"),
+        (name = "CRM", description = "Customer relationship management"),
+        (name = "Reporting", description = "Report generation and scheduling"),
+        (name = "Monitoring", description = "Service health, metrics, and alerts"),
+        (name = "Traffic", description = "Bandwidth traffic sampling and policies"),
+        (name = "Automation", description = "Automation rules and execution"),
+        (name = "Scheduler", description = "Scheduled task management"),
+        (name = "Workflow", description = "Workflow definitions and approval routing"),
     )
 )]
 pub struct ApiDoc;
