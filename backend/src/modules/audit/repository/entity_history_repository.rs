@@ -40,6 +40,68 @@ const ROLLABLE_ENTITIES: &[&str] = &[
     "bandwidth_profiles",
 ];
 
+/// Whitelist of valid columns per entity type for rollback.
+/// Prevents setting unexpected columns from corrupted old_data JSONB.
+fn valid_columns_for_entity(entity_type: &str) -> Option<&'static [&'static str]> {
+    match entity_type {
+        "customers" => Some(&[
+            "customer_code", "first_name", "last_name", "email", "phone",
+            "alternate_phone", "status", "branch_id", "lead_id", "referred_by",
+            "created_by", "kyc_status", "notes", "updated_at",
+        ]),
+        "subscriptions" => Some(&[
+            "customer_id", "branch_id", "plan_id", "status",
+            "billing_period_months", "start_date", "end_date",
+            "next_billing_date", "auto_renew", "updated_at",
+        ]),
+        "plans" => Some(&[
+            "name", "code", "description", "speed_down_mbps", "speed_up_mbps",
+            "data_cap_gb", "price_monthly", "price_quarterly", "price_half_yearly",
+            "price_yearly", "gst_percent", "is_active", "is_promotional",
+            "category", "updated_at",
+        ]),
+        "invoices" => Some(&[
+            "invoice_number", "customer_id", "branch_id", "subscription_id",
+            "billing_period_start", "billing_period_end", "subtotal",
+            "discount_amount", "tax_amount", "cgst_amount", "sgst_amount",
+            "igst_amount", "total_amount", "currency", "status", "due_date",
+            "paid_at", "payment_method", "payment_reference", "created_by",
+            "review_status", "review_notes", "reviewed_by", "reviewed_at",
+            "approved_by", "approved_at", "notes", "updated_at",
+        ]),
+        "refunds" => Some(&[
+            "refund_number", "payment_id", "invoice_id", "customer_id",
+            "amount", "reason", "requested_by", "approved_by", "status",
+            "processed_at",
+        ]),
+        "journal_entries" => Some(&[
+            "entry_number", "entry_date", "description", "reference_type",
+            "reference_id", "total_debit", "total_credit", "status",
+            "posted_at", "created_by", "updated_at",
+        ]),
+        "network_devices" => Some(&[
+            "branch_id", "name", "device_model_id", "serial_number",
+            "management_ip", "management_port", "firmware_version", "status",
+            "health_score", "location_city", "location_area", "created_by",
+            "updated_at",
+        ]),
+        "payment_gateways" => Some(&[
+            "gateway_id", "name", "is_primary", "is_active",
+            "supported_methods", "currency", "updated_at",
+        ]),
+        "discounts" => Some(&[
+            "name", "code", "discount_type", "value", "max_uses",
+            "current_uses", "valid_from", "valid_until", "is_active",
+        ]),
+        "bandwidth_profiles" => Some(&[
+            "name", "description", "plan_id", "download_kbps", "upload_kbps",
+            "burst_download_kbps", "burst_upload_kbps", "burst_duration_seconds",
+            "priority", "is_active", "updated_at",
+        ]),
+        _ => None,
+    }
+}
+
 impl<'a> EntityHistoryRepository<'a> {
     pub fn new(db: &'a DatabaseConnection) -> Self { Self { db } }
 
@@ -304,13 +366,21 @@ impl<'a> EntityHistoryRepository<'a> {
         };
 
         // Build dynamic SET clause from old_data JSONB
+        let valid_cols = valid_columns_for_entity(entity_type)
+            .ok_or_else(|| AppError::Validation(format!("No column whitelist for entity type: {entity_type}")))?;
+
         let mut set_clauses = Vec::new();
         let mut params: Vec<sea_orm::Value> = Vec::new();
         let mut param_index = 1;
 
         if let Some(obj) = old_data.as_object() {
             for (key, value) in obj {
+                // Skip immutable fields (id, created_at)
                 if IMMUTABLE_FIELDS.contains(&key.as_str()) {
+                    continue;
+                }
+                // Skip columns not in the whitelist for this entity type
+                if !valid_cols.contains(&key.as_str()) {
                     continue;
                 }
                 set_clauses.push(format!("{key} = ${param_index}"));
