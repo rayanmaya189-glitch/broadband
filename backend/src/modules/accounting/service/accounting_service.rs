@@ -179,6 +179,21 @@ impl<'a> AccountingService<'a> {
         let invoices = self.repo.get_paid_invoices_for_period(month, year).await?;
         let supplier_gstin = self.repo.get_branch_gstin(invoices.first().map(|i| i.branch_id).unwrap_or(0)).await;
 
+        // Batch-fetch all customer info in 2 queries instead of N+1
+        let customer_ids: Vec<i64> = invoices.iter().map(|i| i.customer_id).collect();
+        let customer_map = self.repo.get_customer_info_batch(&customer_ids).await?;
+
+        // Collect unique branch IDs to batch-fetch branch states
+        let mut branch_ids: Vec<i64> = invoices.iter().map(|i| i.branch_id).collect();
+        branch_ids.sort();
+        branch_ids.dedup();
+        let mut branch_state_map = std::collections::HashMap::new();
+        for &bid in &branch_ids {
+            let state = self.repo.get_branch_state(bid).await?
+                .unwrap_or_else(|| "Maharashtra".to_string());
+            branch_state_map.insert(bid, state);
+        }
+
         let mut gstr1_invoices = Vec::new();
         let mut b2c = Gstr1B2cSummary {
             total_taxable_value: rust_decimal::Decimal::ZERO,
@@ -193,16 +208,22 @@ impl<'a> AccountingService<'a> {
         let mut total_igst = rust_decimal::Decimal::ZERO;
 
         for inv in &invoices {
-            let customer_name = self.repo.get_customer_name(inv.customer_id).await?;
-            let customer_gstin = self.repo.get_customer_gstin(inv.customer_id).await?;
-            let branch_state = self.repo.get_branch_state(inv.branch_id).await?
+            let customer = customer_map.get(&inv.customer_id)
+                .cloned()
+                .unwrap_or_else(|| crate::modules::accounting::repository::accounting_repository::CustomerInfo {
+                    customer_id: inv.customer_id,
+                    name: "Unknown".to_string(),
+                    gstin: None,
+                });
+            let branch_state = branch_state_map.get(&inv.branch_id)
+                .cloned()
                 .unwrap_or_else(|| "Maharashtra".to_string());
 
             let invoice_line = Gstr1Invoice {
                 invoice_number: inv.invoice_number.clone(),
                 invoice_date: inv.billing_period_start,
-                customer_gstin: customer_gstin.clone(),
-                customer_name,
+                customer_gstin: customer.gstin.clone(),
+                customer_name: customer.name,
                 place_of_supply: branch_state,
                 supply_type: "Regular".to_string(),
                 taxable_value: inv.subtotal,
@@ -217,7 +238,7 @@ impl<'a> AccountingService<'a> {
             total_sgst += inv.sgst_amount;
             total_igst += inv.igst_amount;
 
-            if customer_gstin.is_some() {
+            if customer.gstin.is_some() {
                 gstr1_invoices.push(invoice_line);
             } else {
                 b2c.total_taxable_value += inv.subtotal;

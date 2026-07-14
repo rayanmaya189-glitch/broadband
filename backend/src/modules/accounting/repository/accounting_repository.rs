@@ -8,6 +8,8 @@ use sea_orm::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
+use std::collections::HashMap;
+
 use crate::common::errors::app_error::AppError;
 use crate::modules::accounting::model::chart_of_account_entity::{self, Model as ChartOfAccountModel};
 use crate::modules::accounting::model::journal_entry_entity::{self, Model as JournalEntryModel};
@@ -23,6 +25,14 @@ pub struct AccountBalanceRow {
     pub account_type: String,
     pub total_debit: Decimal,
     pub total_credit: Decimal,
+}
+
+/// Customer info needed for GST reports — batch-fetched to avoid N+1.
+#[derive(Debug, Clone)]
+pub struct CustomerInfo {
+    pub customer_id: i64,
+    pub name: String,
+    pub gstin: Option<String>,
 }
 
 pub struct AccountingRepository<'a> {
@@ -299,6 +309,57 @@ impl<'a> AccountingRepository<'a> {
             .filter(customer_profile_entity::Column::CustomerId.eq(customer_id))
             .one(self.db).await?;
         Ok(p.and_then(|p| p.gstin))
+    }
+
+    /// Batch-fetch customer name and GSTIN for multiple customers in 2 queries.
+    /// Returns a HashMap keyed by customer_id.
+    pub async fn get_customer_info_batch(&self, customer_ids: &[i64]) -> Result<HashMap<i64, CustomerInfo>, AppError> {
+        use crate::modules::customer::model::{customer_entity, customer_profile_entity};
+
+        let mut map: HashMap<i64, CustomerInfo> = HashMap::new();
+        if customer_ids.is_empty() {
+            return Ok(map);
+        }
+
+        // Deduplicate IDs
+        let mut unique_ids: Vec<i64> = customer_ids.to_vec();
+        unique_ids.sort();
+        unique_ids.dedup();
+
+        // 1. Batch-fetch customers
+        let customers = customer_entity::Entity::find()
+            .filter(customer_entity::Column::Id.is_in(unique_ids.clone()))
+            .all(self.db).await?;
+
+        for c in &customers {
+            map.insert(c.id, CustomerInfo {
+                customer_id: c.id,
+                name: format!("{} {}", c.first_name, c.last_name.as_deref().unwrap_or("")),
+                gstin: None,
+            });
+        }
+
+        // 2. Batch-fetch profiles for GSTIN
+        let profiles = customer_profile_entity::Entity::find()
+            .filter(customer_profile_entity::Column::CustomerId.is_in(unique_ids))
+            .all(self.db).await?;
+
+        for p in &profiles {
+            if let Some(info) = map.get_mut(&p.customer_id) {
+                info.gstin = p.gstin.clone();
+            }
+        }
+
+        // Fill missing customers with defaults
+        for &id in customer_ids {
+            map.entry(id).or_insert_with(|| CustomerInfo {
+                customer_id: id,
+                name: "Unknown".to_string(),
+                gstin: None,
+            });
+        }
+
+        Ok(map)
     }
 
     /// Fetch paid invoices for a month/year range.
