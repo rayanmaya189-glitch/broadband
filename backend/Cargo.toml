@@ -1,9 +1,9 @@
 [package]
-name = "aeraxe-backend"
+name = "aeroxe-broadband"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "AeroXe ISP Platform — Modular Monolith Backend"
+description = "AeroXe Broadband ISP Platform — Modular Monolith Backend"
 license = "MIT"
 
 [dependencies]

@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════════════════════════
 
 # Build stage
-FROM rust:1.78-slim as builder
+FROM rust:1.85-slim as builder
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
@@ -32,9 +32,9 @@ RUN apt-get update && apt-get install -y \
 
 RUN groupadd -r aeroxe && useradd -r -g aeroxe aeroxe
 
-COPY --from=builder /app/target/release/aeroxe-backend /usr/local/bin/
+COPY --from=builder /app/target/release/aeroxe-broadband /usr/local/bin/aeroxe-api
 
-RUN chown aeroxe:aeroxe /usr/local/bin/aeroxe-backend
+RUN chown aeroxe:aeroxe /usr/local/bin/aeroxe-api
 
 USER aeroxe
 
@@ -43,4 +43,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["aeroxe-backend"]
+CMD ["aeroxe-api"]

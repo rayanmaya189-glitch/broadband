@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
 
 use axum::Router;
-use aeraxe_backend::api::openapi::ApiDoc;
-use aeraxe_backend::app::AppState;
-use aeraxe_backend::common::config::config::Config;
+use aeroxe_broadband::api::openapi::ApiDoc;
+use aeroxe_broadband::app::AppState;
+use aeroxe_broadband::common::config::config::Config;
 use tokio_util::sync::CancellationToken;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -73,17 +73,17 @@ async fn main() {
     };
 
     // ── Seed permissions on startup ─────────────────────────
-    if let Err(e) = aeraxe_backend::common::seed::permission_seeder::seed_permissions(&state.db).await {
+    if let Err(e) = aeroxe_broadband::common::seed::permission_seeder::seed_permissions(&state.db).await {
         tracing::error!(error = %e, "Failed to seed permissions");
     }
 
     // ── Seed roles with permissions ──────────────────────────
-    if let Err(e) = aeraxe_backend::common::seed::role_seeder::seed_roles(&state.db).await {
+    if let Err(e) = aeroxe_broadband::common::seed::role_seeder::seed_roles(&state.db).await {
         tracing::error!(error = %e, "Failed to seed roles");
     }
 
     // ── Seed superadmin user ────────────────────────────────
-    if let Err(e) = aeraxe_backend::common::seed::admin_user_seeder::seed_admin_user(&state.db).await {
+    if let Err(e) = aeroxe_broadband::common::seed::admin_user_seeder::seed_admin_user(&state.db).await {
         tracing::error!(error = %e, "Failed to seed superadmin user");
     }
 
@@ -91,11 +91,11 @@ async fn main() {
 
     // ── Admin API (scoped with JWT + admin role guard via rls_setup::admin_scoped) ──
     let admin_api = Router::new()
-        .nest("/api/v1/admin", aeraxe_backend::api::admin::router::admin_api_router());
+        .nest("/api/v1/admin", aeroxe_broadband::api::admin::router::admin_api_router());
 
     // ── Customer Self-Service API (scoped with JWT + customer role guard via rls_setup::customer_scoped) ──
     let customer_api = Router::new()
-        .nest("/api/v1/customer", aeraxe_backend::api::customer::router::customer_api_router());
+        .nest("/api/v1/customer", aeroxe_broadband::api::customer::router::customer_api_router());
 
     // ── Admin-only module routes (no customer access) ──────
     // All admin routes moved to /api/v1/admin/<resource> via admin API router.
@@ -105,11 +105,11 @@ async fn main() {
 
     // ── Public routes (no JWT required) ──────────────────────
     let public_routes = Router::new()
-        .nest("/api/v1/auth", aeraxe_backend::modules::user::router::user_router::auth_routes())
-        .nest("/api/v1/coverage", aeraxe_backend::modules::coverage::router::coverage_router::coverage_routes())
-        .nest("/api/v1/payments/webhook", aeraxe_backend::modules::payment_gateway::router::payment_gateway_router::payment_webhook_routes())
-        .nest("/api/v1/plans", aeraxe_backend::modules::plan::router::customer_router::customer_routes())
-        .nest("/ws", aeraxe_backend::modules::realtime::router::realtime_router::ws_routes());
+        .nest("/api/v1/auth", aeroxe_broadband::modules::user::router::user_router::auth_routes())
+        .nest("/api/v1/coverage", aeroxe_broadband::modules::coverage::router::coverage_router::coverage_routes())
+        .nest("/api/v1/payments/webhook", aeroxe_broadband::modules::payment_gateway::router::payment_gateway_router::payment_webhook_routes())
+        .nest("/api/v1/plans", aeroxe_broadband::modules::plan::router::customer_router::customer_routes())
+        .nest("/ws", aeroxe_broadband::modules::realtime::router::realtime_router::ws_routes());
 
     // ── Merge everything ────────────────────────────────────
     let router = Router::new()
@@ -121,10 +121,10 @@ async fn main() {
             SwaggerUi::new("/swagger-ui")
                 .url("/api-docs/openapi.json", ApiDoc::openapi()),
         )
-        .layer(aeraxe_backend::common::middleware::cors_middleware::build_cors())
+        .layer(aeroxe_broadband::common::middleware::cors_middleware::build_cors())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
-            aeraxe_backend::common::middleware::rls_layer::inject_pool_middleware,
+            aeroxe_broadband::common::middleware::rls_layer::inject_pool_middleware,
         ))
         .with_state(state.clone());
 
@@ -168,38 +168,38 @@ async fn main() {
     let bg1 = state.clone();
     let t1 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::sla_checker::run_sla_checker(bg1, t1).await;
+        aeroxe_broadband::common::jobs::sla_checker::run_sla_checker(bg1, t1).await;
     });
     let bg2 = state.clone();
     let t2 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::subscription_renewal_reminder::run_subscription_renewal_reminder(bg2, t2).await;
+        aeroxe_broadband::common::jobs::subscription_renewal_reminder::run_subscription_renewal_reminder(bg2, t2).await;
     });
     let bg3 = state.clone();
     let t3 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::invoice_dunning::run_invoice_dunning(bg3, t3).await;
+        aeroxe_broadband::common::jobs::invoice_dunning::run_invoice_dunning(bg3, t3).await;
     });
     let bg4 = state.clone();
     let t4 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::wallet_expiry_cleanup::run_wallet_expiry_cleanup(bg4, t4).await;
+        aeroxe_broadband::common::jobs::wallet_expiry_cleanup::run_wallet_expiry_cleanup(bg4, t4).await;
     });
     let bg5 = state.clone();
     let t5 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::partition_manager::run_partition_manager(bg5, t5).await;
+        aeroxe_broadband::common::jobs::partition_manager::run_partition_manager(bg5, t5).await;
     });
     let bg6 = state.clone();
     let t6 = shutdown_token.clone();
     tokio::spawn(async move {
-        aeraxe_backend::common::jobs::data_cleanup::run_data_cleanup(bg6, t6).await;
+        aeroxe_broadband::common::jobs::data_cleanup::run_data_cleanup(bg6, t6).await;
     });
     // Spawn notification delivery orchestrator
     let t7 = shutdown_token.clone();
     let db_seaorm = std::sync::Arc::new(state.db.clone());
     tokio::spawn(async move {
-        let orchestrator = aeraxe_backend::modules::notification::delivery::NotificationOrchestrator::new(db_seaorm);
+        let orchestrator = aeroxe_broadband::modules::notification::delivery::NotificationOrchestrator::new(db_seaorm);
         orchestrator.run(t7).await;
     });
     tracing::info!("Background jobs spawned: SLA checker, renewal reminders, dunning, wallet expiry, partition manager, data cleanup, notification orchestrator");

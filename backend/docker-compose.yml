@@ -4,17 +4,17 @@ services:
   # ── PostgreSQL ────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: aeraxe-postgres
+    container_name: aeroxe-postgres
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: aeraxe
+      POSTGRES_USER: aeroxe
       POSTGRES_PASSWORD: secret
-      POSTGRES_DB: aeraxe
+      POSTGRES_DB: aeroxe_broadband
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aeraxe"]
+      test: ["CMD-SHELL", "pg_isready -U aeroxe"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -22,7 +22,7 @@ services:
   # ── Redis ─────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: aeraxe-redis
+    container_name: aeroxe-redis
     ports:
       - "6379:6379"
     volumes:
@@ -36,7 +36,7 @@ services:
   # ── NATS ──────────────────────────────────────────────────
   nats:
     image: nats:2.10-alpine
-    container_name: aeraxe-nats
+    container_name: aeroxe-nats
     ports:
       - "4222:4222"
       - "8222:8222"  # monitoring
@@ -52,7 +52,7 @@ services:
   # ── MinIO (S3-compatible object storage) ───────────────────
   minio:
     image: minio/minio:latest
-    container_name: aeraxe-minio
+    container_name: aeroxe-minio
     ports:
       - "9000:9000"
       - "9001:9001"

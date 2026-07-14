@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "aeraxe-backend"
+name = "aeroxe-broadband"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",

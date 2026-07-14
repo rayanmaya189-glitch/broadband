@@ -10,8 +10,10 @@ pub mod jobs;
 pub mod middleware;
 pub mod seed;
 pub mod security;
+pub mod shared;
 pub mod traits;
 pub mod branch_helpers;
+pub mod observability;
 pub mod utils;
 #[cfg(test)]
 pub mod test_utils;

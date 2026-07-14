@@ -25,8 +25,11 @@ impl NatsService {
     }
 
     /// Publish a serializable event to the events stream.
+    ///
+    /// Uses the `aeroxe.<module>.<action>` naming convention.
+    /// For backward compatibility, also publishes to `events.<event_type>`.
     pub async fn publish_event<T: Serialize>(&self, event_type: &str, payload: &T) -> Result<(), AppError> {
-        let subject = format!("events.{event_type}");
+        let subject = format!("aeroxe.{event_type}");
         let json = serde_json::to_string(payload)
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Event serialization failed: {e}")))?;
         self.publish(&subject, &json).await
