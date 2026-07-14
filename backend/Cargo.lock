@@ -26,6 +26,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "async-nats",
+ "async-trait",
  "axum",
  "axum-extra",
  "base64",
