@@ -172,14 +172,13 @@ impl<'a> EntityHistoryRepository<'a> {
 
     /// Perform a full rollback: safety checks → restore entity data → record rollback history.
     ///
-    /// The entity restore and rollback history record are wrapped in a SeaORM
-    /// transaction so they either both succeed or both fail atomically.
+    /// Safety checks, entity restore, and rollback history record are all
+    /// wrapped in a SeaORM transaction for strict atomicity (no TOCTOU gap).
     ///
     /// This is the main entry point for rollback operations. It:
     /// 1. Fetches the history entry (outside tx — read-only)
-    /// 2. Validates old_data exists
-    /// 3. Runs entity-type-specific safety checks (outside tx — read-only)
-    /// 4. Inside a transaction: restores entity data + records rollback history
+    /// 2. Validates old_data exists and entity type is rollbackable
+    /// 3. Inside a transaction: runs safety checks + restores entity data + records rollback history
     pub async fn rollback(&self, history_id: i64, user_id: i64, reason: &str) -> Result<RollbackResult, AppError> {
         // 1. Fetch the history entry
         let entry = entity_history_entity::Entity::find_by_id(history_id)
@@ -197,10 +196,7 @@ impl<'a> EntityHistoryRepository<'a> {
             )));
         }
 
-        // 4. Run safety checks (read-only, outside transaction)
-        self.validate_rollback_safety(&entry.entity_type, entry.entity_id, &old_data).await?;
-
-        // 5. Restore entity data + record rollback history — atomically in a transaction
+        // 4. Restore entity data + safety checks + record rollback history — atomically in a transaction
         let restored_from = history_id;
         let entity_type = entry.entity_type.clone();
         let entity_id = entry.entity_id;
@@ -210,6 +206,9 @@ impl<'a> EntityHistoryRepository<'a> {
 
         let rollback_entry = self.db.transaction::<_, entity_history_entity::Model, AppError>(|tx| {
             Box::pin(async move {
+                // Safety checks inside transaction (TOCTOU fix)
+                Self::validate_rollback_safety(tx, &entity_type, entity_id, &old_data).await?;
+
                 // Restore the entity data
                 Self::restore_entity_data(tx, &entity_type, entity_id, &old_data).await?;
 
@@ -246,8 +245,11 @@ impl<'a> EntityHistoryRepository<'a> {
     ///
     /// Each entity type has business rules that prevent rollback in certain states.
     /// These checks prevent data corruption and maintain referential integrity.
+    ///
+    /// Accepts a `db` reference so it can operate inside a transaction.
     async fn validate_rollback_safety(
-        &self, entity_type: &str, entity_id: i64, _old_data: &JsonValue,
+        db: &(impl sea_orm::ConnectionTrait + Send + Sync),
+        entity_type: &str, entity_id: i64, _old_data: &JsonValue,
     ) -> Result<(), AppError> {
         match entity_type {
             "customers" => {
@@ -257,7 +259,7 @@ impl<'a> EntityHistoryRepository<'a> {
                     "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE customer_id = $1 AND status = 'active')",
                     vec![entity_id.into()],
                 );
-                let result = self.db.query_one(stmt).await?;
+                let result = db.query_one(stmt).await?;
                 let has_active = result
                     .and_then(|r| r.try_get("", "exists").ok())
                     .unwrap_or(false);
@@ -274,7 +276,7 @@ impl<'a> EntityHistoryRepository<'a> {
                     "SELECT EXISTS(SELECT 1 FROM payments WHERE invoice_id = $1 AND status = 'completed')",
                     vec![entity_id.into()],
                 );
-                let result = self.db.query_one(stmt).await?;
+                let result = db.query_one(stmt).await?;
                 let has_payment = result
                     .and_then(|r| r.try_get("", "exists").ok())
                     .unwrap_or(false);
@@ -291,7 +293,7 @@ impl<'a> EntityHistoryRepository<'a> {
                     "SELECT EXISTS(SELECT 1 FROM network_devices WHERE id = $1 AND status = 'online')",
                     vec![entity_id.into()],
                 );
-                let result = self.db.query_one(stmt).await?;
+                let result = db.query_one(stmt).await?;
                 let is_online = result
                     .and_then(|r| r.try_get("", "exists").ok())
                     .unwrap_or(false);
@@ -308,7 +310,7 @@ impl<'a> EntityHistoryRepository<'a> {
                     "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE plan_id = $1 AND status = 'active')",
                     vec![entity_id.into()],
                 );
-                let result = self.db.query_one(stmt).await?;
+                let result = db.query_one(stmt).await?;
                 let has_subscribers = result
                     .and_then(|r| r.try_get("", "exists").ok())
                     .unwrap_or(false);
@@ -325,7 +327,7 @@ impl<'a> EntityHistoryRepository<'a> {
                     "SELECT EXISTS(SELECT 1 FROM invoices WHERE subscription_id = $1 AND status = 'paid')",
                     vec![entity_id.into()],
                 );
-                let result = self.db.query_one(stmt).await?;
+                let result = db.query_one(stmt).await?;
                 let has_paid_invoice = result
                     .and_then(|r| r.try_get("", "exists").ok())
                     .unwrap_or(false);
