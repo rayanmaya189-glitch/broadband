@@ -231,7 +231,7 @@ impl<'a> EntityHistoryRepository<'a> {
                 Ok(rollback_entry)
             })
         }).await
-        .map_err(|e| AppError::Validation(format!("Transaction failed during rollback: {e}")))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Transaction failed during rollback: {e}")))?;
 
         Ok(RollbackResult {
             history_id: rollback_entry.id,
