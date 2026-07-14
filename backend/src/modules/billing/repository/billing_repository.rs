@@ -371,23 +371,15 @@ impl BillingRepository {
     }
 
     // ──── Branch & Customer State Helpers ────
-    // NOTE: get_branch_state and get_branch_gstin are in accounting_repository.rs
+    // NOTE: get_branch_state and get_branch_gstin are in common/branch_helpers.rs
     // to avoid duplication. Billing service accesses them via the accounting repo.
 
     pub async fn get_branch_state(&self, branch_id: i64) -> Result<Option<String>, AppError> {
-        use crate::modules::branch::model::branch_entity;
-        let branch = branch_entity::Entity::find_by_id(branch_id)
-            .one(&self.db).await?;
-        Ok(branch.and_then(|b| b.state))
+        crate::common::branch_helpers::get_branch_state(&self.db, branch_id).await
     }
 
     pub async fn get_branch_gstin(&self, branch_id: i64) -> Option<String> {
-        use crate::modules::branch::model::branch_entity;
-        branch_entity::Entity::find_by_id(branch_id)
-            .one(&self.db).await
-            .ok()
-            .flatten()
-            .and_then(|b| b.gstin)
+        crate::common::branch_helpers::get_branch_gstin(&self.db, branch_id).await
     }
 
     pub async fn get_customer_state(&self, customer_id: i64) -> Result<Option<String>, AppError> {

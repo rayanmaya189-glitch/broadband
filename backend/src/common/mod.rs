@@ -11,6 +11,7 @@ pub mod middleware;
 pub mod seed;
 pub mod security;
 pub mod traits;
+pub mod branch_helpers;
 pub mod utils;
 #[cfg(test)]
 pub mod test_utils;
