@@ -49,6 +49,7 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/discovery", discovery_routes())
         .nest("/inventory", inventory_routes())
         .nest("/installations", installation_routes())
+        .nest("/payments", payment_routes())
 }
 
 fn auth_routes() -> Router<SharedState> {
@@ -226,4 +227,15 @@ fn installation_routes() -> Router<SharedState> {
         .route("/:id/schedule", axum::routing::post(http::schedule_installation))
         .route("/:id/complete", axum::routing::post(http::complete_installation))
         .route("/:id/cancel", axum::routing::post(http::cancel_installation))
+}
+
+fn payment_routes() -> Router<SharedState> {
+    use crate::modules::payment::api::http;
+    Router::new()
+        .route("/create-link", axum::routing::post(http::create_payment_link))
+        .route("/manual", axum::routing::post(http::record_manual_payment))
+        .route("/gateways", axum::routing::get(http::list_gateways))
+        .route("/webhook/razorpay", axum::routing::post(http::handle_razorpay_webhook))
+        .route("/webhook/payu", axum::routing::post(http::handle_payu_webhook))
+        .route("/:id/retry", axum::routing::post(http::retry_payment))
 }

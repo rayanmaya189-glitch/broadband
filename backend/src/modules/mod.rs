@@ -5,6 +5,7 @@ pub mod customer;
 pub mod plans;
 pub mod subscription;
 pub mod billing;
+pub mod payment;
 pub mod accounting;
 pub mod network;
 pub mod device;
