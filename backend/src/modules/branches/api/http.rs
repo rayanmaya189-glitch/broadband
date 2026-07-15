@@ -60,7 +60,9 @@ pub struct CreateBranchRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateBranchRequest {
+    #[serde(default)]
     pub name: Option<String>,
+    #[serde(default)]
     pub city: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
