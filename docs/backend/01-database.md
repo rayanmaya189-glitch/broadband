@@ -8,7 +8,7 @@
 
 - **Engine:** PostgreSQL 16
 - **Extensions:** PostGIS (spatial queries), pgcrypto, uuid-ossp
-- **ORM:** SeaORM (with SQLx for raw queries where needed)
+- **ORM:** SeaORM (no SQLx — all database access via SeaORM abstractions)
 - **Partitioning:** Range-partitioned by time for high-volume tables
 
 ## 2. Migration Strategy

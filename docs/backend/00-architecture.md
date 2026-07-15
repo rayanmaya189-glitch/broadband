@@ -11,7 +11,7 @@
 | Language | **Rust** | Performance, memory safety, type safety |
 | Web Framework | **Axum** | Async, tower middleware, ergonomic handlers |
 | Database | **PostgreSQL 16** | JSONB, partitioning, PostGIS, mature ecosystem |
-| ORM / Query | **SeaORM** or **SQLx** | Type-safe queries, migrations, async |
+| ORM / Query | **SeaORM** | Type-safe queries, migrations, async, no raw SQLx |
 | Cache | **Redis 7** | Sessions, rate limiting, pub/sub, real-time |
 | Message Bus | **NATS JetStream** | Event sourcing, durable messaging, exactly-once |
 | Object Storage | **MinIO** | S3-compatible, self-hosted document storage |
@@ -102,7 +102,7 @@ modules/customers/
 ├── handlers.rs         # Axum request handlers (controllers)
 ├── service.rs          # Business logic layer
 ├── repository.rs       # Database queries (data access layer)
-├── model.rs            # SeaORM/SQLx models
+├── model.rs            # SeaORM models (ActiveModel, Entity)
 ├── dto.rs              # Request/Response DTOs (serialization)
 ├── events.rs           # NATS event publishers
 ├── errors.rs           # Module-specific error types
@@ -177,7 +177,7 @@ pub enum AppError {
     Internal(#[from] anyhow::Error),
 
     #[error("Database error")]
-    Database(#[from] sqlx::Error),
+    Database(#[from] sea_orm::DbErr),
 
     #[error("External service error: {0}")]
     External(String),

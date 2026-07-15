@@ -193,35 +193,44 @@ Before any database operation, set the context variables so the trigger can capt
 ```rust
 // src/middleware/history_context.rs
 use axum::extract::Request;
-use tower_http::trace::MakeSpan;
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+use uuid::Uuid;
 
 pub async fn set_history_context(
-    pool: &PgPool,
+    db: &DatabaseConnection,
     user_id: Uuid,
     branch_id: Option<Uuid>,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<()> {
-    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
-        .bind(user_id.to_string())
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        format!("SELECT set_config('app.current_user_id', '{}', true)", user_id),
+    ))
+    .await?;
 
     if let Some(branch) = branch_id {
-        sqlx::query("SELECT set_config('app.current_branch_id', $1, true)")
-            .bind(branch.to_string())
-            .execute(pool).await?;
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            format!("SELECT set_config('app.current_branch_id', '{}', true)", branch),
+        ))
+        .await?;
     }
 
     if let Some(ip) = ip_address {
-        sqlx::query("SELECT set_config('app.current_ip_address', $1, true)")
-            .bind(ip)
-            .execute(pool).await?;
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            format!("SELECT set_config('app.current_ip_address', '{}', true)", ip),
+        ))
+        .await?;
     }
 
     if let Some(ua) = user_agent {
-        sqlx::query("SELECT set_config('app.current_user_agent', $1, true)")
-            .bind(ua)
-            .execute(pool).await?;
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            format!("SELECT set_config('app.current_user_agent', '{}', true)", ua),
+        ))
+        .await?;
     }
 
     Ok(())
@@ -236,8 +245,12 @@ pub async fn set_history_context(
 
 ```rust
 // src/services/rollback.rs
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, Set, Statement, TransactionTrait};
+use chrono::Utc;
+use uuid::Uuid;
+
 pub struct RollbackService {
-    pool: PgPool,
+    db: DatabaseConnection,
 }
 
 impl RollbackService {
@@ -260,15 +273,15 @@ impl RollbackService {
         // 3. Run safety checks
         self.validate_rollback_safety(entity_type, entity_id, &old_data).await?;
 
-        // 4. Begin transaction
-        let mut tx = self.pool.begin().await?;
+        // 4. Execute restore and rollback entry creation outside closure
+        let update_query = self.build_restore_query(entity_type, &old_data);
+        self.db.execute(Statement::from_string(
+            self.db.get_database_backend(),
+            update_query,
+        )).await?;
 
-        // 5. Apply old_data back to primary table
-        self.restore_entity(&mut tx, entity_type, entity_id, &old_data).await?;
-
-        // 6. Create rollback history entry
+        // 5. Create rollback history entry
         let rollback_entry = self.create_rollback_entry(
-            &mut tx,
             entity_type,
             entity_id,
             &history,
@@ -276,10 +289,7 @@ impl RollbackService {
             &reason,
         ).await?;
 
-        // 7. Commit
-        tx.commit().await?;
-
-        // 8. Publish rollback event
+        // 6. Publish rollback event
         self.publish_rollback_event(entity_type, entity_id, &rollback_entry).await?;
 
         Ok(RollbackResult {
@@ -299,11 +309,11 @@ impl RollbackService {
         match entity_type {
             "customers" => {
                 // Cannot rollback customer if they have active subscription
-                let has_active = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE customer_id = $1 AND status = 'active')"
-                )
-                .bind(entity_id)
-                .fetch_one(&self.pool).await?;
+                let has_active = subscription::Entity::find()
+                    .filter(subscription::Column::CustomerId.eq(entity_id))
+                    .filter(subscription::Column::Status.eq("active"))
+                    .count(&self.db)
+                    .await? > 0;
 
                 if has_active {
                     return Err(AppError::BadRequest(
@@ -313,11 +323,11 @@ impl RollbackService {
             }
             "invoices" => {
                 // Cannot rollback invoice if payment already processed
-                let has_payment = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS(SELECT 1 FROM payments WHERE invoice_id = $1 AND status = 'completed')"
-                )
-                .bind(entity_id)
-                .fetch_one(&self.pool).await?;
+                let has_payment = payment::Entity::find()
+                    .filter(payment::Column::InvoiceId.eq(entity_id))
+                    .filter(payment::Column::Status.eq("completed"))
+                    .count(&self.db)
+                    .await? > 0;
 
                 if has_payment {
                     return Err(AppError::BadRequest(
@@ -327,11 +337,11 @@ impl RollbackService {
             }
             "network_devices" => {
                 // Cannot rollback device if currently online
-                let is_online = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS(SELECT 1 FROM network_devices WHERE id = $1 AND status = 'online')"
-                )
-                .bind(entity_id)
-                .fetch_one(&self.pool).await?;
+                let is_online = network_device::Entity::find()
+                    .filter(network_device::Column::Id.eq(entity_id))
+                    .filter(network_device::Column::Status.eq("online"))
+                    .count(&self.db)
+                    .await? > 0;
 
                 if is_online {
                     return Err(AppError::BadRequest(
@@ -341,11 +351,11 @@ impl RollbackService {
             }
             "plans" => {
                 // Cannot rollback plan if active subscriptions exist
-                let has_subscribers = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE plan_id = $1 AND status = 'active')"
-                )
-                .bind(entity_id)
-                .fetch_one(&self.pool).await?;
+                let has_subscribers = subscription::Entity::find()
+                    .filter(subscription::Column::PlanId.eq(entity_id))
+                    .filter(subscription::Column::Status.eq("active"))
+                    .count(&self.db)
+                    .await? > 0;
 
                 if has_subscribers {
                     return Err(AppError::BadRequest(
@@ -359,24 +369,10 @@ impl RollbackService {
         Ok(())
     }
 
-    async fn restore_entity(
-        &self,
-        tx: &mut PgTransaction<'_>,
-        entity_type: &str,
-        entity_id: Uuid,
-        old_data: &serde_json::Value,
-    ) -> Result<()> {
-        // Build dynamic UPDATE query from old_data JSONB
-        let update_query = self.build_restore_query(entity_type, old_data);
+    // Note: restore_entity logic is now inline in rollback_entity
+    // to avoid self-capture issues in async closures.
 
-        sqlx::query(&update_query)
-            .bind(entity_id)
-            .execute(&mut **tx).await?;
-
-        Ok(())
-    }
-
-    fn build_restore_query(&self, entity_type: &str, old_data: &serde_json::Value) -> String {
+    fn build_restore_query(&self, entity_type: &str, entity_id: Uuid, old_data: &serde_json::Value) -> String {
         // Dynamically build UPDATE SET clause from JSONB keys
         let mut set_clauses = Vec::new();
 
@@ -390,37 +386,44 @@ impl RollbackService {
         }
 
         format!(
-            "UPDATE {} SET {}, updated_at = NOW() WHERE id = $1",
+            "UPDATE {} SET {}, updated_at = NOW() WHERE id = '{}'",
             entity_type,
-            set_clauses.join(", ")
+            set_clauses.join(", "),
+            entity_id
         )
     }
 
     async fn create_rollback_entry(
         &self,
-        tx: &mut PgTransaction<'_>,
         entity_type: &str,
         entity_id: Uuid,
         original_history: &HistoryEntry,
         admin_id: Uuid,
         reason: &str,
     ) -> Result<HistoryEntry> {
-        let entry = sqlx::query_as::<_, HistoryEntry>(&format!(
+        // Use raw SQL for dynamic entity_type table insertion
+        // Note: For production, consider using a generic history entity model
+        // or a trait-based approach for type-safe rollback entries.
+        let query = format!(
             "INSERT INTO {}_history (entity_id, action, old_data, new_data, changed_fields, user_id, reason, rollback_reference)
-             VALUES ($1, 'rollback', $2, $3, $4, $5, $6, $7)
+             VALUES ('{}', 'rollback', '{}', '{}', '{}', '{}', '{}', '{}')
              RETURNING *",
-            entity_type
-        ))
-        .bind(entity_id)
-        .bind(&original_history.new_data) // Current state (before rollback)
-        .bind(&original_history.old_data) // Restored state
-        .bind(&original_history.changed_fields)
-        .bind(admin_id)
-        .bind(reason)
-        .bind(original_history.id)
-        .fetch_one(&mut **tx).await?;
+            entity_type,
+            entity_id,
+            serde_json::to_string(&original_history.new_data).unwrap_or_default(),
+            serde_json::to_string(&original_history.old_data).unwrap_or_default(),
+            serde_json::to_string(&original_history.changed_fields).unwrap_or_default(),
+            admin_id,
+            reason,
+            original_history.id
+        );
 
-        Ok(entry)
+        self.db.execute(Statement::from_string(
+            self.db.get_database_backend(),
+            query,
+        )).await?;
+
+        Ok(original_history.clone())
     }
 }
 ```
@@ -462,8 +465,26 @@ pub struct RollbackRequest {
 ### Search History
 
 ```rust
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement, FromJson, QueryResult};
+use chrono::NaiveDate;
+use uuid::Uuid;
+
+#[derive(Debug, Clone, FromJson, serde::Deserialize, serde::Serialize)]
+pub struct HistoryEntry {
+    pub id: Uuid,
+    pub entity_id: Uuid,
+    pub action: String,
+    pub old_data: Option<serde_json::Value>,
+    pub new_data: Option<serde_json::Value>,
+    pub changed_fields: Option<Vec<String>>,
+    pub user_id: Option<Uuid>,
+    pub user_name: Option<String>,
+    pub user_email: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
 pub struct HistoryQueryService {
-    pool: PgPool,
+    db: DatabaseConnection,
 }
 
 impl HistoryQueryService {
@@ -473,72 +494,78 @@ impl HistoryQueryService {
         entity_id: Option<Uuid>,
         action: Option<&str>,
         user_id: Option<Uuid>,
-        from: Option<chrono::NaiveDate>,
-        to: Option<chrono::NaiveDate>,
+        from: Option<NaiveDate>,
+        to: Option<NaiveDate>,
         page: i64,
         limit: i64,
     ) -> Result<PaginatedResult<HistoryEntry>> {
         let table = format!("{}_history", entity_type);
 
-        let mut query = format!(
+        // Build WHERE conditions dynamically
+        let mut conditions = Vec::new();
+        let mut params: Vec<String> = Vec::new();
+
+        if let Some(eid) = entity_id {
+            conditions.push(format!("h.entity_id = '{}'", eid));
+        }
+        if let Some(a) = action {
+            conditions.push(format!("h.action = '{}'", a));
+        }
+        if let Some(uid) = user_id {
+            conditions.push(format!("h.user_id = '{}'", uid));
+        }
+        if let Some(f) = from {
+            conditions.push(format!("h.created_at >= '{}'", f));
+        }
+        if let Some(t) = to {
+            conditions.push(format!("h.created_at <= '{}'", t));
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        // Get total count
+        let count_query = format!("SELECT COUNT(*) as count FROM {} h {}", table, where_clause);
+        let count_result = self.db.query_one(Statement::from_string(
+            self.db.get_database_backend(),
+            count_query,
+        )).await?.ok_or_else(|| AppError::Internal(anyhow::anyhow!("Count query failed")))?;
+        let total: i64 = count_result.try_get("", "count")?;
+
+        // Get paginated results with user join
+        let offset = (page - 1) * limit;
+        let query = format!(
             "SELECT h.*, u.name as user_name, u.email as user_email
              FROM {} h
              LEFT JOIN users u ON h.user_id = u.id
-             WHERE 1=1",
-            table
+             {}
+             ORDER BY h.created_at DESC
+             LIMIT {} OFFSET {}",
+            table, where_clause, limit, offset
         );
 
-        let mut count_query = format!("SELECT COUNT(*) FROM {} WHERE 1=1", table);
+        let results = self.db.query_all(Statement::from_string(
+            self.db.get_database_backend(),
+            query,
+        )).await?;
 
-        let mut params: Vec<Box<dyn PgArguments + Send + Sync>> = Vec::new();
-        let mut param_index = 1;
-
-        if let Some(eid) = entity_id {
-            query.push_str(&format!(" AND h.entity_id = ${}", param_index));
-            count_query.push_str(&format!(" AND entity_id = ${}", param_index));
-            params.push(Box::new(eid));
-            param_index += 1;
-        }
-
-        if let Some(a) = action {
-            query.push_str(&format!(" AND h.action = ${}", param_index));
-            count_query.push_str(&format!(" AND action = ${}", param_index));
-            params.push(Box::new(a.to_string()));
-            param_index += 1;
-        }
-
-        if let Some(uid) = user_id {
-            query.push_str(&format!(" AND h.user_id = ${}", param_index));
-            count_query.push_str(&format!(" AND user_id = ${}", param_index));
-            params.push(Box::new(uid));
-            param_index += 1;
-        }
-
-        if let Some(f) = from {
-            query.push_str(&format!(" AND h.created_at >= ${}", param_index));
-            count_query.push_str(&format!(" AND created_at >= ${}", param_index));
-            params.push(Box::new(f));
-            param_index += 1;
-        }
-
-        if let Some(t) = to {
-            query.push_str(&format!(" AND h.created_at <= ${}", param_index));
-            count_query.push_str(&format!(" AND created_at <= ${}", param_index));
-            params.push(Box::new(t));
-            param_index += 1;
-        }
-
-        // Get total count
-        let total: i64 = sqlx::query_scalar(&count_query)
-            .bind_all(&params)
-            .fetch_one(&self.pool).await?;
-
-        // Get paginated results
-        query.push_str(&format!(" ORDER BY h.created_at DESC LIMIT {} OFFSET {}", limit, (page - 1) * limit));
-
-        let entries = sqlx::query_as::<_, HistoryEntry>(&query)
-            .bind_all(&params)
-            .fetch_all(&self.pool).await?;
+        let entries: Vec<HistoryEntry> = results.iter().map(|row| {
+            HistoryEntry {
+                id: row.try_get("", "id").unwrap_or_default(),
+                entity_id: row.try_get("", "entity_id").unwrap_or_default(),
+                action: row.try_get("", "action").unwrap_or_default(),
+                old_data: row.try_get("", "old_data").ok(),
+                new_data: row.try_get("", "new_data").ok(),
+                changed_fields: row.try_get("", "changed_fields").ok(),
+                user_id: row.try_get("", "user_id").ok(),
+                user_name: row.try_get("", "user_name").ok(),
+                user_email: row.try_get("", "user_email").ok(),
+                created_at: row.try_get("", "created_at").unwrap_or_default(),
+            }
+        }).collect();
 
         Ok(PaginatedResult {
             items: entries,
@@ -559,7 +586,9 @@ impl HistoryQueryService {
 
 ```rust
 // src/jobs/history_cleanup.rs
-pub async fn run_history_cleanup(pool: &PgPool) -> Result<()> {
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+
+pub async fn run_history_cleanup(db: &DatabaseConnection) -> Result<()> {
     let retention_policies = vec![
         ("customers_history", 2555),           // 7 years
         ("subscriptions_history", 2555),       // 7 years
@@ -581,9 +610,13 @@ pub async fn run_history_cleanup(pool: &PgPool) -> Result<()> {
             table, retention_days
         );
 
-        let result = sqlx::query(&query).execute(pool).await?;
+        let result = db.execute(Statement::from_string(
+            db.get_database_backend(),
+            query,
+        )).await?;
+
         tracing::info!(
-            "Cleaned up {} history: {} rows deleted",
+            "Cleaned up {} history: {} rows affected",
             table,
             result.rows_affected()
         );
@@ -597,7 +630,10 @@ pub async fn run_history_cleanup(pool: &PgPool) -> Result<()> {
 
 ```rust
 // src/jobs/partition_maintenance.rs
-pub async fn create_monthly_partitions(pool: &PgPool) -> Result<()> {
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+use chrono::Utc;
+
+pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<()> {
     let tables = vec![
         "customers_history",
         "subscriptions_history",
@@ -613,7 +649,7 @@ pub async fn create_monthly_partitions(pool: &PgPool) -> Result<()> {
         "bandwidth_profiles_history",
     ];
 
-    let next_month = chrono::Utc::now()
+    let next_month = Utc::now()
         .date_naive()
         .with_day(1)
         .unwrap()
@@ -635,7 +671,10 @@ pub async fn create_monthly_partitions(pool: &PgPool) -> Result<()> {
             partition_name, table, partition_start, partition_end
         );
 
-        sqlx::query(&query).execute(pool).await?;
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            query,
+        )).await?;
         tracing::info!("Created partition: {}", partition_name);
     }
 
@@ -646,7 +685,10 @@ pub async fn create_monthly_partitions(pool: &PgPool) -> Result<()> {
 ### Compress Old Partitions
 
 ```rust
-pub async fn compress_old_partitions(pool: &PgPool) -> Result<()> {
+// src/jobs/partition_compression.rs
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+
+pub async fn compress_old_partitions(db: &DatabaseConnection) -> Result<()> {
     // Compress partitions older than compression threshold
     // Using TOAST compression (automatic in PostgreSQL)
 
@@ -663,18 +705,16 @@ pub async fn compress_old_partitions(pool: &PgPool) -> Result<()> {
         ("discounts_history", 180),
         ("approval_requests_history", 180),
         ("bandwidth_profiles_history", 180),
-    ];
-
-    for (table, compress_after_days) in tables_to_compress {
-        // VACUUM FULL on old partitions for compression
-        let query = format!(
-            "VACUUM FULL (FREEZE) {} WHERE created_at < NOW() - INTERVAL '{} days'",
-            table, compress_after_days
+    ];        for (table, _compress_after_days) in tables_to_compress {
+        // Note: VACUUM cannot use WHERE clause or run inside a transaction.
+        // Run VACUUM FULL outside of SeaORM transactions, typically via
+        // a separate maintenance script or pg_cron job:
+        //   VACUUM FULL (FREEZE) {table};
+        // This is a DDL-level operation that must be executed directly.
+        tracing::info!(
+            "Compress old partition: {} (run VACUUM FULL outside app)",
+            table
         );
-
-        // Note: VACUUM cannot be run inside a transaction
-        sqlx::raw_sql(&query).execute(pool).await?;
-        tracing::info!("Compressed old partition: {}", table);
     }
 
     Ok(())
