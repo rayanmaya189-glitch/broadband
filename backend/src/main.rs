@@ -69,6 +69,16 @@ async fn main() -> anyhow::Result<()> {
     if let Some(client) = nats_client {
         app_state = app_state.with_nats(client);
     }
+    // Initialize MinIO/S3 storage (optional - gracefully handle if unavailable)
+    match aeroxe_backend::infrastructure::storage::StorageService::from_env().await {
+        Ok(storage) => {
+            tracing::info!("MinIO/S3 storage service initialized");
+            app_state = app_state.with_storage(storage);
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to initialize storage service, file uploads will be unavailable");
+        }
+    }
     let state = Arc::new(app_state);
 
     // Build CORS layer

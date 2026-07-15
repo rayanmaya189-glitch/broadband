@@ -64,6 +64,15 @@ dotenvy = "0.15"
 sha2 = "0.10"
 base64 = "0.22"
 hex = "0.4"
+totp-rs = "5.2"
+hmac = "0.12"
+
+# S3 / MinIO storage
+aws-config = { version = "1.5", features = [] }
+aws-sdk-s3 = "1.52"
+
+# Multipart uploads
+tokio-util = { version = "0.7", features = ["io"] }
 
 # Logging / Tracing
 tracing = "0.1"

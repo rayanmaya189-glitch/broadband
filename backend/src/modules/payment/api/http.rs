@@ -292,10 +292,7 @@ pub async fn handle_payu_webhook(
     let payload: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::Validation(format!("Invalid JSON: {}", e)))?;
 
-    let adapter = PayuAdapter {
-        merchant_key: String::new(),
-        merchant_salt: String::new(),
-    };
+    let adapter = PayuAdapter::from_env();
 
     let webhook = adapter.parse_webhook(payload.clone())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse webhook: {}", e)))?;

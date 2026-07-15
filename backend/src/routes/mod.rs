@@ -201,6 +201,7 @@ fn document_routes() -> Router<SharedState> {
     use crate::modules::document::api::http;
     Router::new()
         .route("/", axum::routing::get(http::list_documents))
+        .route("/presign-upload", axum::routing::post(http::presign_upload))
         .route("/confirm", axum::routing::post(http::confirm_upload))
         .route("/:id", axum::routing::delete(http::delete_document))
 }
