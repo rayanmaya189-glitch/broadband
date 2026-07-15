@@ -3,12 +3,12 @@
 //! Modular monolith with Domain-Driven Design architecture.
 
 pub mod config;
-pub mod shared;
 pub mod infrastructure;
 pub mod modules;
-pub mod workers;
 pub mod routes;
+pub mod shared;
+pub mod workers;
 
 // Re-export commonly used types
-pub use shared::errors::AppError;
 pub use shared::app_state::AppState;
+pub use shared::errors::AppError;

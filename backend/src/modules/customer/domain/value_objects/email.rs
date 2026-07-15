@@ -7,7 +7,10 @@ pub struct Email(String);
 
 impl Email {
     /// Create a new Email with validation
-    pub fn new(email: &str) -> Result<Self, crate::modules::customer::domain::aggregates::customer::CustomerDomainError> {
+    pub fn new(
+        email: &str,
+    ) -> Result<Self, crate::modules::customer::domain::aggregates::customer::CustomerDomainError>
+    {
         if !Self::is_valid(email) {
             return Err(crate::modules::customer::domain::aggregates::customer::CustomerDomainError::InvalidEmail);
         }
@@ -20,7 +23,7 @@ impl Email {
         if email.is_empty() || email.len() > 255 {
             return false;
         }
-        
+
         let parts: Vec<&str> = email.split('@').collect();
         if parts.len() != 2 {
             return false;
@@ -40,7 +43,8 @@ impl Email {
         }
 
         // Check for valid characters
-        let valid_local_chars = |c: char| c.is_alphanumeric() || c == '.' || c == '_' || c == '+' || c == '-';
+        let valid_local_chars =
+            |c: char| c.is_alphanumeric() || c == '.' || c == '_' || c == '+' || c == '-';
         let valid_domain_chars = |c: char| c.is_alphanumeric() || c == '.' || c == '-';
 
         if !local.chars().all(valid_local_chars) || !domain.chars().all(valid_domain_chars) {

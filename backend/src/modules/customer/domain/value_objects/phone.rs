@@ -7,7 +7,10 @@ pub struct Phone(String);
 
 impl Phone {
     /// Create a new Phone with validation
-    pub fn new(phone: &str) -> Result<Self, crate::modules::customer::domain::aggregates::customer::CustomerDomainError> {
+    pub fn new(
+        phone: &str,
+    ) -> Result<Self, crate::modules::customer::domain::aggregates::customer::CustomerDomainError>
+    {
         if !Self::is_valid(phone) {
             return Err(crate::modules::customer::domain::aggregates::customer::CustomerDomainError::InvalidPhone);
         }
@@ -24,14 +27,15 @@ impl Phone {
         let cleaned = phone.trim_start_matches('+').trim_start_matches("00");
 
         // Check if remaining characters are digits or common separators
-        let valid_chars = |c: char| c.is_ascii_digit() || c == '-' || c == ' ' || c == '(' || c == ')';
+        let valid_chars =
+            |c: char| c.is_ascii_digit() || c == '-' || c == ' ' || c == '(' || c == ')';
         if !cleaned.chars().all(valid_chars) {
             return false;
         }
 
         // Extract digits only
         let digits: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
-        
+
         // Indian phone numbers: 10 digits (mobile) or 10-12 digits (with area code)
         // International: 7-15 digits
         digits.len() >= 7 && digits.len() <= 15
@@ -117,10 +121,10 @@ mod tests {
     fn test_indian_detection() {
         let phone = Phone::new("+919876543210").unwrap();
         assert!(phone.is_indian());
-        
+
         let phone = Phone::new("9876543210").unwrap();
         assert!(phone.is_indian());
-        
+
         let phone = Phone::new("+15551234567").unwrap();
         assert!(!phone.is_indian());
     }

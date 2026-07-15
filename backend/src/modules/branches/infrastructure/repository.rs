@@ -1,6 +1,6 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
-use crate::shared::errors::AppError;
 use crate::modules::branches::domain::entities::branch;
+use crate::shared::errors::AppError;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 /// Repository for branch data access.
 pub struct BranchRepository<'a> {
@@ -21,9 +21,7 @@ impl<'a> BranchRepository<'a> {
     }
 
     pub async fn find_by_id(&self, id: i64) -> Result<Option<branch::Model>, AppError> {
-        let branch = branch::Entity::find_by_id(id)
-            .one(self.db)
-            .await?;
+        let branch = branch::Entity::find_by_id(id).one(self.db).await?;
         Ok(branch)
     }
 

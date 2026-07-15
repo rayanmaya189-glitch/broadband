@@ -1,11 +1,11 @@
 use axum::http::request::Parts;
 use axum::http::StatusCode;
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::shared::app_state::AppState;
 use crate::modules::identity::application::services::IdentityService;
+use crate::shared::app_state::AppState;
 
 /// User context extracted from JWT token + Redis permissions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,11 +43,19 @@ impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
             .headers
             .get("Authorization")
             .and_then(|value| value.to_str().ok())
-            .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing authorization header".to_string()))?;
+            .ok_or_else(|| {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    "Missing authorization header".to_string(),
+                )
+            })?;
 
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Invalid authorization header format".to_string()))?;
+        let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Invalid authorization header format".to_string(),
+            )
+        })?;
 
         let mut validation = Validation::default();
         validation.algorithms = vec![Algorithm::HS256];
@@ -56,34 +64,33 @@ impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
             .unwrap_or_else(|_| "aeroxe-jwt-secret-change-in-production".to_string());
         let key = DecodingKey::from_secret(secret.as_bytes());
 
-        let token_data = decode::<serde_json::Value>(
-            token,
-            &key,
-            &validation,
-        )
-        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
+        let token_data = decode::<serde_json::Value>(token, &key, &validation)
+            .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
 
         let claims = token_data.claims;
 
-        let user_id = claims.get("sub")
+        let user_id = claims
+            .get("sub")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<i64>().ok())
             .unwrap_or(0);
 
-        let email = claims.get("email")
+        let email = claims
+            .get("email")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
 
-        let role = claims.get("role")
+        let role = claims
+            .get("role")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
 
-        let branch_id = claims.get("branch_id")
-            .and_then(|v| v.as_i64());
+        let branch_id = claims.get("branch_id").and_then(|v| v.as_i64());
 
-        let is_company_wide = claims.get("is_company_wide")
+        let is_company_wide = claims
+            .get("is_company_wide")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
@@ -91,7 +98,12 @@ impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
         let mut redis = state.redis.clone();
         let permissions = IdentityService::get_permissions_from_redis(&mut redis, user_id)
             .await
-            .map_err(|_| (StatusCode::SERVICE_UNAVAILABLE, "Permissions service unavailable".to_string()))?;
+            .map_err(|_| {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "Permissions service unavailable".to_string(),
+                )
+            })?;
 
         Ok(UserContext {
             user_id,
@@ -124,8 +136,13 @@ pub fn has_permission(user: &UserContext, permission: &str) -> bool {
             let pattern_parts: Vec<&str> = user_perm.split('.').collect();
             let perm_parts: Vec<&str> = permission.split('.').collect();
             if pattern_parts.len() == perm_parts.len() {
-                let matches = pattern_parts.iter().zip(perm_parts.iter()).all(|(p, q)| p == &"*" || p == q);
-                if matches { return true; }
+                let matches = pattern_parts
+                    .iter()
+                    .zip(perm_parts.iter())
+                    .all(|(p, q)| p == &"*" || p == q);
+                if matches {
+                    return true;
+                }
             }
         }
     }
@@ -133,11 +150,17 @@ pub fn has_permission(user: &UserContext, permission: &str) -> bool {
 }
 
 /// Require a specific permission.
-pub fn require_permission(user: &UserContext, permission: &str) -> Result<(), (StatusCode, String)> {
+pub fn require_permission(
+    user: &UserContext,
+    permission: &str,
+) -> Result<(), (StatusCode, String)> {
     if has_permission(user, permission) {
         Ok(())
     } else {
-        Err((StatusCode::FORBIDDEN, format!("Permission '{}' required", permission)))
+        Err((
+            StatusCode::FORBIDDEN,
+            format!("Permission '{}' required", permission),
+        ))
     }
 }
 

@@ -62,12 +62,24 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(err) => {
                 tracing::error!("Internal error: {:?}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
-            AppError::External(msg) => (StatusCode::BAD_GATEWAY, format!("External service error: {}", msg)),
-            AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded".to_string()),
+            AppError::External(msg) => (
+                StatusCode::BAD_GATEWAY,
+                format!("External service error: {}", msg),
+            ),
+            AppError::RateLimited => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Rate limit exceeded".to_string(),
+            ),
             AppError::AccountLocked => (StatusCode::FORBIDDEN, "Account is locked".to_string()),
-            AppError::TwoFactorRequired => (StatusCode::OK, "Two-factor authentication required".to_string()),
+            AppError::TwoFactorRequired => (
+                StatusCode::OK,
+                "Two-factor authentication required".to_string(),
+            ),
         };
 
         let body = json!({

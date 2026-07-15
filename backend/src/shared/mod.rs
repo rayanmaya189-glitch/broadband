@@ -1,6 +1,7 @@
-pub mod errors;
-pub mod primitives;
-pub mod event_contracts;
 pub mod app_state;
-pub mod utils;
+pub mod errors;
+pub mod event_contracts;
+pub mod kernel;
 pub mod middleware;
+pub mod primitives;
+pub mod utils;

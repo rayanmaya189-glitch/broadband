@@ -12,8 +12,8 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use aeroxe_backend::config::settings::Settings;
-use aeroxe_backend::infrastructure::database::create_database_pool;
 use aeroxe_backend::infrastructure::cache::create_redis_pool;
+use aeroxe_backend::infrastructure::database::create_database_pool;
 use aeroxe_backend::shared::app_state::AppState;
 
 #[tokio::main]
@@ -46,11 +46,21 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Redis pool created");
 
     // Connect to NATS (optional - gracefully handle if unavailable)
-    let nats_client = match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(&settings.nats_url).await {
+    let nats_client = match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(
+        &settings.nats_url,
+    )
+    .await
+    {
         Ok(client) => {
             // Set up JetStream
-            let js_config = aeroxe_backend::infrastructure::messaging::nats_client::JetStreamConfig::default();
-            if let Err(e) = aeroxe_backend::infrastructure::messaging::nats_client::ensure_jetstream_stream(&client, &js_config).await {
+            let js_config =
+                aeroxe_backend::infrastructure::messaging::nats_client::JetStreamConfig::default();
+            if let Err(e) =
+                aeroxe_backend::infrastructure::messaging::nats_client::ensure_jetstream_stream(
+                    &client, &js_config,
+                )
+                .await
+            {
                 tracing::warn!(error = %e, "Failed to set up JetStream, continuing without NATS");
                 None
             } else {
@@ -98,7 +108,8 @@ async fn main() -> anyhow::Result<()> {
     // Start outbox worker in background (if NATS is available)
     if let Some(nats_client) = state.nats.clone() {
         let outbox_db = state.db.clone();
-        let outbox_publisher = aeroxe_backend::infrastructure::messaging::EventPublisher::new(nats_client);
+        let outbox_publisher =
+            aeroxe_backend::infrastructure::messaging::EventPublisher::new(nats_client);
         let outbox_worker = aeroxe_backend::workers::outbox_worker::OutboxWorker::new(
             std::sync::Arc::new(outbox_db),
             outbox_publisher,

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 use crate::shared::errors::AppError;
 
@@ -111,14 +111,22 @@ impl GatewayAdapter for RazorpayAdapter {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
             warn!(status = %status, body = %error_body, "Razorpay order creation failed");
-            return Err(AppError::External(format!("Razorpay API error ({}): {}", status, error_body)));
+            return Err(AppError::External(format!(
+                "Razorpay API error ({}): {}",
+                status, error_body
+            )));
         }
 
-        let order: serde_json::Value = response.json().await
+        let order: serde_json::Value = response
+            .json()
+            .await
             .map_err(|e| AppError::External(format!("Failed to parse Razorpay response: {}", e)))?;
 
         let order_id = order["id"].as_str().unwrap_or("").to_string();
-        let payment_url = format!("https://checkout.razorpay.com/v1/pay.js#order_id={}", order_id);
+        let payment_url = format!(
+            "https://checkout.razorpay.com/v1/pay.js#order_id={}",
+            order_id
+        );
 
         info!(order_id = %order_id, amount = %amount, "Created Razorpay order");
 
@@ -221,12 +229,7 @@ impl GatewayAdapter for PayuAdapter {
         // PayU uses SHA-512 hash for hash generation
         let hash_string = format!(
             "{}|{}|{}|{}|{}|||||||||||{}",
-            self.merchant_key,
-            txn_id,
-            amount,
-            receipt,
-            currency,
-            self.merchant_salt
+            self.merchant_key, txn_id, amount, receipt, currency, self.merchant_salt
         );
         let hash = {
             use sha2::{Digest, Sha512};
@@ -260,7 +263,10 @@ impl GatewayAdapter for PayuAdapter {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
             warn!(status = %status, body = %error_body, "PayU payment creation failed");
-            return Err(AppError::External(format!("PayU API error ({}): {}", status, error_body)));
+            return Err(AppError::External(format!(
+                "PayU API error ({}): {}",
+                status, error_body
+            )));
         }
 
         // PayU returns form data for redirect, we construct the payment URL
@@ -298,7 +304,7 @@ impl GatewayAdapter for PayuAdapter {
         use sha2::{Digest, Sha512};
         let mut hasher = Sha512::new();
         hasher.update(secret.as_bytes()); // salt
-        hasher.update(body.as_ref());     // concatenated webhook parameters
+        hasher.update(body.as_ref()); // concatenated webhook parameters
         let expected = hex::encode(hasher.finalize());
         Ok(expected == signature)
     }

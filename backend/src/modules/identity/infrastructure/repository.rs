@@ -1,6 +1,6 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
-use crate::shared::errors::AppError;
 use crate::modules::identity::domain::entities::user;
+use crate::shared::errors::AppError;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 /// Repository for user data access.
 pub struct UserRepository<'a> {

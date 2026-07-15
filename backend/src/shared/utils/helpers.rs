@@ -58,31 +58,56 @@ pub fn generate_customer_code(branch_code: &str, sequence: i64) -> String {
 /// Generate invoice number: INV-{YYYY}-{MM}-{SEQUENCE}
 pub fn generate_invoice_number(sequence: i64) -> String {
     let now = Utc::now();
-    format!("INV-{}-{:02}-{:04}", now.format("%Y"), now.format("%m"), sequence)
+    format!(
+        "INV-{}-{:02}-{:04}",
+        now.format("%Y"),
+        now.format("%m"),
+        sequence
+    )
 }
 
 /// Generate ticket number: TKT-{YYYY}-{MM}-{SEQUENCE}
 pub fn generate_ticket_number(sequence: i64) -> String {
     let now = Utc::now();
-    format!("TKT-{}-{:02}-{:04}", now.format("%Y"), now.format("%m"), sequence)
+    format!(
+        "TKT-{}-{:02}-{:04}",
+        now.format("%Y"),
+        now.format("%m"),
+        sequence
+    )
 }
 
 /// Generate payment number: PAY-{YYYY}-{MM}-{SEQUENCE}
 pub fn generate_payment_number(sequence: i64) -> String {
     let now = Utc::now();
-    format!("PAY-{}-{:02}-{:04}", now.format("%Y"), now.format("%m"), sequence)
+    format!(
+        "PAY-{}-{:02}-{:04}",
+        now.format("%Y"),
+        now.format("%m"),
+        sequence
+    )
 }
 
 /// Generate refund number: RFD-{YYYY}-{MM}-{SEQUENCE}
 pub fn generate_refund_number(sequence: i64) -> String {
     let now = Utc::now();
-    format!("RFD-{}-{:02}-{:04}", now.format("%Y"), now.format("%m"), sequence)
+    format!(
+        "RFD-{}-{:02}-{:04}",
+        now.format("%Y"),
+        now.format("%m"),
+        sequence
+    )
 }
 
 /// Generate journal entry number: JE-{YYYY}-{MM}-{SEQUENCE}
 pub fn generate_journal_entry_number(sequence: i64) -> String {
     let now = Utc::now();
-    format!("JE-{}-{:02}-{:06}", now.format("%Y"), now.format("%m"), sequence)
+    format!(
+        "JE-{}-{:02}-{:06}",
+        now.format("%Y"),
+        now.format("%m"),
+        sequence
+    )
 }
 
 /// Generate a referral code from customer name + random suffix

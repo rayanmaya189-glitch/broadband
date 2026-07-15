@@ -28,7 +28,7 @@ impl Default for JetStreamConfig {
             stream_name: "EVENTS".to_string(),
             subjects: vec!["aeroxe.>".to_string()],
             max_messages: 1_000_000,
-            max_bytes: 1_073_741_824, // 1GB
+            max_bytes: 1_073_741_824,     // 1GB
             max_age_secs: 30 * 24 * 3600, // 30 days
         }
     }
@@ -59,10 +59,9 @@ pub async fn ensure_jetstream_stream(
                 ..Default::default()
             };
 
-            jetstream
-                .create_stream(stream_config)
-                .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create JetStream stream: {}", e)))?;
+            jetstream.create_stream(stream_config).await.map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to create JetStream stream: {}", e))
+            })?;
 
             info!(stream = %config.stream_name, "Created JetStream stream");
         }

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use sea_orm::prelude::Decimal;
+use serde::{Deserialize, Serialize};
 
 /// Branch ID type
 pub type BranchId = i64;
@@ -156,8 +156,6 @@ pub fn calculate_pro_rata(
     billing_period_days: i32,
     days_used: i32,
 ) -> ProRataAdjustment {
-    
-
     let remaining_days = (billing_period_days - days_used).max(0) as f64;
     let billing_days = billing_period_days.max(1) as f64;
 

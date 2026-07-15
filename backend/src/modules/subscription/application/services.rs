@@ -1,41 +1,78 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, ActiveModelTrait, Set, PaginatorTrait};
+use crate::modules::subscription::domain::entities::{
+    Subscription, SubscriptionActiveModel, SubscriptionColumn,
+};
 use crate::shared::errors::AppError;
-use crate::modules::subscription::domain::entities::{Subscription, SubscriptionColumn, SubscriptionActiveModel};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct SubscriptionService;
 
 impl SubscriptionService {
     pub async fn list_subscriptions(
-        db: &DatabaseConnection, branch_id: Option<i64>, _page: u64, _limit: u64,
-    ) -> Result<(Vec<crate::modules::subscription::domain::entities::subscription::Model>, u64), AppError> {
+        db: &DatabaseConnection,
+        branch_id: Option<i64>,
+        _page: u64,
+        _limit: u64,
+    ) -> Result<
+        (
+            Vec<crate::modules::subscription::domain::entities::subscription::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let mut query = Subscription::find();
-        if let Some(bid) = branch_id { query = query.filter(SubscriptionColumn::BranchId.eq(bid)); }
+        if let Some(bid) = branch_id {
+            query = query.filter(SubscriptionColumn::BranchId.eq(bid));
+        }
         let total = query.clone().count(db).await?;
         let items = query.all(db).await?;
         Ok((items, total))
     }
 
-    pub async fn get_subscription(db: &DatabaseConnection, id: i64) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        Subscription::find_by_id(id).one(db).await?.ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))
+    pub async fn get_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        Subscription::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))
     }
 
     pub async fn create_subscription(
-        db: &DatabaseConnection, customer_id: i64, branch_id: i64, plan_id: i64, billing_period_months: i32,
+        db: &DatabaseConnection,
+        customer_id: i64,
+        branch_id: i64,
+        plan_id: i64,
+        billing_period_months: i32,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
         let now = chrono::Utc::now();
         let start = now.date_naive();
         let next_billing = start + chrono::Duration::days((billing_period_months as i64) * 30);
         let new_sub = SubscriptionActiveModel {
-            customer_id: Set(customer_id), branch_id: Set(branch_id), plan_id: Set(plan_id),
-            status: Set("active".to_string()), billing_period_months: Set(billing_period_months),
-            start_date: Set(start), next_billing_date: Set(Some(next_billing)),
-            auto_renew: Set(true), review_status: Set(Some("pending".to_string())),
-            created_at: Set(now), updated_at: Set(now), ..Default::default()
+            customer_id: Set(customer_id),
+            branch_id: Set(branch_id),
+            plan_id: Set(plan_id),
+            status: Set("active".to_string()),
+            billing_period_months: Set(billing_period_months),
+            start_date: Set(start),
+            next_billing_date: Set(Some(next_billing)),
+            auto_renew: Set(true),
+            review_status: Set(Some("pending".to_string())),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
         };
         Ok(new_sub.insert(db).await?)
     }
 
-    pub async fn cancel_subscription(db: &DatabaseConnection, id: i64, _reason: &str) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+    pub async fn cancel_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+        _reason: &str,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
         let sub = Self::get_subscription(db, id).await?;
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("cancelled".to_string());
@@ -43,7 +80,11 @@ impl SubscriptionService {
         Ok(active.update(db).await?)
     }
 
-    pub async fn suspend_subscription(db: &DatabaseConnection, id: i64, _reason: &str) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+    pub async fn suspend_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+        _reason: &str,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
         let sub = Self::get_subscription(db, id).await?;
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("suspended".to_string());

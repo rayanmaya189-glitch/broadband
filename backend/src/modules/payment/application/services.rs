@@ -1,10 +1,10 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
-use tracing::{info, debug, warn};
 
+use crate::modules::payment::domain::entities::{gateway_config, payment_link, webhook_log};
 use crate::shared::errors::AppError;
-use crate::modules::payment::domain::entities::{payment_link, gateway_config, webhook_log};
 
 pub struct PaymentService;
 
@@ -27,7 +27,9 @@ impl PaymentService {
             .filter(payment_link::Column::IdempotencyKey.eq(&idempotency_key))
             .one(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to check idempotency: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to check idempotency: {}", e))
+            })?;
 
         if let Some(link) = existing {
             debug!(link_id = %link.link_id, "Returning existing payment link (idempotent)");
@@ -58,8 +60,9 @@ impl PaymentService {
             ..Default::default()
         };
 
-        let link = model.insert(db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create payment link: {}", e)))?;
+        let link = model.insert(db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to create payment link: {}", e))
+        })?;
 
         info!(link_id = %link_id, invoice_id = invoice_id, amount = %amount, gateway = %gateway_id, "Created payment link");
         Ok(link)
@@ -92,8 +95,9 @@ impl PaymentService {
         active.paid_at = Set(Some(now));
         active.updated_at = Set(now);
 
-        let updated = active.update(db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e)))?;
+        let updated = active.update(db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e))
+        })?;
 
         info!(link_id = %updated.link_id, gateway = %gateway_id, transaction_id = %gateway_transaction_id, "Payment completed successfully");
         Ok(updated)
@@ -124,13 +128,17 @@ impl PaymentService {
                 meta = v.clone();
             }
             if let serde_json::Value::Object(ref mut map) = meta {
-                map.insert("failure_reason".to_string(), serde_json::Value::String(reason));
+                map.insert(
+                    "failure_reason".to_string(),
+                    serde_json::Value::String(reason),
+                );
             }
             active.metadata = Set(Some(meta));
         }
 
-        let updated = active.update(db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e)))?;
+        let updated = active.update(db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e))
+        })?;
 
         warn!(link_id = %updated.link_id, gateway = %gateway_id, "Payment failed");
         Ok(updated)
@@ -179,8 +187,9 @@ impl PaymentService {
             ..Default::default()
         };
 
-        let link = model.insert(db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record manual payment: {}", e)))?;
+        let link = model.insert(db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to record manual payment: {}", e))
+        })?;
 
         info!(link_id = %link_id, invoice_id = invoice_id, amount = %amount, method = %payment_method, "Manual payment recorded");
         Ok(link)
@@ -200,7 +209,9 @@ impl PaymentService {
             .filter(webhook_log::Column::GatewayId.eq(gateway_id))
             .one(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to check webhook log: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to check webhook log: {}", e))
+            })?;
 
         if existing.is_some() {
             debug!(event_id = %event_id, "Webhook already processed (idempotent)");
@@ -220,7 +231,9 @@ impl PaymentService {
             ..Default::default()
         };
 
-        model.insert(db).await
+        model
+            .insert(db)
+            .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to log webhook: {}", e)))?;
 
         Ok(false) // New webhook
@@ -238,13 +251,14 @@ impl PaymentService {
             .filter(webhook_log::Column::GatewayId.eq(gateway_id))
             .one(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find webhook log: {}", e)))? 
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find webhook log: {}", e)))?
         {
             let mut active = log.into_active_model();
             active.status = Set("processed".to_string());
             active.processed_at = Set(Some(Utc::now()));
-            active.update(db).await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update webhook log: {}", e)))?;
+            active.update(db).await.map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to update webhook log: {}", e))
+            })?;
         }
         Ok(())
     }
@@ -259,7 +273,9 @@ impl PaymentService {
             .filter(gateway_config::Column::IsActive.eq(true))
             .one(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to get gateway config: {}", e)))?
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to get gateway config: {}", e))
+            })?
             .ok_or_else(|| AppError::NotFound("Gateway not found".to_string()))
     }
 

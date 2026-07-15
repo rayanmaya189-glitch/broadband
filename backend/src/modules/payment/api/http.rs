@@ -3,13 +3,15 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
+use crate::modules::payment::application::services::PaymentService;
+use crate::modules::payment::infrastructure::gateway_adapter::{
+    GatewayAdapter, PayuAdapter, RazorpayAdapter,
+};
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::UserContext;
-use crate::modules::payment::application::services::PaymentService;
-use crate::modules::payment::infrastructure::gateway_adapter::{RazorpayAdapter, PayuAdapter, GatewayAdapter};
 
 #[derive(Debug, Serialize)]
 pub struct PaymentLinkResponse {
@@ -81,11 +83,15 @@ pub async fn create_payment_link(
     _user: UserContext,
     Json(req): Json<CreatePaymentLinkRequest>,
 ) -> Result<(StatusCode, Json<PaymentLinkResponse>), AppError> {
-    let amount: sea_orm::prelude::Decimal = req.amount.parse()
+    let amount: sea_orm::prelude::Decimal = req
+        .amount
+        .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
     let currency = req.currency.unwrap_or_else(|| "INR".to_string());
     let gateway_id = req.gateway_id.unwrap_or_else(|| "razorpay".to_string());
-    let idempotency_key = req.idempotency_key.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let idempotency_key = req
+        .idempotency_key
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let expires_in_hours = req.expires_in_hours.unwrap_or(24);
 
     let link = PaymentService::create_payment_link(
@@ -99,19 +105,23 @@ pub async fn create_payment_link(
         idempotency_key,
         req.metadata,
         expires_in_hours,
-    ).await?;
+    )
+    .await?;
 
-    Ok((StatusCode::CREATED, Json(PaymentLinkResponse {
-        id: link.id,
-        link_id: link.link_id,
-        invoice_id: link.invoice_id,
-        amount: link.amount.to_string(),
-        currency: link.currency,
-        gateway_id: link.gateway_id,
-        payment_url: link.payment_url,
-        status: link.status,
-        expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(PaymentLinkResponse {
+            id: link.id,
+            link_id: link.link_id,
+            invoice_id: link.invoice_id,
+            amount: link.amount.to_string(),
+            currency: link.currency,
+            gateway_id: link.gateway_id,
+            payment_url: link.payment_url,
+            status: link.status,
+            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+        }),
+    ))
 }
 
 /// POST /api/v1/payments/manual
@@ -120,7 +130,9 @@ pub async fn record_manual_payment(
     user: UserContext,
     Json(req): Json<ManualPaymentRequest>,
 ) -> Result<(StatusCode, Json<PaymentLinkResponse>), AppError> {
-    let amount: sea_orm::prelude::Decimal = req.amount.parse()
+    let amount: sea_orm::prelude::Decimal = req
+        .amount
+        .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
 
     let link = PaymentService::record_manual_payment(
@@ -133,19 +145,23 @@ pub async fn record_manual_payment(
         req.reference_number,
         req.notes,
         user.user_id,
-    ).await?;
+    )
+    .await?;
 
-    Ok((StatusCode::CREATED, Json(PaymentLinkResponse {
-        id: link.id,
-        link_id: link.link_id,
-        invoice_id: link.invoice_id,
-        amount: link.amount.to_string(),
-        currency: link.currency,
-        gateway_id: link.gateway_id,
-        payment_url: link.payment_url,
-        status: link.status,
-        expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(PaymentLinkResponse {
+            id: link.id,
+            link_id: link.link_id,
+            invoice_id: link.invoice_id,
+            amount: link.amount.to_string(),
+            currency: link.currency,
+            gateway_id: link.gateway_id,
+            payment_url: link.payment_url,
+            status: link.status,
+            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+        }),
+    ))
 }
 
 /// POST /api/v1/payments/:id/retry
@@ -192,12 +208,14 @@ pub async fn handle_razorpay_webhook(
     body: axum::body::Bytes,
 ) -> Result<StatusCode, AppError> {
     // 1. Extract signature
-    let signature = headers.get("X-Razorpay-Signature")
+    let signature = headers
+        .get("X-Razorpay-Signature")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
     // 2. Get gateway config
-    let gateway = PaymentService::get_gateway_config(&state.db, "razorpay").await
+    let gateway = PaymentService::get_gateway_config(&state.db, "razorpay")
+        .await
         .unwrap_or_else(|_| {
             // Fallback for demo
             crate::modules::payment::domain::entities::gateway_config::Model {
@@ -225,7 +243,10 @@ pub async fn handle_razorpay_webhook(
         webhook_secret: gateway.webhook_secret.unwrap_or_default(),
     };
 
-    if !adapter.verify_webhook_signature(&body, signature, &adapter.webhook_secret).map_err(|e| AppError::Internal(anyhow::anyhow!("Signature verification failed: {}", e)))? {
+    if !adapter
+        .verify_webhook_signature(&body, signature, &adapter.webhook_secret)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Signature verification failed: {}", e)))?
+    {
         warn!("Invalid Razorpay webhook signature");
         return Err(AppError::Validation("Invalid webhook signature".into()));
     }
@@ -234,7 +255,8 @@ pub async fn handle_razorpay_webhook(
     let payload: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::Validation(format!("Invalid JSON: {}", e)))?;
 
-    let webhook = adapter.parse_webhook(payload.clone())
+    let webhook = adapter
+        .parse_webhook(payload.clone())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse webhook: {}", e)))?;
 
     // 5. Idempotency check
@@ -244,7 +266,8 @@ pub async fn handle_razorpay_webhook(
         &webhook.event_id,
         &webhook.event_type,
         payload,
-    ).await?;
+    )
+    .await?;
 
     if already_processed {
         return Ok(StatusCode::OK);
@@ -259,7 +282,8 @@ pub async fn handle_razorpay_webhook(
                 &webhook.transaction_id,
                 webhook.amount,
                 webhook.payment_method,
-            ).await?;
+            )
+            .await?;
         }
         "payment.failed" => {
             PaymentService::process_failed_payment(
@@ -267,7 +291,8 @@ pub async fn handle_razorpay_webhook(
                 "razorpay",
                 &webhook.transaction_id,
                 webhook.error_reason,
-            ).await?;
+            )
+            .await?;
         }
         "refund.created" | "refund.processed" => {
             info!(transaction_id = %webhook.transaction_id, "Refund processed");
@@ -294,7 +319,8 @@ pub async fn handle_payu_webhook(
 
     let adapter = PayuAdapter::from_env();
 
-    let webhook = adapter.parse_webhook(payload.clone())
+    let webhook = adapter
+        .parse_webhook(payload.clone())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse webhook: {}", e)))?;
 
     // Idempotency check
@@ -304,7 +330,8 @@ pub async fn handle_payu_webhook(
         &webhook.event_id,
         &webhook.event_type,
         payload,
-    ).await?;
+    )
+    .await?;
 
     if already_processed {
         return Ok(StatusCode::OK);
@@ -319,7 +346,8 @@ pub async fn handle_payu_webhook(
                 &webhook.transaction_id,
                 webhook.amount,
                 webhook.payment_method,
-            ).await?;
+            )
+            .await?;
         }
         "failure" | "drop" => {
             PaymentService::process_failed_payment(
@@ -327,7 +355,8 @@ pub async fn handle_payu_webhook(
                 "payu",
                 &webhook.transaction_id,
                 webhook.error_reason,
-            ).await?;
+            )
+            .await?;
         }
         _ => {
             debug!(status = %webhook.status, "Unhandled PayU status");
@@ -348,13 +377,18 @@ pub async fn list_gateways(
     _user: UserContext,
 ) -> Result<Json<Vec<GatewayConfigResponse>>, AppError> {
     let gateways = PaymentService::list_gateways(&state.db).await?;
-    Ok(Json(gateways.into_iter().map(|g| GatewayConfigResponse {
-        id: g.id,
-        gateway_id: g.gateway_id,
-        name: g.name,
-        is_primary: g.is_primary,
-        is_active: g.is_active,
-        supported_methods: g.supported_methods,
-        currency: g.currency,
-    }).collect()))
+    Ok(Json(
+        gateways
+            .into_iter()
+            .map(|g| GatewayConfigResponse {
+                id: g.id,
+                gateway_id: g.gateway_id,
+                name: g.name,
+                is_primary: g.is_primary,
+                is_active: g.is_active,
+                supported_methods: g.supported_methods,
+                currency: g.currency,
+            })
+            .collect(),
+    ))
 }

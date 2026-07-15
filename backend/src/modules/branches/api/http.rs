@@ -4,10 +4,10 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::modules::branches::application::services::BranchService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::{UserContext, require_permission};
-use crate::modules::branches::application::services::BranchService;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct BranchResponse {
@@ -81,7 +81,9 @@ pub async fn list_branches(
 ) -> Result<Json<Vec<BranchResponse>>, AppError> {
     require_permission(&user, "branch.view").map_err(|e| AppError::Forbidden(e.1))?;
     let branches = BranchService::list_branches(&state.db).await?;
-    Ok(Json(branches.into_iter().map(BranchResponse::from).collect()))
+    Ok(Json(
+        branches.into_iter().map(BranchResponse::from).collect(),
+    ))
 }
 
 /// POST /api/v1/branches
@@ -101,7 +103,8 @@ pub async fn create_branch(
         req.address,
         req.phone,
         req.email,
-    ).await?;
+    )
+    .await?;
     Ok((StatusCode::CREATED, Json(BranchResponse::from(branch))))
 }
 
@@ -125,8 +128,16 @@ pub async fn update_branch(
 ) -> Result<Json<BranchResponse>, AppError> {
     require_permission(&user, "branch.update").map_err(|e| AppError::Forbidden(e.1))?;
     let branch = BranchService::update_branch(
-        &state.db, id, req.name, req.city, req.state, req.address, req.phone, req.email,
-    ).await?;
+        &state.db,
+        id,
+        req.name,
+        req.city,
+        req.state,
+        req.address,
+        req.phone,
+        req.email,
+    )
+    .await?;
     Ok(Json(BranchResponse::from(branch)))
 }
 

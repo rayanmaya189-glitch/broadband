@@ -1,7 +1,7 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::Client;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 use crate::shared::errors::AppError;
 
@@ -15,8 +15,8 @@ pub struct StorageService {
 impl StorageService {
     /// Create a new storage service from environment variables
     pub async fn from_env() -> Result<Self, AppError> {
-        let endpoint = std::env::var("MINIO_ENDPOINT")
-            .unwrap_or_else(|_| "http://localhost:9000".to_string());
+        let endpoint =
+            std::env::var("MINIO_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".to_string());
         let access_key = std::env::var("MINIO_ACCESS_KEY")
             .map_err(|_| AppError::Internal(anyhow::anyhow!("MINIO_ACCESS_KEY not set")))?;
         let secret_key = std::env::var("MINIO_SECRET_KEY")
@@ -25,13 +25,8 @@ impl StorageService {
         let default_bucket = std::env::var("MINIO_BUCKET_DOCUMENTS")
             .unwrap_or_else(|_| "aeroxe-documents".to_string());
 
-        let cred = aws_sdk_s3::config::Credentials::new(
-            &access_key,
-            &secret_key,
-            None,
-            None,
-            "minio",
-        );
+        let cred =
+            aws_sdk_s3::config::Credentials::new(&access_key, &secret_key, None, None, "minio");
 
         let config = aws_sdk_s3::config::Builder::new()
             .behavior_version(BehaviorVersion::latest())
@@ -59,8 +54,10 @@ impl StorageService {
     ) -> Result<String, AppError> {
         let bucket = bucket.unwrap_or(&self.default_bucket);
 
-        let presign_config = PresigningConfig::expires_in(std::time::Duration::from_secs(expires_in_secs))
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Presigning config error: {}", e)))?;
+        let presign_config = PresigningConfig::expires_in(std::time::Duration::from_secs(
+            expires_in_secs,
+        ))
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Presigning config error: {}", e)))?;
 
         let presigned = self
             .client
@@ -70,7 +67,9 @@ impl StorageService {
             .content_type(content_type)
             .presigned(presign_config)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to generate presigned URL: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to generate presigned URL: {}", e))
+            })?;
 
         let url = presigned.uri().to_string();
         debug!(bucket = %bucket, key = %key, "Generated presigned upload URL");
@@ -87,8 +86,10 @@ impl StorageService {
     ) -> Result<String, AppError> {
         let bucket = bucket.unwrap_or(&self.default_bucket);
 
-        let presign_config = PresigningConfig::expires_in(std::time::Duration::from_secs(expires_in_secs))
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Presigning config error: {}", e)))?;
+        let presign_config = PresigningConfig::expires_in(std::time::Duration::from_secs(
+            expires_in_secs,
+        ))
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Presigning config error: {}", e)))?;
 
         let presigned = self
             .client
@@ -97,7 +98,9 @@ impl StorageService {
             .key(key)
             .presigned(presign_config)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to generate presigned URL: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to generate presigned URL: {}", e))
+            })?;
 
         let url = presigned.uri().to_string();
         debug!(bucket = %bucket, key = %key, "Generated presigned download URL");
@@ -149,8 +152,9 @@ impl StorageService {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to download object: {}", e)))?;
 
-        let bytes = result.body.collect().await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read object body: {}", e)))?;
+        let bytes = result.body.collect().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to read object body: {}", e))
+        })?;
         let data = bytes.into_bytes();
 
         debug!(bucket = %bucket, key = %key, size = data.len(), "Downloaded object from storage");
@@ -159,11 +163,7 @@ impl StorageService {
     }
 
     /// Delete a file from storage
-    pub async fn delete_object(
-        &self,
-        bucket: Option<&str>,
-        key: &str,
-    ) -> Result<(), AppError> {
+    pub async fn delete_object(&self, bucket: Option<&str>, key: &str) -> Result<(), AppError> {
         let bucket = bucket.unwrap_or(&self.default_bucket);
 
         self.client
@@ -180,11 +180,7 @@ impl StorageService {
     }
 
     /// Check if an object exists in storage
-    pub async fn object_exists(
-        &self,
-        bucket: Option<&str>,
-        key: &str,
-    ) -> Result<bool, AppError> {
+    pub async fn object_exists(&self, bucket: Option<&str>, key: &str) -> Result<bool, AppError> {
         let bucket = bucket.unwrap_or(&self.default_bucket);
 
         match self
@@ -201,7 +197,10 @@ impl StorageService {
                 if err_str.contains("NoSuchKey") || err_str.contains("404") {
                     Ok(false)
                 } else {
-                    Err(AppError::Internal(anyhow::anyhow!("Failed to check object existence: {}", e)))
+                    Err(AppError::Internal(anyhow::anyhow!(
+                        "Failed to check object existence: {}",
+                        e
+                    )))
                 }
             }
         }
@@ -225,7 +224,9 @@ impl StorageService {
                 .bucket(bucket)
                 .send()
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create bucket: {}", e)))?;
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to create bucket: {}", e))
+                })?;
 
             info!(bucket = %bucket, "Created new storage bucket");
         }

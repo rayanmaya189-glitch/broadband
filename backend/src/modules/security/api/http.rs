@@ -4,10 +4,10 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::modules::security::application::services::SecurityService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::{UserContext, require_permission};
-use crate::modules::security::application::services::SecurityService;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct RoleResponse {
@@ -15,9 +15,9 @@ pub struct RoleResponse {
     pub name: String,
     pub slug: String,
     #[serde(default)]
-pub description: Option<String>,
+    pub description: Option<String>,
     #[serde(default)]
-pub parent_role_id: Option<i64>,
+    pub parent_role_id: Option<i64>,
     pub is_system: bool,
 }
 
@@ -42,10 +42,17 @@ pub async fn list_roles(
 ) -> Result<Json<Vec<RoleResponse>>, AppError> {
     require_permission(&user, "rbac.role.view").map_err(|e| AppError::Forbidden(e.1))?;
     let roles = SecurityService::list_roles(&state.db).await?;
-    let resp: Vec<RoleResponse> = roles.into_iter().map(|r| RoleResponse {
-        id: r.id, name: r.name, slug: r.slug,
-        description: r.description, parent_role_id: r.parent_role_id, is_system: r.is_system,
-    }).collect();
+    let resp: Vec<RoleResponse> = roles
+        .into_iter()
+        .map(|r| RoleResponse {
+            id: r.id,
+            name: r.name,
+            slug: r.slug,
+            description: r.description,
+            parent_role_id: r.parent_role_id,
+            is_system: r.is_system,
+        })
+        .collect();
     Ok(Json(resp))
 }
 
@@ -56,9 +63,16 @@ pub async fn list_permissions(
 ) -> Result<Json<Vec<PermissionResponse>>, AppError> {
     require_permission(&user, "rbac.permission.view").map_err(|e| AppError::Forbidden(e.1))?;
     let perms = SecurityService::list_permissions(&state.db).await?;
-    let resp: Vec<PermissionResponse> = perms.into_iter().map(|p| PermissionResponse {
-        id: p.id, name: p.name, module: p.module, resource: p.resource, action: p.action,
-    }).collect();
+    let resp: Vec<PermissionResponse> = perms
+        .into_iter()
+        .map(|p| PermissionResponse {
+            id: p.id,
+            name: p.name,
+            module: p.module,
+            resource: p.resource,
+            action: p.action,
+        })
+        .collect();
     Ok(Json(resp))
 }
 
@@ -71,7 +85,14 @@ pub async fn assign_role(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "rbac.user.role.assign").map_err(|e| AppError::Forbidden(e.1))?;
     let mut redis = state.redis.clone();
-    SecurityService::assign_role(&state.db, &mut redis, user_id, req.role_id, Some(user.user_id)).await?;
+    SecurityService::assign_role(
+        &state.db,
+        &mut redis,
+        user_id,
+        req.role_id,
+        Some(user.user_id),
+    )
+    .await?;
     Ok(StatusCode::CREATED)
 }
 

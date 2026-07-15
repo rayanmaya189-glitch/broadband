@@ -1,19 +1,31 @@
+use crate::modules::document::application::services::DocumentService;
+use crate::shared::app_state::AppState;
+use crate::shared::errors::AppError;
+use crate::shared::middleware::auth::UserContext;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::shared::app_state::AppState;
-use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
-use crate::modules::document::application::services::DocumentService;
 
 #[derive(Debug, Serialize)]
-pub struct DocumentResponse { pub id: i64, pub filename: String, pub mime_type: String, pub file_size: i64, pub status: String }
+pub struct DocumentResponse {
+    pub id: i64,
+    pub filename: String,
+    pub mime_type: String,
+    pub file_size: i64,
+    pub status: String,
+}
 
 #[derive(Debug, Deserialize)]
-pub struct UploadRequest { pub filename: String, pub mime_type: String, pub file_size: i64, pub storage_bucket: String, pub storage_key: String }
+pub struct UploadRequest {
+    pub filename: String,
+    pub mime_type: String,
+    pub file_size: i64,
+    pub storage_bucket: String,
+    pub storage_key: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct PresignUploadRequest {
@@ -34,14 +46,50 @@ pub struct PresignUploadResponse {
     pub expires_in_secs: u64,
 }
 
-pub async fn list_documents(State(state): State<Arc<AppState>>, _user: UserContext) -> Result<Json<Vec<DocumentResponse>>, AppError> {
+pub async fn list_documents(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+) -> Result<Json<Vec<DocumentResponse>>, AppError> {
     let docs = DocumentService::list_documents(&state.db, None).await?;
-    Ok(Json(docs.into_iter().map(|d| DocumentResponse { id: d.id, filename: d.filename, mime_type: d.mime_type, file_size: d.file_size, status: d.status }).collect()))
+    Ok(Json(
+        docs.into_iter()
+            .map(|d| DocumentResponse {
+                id: d.id,
+                filename: d.filename,
+                mime_type: d.mime_type,
+                file_size: d.file_size,
+                status: d.status,
+            })
+            .collect(),
+    ))
 }
 
-pub async fn confirm_upload(State(state): State<Arc<AppState>>, user: UserContext, Json(req): Json<UploadRequest>) -> Result<(StatusCode, Json<DocumentResponse>), AppError> {
-    let d = DocumentService::create_document(&state.db, req.filename.clone(), req.filename, req.mime_type.clone(), req.file_size, req.storage_bucket, req.storage_key, user.user_id).await?;
-    Ok((StatusCode::CREATED, Json(DocumentResponse { id: d.id, filename: d.filename, mime_type: d.mime_type, file_size: d.file_size, status: d.status })))
+pub async fn confirm_upload(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Json(req): Json<UploadRequest>,
+) -> Result<(StatusCode, Json<DocumentResponse>), AppError> {
+    let d = DocumentService::create_document(
+        &state.db,
+        req.filename.clone(),
+        req.filename,
+        req.mime_type.clone(),
+        req.file_size,
+        req.storage_bucket,
+        req.storage_key,
+        user.user_id,
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(DocumentResponse {
+            id: d.id,
+            filename: d.filename,
+            mime_type: d.mime_type,
+            file_size: d.file_size,
+            status: d.status,
+        }),
+    ))
 }
 
 pub async fn presign_upload(
@@ -49,38 +97,46 @@ pub async fn presign_upload(
     user: UserContext,
     Json(req): Json<PresignUploadRequest>,
 ) -> Result<(StatusCode, Json<PresignUploadResponse>), AppError> {
-    let storage = state.storage.as_ref()
+    let storage = state
+        .storage
+        .as_ref()
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Storage service not configured")))?;
 
     let bucket = req.bucket.as_deref();
     let purpose = req.purpose.as_deref().unwrap_or("general");
     let now = chrono::Utc::now();
     let ext = req.filename.rsplit('.').next().unwrap_or("bin");
-    let storage_key = format!("{}/{}/{}/{}/{}.{}",
+    let storage_key = format!(
+        "{}/{}/{}/{}/{}.{}",
         purpose,
         now.format("%Y/%m/%d"),
         user.user_id,
         uuid::Uuid::new_v4(),
-        req.filename.replace(|c: char| !c.is_alphanumeric() && c != '.', "_"),
+        req.filename
+            .replace(|c: char| !c.is_alphanumeric() && c != '.', "_"),
         ext
     );
 
-    let upload_url = storage.presign_upload(
-        bucket,
-        &storage_key,
-        &req.mime_type,
-        3600,
-    ).await?;
+    let upload_url = storage
+        .presign_upload(bucket, &storage_key, &req.mime_type, 3600)
+        .await?;
 
-    Ok((StatusCode::OK, Json(PresignUploadResponse {
-        upload_url,
-        storage_key,
-        storage_bucket: bucket.unwrap_or("aeroxe-documents").to_string(),
-        expires_in_secs: 3600,
-    })))
+    Ok((
+        StatusCode::OK,
+        Json(PresignUploadResponse {
+            upload_url,
+            storage_key,
+            storage_bucket: bucket.unwrap_or("aeroxe-documents").to_string(),
+            expires_in_secs: 3600,
+        }),
+    ))
 }
 
-pub async fn delete_document(State(state): State<Arc<AppState>>, _user: UserContext, Path(id): Path<i64>) -> Result<StatusCode, AppError> {
+pub async fn delete_document(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, AppError> {
     // Get document info before deletion
     let doc = crate::modules::document::domain::entities::DocumentFile::find_by_id(id)
         .one(&state.db)
@@ -89,7 +145,10 @@ pub async fn delete_document(State(state): State<Arc<AppState>>, _user: UserCont
 
     // Delete from storage if available
     if let Some(storage) = &state.storage {
-        if let Err(e) = storage.delete_object(Some(&doc.storage_bucket), &doc.storage_key).await {
+        if let Err(e) = storage
+            .delete_object(Some(&doc.storage_bucket), &doc.storage_key)
+            .await
+        {
             tracing::warn!(error = %e, doc_id = id, "Failed to delete file from storage");
         }
     }

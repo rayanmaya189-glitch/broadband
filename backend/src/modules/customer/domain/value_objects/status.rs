@@ -87,9 +87,18 @@ mod tests {
 
     #[test]
     fn test_status_from_str() {
-        assert_eq!(CustomerStatus::from_str("pending"), Some(CustomerStatus::Pending));
-        assert_eq!(CustomerStatus::from_str("active"), Some(CustomerStatus::Active));
-        assert_eq!(CustomerStatus::from_str("ACTIVE"), Some(CustomerStatus::Active));
+        assert_eq!(
+            CustomerStatus::from_str("pending"),
+            Some(CustomerStatus::Pending)
+        );
+        assert_eq!(
+            CustomerStatus::from_str("active"),
+            Some(CustomerStatus::Active)
+        );
+        assert_eq!(
+            CustomerStatus::from_str("ACTIVE"),
+            Some(CustomerStatus::Active)
+        );
         assert_eq!(CustomerStatus::from_str("invalid"), None);
     }
 

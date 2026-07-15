@@ -1,7 +1,7 @@
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 use crate::infrastructure::messaging::outbox;
 use crate::infrastructure::messaging::EventPublisher;

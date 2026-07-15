@@ -1,7 +1,7 @@
 mod invoice_id;
-mod status;
 mod money;
+mod status;
 
 pub use invoice_id::InvoiceId;
-pub use status::InvoiceStatus;
 pub use money::Money;
+pub use status::InvoiceStatus;

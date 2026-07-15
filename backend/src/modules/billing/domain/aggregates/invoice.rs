@@ -140,7 +140,9 @@ mod tests {
     fn test_new_invoice() {
         let invoice = Invoice::new(
             "INV-001".to_string(),
-            1, 1, 1,
+            1,
+            1,
+            1,
             chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
             Money::new(1000, 0),
@@ -158,15 +160,18 @@ mod tests {
     fn test_mark_paid() {
         let mut invoice = Invoice::new(
             "INV-001".to_string(),
-            1, 1, 1,
+            1,
+            1,
+            1,
             chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
             Money::new(1000, 0),
             Money::new(0, 0),
             Money::new(180, 0),
             chrono::NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let result = invoice.mark_paid("upi");
         assert!(result.is_ok());
         assert_eq!(invoice.status, InvoiceStatus::Paid);
@@ -177,15 +182,18 @@ mod tests {
     fn test_mark_paid_already_paid() {
         let mut invoice = Invoice::new(
             "INV-001".to_string(),
-            1, 1, 1,
+            1,
+            1,
+            1,
             chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
             Money::new(1000, 0),
             Money::new(0, 0),
             Money::new(180, 0),
             chrono::NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         invoice.mark_paid("upi").unwrap();
         let result = invoice.mark_paid("card");
         assert_eq!(result, Err(InvoiceDomainError::AlreadyPaid));

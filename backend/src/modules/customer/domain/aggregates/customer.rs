@@ -1,4 +1,4 @@
-use crate::modules::customer::domain::value_objects::{Email, Phone, CustomerStatus, CustomerId};
+use crate::modules::customer::domain::value_objects::{CustomerId, CustomerStatus, Email, Phone};
 
 /// Customer aggregate root - the core business entity
 #[derive(Debug, Clone)]
@@ -40,7 +40,9 @@ impl std::fmt::Display for CustomerDomainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::KycRequired => write!(f, "KYC verification is required before activation"),
-            Self::ActiveSubscriptionsExist => write!(f, "Cannot delete customer with active subscriptions"),
+            Self::ActiveSubscriptionsExist => {
+                write!(f, "Cannot delete customer with active subscriptions")
+            }
             Self::AlreadySuspended => write!(f, "Customer is already suspended"),
             Self::AlreadyActive => write!(f, "Customer is already active"),
             Self::InvalidEmail => write!(f, "Invalid email format"),
@@ -67,7 +69,7 @@ impl Customer {
     ) -> Result<Self, CustomerDomainError> {
         // Validate email if provided
         let email_obj = email.as_deref().map(Email::new).transpose()?;
-        
+
         // Validate phone
         let phone_obj = Phone::new(&phone)?;
         let alt_phone_obj = alternate_phone.map(|p| Phone::new(&p)).transpose()?;
@@ -164,8 +166,9 @@ mod tests {
             None,
             None,
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let result = customer.activate(false);
         assert_eq!(result, Err(CustomerDomainError::KycRequired));
         assert_eq!(customer.status, CustomerStatus::Pending);
@@ -182,8 +185,9 @@ mod tests {
             None,
             None,
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let result = customer.activate(true);
         assert!(result.is_ok());
         assert_eq!(customer.status, CustomerStatus::Active);
@@ -200,8 +204,9 @@ mod tests {
             None,
             None,
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         customer.activate(true).unwrap();
         let result = customer.suspend("non-payment");
         assert!(result.is_ok());
@@ -219,8 +224,9 @@ mod tests {
             None,
             None,
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         customer.activate(true).unwrap();
         customer.suspend("non-payment").unwrap();
         let result = customer.suspend("another reason");
@@ -238,8 +244,9 @@ mod tests {
             None,
             None,
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let result = customer.can_delete(true);
         assert_eq!(result, Err(CustomerDomainError::ActiveSubscriptionsExist));
     }
@@ -255,8 +262,9 @@ mod tests {
             None,
             None,
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let result = customer.can_delete(false);
         assert!(result.is_ok());
     }

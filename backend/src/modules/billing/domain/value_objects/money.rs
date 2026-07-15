@@ -85,7 +85,10 @@ impl Add for Money {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        assert_eq!(self.currency, other.currency, "Cannot add different currencies");
+        assert_eq!(
+            self.currency, other.currency,
+            "Cannot add different currencies"
+        );
         Self {
             amount: self.amount + other.amount,
             currency: self.currency,
@@ -97,7 +100,10 @@ impl Sub for Money {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        assert_eq!(self.currency, other.currency, "Cannot subtract different currencies");
+        assert_eq!(
+            self.currency, other.currency,
+            "Cannot subtract different currencies"
+        );
         Self {
             amount: self.amount - other.amount,
             currency: self.currency,

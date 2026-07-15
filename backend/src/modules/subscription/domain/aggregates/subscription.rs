@@ -123,7 +123,10 @@ impl Subscription {
 
     /// Check if subscription can be modified
     pub fn can_be_modified(&self) -> bool {
-        matches!(self.status, SubscriptionStatus::Active | SubscriptionStatus::Pending)
+        matches!(
+            self.status,
+            SubscriptionStatus::Active | SubscriptionStatus::Pending
+        )
     }
 }
 
@@ -133,11 +136,7 @@ mod tests {
 
     #[test]
     fn test_new_subscription() {
-        let sub = Subscription::new(
-            1, 1, 1, 1,
-            chrono::Utc::now().date_naive(),
-            true,
-        );
+        let sub = Subscription::new(1, 1, 1, 1, chrono::Utc::now().date_naive(), true);
         assert!(sub.is_ok());
         let sub = sub.unwrap();
         assert_eq!(sub.status, SubscriptionStatus::Pending);
@@ -145,12 +144,8 @@ mod tests {
 
     #[test]
     fn test_activate_subscription() {
-        let mut sub = Subscription::new(
-            1, 1, 1, 1,
-            chrono::Utc::now().date_naive(),
-            true,
-        ).unwrap();
-        
+        let mut sub = Subscription::new(1, 1, 1, 1, chrono::Utc::now().date_naive(), true).unwrap();
+
         let result = sub.activate();
         assert!(result.is_ok());
         assert_eq!(sub.status, SubscriptionStatus::Active);
@@ -158,12 +153,8 @@ mod tests {
 
     #[test]
     fn test_suspend_subscription() {
-        let mut sub = Subscription::new(
-            1, 1, 1, 1,
-            chrono::Utc::now().date_naive(),
-            true,
-        ).unwrap();
-        
+        let mut sub = Subscription::new(1, 1, 1, 1, chrono::Utc::now().date_naive(), true).unwrap();
+
         sub.activate().unwrap();
         let result = sub.suspend();
         assert!(result.is_ok());
@@ -172,12 +163,8 @@ mod tests {
 
     #[test]
     fn test_cancel_subscription() {
-        let mut sub = Subscription::new(
-            1, 1, 1, 1,
-            chrono::Utc::now().date_naive(),
-            true,
-        ).unwrap();
-        
+        let mut sub = Subscription::new(1, 1, 1, 1, chrono::Utc::now().date_naive(), true).unwrap();
+
         sub.activate().unwrap();
         let result = sub.cancel();
         assert!(result.is_ok());

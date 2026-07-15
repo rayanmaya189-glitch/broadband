@@ -1,12 +1,15 @@
 use sea_orm::{
-    prelude::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    prelude::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use serde_json::Value;
 use tracing::debug;
 
 use crate::shared::errors::AppError;
 
-use crate::infrastructure::messaging::outbox_entity::{self, Entity as OutboxEventEntity, ActiveModel, Model as OutboxEventModel};
+use crate::infrastructure::messaging::outbox_entity::{
+    self, ActiveModel, Entity as OutboxEventEntity, Model as OutboxEventModel,
+};
 
 /// Outbox event for reliable event publishing.
 /// Events are stored within the same DB transaction as business logic,
@@ -41,7 +44,9 @@ pub async fn insert_outbox_event(
         ..Default::default()
     };
 
-    let inserted: outbox_entity::Model = model.insert(db).await
+    let inserted: outbox_entity::Model = model
+        .insert(db)
+        .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to insert outbox event: {}", e)))?;
 
     debug!(event_id = %event_id, event_type = %event_type, "Stored event in outbox");
@@ -61,7 +66,10 @@ pub async fn fetch_unpublished_events(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to fetch outbox events: {}", e)))?;
 
-    debug!(count = events.len(), "Fetched unpublished events from outbox");
+    debug!(
+        count = events.len(),
+        "Fetched unpublished events from outbox"
+    );
     Ok(events)
 }
 
@@ -72,7 +80,9 @@ pub async fn mark_event_published(db: &DatabaseConnection, event_id: &str) -> Re
         .filter(outbox_entity::Column::EventId.eq(event_id))
         .exec(db)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to mark event published: {}", e)))?;
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to mark event published: {}", e))
+        })?;
 
     debug!(event_id = %event_id, rows_affected = result.rows_affected, "Marked event as published");
     Ok(())
@@ -90,8 +100,13 @@ pub async fn cleanup_published_events(
         .filter(outbox_entity::Column::CreatedAt.lt(cutoff))
         .exec(db)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to cleanup outbox events: {}", e)))?;
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to cleanup outbox events: {}", e))
+        })?;
 
-    debug!(rows_deleted = result.rows_affected, "Cleaned up published outbox events");
+    debug!(
+        rows_deleted = result.rows_affected,
+        "Cleaned up published outbox events"
+    );
     Ok(result.rows_affected)
 }
