@@ -54,7 +54,11 @@ impl SecurityService {
         Ok(perms)
     }
 
-    pub async fn assign_role(db: &DatabaseConnection, user_id: i64, role_id: i64, assigned_by: Option<i64>) -> Result<(), AppError> {
+    pub async fn assign_role(
+        db: &DatabaseConnection,
+        redis: &mut redis::aio::ConnectionManager,
+        user_id: i64, role_id: i64, assigned_by: Option<i64>,
+    ) -> Result<(), AppError> {
         let existing = UserRole::find()
             .filter(UserRoleColumn::UserId.eq(user_id))
             .filter(UserRoleColumn::RoleId.eq(role_id))
@@ -72,10 +76,16 @@ impl SecurityService {
             };
             new_ur.insert(db).await?;
         }
+        // Invalidate cached permissions in Redis so the user gets fresh permissions on next request
+        crate::modules::identity::application::services::IdentityService::invalidate_permissions(redis, user_id).await?;
         Ok(())
     }
 
-    pub async fn revoke_role(db: &DatabaseConnection, user_id: i64, role_id: i64) -> Result<(), AppError> {
+    pub async fn revoke_role(
+        db: &DatabaseConnection,
+        redis: &mut redis::aio::ConnectionManager,
+        user_id: i64, role_id: i64,
+    ) -> Result<(), AppError> {
         if let Some(ur) = UserRole::find()
             .filter(UserRoleColumn::UserId.eq(user_id))
             .filter(UserRoleColumn::RoleId.eq(role_id))
@@ -85,6 +95,8 @@ impl SecurityService {
             active.is_active = Set(false);
             active.update(db).await?;
         }
+        // Invalidate cached permissions in Redis so the user gets fresh permissions on next request
+        crate::modules::identity::application::services::IdentityService::invalidate_permissions(redis, user_id).await?;
         Ok(())
     }
 }

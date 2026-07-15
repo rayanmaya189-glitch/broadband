@@ -68,7 +68,8 @@ pub async fn assign_role(
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "rbac.user.role.assign").map_err(|e| AppError::Forbidden(e.1))?;
-    SecurityService::assign_role(&state.db, user_id, req.role_id, Some(user.user_id)).await?;
+    let mut redis = state.redis.clone();
+    SecurityService::assign_role(&state.db, &mut redis, user_id, req.role_id, Some(user.user_id)).await?;
     Ok(StatusCode::CREATED)
 }
 
@@ -79,6 +80,7 @@ pub async fn revoke_role(
     Path((user_id, role_id)): Path<(i64, i64)>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "rbac.user.role.revoke").map_err(|e| AppError::Forbidden(e.1))?;
-    SecurityService::revoke_role(&state.db, user_id, role_id).await?;
+    let mut redis = state.redis.clone();
+    SecurityService::revoke_role(&state.db, &mut redis, user_id, role_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

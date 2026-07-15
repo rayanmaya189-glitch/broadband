@@ -149,7 +149,6 @@ impl IdentityService {
     }
 
     /// Invalidate user permissions in Redis (e.g., on role change)
-    #[allow(dead_code)]
     pub async fn invalidate_permissions(
         redis: &mut redis::aio::ConnectionManager,
         user_id: i64,
