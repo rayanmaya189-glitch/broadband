@@ -141,12 +141,19 @@ pub async fn rate_limit_middleware(
 
     debug!(client_id = %client_id, path = %path, tier = ?tier, "Rate limit check");
 
-    // Get the shared store from request extensions (set by AppState injection)
-    let store = request
+    // Get the shared store from request extensions (set by AppState injection in main.rs)
+    // This MUST be injected by the rate_limit_layer in main.rs before this middleware runs.
+    let store = match request
         .extensions()
         .get::<Arc<RateLimitStore>>()
         .cloned()
-        .unwrap_or_default();
+    {
+        Some(store) => store,
+        None => {
+            tracing::error!("RateLimitStore not found in request extensions. Ensure rate_limit_layer is applied.");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
 
     let info = store.check_and_record(&client_id, &tier).await;
 

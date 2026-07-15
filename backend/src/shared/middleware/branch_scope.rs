@@ -4,6 +4,7 @@ use axum::extract::FromRequestParts;
 use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::Response;
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
 use crate::shared::middleware::auth::UserContext;
 
@@ -55,24 +56,88 @@ impl BranchScope {
     }
 }
 
-/// Middleware that extracts UserContext and injects BranchScope into request extensions.
-/// This middleware must run AFTER the auth middleware.
+/// Extract UserContext from JWT in Authorization header (without Redis permission lookup).
+/// This is used by the branch scope middleware to populate extensions before handlers run.
+fn extract_user_context_from_headers(headers: &axum::http::HeaderMap) -> Option<UserContext> {
+    let auth_header = headers
+        .get("Authorization")?
+        .to_str()
+        .ok()?;
+
+    let token = auth_header.strip_prefix("Bearer ")?;
+
+    let mut validation = Validation::default();
+    validation.algorithms = vec![Algorithm::HS256];
+
+    let secret = std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "aeroxe-jwt-secret-change-in-production".to_string());
+    let key = DecodingKey::from_secret(secret.as_bytes());
+
+    let token_data = decode::<serde_json::Value>(token, &key, &validation).ok()?;
+
+    let claims = token_data.claims;
+
+    let user_id = claims
+        .get("sub")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(0);
+
+    let email = claims
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let role = claims
+        .get("role")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let branch_id = claims.get("branch_id").and_then(|v| v.as_i64());
+
+    let is_company_wide = claims
+        .get("is_company_wide")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    // Note: permissions are NOT fetched here (no Redis call in middleware).
+    // Full permissions are loaded by the auth extractor per-handler.
+    Some(UserContext {
+        user_id,
+        email,
+        role,
+        branch_id,
+        is_company_wide,
+        permissions: Vec::new(), // Placeholder - full permissions loaded per-handler
+    })
+}
+
+/// Middleware that extracts JWT from Authorization header, creates UserContext,
+/// and injects both UserContext and BranchScope into request extensions.
+///
+/// This runs as a global layer so that:
+/// 1. `UserContext` is available in extensions for any handler/middleware that needs it
+/// 2. `BranchScope` is available in extensions for branch-scoped queries
+///
+/// NOTE: The full UserContext with permissions is still loaded per-handler by the
+/// auth extractor (which calls Redis). This middleware provides a lightweight
+/// version for branch scoping purposes only.
 pub async fn branch_scope_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Extract UserContext from request extensions (set by auth middleware)
-    let user = request
-        .extensions()
-        .get::<UserContext>()
-        .cloned()
-        .unwrap_or_default();
+    // Try to extract UserContext from JWT via Authorization header
+    if let Some(user) = extract_user_context_from_headers(request.headers()) {
+        // Create BranchScope from UserContext
+        let scope = BranchScope::from_user_context(&user);
 
-    // Create BranchScope from UserContext
-    let scope = BranchScope::from_user_context(&user);
-
-    // Inject BranchScope into request extensions
-    request.extensions_mut().insert(scope);
+        // Inject both into request extensions
+        request.extensions_mut().insert(user);
+        request.extensions_mut().insert(scope);
+    }
+    // If no JWT or invalid token, proceed without scope (public routes work fine)
 
     Ok(next.run(request).await)
 }
@@ -100,11 +165,6 @@ where
                 is_company_wide: true,
             }))
     }
-}
-
-/// Helper to create branch scope from UserContext (for use in handlers)
-pub fn create_branch_scope(user: &UserContext) -> BranchScope {
-    BranchScope::from_user_context(user)
 }
 
 #[cfg(test)]
