@@ -36,7 +36,12 @@ pub async fn update_profile(State(state): State<Arc<AppState>>, _user: UserConte
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
-    pub name: Option<String>, pub download_kbps: Option<i32>, pub upload_kbps: Option<i32>,
+    #[serde(default)]
+pub name: Option<String>,
+    #[serde(default)]
+pub download_kbps: Option<i32>,
+    #[serde(default)]
+pub upload_kbps: Option<i32>,
 }
 
 pub async fn delete_profile(State(state): State<Arc<AppState>>, _user: UserContext, Path(id): Path<i64>) -> Result<StatusCode, AppError> {

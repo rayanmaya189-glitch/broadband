@@ -11,7 +11,8 @@ use crate::modules::plans::application::services::PlanService;
 
 #[derive(Debug, Serialize)]
 pub struct PlanResponse {
-    pub id: i64, pub slug: String, pub name: String, pub description: Option<String>,
+    pub id: i64, pub slug: String, pub name: String,    #[serde(default)]
+    pub description: Option<String>,
     pub speed_label: String, pub download_mbps: i32, pub upload_mbps: i32,
     pub burst_mbps: Option<i32>, pub is_popular: bool, pub is_business: bool,
     pub is_active: bool, pub pricing: Vec<PricingResponse>,
@@ -24,9 +25,13 @@ pub struct PricingResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePlanRequest {
-    pub slug: String, pub name: String, pub description: Option<String>,
+    pub slug: String, pub name: String,    #[serde(default)]
+    pub description: Option<String>,
     pub speed_label: String, pub download_mbps: i32, pub upload_mbps: i32,
-    pub burst_mbps: Option<i32>, pub is_business: Option<bool>,
+    #[serde(default)]
+    pub burst_mbps: Option<i32>,
+    #[serde(default)]
+    pub is_business: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

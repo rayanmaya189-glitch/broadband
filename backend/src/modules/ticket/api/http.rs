@@ -18,7 +18,8 @@ pub struct TicketResponse {
 #[derive(Debug, Deserialize)]
 pub struct CreateTicketRequest {
     pub category: String, pub priority: String, pub subject: String,
-    pub description: String, pub source: String, pub customer_id: Option<i64>,
+    pub description: String, pub source: String,    #[serde(default)]
+    pub customer_id: Option<i64>,
 }
 
 pub async fn list_tickets(State(state): State<Arc<AppState>>, user: UserContext) -> Result<Json<Vec<TicketResponse>>, AppError> {
@@ -51,4 +52,4 @@ pub async fn resolve_ticket(State(state): State<Arc<AppState>>, user: UserContex
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ResolveRequest { pub resolution_notes: Option<String> }
+pub struct ResolveRequest { #[serde(default)] pub resolution_notes: Option<String> }

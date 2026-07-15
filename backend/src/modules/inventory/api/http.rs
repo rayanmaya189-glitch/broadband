@@ -12,7 +12,7 @@ use crate::modules::inventory::application::services::InventoryService;
 pub struct InventoryItemResponse { pub id: i64, pub item_type: String, pub serial_number: Option<String>, pub status: String }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateItemRequest { pub item_type: String, pub serial_number: Option<String>, pub barcode: Option<String> }
+pub struct CreateItemRequest { pub item_type: String, #[serde(default)] pub serial_number: Option<String>, #[serde(default)] pub barcode: Option<String> }
 
 pub async fn list_inventory(State(state): State<Arc<AppState>>, user: UserContext) -> Result<Json<Vec<InventoryItemResponse>>, AppError> {
     let bid = if user.is_company_wide { None } else { user.branch_id };

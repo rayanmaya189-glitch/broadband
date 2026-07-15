@@ -45,8 +45,31 @@ async fn main() -> anyhow::Result<()> {
     let redis = create_redis_pool(&settings.redis_url).await?;
     tracing::info!("Redis pool created");
 
+    // Connect to NATS (optional - gracefully handle if unavailable)
+    let nats_client = match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(&settings.nats_url).await {
+        Ok(client) => {
+            // Set up JetStream
+            let js_config = aeroxe_backend::infrastructure::messaging::nats_client::JetStreamConfig::default();
+            if let Err(e) = aeroxe_backend::infrastructure::messaging::nats_client::ensure_jetstream_stream(&client, &js_config).await {
+                tracing::warn!(error = %e, "Failed to set up JetStream, continuing without NATS");
+                None
+            } else {
+                tracing::info!("NATS JetStream ready");
+                Some(client)
+            }
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to connect to NATS, continuing without event publishing");
+            None
+        }
+    };
+
     // Build shared state
-    let state = Arc::new(AppState::new(db, redis, settings.clone()));
+    let mut app_state = AppState::new(db, redis, settings.clone());
+    if let Some(client) = nats_client {
+        app_state = app_state.with_nats(client);
+    }
+    let state = Arc::new(app_state);
 
     // Build CORS layer
     let cors = CorsLayer::new()
@@ -60,7 +83,21 @@ async fn main() -> anyhow::Result<()> {
         .merge(aeroxe_backend::routes::health_routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
-        .with_state(state);
+        .with_state(state.clone());
+
+    // Start outbox worker in background (if NATS is available)
+    if let Some(nats_client) = state.nats.clone() {
+        let outbox_db = state.db.clone();
+        let outbox_publisher = aeroxe_backend::infrastructure::messaging::EventPublisher::new(nats_client);
+        let outbox_worker = aeroxe_backend::workers::outbox_worker::OutboxWorker::new(
+            std::sync::Arc::new(outbox_db),
+            outbox_publisher,
+        );
+        tokio::spawn(async move {
+            outbox_worker.run().await;
+        });
+        tracing::info!("Outbox worker started");
+    }
 
     // Start server
     let listener = TcpListener::bind(addr).await?;

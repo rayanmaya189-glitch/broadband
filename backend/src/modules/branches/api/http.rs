@@ -48,9 +48,13 @@ pub struct CreateBranchRequest {
     pub slug: String,
     pub code: String,
     pub city: String,
+    #[serde(default)]
     pub state: Option<String>,
+    #[serde(default)]
     pub address: Option<String>,
+    #[serde(default)]
     pub phone: Option<String>,
+    #[serde(default)]
     pub email: Option<String>,
 }
 
@@ -58,9 +62,13 @@ pub struct CreateBranchRequest {
 pub struct UpdateBranchRequest {
     pub name: Option<String>,
     pub city: Option<String>,
+    #[serde(default)]
     pub state: Option<String>,
+    #[serde(default)]
     pub address: Option<String>,
+    #[serde(default)]
     pub phone: Option<String>,
+    #[serde(default)]
     pub email: Option<String>,
 }
 

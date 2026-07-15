@@ -14,8 +14,10 @@ pub struct RoleResponse {
     pub id: i64,
     pub name: String,
     pub slug: String,
-    pub description: Option<String>,
-    pub parent_role_id: Option<i64>,
+    #[serde(default)]
+pub description: Option<String>,
+    #[serde(default)]
+pub parent_role_id: Option<i64>,
     pub is_system: bool,
 }
 

@@ -1,3 +1,6 @@
+pub mod outbox;
+pub mod nats_client;
+
 use async_nats::Client;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -114,7 +117,7 @@ impl EventPublisher {
         Self { nats }
     }
 
-    /// Publish a domain event to NATS.
+    /// Publish a domain event to NATS with envelope.
     pub async fn publish<T: Serialize>(
         &self,
         subject: &str,
@@ -127,6 +130,28 @@ impl EventPublisher {
             producer.to_string(),
             payload,
         );
+
+        let json = serde_json::to_vec(&envelope)?;
+        self.nats.publish(subject.to_string(), json.into()).await?;
+        tracing::info!(event_type = %event_type, subject = %subject, "Published event to NATS");
+        Ok(())
+    }
+
+    /// Publish raw JSON payload to NATS (for outbox worker).
+    pub async fn publish_raw(
+        &self,
+        subject: &str,
+        event_type: &str,
+        payload: &serde_json::Value,
+    ) -> anyhow::Result<()> {
+        let envelope = serde_json::json!({
+            "event_id": Uuid::new_v4().to_string(),
+            "event_type": event_type,
+            "version": 1,
+            "occurred_at": Utc::now().to_rfc3339(),
+            "producer": "outbox-worker",
+            "payload": payload,
+        });
 
         let json = serde_json::to_vec(&envelope)?;
         self.nats.publish(subject.to_string(), json.into()).await?;

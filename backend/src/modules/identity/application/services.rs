@@ -6,6 +6,8 @@ use sha2::{Digest, Sha256};
 use chrono::{Utc, Duration};
 use redis::AsyncCommands;
 
+use tracing::{info, debug};
+
 use crate::shared::errors::AppError;
 use crate::modules::identity::domain::entities::{user, user_session};
 use crate::modules::security::domain::entities::{role, user_role, role_permission, permission as perm_entity};
@@ -129,6 +131,7 @@ impl IdentityService {
         let _: () = redis.set_ex(&key, payload, ttl_secs as u64)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+        info!(user_id = user_id, perms_count = permissions.len(), ttl_secs = ttl_secs, "Stored permissions in Redis");
         Ok(())
     }
 
@@ -142,9 +145,16 @@ impl IdentityService {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
         match result {
-            Some(json) => serde_json::from_str(&json)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("JSON deserialization error: {}", e))),
-            None => Ok(Vec::new()),
+            Some(json) => {
+                let perms: Vec<String> = serde_json::from_str(&json)
+                    .map_err(|e| AppError::Internal(anyhow::anyhow!("JSON deserialization error: {}", e)))?;
+                debug!(user_id = user_id, perms_count = perms.len(), "Fetched permissions from Redis");
+                Ok(perms)
+            }
+            None => {
+                debug!(user_id = user_id, "No permissions found in Redis (cache miss)");
+                Ok(Vec::new())
+            }
         }
     }
 
@@ -157,6 +167,7 @@ impl IdentityService {
         let _: () = redis.del(&key)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis del error: {}", e)))?;
+        info!(user_id = user_id, "Invalidated permissions in Redis (role change)");
         Ok(())
     }
 
@@ -215,9 +226,22 @@ impl IdentityService {
         let threshold = (settings.jwt_refresh_token_ttl_secs * 60) / 100; // 60% of max TTL
 
         if remaining_ttl < threshold {
+            info!(
+                user_id = user_model.id,
+                remaining_ttl = remaining_ttl,
+                threshold = threshold,
+                "Permissions TTL below threshold during refresh, re-storing"
+            );
             Self::store_permissions_in_redis(
                 redis, user_model.id, &permissions, settings.jwt_refresh_token_ttl_secs,
             ).await?;
+        } else {
+            debug!(
+                user_id = user_model.id,
+                remaining_ttl = remaining_ttl,
+                threshold = threshold,
+                "Permissions TTL sufficient during refresh, no re-store needed"
+            );
         }
 
         // Delete old session (rotate refresh token)

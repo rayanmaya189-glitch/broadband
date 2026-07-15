@@ -29,7 +29,9 @@ pub struct IpPoolResponse {
 #[derive(Debug, Deserialize)]
 pub struct CreateIpPoolRequest {
     pub branch_id: i64, pub name: String, pub cidr: String, pub gateway: String,
-    pub vlan_id: Option<i64>, pub pool_type: String, pub total_count: i32,
+    #[serde(default)]
+    pub vlan_id: Option<i64>,
+    pub pool_type: String, pub total_count: i32,
 }
 
 #[derive(Debug, Serialize)]

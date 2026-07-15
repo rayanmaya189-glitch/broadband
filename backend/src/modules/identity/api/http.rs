@@ -15,6 +15,7 @@ pub struct RegisterRequest {
     pub phone: String,
     pub name: String,
     pub password: String,
+    #[serde(default)]
     pub branch_id: Option<i64>,
 }
 
@@ -49,7 +50,8 @@ pub struct UserResponse {
     pub phone: String,
     pub name: String,
     pub avatar_url: Option<String>,
-    pub branch_id: Option<i64>,
+    #[serde(default)]
+pub branch_id: Option<i64>,
     pub status: String,
     pub last_login_at: Option<String>,
 }

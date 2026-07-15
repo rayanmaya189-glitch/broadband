@@ -19,8 +19,11 @@ pub struct CustomerResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCustomerRequest {
-    pub branch_id: i64, pub name: String, pub email: Option<String>,
-    pub phone: String, pub alternate_phone: Option<String>,
+    pub branch_id: i64, pub name: String,    #[serde(default)]
+    pub email: Option<String>,
+    pub phone: String,
+    #[serde(default)]
+    pub alternate_phone: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,8 +31,14 @@ pub struct UpdateStatusRequest { pub status: String }
 
 #[derive(Debug, Deserialize)]
 pub struct AddAddressRequest {
-    pub address_type: Option<String>, pub line1: String, pub line2: Option<String>,
-    pub city: String, pub state: String, pub pincode: String, pub landmark: Option<String>,
+    #[serde(default)]
+    pub address_type: Option<String>,
+    pub line1: String,
+    #[serde(default)]
+    pub line2: Option<String>,
+    pub city: String, pub state: String, pub pincode: String,
+    #[serde(default)]
+    pub landmark: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

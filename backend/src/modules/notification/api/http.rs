@@ -13,7 +13,7 @@ use crate::modules::notification::application::services::NotificationService;
 pub struct TemplateResponse { pub id: i64, pub name: String, pub channel: String, pub is_active: bool }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateTemplateRequest { pub name: String, pub channel: String, pub body_template: String, pub subject_template: Option<String> }
+pub struct CreateTemplateRequest { pub name: String, pub channel: String, pub body_template: String, #[serde(default)] pub subject_template: Option<String> }
 
 pub async fn list_templates(State(state): State<Arc<AppState>>, _user: UserContext) -> Result<Json<Vec<TemplateResponse>>, AppError> {
     let tmpls = NotificationService::list_templates(&state.db).await?;
@@ -28,7 +28,8 @@ pub async fn create_template(State(state): State<Arc<AppState>>, _user: UserCont
 #[derive(Debug, Deserialize)]
 pub struct SendNotificationRequest {
     pub channel: String, pub recipient_type: String, pub recipient_id: i64,
-    pub recipient_address: String, pub subject: Option<String>, pub body: String,
+    pub recipient_address: String,    #[serde(default)]
+    pub subject: Option<String>, pub body: String,
 }
 
 #[derive(Debug, Serialize)]

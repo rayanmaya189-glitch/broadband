@@ -12,7 +12,7 @@ use crate::modules::lead::application::services::LeadService;
 pub struct LeadResponse { pub id: i64, pub name: String, pub phone: String, pub status: String, pub source: String }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateLeadRequest { pub name: String, pub phone: String, pub email: Option<String>, pub source: String }
+pub struct CreateLeadRequest { pub name: String, pub phone: String, #[serde(default)] pub email: Option<String>, pub source: String }
 
 pub async fn list_leads(State(state): State<Arc<AppState>>, user: UserContext) -> Result<Json<Vec<LeadResponse>>, AppError> {
     let bid = if user.is_company_wide { None } else { user.branch_id };

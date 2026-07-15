@@ -12,10 +12,10 @@ use crate::modules::installation::application::services::InstallationService;
 pub struct InstallationResponse { pub id: i64, pub customer_id: i64, pub status: String, pub scheduled_date: Option<String> }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateOrderRequest { pub customer_id: i64, pub subscription_id: Option<i64> }
+pub struct CreateOrderRequest { pub customer_id: i64, #[serde(default)] pub subscription_id: Option<i64> }
 
 #[derive(Debug, Deserialize)]
-pub struct ScheduleRequest { pub scheduled_date: String, pub scheduled_time_slot: Option<String>, pub technician_id: Option<i64> }
+pub struct ScheduleRequest { pub scheduled_date: String, #[serde(default)] pub scheduled_time_slot: Option<String>, #[serde(default)] pub technician_id: Option<i64> }
 
 pub async fn list_installations(State(state): State<Arc<AppState>>, user: UserContext) -> Result<Json<Vec<InstallationResponse>>, AppError> {
     let bid = if user.is_company_wide { None } else { user.branch_id };
