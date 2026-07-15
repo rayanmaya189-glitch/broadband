@@ -1,9 +1,0 @@
-pub mod admin;
-pub mod controller;
-pub mod customer;
-pub mod model;
-pub mod request;
-pub mod response;
-pub mod repository;
-pub mod service;
-pub mod router;
