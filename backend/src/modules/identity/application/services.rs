@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, ActiveModelTrait, Set};
+use sea_orm::{DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, ColumnTrait, ActiveModelTrait, Set};
 use argon2::{Argon2, PasswordHasher, PasswordHash, PasswordVerifier};
 use jsonwebtoken::{encode, Header, EncodingKey};
 use rand::Rng;
@@ -159,6 +159,87 @@ impl IdentityService {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis del error: {}", e)))?;
         Ok(())
+    }
+
+    /// Get remaining TTL (in seconds) for a Redis key. Returns 0 if key doesn't exist.
+    async fn get_redis_ttl(
+        redis: &mut redis::aio::ConnectionManager,
+        key: &str,
+    ) -> Result<i64, AppError> {
+        let ttl: i64 = redis.ttl(key)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis ttl error: {}", e)))?;
+        Ok(ttl)
+    }
+
+    /// Refresh access token using a valid refresh token.
+    /// Checks if Redis permissions key is about to expire and re-stores if needed.
+    /// If the remaining TTL is below 60% of the refresh token TTL, permissions are
+    /// re-stored with the full TTL to prevent expiry between refresh cycles.
+    pub async fn refresh_token(
+        db: &DatabaseConnection,
+        redis: &mut redis::aio::ConnectionManager,
+        settings: &crate::config::settings::Settings,
+        refresh_token: &str,
+    ) -> Result<(String, String, user::Model), AppError> {
+        let token_hash = Self::hash_token(refresh_token);
+
+        // Find the session by refresh token hash
+        let session = user_session::Entity::find()
+            .filter(user_session::Column::RefreshTokenHash.eq(&token_hash))
+            .one(db).await?
+            .ok_or_else(|| AppError::Unauthorized)?;
+
+        // Check if session is expired
+        if Utc::now() > session.expires_at {
+            // Delete expired session
+            session.delete(db).await?;
+            return Err(AppError::Unauthorized);
+        }
+
+        // Load the user
+        let user_model = user::Entity::find_by_id(session.user_id)
+            .one(db).await?
+            .ok_or_else(|| AppError::NotFound(format!("User {} not found", session.user_id)))?;
+
+        if user_model.status != "active" {
+            session.delete(db).await?;
+            return Err(AppError::Unauthorized);
+        }
+
+        let (role, branch_id, is_company_wide, permissions) = Self::load_user_context(db, &user_model).await?;
+
+        // Check if Redis permissions key is about to expire.
+        // If TTL is below 60% of max (refresh_token_ttl), re-store with full TTL.
+        let perms_key = Self::redis_perms_key(user_model.id);
+        let remaining_ttl = Self::get_redis_ttl(redis, &perms_key).await?;
+        let threshold = (settings.jwt_refresh_token_ttl_secs * 60) / 100; // 60% of max TTL
+
+        if remaining_ttl < threshold {
+            Self::store_permissions_in_redis(
+                redis, user_model.id, &permissions, settings.jwt_refresh_token_ttl_secs,
+            ).await?;
+        }
+
+        // Delete old session (rotate refresh token)
+        session.delete(db).await?;
+
+        // Generate new tokens
+        let access_token = Self::generate_access_token(&user_model, settings, &role, branch_id, is_company_wide)?;
+        let new_refresh_token = Self::generate_refresh_token();
+        let new_refresh_hash = Self::hash_token(&new_refresh_token);
+
+        // Create new session
+        let new_session = user_session::ActiveModel {
+            user_id: Set(user_model.id),
+            refresh_token_hash: Set(new_refresh_hash),
+            expires_at: Set(Utc::now() + Duration::seconds(settings.jwt_refresh_token_ttl_secs)),
+            created_at: Set(Utc::now()),
+            ..Default::default()
+        };
+        new_session.insert(db).await?;
+
+        Ok((access_token, new_refresh_token, user_model))
     }
 
     pub async fn login(

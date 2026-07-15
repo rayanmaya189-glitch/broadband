@@ -55,6 +55,7 @@ fn auth_routes() -> Router<SharedState> {
     Router::new()
         .route("/register", axum::routing::post(crate::modules::identity::api::http::register))
         .route("/login", axum::routing::post(crate::modules::identity::api::http::login))
+        .route("/refresh", axum::routing::post(crate::modules::identity::api::http::refresh_token))
 }
 
 fn user_routes() -> Router<SharedState> {

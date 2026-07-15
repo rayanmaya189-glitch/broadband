@@ -24,6 +24,17 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RefreshTokenResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
     pub access_token: String,
@@ -93,6 +104,22 @@ pub async fn login(
             branch_id: user.branch_id, status: user.status,
             last_login_at: user.last_login_at.map(|dt| dt.to_rfc3339()),
         },
+    }))
+}
+
+/// POST /api/v1/auth/refresh
+pub async fn refresh_token(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RefreshTokenRequest>,
+) -> Result<Json<RefreshTokenResponse>, AppError> {
+    let mut redis = state.redis.clone();
+    let (access_token, refresh_token, _) = IdentityService::refresh_token(
+        &state.db, &mut redis, &state.settings, &req.refresh_token,
+    ).await?;
+
+    Ok(Json(RefreshTokenResponse {
+        access_token,
+        refresh_token,
     }))
 }
 
