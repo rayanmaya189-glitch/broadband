@@ -1,4 +1,5 @@
 pub mod outbox;
+pub mod outbox_entity;
 pub mod nats_client;
 
 use async_nats::Client;

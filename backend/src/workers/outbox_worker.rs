@@ -11,7 +11,7 @@ pub struct OutboxWorker {
     db: Arc<DatabaseConnection>,
     publisher: EventPublisher,
     poll_interval_secs: u64,
-    batch_size: i64,
+    batch_size: u64,
 }
 
 impl OutboxWorker {
@@ -29,7 +29,7 @@ impl OutboxWorker {
         self
     }
 
-    pub fn with_batch_size(mut self, size: i64) -> Self {
+    pub fn with_batch_size(mut self, size: u64) -> Self {
         self.batch_size = size;
         self
     }
@@ -63,10 +63,10 @@ impl OutboxWorker {
     }
 
     /// Process a single batch of unpublished events.
-    async fn process_batch(&self) -> Result<i64, anyhow::Error> {
+    async fn process_batch(&self) -> Result<u64, anyhow::Error> {
         let events = outbox::fetch_unpublished_events(&self.db, self.batch_size).await?;
 
-        let mut published_count = 0;
+        let mut published_count: u64 = 0;
 
         for event in &events {
             // Build NATS subject from event type
