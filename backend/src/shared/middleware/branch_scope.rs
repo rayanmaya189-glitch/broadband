@@ -1,8 +1,14 @@
-use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::http::StatusCode;
+use axum::extract::FromRequestParts;
+use axum::extract::Request;
+use axum::middleware::Next;
+use axum::response::Response;
 
 use crate::shared::middleware::auth::UserContext;
+
+/// Company-wide roles that bypass branch filtering.
+const COMPANY_WIDE_ROLES: &[&str] = &["super_admin", "isp_owner", "finance_manager"];
 
 /// Branch filter context for branch-scoped queries.
 #[derive(Debug, Clone)]
@@ -11,14 +17,11 @@ pub struct BranchScope {
     pub is_company_wide: bool,
 }
 
-/// Company-wide roles that bypass branch filtering.
-const COMPANY_WIDE_ROLES: &[&str] = &["super_admin", "isp_owner", "finance_manager"];
-
 impl BranchScope {
     /// Create a new BranchScope from a UserContext
     pub fn from_user_context(user: &UserContext) -> Self {
-        let is_company_wide =
-            user.is_company_wide || COMPANY_WIDE_ROLES.contains(&user.role.as_str());
+        let is_company_wide = user.is_company_wide
+            || COMPANY_WIDE_ROLES.contains(&user.role.as_str());
 
         let branch_ids = if is_company_wide {
             Vec::new() // Company-wide users don't need branch filtering
@@ -40,12 +43,10 @@ impl BranchScope {
     /// Get SQL WHERE clause for branch filtering
     pub fn to_sql_filter(&self) -> String {
         if self.is_company_wide {
-            // No filter needed
             return "1=1".to_string();
         }
 
         if self.branch_ids.is_empty() {
-            // No branches assigned - deny all
             return "1=0".to_string();
         }
 
@@ -54,47 +55,26 @@ impl BranchScope {
     }
 }
 
-/// Tower middleware layer for branch scoping
-#[derive(Clone)]
-pub struct BranchScopeLayer;
+/// Middleware that extracts UserContext and injects BranchScope into request extensions.
+/// This middleware must run AFTER the auth middleware.
+pub async fn branch_scope_middleware(
+    mut request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    // Extract UserContext from request extensions (set by auth middleware)
+    let user = request
+        .extensions()
+        .get::<UserContext>()
+        .cloned()
+        .unwrap_or_default();
 
-impl<S> tower::Layer<S> for BranchScopeLayer {
-    type Service = BranchScopeMiddleware<S>;
+    // Create BranchScope from UserContext
+    let scope = BranchScope::from_user_context(&user);
 
-    fn layer(&self, inner: S) -> Self::Service {
-        BranchScopeMiddleware { inner }
-    }
-}
+    // Inject BranchScope into request extensions
+    request.extensions_mut().insert(scope);
 
-#[derive(Clone)]
-pub struct BranchScopeMiddleware<S> {
-    inner: S,
-}
-
-impl<S> tower::Service<axum::http::Request<axum::body::Body>> for BranchScopeMiddleware<S>
-where
-    S: tower::Service<axum::http::Request<axum::body::Body>, Response = axum::response::Response>
-        + Send
-        + 'static,
-    S::Future: Send,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
-    >;
-
-    fn poll_ready(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, req: axum::http::Request<axum::body::Body>) -> Self::Future {
-        let fut = self.inner.call(req);
-        Box::pin(async move { fut.await })
-    }
+    Ok(next.run(request).await)
 }
 
 /// Extract branch scope from request parts for use in handlers
@@ -105,25 +85,26 @@ where
 {
     type Rejection = StatusCode;
 
-    async fn from_request_parts(_parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // This will be populated by the auth middleware
-        // For now, return a default - in production, extract from extensions
-        Ok(BranchScope {
-            branch_ids: Vec::new(),
-            is_company_wide: true,
-        })
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        // Extract from extensions (injected by branch_scope_middleware)
+        // If not present, create a company-wide default
+        Ok(parts
+            .extensions
+            .get::<BranchScope>()
+            .cloned()
+            .unwrap_or_else(|| BranchScope {
+                branch_ids: Vec::new(),
+                is_company_wide: true,
+            }))
     }
 }
 
 /// Helper to create branch scope from UserContext (for use in handlers)
 pub fn create_branch_scope(user: &UserContext) -> BranchScope {
     BranchScope::from_user_context(user)
-}
-
-/// Helper to inject branch scope into request extensions
-pub fn inject_branch_scope(req: &mut axum::http::Request<axum::body::Body>, user: &UserContext) {
-    let scope = BranchScope::from_user_context(user);
-    req.extensions_mut().insert(scope);
 }
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
 use axum::extract::Request;
-use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -55,24 +54,7 @@ pub struct RateLimitInfo {
 }
 
 
-/// Build rate limit response headers
-pub fn build_rate_limit_headers(info: &RateLimitInfo) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-
-    if let Ok(value) = info.remaining.to_string().parse() {
-        headers.insert("X-RateLimit-Remaining", value);
-    }
-
-    if let Some(retry) = info.retry_after {
-        if let Ok(value) = retry.to_string().parse() {
-            headers.insert("X-RateLimit-Retry-After", value);
-        }
-    }
-
-    headers
-}
-
-/// In-memory rate limiter store
+/// In-memory rate limiter store (shared across all requests via AppState)
 #[derive(Clone)]
 pub struct RateLimitStore {
     requests: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
@@ -92,7 +74,7 @@ impl RateLimitStore {
         let window_start = now - Duration::seconds(tier.window_seconds as i64);
 
         // Get or create entry for this key
-        let timestamps = requests.entry(key.to_string()).or_insert_with(Vec::new);
+        let timestamps = requests.entry(key.to_string()).or_default();
 
         // Remove expired entries
         timestamps.retain(|ts| *ts > window_start);
@@ -106,7 +88,6 @@ impl RateLimitStore {
 
         let remaining = (tier.max_requests - count).max(0);
         let retry_after = if !allowed {
-            // Calculate when the oldest entry in the window will expire
             timestamps.first().map(|ts| {
                 let expires_at = *ts + Duration::seconds(tier.window_seconds as i64);
                 (expires_at - now).num_seconds().max(1)
@@ -123,8 +104,19 @@ impl RateLimitStore {
     }
 }
 
-/// Middleware function for rate limiting
-pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
+impl Default for RateLimitStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Middleware function for rate limiting.
+///
+/// Uses the shared `RateLimitStore` from request extensions (injected via AppState).
+pub async fn rate_limit_middleware(
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
     // Extract client identifier (IP address or API key)
     let client_id = request
         .headers()
@@ -149,13 +141,13 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Respo
 
     debug!(client_id = %client_id, path = %path, tier = ?tier, "Rate limit check");
 
-    // Try to get the shared store from request extensions
-    // Falls back to a per-request store if not configured (dev mode only)
+    // Get the shared store from request extensions (set by AppState injection)
     let store = request
         .extensions()
         .get::<Arc<RateLimitStore>>()
         .cloned()
-        .unwrap_or_else(|| Arc::new(RateLimitStore::new()));
+        .unwrap_or_default();
+
     let info = store.check_and_record(&client_id, &tier).await;
 
     if !info.allowed {
@@ -166,8 +158,14 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Respo
     let mut response = next.run(request).await;
 
     // Add rate limit headers to response
-    let rate_headers = build_rate_limit_headers(&info);
-    response.headers_mut().extend(rate_headers);
+    if let Ok(val) = info.remaining.to_string().parse() {
+        response.headers_mut().insert("x-ratelimit-remaining", val);
+    }
+    if let Some(retry) = info.retry_after {
+        if let Ok(val) = retry.to_string().parse() {
+            response.headers_mut().insert("x-ratelimit-retry-after", val);
+        }
+    }
 
     Ok(response)
 }

@@ -97,10 +97,28 @@ async fn main() -> anyhow::Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build application router
+    // Clone rate_limit_store for the middleware closure
+    let rate_limit_store = state.rate_limit_store.clone();
+
+    // Build application router with middlewares
     let app = Router::new()
         .nest("/api/v1", aeroxe_backend::routes::v1_routes())
         .merge(aeroxe_backend::routes::health_routes())
+        .layer(axum::middleware::from_fn({
+            let store = rate_limit_store.clone();
+            move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
+                let store = store.clone();
+                async move {
+                    // Inject RateLimitStore into request extensions
+                    let mut req = req;
+                    req.extensions_mut().insert(store);
+                    aeroxe_backend::shared::middleware::rate_limit::rate_limit_middleware(req, next).await
+                }
+            }
+        }))
+        .layer(axum::middleware::from_fn(
+            aeroxe_backend::shared::middleware::branch_scope::branch_scope_middleware,
+        ))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());

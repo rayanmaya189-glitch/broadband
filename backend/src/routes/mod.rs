@@ -50,6 +50,7 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/inventory", inventory_routes())
         .nest("/installations", installation_routes())
         .nest("/payments", payment_routes())
+        .nest("/approvals", approval_routes())
 }
 
 fn auth_routes() -> Router<SharedState> {
@@ -362,4 +363,14 @@ fn payment_routes() -> Router<SharedState> {
             axum::routing::post(http::handle_payu_webhook),
         )
         .route("/:id/retry", axum::routing::post(http::retry_payment))
+}
+
+fn approval_routes() -> Router<SharedState> {
+    use crate::modules::workflow::api::http;
+    Router::new()
+        .route("/", axum::routing::post(http::create_approval_request))
+        .route("/pending", axum::routing::get(http::list_pending_approvals))
+        .route("/:id", axum::routing::get(http::get_approval_request))
+        .route("/:id/approve", axum::routing::post(http::approve_request))
+        .route("/:id/reject", axum::routing::post(http::reject_request))
 }

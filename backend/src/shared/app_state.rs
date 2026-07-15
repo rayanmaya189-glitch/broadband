@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::config::settings::Settings;
 use crate::infrastructure::messaging::EventPublisher;
 use crate::infrastructure::storage::StorageService;
+use crate::shared::middleware::rate_limit::RateLimitStore;
 
 /// Shared application state available to all handlers.
 pub struct AppState {
@@ -12,6 +13,7 @@ pub struct AppState {
     pub event_publisher: Option<EventPublisher>,
     pub settings: Settings,
     pub storage: Option<StorageService>,
+    pub rate_limit_store: Arc<RateLimitStore>,
 }
 
 impl AppState {
@@ -27,6 +29,7 @@ impl AppState {
             event_publisher: None,
             settings,
             storage: None,
+            rate_limit_store: Arc::new(RateLimitStore::new()),
         }
     }
 
