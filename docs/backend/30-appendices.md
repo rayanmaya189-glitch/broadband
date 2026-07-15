@@ -324,32 +324,45 @@ $$ LANGUAGE plpgsql;
 
 ```rust
 // src/jobs/cleanup.rs
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 
 /// Remove expired data based on retention policy
-pub async fn run_cleanup(pool: &PgPool) -> Result<()> {
+pub async fn run_cleanup(db: &DatabaseConnection) -> Result<()> {
     // 1. Delete expired OTP codes (5 minutes)
-    sqlx::query("DELETE FROM otp_codes WHERE expires_at < NOW()")
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        "DELETE FROM otp_codes WHERE expires_at < NOW()".to_owned(),
+    )).await?;
 
     // 2. Delete expired sessions (24 hours)
-    sqlx::query("DELETE FROM sessions WHERE expires_at < NOW()")
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        "DELETE FROM sessions WHERE expires_at < NOW()".to_owned(),
+    )).await?;
 
     // 3. Delete expired refresh tokens (7 days)
-    sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < NOW()")
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        "DELETE FROM refresh_tokens WHERE expires_at < NOW()".to_owned(),
+    )).await?;
 
     // 4. Delete old device metrics (90 days)
-    sqlx::query("DELETE FROM device_metrics WHERE recorded_at < NOW() - INTERVAL '90 days'")
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        "DELETE FROM device_metrics WHERE recorded_at < NOW() - INTERVAL '90 days'".to_owned(),
+    )).await?;
 
     // 5. Delete old device logs (30 days)
-    sqlx::query("DELETE FROM device_logs WHERE recorded_at < NOW() - INTERVAL '30 days'")
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        "DELETE FROM device_logs WHERE recorded_at < NOW() - INTERVAL '30 days'".to_owned(),
+    )).await?;
 
     // 6. Delete old notifications (90 days)
-    sqlx::query("DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '90 days'")
-        .execute(pool).await?;
+    db.execute(Statement::from_string(
+        db.get_database_backend(),
+        "DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '90 days'".to_owned(),
+    )).await?;
 
     // 7. Compress old audit logs (1 year) — move to compressed table
     // Handled by partition maintenance job
@@ -365,8 +378,8 @@ pub fn cleanup_schedule() -> JobScheduler {
     let mut scheduler = JobScheduler::new().unwrap();
     scheduler.add(
         Job::new("0 2 * * *", move |_, _| {
-            let pool = get_pool();
-            tokio::spawn(run_cleanup(&pool));
+            let db = get_db();
+            tokio::spawn(run_cleanup(&db));
         }).unwrap()
     ).unwrap();
     scheduler
