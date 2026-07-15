@@ -34,7 +34,7 @@ pids/
 .cache/
 .tmp/
 
-
+.codex/
 .agents/   
 skills-lock.json
 

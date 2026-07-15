@@ -1,0 +1,92 @@
+[package]
+name = "aeroxe-backend"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "AeroXe Broadband ISP Platform - Backend API"
+authors = ["AeroXe Engineering Team"]
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros", "multipart"] }
+axum-extra = { version = "0.9", features = ["typed-header", "cookie"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "limit", "request-id", "util"] }
+tokio = { version = "1", features = ["full"] }
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+
+# Database - SeaORM (NO SQLx)
+sea-orm = { version = "1.1", features = [
+    "runtime-tokio-rustls",
+    "sqlx-postgres",
+    "macros",
+    "with-json",
+    "with-chrono",
+    "with-uuid",
+    "with-rust_decimal",
+] }
+sea-orm-migration = { version = "1.1", features = [
+    "runtime-tokio-rustls",
+    "sqlx-postgres",
+] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Authentication
+jsonwebtoken = "9"
+argon2 = { version = "0.5", features = ["std", "password-hash"] }
+rand = "0.8"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# DateTime
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# Redis
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager", "json", "aio"] }
+
+# NATS
+async-nats = "0.35"
+
+# Environment / Config
+dotenvy = "0.15"
+
+# Cryptography
+sha2 = "0.10"
+base64 = "0.22"
+hex = "0.4"
+
+# Logging / Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Misc
+ulid = { version = "1", features = ["uuid"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+rust_decimal_macros = "1"
+derive_more = { version = "1", features = ["display", "from"] }
+strum = { version = "0.26", features = ["derive"] }
+async-trait = "0.1"
+futures = "0.3"
+reqwest = { version = "0.12", features = ["json"] }
+handlebars = "6"
+lettre = { version = "0.11", features = ["tokio1-native-tls", "builder"] }
+
+[dev-dependencies]
+sea-orm = { version = "1.1", features = [    "sqlx-postgres", "runtime-tokio-rustls", "tests-cfg"] }
+tokio-test = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
