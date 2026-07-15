@@ -133,7 +133,7 @@ impl IdentityService {
     }
 
     /// Retrieve user permissions from Redis
-    pub async fn get_permissions_from_redis(
+    pub(crate) async fn get_permissions_from_redis(
         redis: &mut redis::aio::ConnectionManager,
         user_id: i64,
     ) -> Result<Vec<String>, AppError> {
@@ -149,7 +149,7 @@ impl IdentityService {
     }
 
     /// Invalidate user permissions in Redis (e.g., on role change)
-    pub async fn invalidate_permissions(
+    pub(crate) async fn invalidate_permissions(
         redis: &mut redis::aio::ConnectionManager,
         user_id: i64,
     ) -> Result<(), AppError> {
