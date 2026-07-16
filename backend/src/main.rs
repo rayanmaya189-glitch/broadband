@@ -138,6 +138,90 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Outbox worker started");
     }
 
+    // Start background workers
+    {
+        let worker_db = state.db.clone();
+
+        // Billing worker - runs every 5 minutes
+        {
+            let db = worker_db.clone();
+            let worker = aeroxe_backend::workers::billing_worker::BillingWorker::new(db);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = worker.run_cycle().await {
+                        tracing::error!(error = %e, "Billing worker cycle failed");
+                    }
+                }
+            });
+            tracing::info!("Billing worker started (every 5 minutes)");
+        }
+
+        // Notification worker - runs every 30 seconds
+        {
+            let db = worker_db.clone();
+            let worker = aeroxe_backend::workers::notification_worker::NotificationWorker::new(db);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = worker.run_cycle().await {
+                        tracing::error!(error = %e, "Notification worker cycle failed");
+                    }
+                }
+            });
+            tracing::info!("Notification worker started (every 30 seconds)");
+        }
+
+        // Device sync worker - runs every 2 minutes
+        {
+            let db = worker_db.clone();
+            let worker = aeroxe_backend::workers::device_sync_worker::DeviceSyncWorker::new(db);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = worker.run_cycle().await {
+                        tracing::error!(error = %e, "Device sync worker cycle failed");
+                    }
+                }
+            });
+            tracing::info!("Device sync worker started (every 2 minutes)");
+        }
+
+        // Bandwidth worker - runs every minute
+        {
+            let db = worker_db.clone();
+            let worker = aeroxe_backend::workers::bandwidth_worker::BandwidthWorker::new(db);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = worker.run_cycle().await {
+                        tracing::error!(error = %e, "Bandwidth worker cycle failed");
+                    }
+                }
+            });
+            tracing::info!("Bandwidth worker started (every minute)");
+        }
+
+        // Outbox cleanup worker - runs every hour
+        {
+            let db = worker_db.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = aeroxe_backend::infrastructure::messaging::outbox::cleanup_published_events(&db, 24).await {
+                        tracing::error!(error = %e, "Outbox cleanup failed");
+                    }
+                }
+            });
+            tracing::info!("Outbox cleanup worker started (every hour)");
+        }
+    }
+
     // Start server
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Server ready to accept connections on {}", addr);

@@ -90,6 +90,14 @@ reqwest = { version = "0.12", features = ["json"] }
 handlebars = "6"
 lettre = { version = "0.11", features = ["tokio1-native-tls", "builder"] }
 
+[[bin]]
+name = "aeroxe-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "migrate"
+path = "src/bin/migrate.rs"
+
 [dev-dependencies]
 sea-orm = { version = "1.1", features = [    "sqlx-postgres", "runtime-tokio-rustls", "tests-cfg"] }
 tokio-test = "0.4"

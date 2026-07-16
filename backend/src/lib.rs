@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod infrastructure;
+pub mod migration;
 pub mod modules;
 pub mod routes;
 pub mod shared;
