@@ -1,8 +1,9 @@
 use crate::modules::notification::domain::entities::{
-    Notification, NotificationActiveModel, NotificationTemplate, NotificationTemplateActiveModel,
+    Notification, NotificationActiveModel, NotificationColumn, NotificationTemplate,
+    NotificationTemplateActiveModel,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, PaginatorTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
 
 pub struct NotificationService;
 
@@ -55,7 +56,7 @@ impl NotificationService {
     ) -> Result<crate::modules::notification::domain::entities::notification::Model, AppError> {
         let now = chrono::Utc::now();
         let notif = NotificationActiveModel {
-            channel: Set(channel),
+            channel: Set(channel.clone()),
             recipient_type: Set(recipient_type),
             recipient_id: Set(recipient_id),
             recipient_address: Set(recipient_address),
@@ -72,10 +73,44 @@ impl NotificationService {
 
     pub async fn list_notifications(
         db: &DatabaseConnection,
-    ) -> Result<Vec<crate::modules::notification::domain::entities::notification::Model>, AppError>
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<crate::modules::notification::domain::entities::notification::Model>, u64), AppError>
     {
-        Ok(Notification::find().all(db).await?)
+        let q = Notification::find();
+        let total = q.clone().count(db).await?;
+        let items = q
+            .order_by_desc(NotificationColumn::CreatedAt)
+            .paginate(db, limit)
+            .fetch_page(page.saturating_sub(1))
+            .await?;
+        Ok((items, total))
+    }
+
+    /// Retry failed notifications (status = 'failed' and retry_count < max_retries)
+    pub async fn retry_failed_notifications(
+        db: &DatabaseConnection,
+    ) -> Result<u64, AppError> {
+        let failed = Notification::find()
+            .filter(NotificationColumn::Status.eq("failed"))
+            .filter(NotificationColumn::RetryCount.lt(3))
+            .all(db)
+            .await?;
+
+        let mut retried = 0u64;
+        for notif in failed {
+            let mut active: NotificationActiveModel = notif.into();
+            let current_retry = match active.retry_count {
+                sea_orm::Set(v) => v,
+                sea_orm::NotSet => 0,
+                sea_orm::Unchanged(v) => v,
+            };
+            active.status = Set("queued".to_string());
+            active.retry_count = Set(current_retry + 1);
+            if active.update(db).await.is_ok() {
+                retried += 1;
+            }
+        }
+        Ok(retried)
     }
 }
-
-

@@ -9,7 +9,9 @@ use crate::modules::accounting::domain::entities::{
 };
 
 /// Minimum date for balance sheet queries (epoch)
-const MIN_DATE: chrono::NaiveDate = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+fn min_date() -> chrono::NaiveDate {
+    chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
+}
 
 pub struct AccountingService;
 
@@ -361,7 +363,7 @@ impl AccountingService {
         as_of_date: chrono::NaiveDate,
     ) -> Result<BalanceSheet, AppError> {
         // Balance sheet accumulates ALL posted entries from beginning up to as_of_date
-        let trial_balance = Self::generate_trial_balance(db, MIN_DATE, as_of_date).await?;
+        let trial_balance = Self::generate_trial_balance(db, min_date(), as_of_date).await?;
 
         let mut total_assets = sea_orm::prelude::Decimal::ZERO;
         let mut total_liabilities = sea_orm::prelude::Decimal::ZERO;

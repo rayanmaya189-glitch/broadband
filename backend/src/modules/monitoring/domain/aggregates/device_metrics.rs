@@ -62,52 +62,52 @@ impl DeviceMetrics {
 
     /// Check if CPU is in critical state (>90%)
     pub fn is_cpu_critical(&self) -> bool {
-        self.cpu_usage_percent.map_or(false, |cpu| cpu > 90.0)
+        self.cpu_usage_percent.is_some_and(|cpu| cpu > 90.0)
     }
 
     /// Check if CPU is in warning state (>70%)
     pub fn is_cpu_warning(&self) -> bool {
-        self.cpu_usage_percent.map_or(false, |cpu| cpu > 70.0)
+        self.cpu_usage_percent.is_some_and(|cpu| cpu > 70.0)
     }
 
     /// Check if memory is in critical state (>90%)
     pub fn is_memory_critical(&self) -> bool {
-        self.memory_usage_percent.map_or(false, |mem| mem > 90.0)
+        self.memory_usage_percent.is_some_and(|mem| mem > 90.0)
     }
 
     /// Check if memory is in warning state (>80%)
     pub fn is_memory_warning(&self) -> bool {
-        self.memory_usage_percent.map_or(false, |mem| mem > 80.0)
+        self.memory_usage_percent.is_some_and(|mem| mem > 80.0)
     }
 
     /// Check if temperature is critical (>70°C)
     pub fn is_temperature_critical(&self) -> bool {
-        self.temperature_celsius.map_or(false, |temp| temp > 70.0)
+        self.temperature_celsius.is_some_and(|temp| temp > 70.0)
     }
 
     /// Check if temperature is warning (>60°C)
     pub fn is_temperature_warning(&self) -> bool {
-        self.temperature_celsius.map_or(false, |temp| temp > 60.0)
+        self.temperature_celsius.is_some_and(|temp| temp > 60.0)
     }
 
     /// Check if optical power is critically low (<-28 dBm)
     pub fn is_optical_power_critical(&self) -> bool {
-        self.rx_power_dbm.map_or(false, |power| power < -28.0)
+        self.rx_power_dbm.is_some_and(|power| power < -28.0)
     }
 
     /// Check if optical power is low (<-25 dBm)
     pub fn is_optical_power_warning(&self) -> bool {
-        self.rx_power_dbm.map_or(false, |power| power < -25.0)
+        self.rx_power_dbm.is_some_and(|power| power < -25.0)
     }
 
     /// Check if packet loss is critical (>5%)
     pub fn is_packet_loss_critical(&self) -> bool {
-        self.packet_loss_percent.map_or(false, |loss| loss > 5.0)
+        self.packet_loss_percent.is_some_and(|loss| loss > 5.0)
     }
 
     /// Check if packet loss is warning (>1%)
     pub fn is_packet_loss_warning(&self) -> bool {
-        self.packet_loss_percent.map_or(false, |loss| loss > 1.0)
+        self.packet_loss_percent.is_some_and(|loss| loss > 1.0)
     }
 
     /// Calculate health score based on metrics

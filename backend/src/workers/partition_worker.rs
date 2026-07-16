@@ -1,7 +1,6 @@
 /// Partition Management Jobs per §32 docs.
 /// Auto-creates monthly partitions for history, audit, notification, and events tables.
 /// Runs as a scheduled background job (via scheduler module).
-
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use chrono::{Utc, Datelike, NaiveDate};
 use tracing::{info, warn};

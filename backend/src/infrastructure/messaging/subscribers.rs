@@ -1,23 +1,23 @@
-/// Domain Event Subscribers for cross-module event-driven communication.
-///
-/// Per §5 Architecture and §24 Events doc: Modules communicate via NATS events
-/// rather than direct coupling. Each subscriber handles specific event types
-/// and triggers side effects in its module.
-///
-/// # Architecture
-/// - Outbox Pattern: Events are stored in DB within the same transaction,
-///   then an outbox worker publishes to NATS for reliable delivery.
-/// - Subscribers consume from NATS and trigger module-specific handlers.
-/// - All handlers are idempotent (safe to replay).
-///
-/// # TODO (per §24 Events docs):
-/// - subscriber handlers currently log events only
-/// - implement actual cross-module side effects:
-///   - customer.activated → provision bandwidth, VLAN assignment
-///   - subscription.cancelled → terminate PPPoE session, release bandwidth
-///   - payment.completed → mark invoice paid, create journal entry
-///   - installation.completed → activate customer subscription
-///   - device.status.changed → broadcast to WebSocket NOC dashboard
+//! Domain Event Subscribers for cross-module event-driven communication.
+//!
+//! Per §5 Architecture and §24 Events doc: Modules communicate via NATS events
+//! rather than direct coupling. Each subscriber handles specific event types
+//! and triggers side effects in its module.
+//!
+//! # Architecture
+//! - Outbox Pattern: Events are stored in DB within the same transaction,
+//!   then an outbox worker publishes to NATS for reliable delivery.
+//! - Subscribers consume from NATS and trigger module-specific handlers.
+//! - All handlers are idempotent (safe to replay).
+//!
+//! # TODO (per §24 Events docs):
+//! - subscriber handlers currently log events only
+//! - implement actual cross-module side effects:
+//!   - customer.activated → provision bandwidth, VLAN assignment
+//!   - subscription.cancelled → terminate PPPoE session, release bandwidth
+//!   - payment.completed → mark invoice paid, create journal entry
+//!   - installation.completed → activate customer subscription
+//!   - device.status.changed → broadcast to WebSocket NOC dashboard
 
 use async_nats::Client;
 use futures::StreamExt;

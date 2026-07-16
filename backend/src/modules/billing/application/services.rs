@@ -4,7 +4,7 @@ use crate::modules::billing::domain::entities::{
 use crate::shared::errors::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    QueryOrder, Set,
 };
 
 pub struct BillingService;
@@ -137,6 +137,100 @@ impl BillingService {
         let items = query.all(db).await?;
         Ok((items, total))
     }
+
+    /// List invoices that are overdue (due_date < today and status is pending)
+    pub async fn list_overdue_invoices(
+        db: &DatabaseConnection,
+        branch_id: Option<i64>,
+    ) -> Result<Vec<crate::modules::billing::domain::entities::invoice::Model>, AppError> {
+        let today = chrono::Utc::now().date_naive();
+        let mut query = Invoice::find()
+            .filter(InvoiceColumn::Status.eq("pending"))
+            .filter(InvoiceColumn::DueDate.lt(today));
+
+        if let Some(bid) = branch_id {
+            query = query.filter(InvoiceColumn::BranchId.eq(bid));
+        }
+
+        let items = query
+            .order_by_asc(InvoiceColumn::DueDate)
+            .all(db)
+            .await?;
+        Ok(items)
+    }
+
+    /// Auto-generate invoices for subscriptions due for billing
+    /// Returns the number of invoices generated
+    pub async fn auto_generate_invoices(
+        db: &DatabaseConnection,
+    ) -> Result<u64, AppError> {
+        use crate::modules::subscription::domain::entities::{Subscription, SubscriptionColumn};
+
+        let today = chrono::Utc::now().date_naive();
+        let due_subscriptions = Subscription::find()
+            .filter(SubscriptionColumn::Status.eq("active"))
+            .filter(SubscriptionColumn::NextBillingDate.is_not_null())
+            .filter(SubscriptionColumn::NextBillingDate.lte(today))
+            .all(db)
+            .await?;
+
+        let mut count = 0u64;
+        for sub in due_subscriptions {
+            // Check if an invoice already exists for this subscription and billing period
+            let existing = Invoice::find()
+                .filter(InvoiceColumn::SubscriptionId.eq(sub.id))
+                .filter(InvoiceColumn::BillingPeriodEnd.eq(today))
+                .one(db)
+                .await?;
+
+            if existing.is_some() {
+                continue; // Skip if already invoiced
+            }
+
+            // TODO: Fetch plan price from plans module (needs cross-module service call)
+            // For now, create a placeholder invoice
+            let period_start = sub.next_billing_date.unwrap_or(today);
+            let period_end = period_start + chrono::Duration::days(30);
+
+            let now = chrono::Utc::now();
+            let invoice_number = format!(
+                "INV-{}-{:04}",
+                now.format("%Y%m"),
+                now.timestamp_millis() % 10000
+            );
+
+            let new_inv = InvoiceActiveModel {
+                invoice_number: Set(invoice_number),
+                customer_id: Set(sub.customer_id),
+                branch_id: Set(sub.branch_id),
+                subscription_id: Set(sub.id),
+                billing_period_start: Set(period_start),
+                billing_period_end: Set(period_end),
+                subtotal: Set(sea_orm::prelude::Decimal::ZERO), // TODO: Fetch plan price
+                discount_amount: Set(sea_orm::prelude::Decimal::ZERO),
+                tax_amount: Set(sea_orm::prelude::Decimal::ZERO),
+                total_amount: Set(sea_orm::prelude::Decimal::ZERO), // TODO: Fetch plan price
+                currency: Set("INR".to_string()),
+                status: Set("pending".to_string()),
+                due_date: Set(period_end + chrono::Duration::days(15)),
+                review_status: Set(Some("pending".to_string())),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            };
+
+            if let Ok(invoice) = new_inv.insert(db).await {
+                // Update subscription's next_billing_date
+                let mut sub_active: crate::modules::subscription::domain::entities::SubscriptionActiveModel = sub.into();
+                sub_active.next_billing_date = Set(Some(period_end));
+                sub_active.updated_at = Set(now);
+                let _ = sub_active.update(db).await;
+
+                count += 1;
+                tracing::info!(invoice_id = invoice.id, subscription_id = invoice.subscription_id, "Auto-generated invoice");
+            }
+        }
+
+        Ok(count)
+    }
 }
-
-

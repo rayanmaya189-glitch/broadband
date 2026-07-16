@@ -4,7 +4,6 @@
 ///
 /// SECURITY: All entity_type inputs are validated against a whitelist
 /// to prevent SQL injection via table name interpolation.
-
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use chrono::{DateTime, Utc, NaiveDate};
 use serde::{Deserialize, Serialize};

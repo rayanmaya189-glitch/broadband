@@ -297,9 +297,9 @@ impl HuaweiOltSshAdapter {
                 });
             } else if let Some(ref mut profile) = current_profile {
                 if line.contains("Profile Name:") || line.contains("Name:") {
-                    profile.name = line.splitn(2, ':').nth(1).unwrap_or("").trim().to_string();
+                    profile.name = line.split_once(':').map(|x| x.1).unwrap_or("").trim().to_string();
                 } else if line.contains("Type:") {
-                    let type_num = line.splitn(2, ':').nth(1).unwrap_or("4").trim().parse().unwrap_or(4);
+                    let type_num = line.split_once(':').map(|x| x.1).unwrap_or("4").trim().parse().unwrap_or(4);
                     profile.profile_type = match type_num {
                         1 => DbaProfileType::Type1,
                         2 => DbaProfileType::Type2,
@@ -307,10 +307,10 @@ impl HuaweiOltSshAdapter {
                         _ => DbaProfileType::Type4,
                     };
                 } else if line.contains("Max BW:") || line.contains("Max Bandwidth:") {
-                    let bw_str = line.splitn(2, ':').nth(1).unwrap_or("0").trim();
+                    let bw_str = line.split_once(':').map(|x| x.1).unwrap_or("0").trim();
                     profile.max_bandwidth_kbps = bw_str.replace("kbps", "").trim().parse().unwrap_or(0);
                 } else if line.contains("Assured BW:") {
-                    let bw_str = line.splitn(2, ':').nth(1).unwrap_or("0").trim();
+                    let bw_str = line.split_once(':').map(|x| x.1).unwrap_or("0").trim();
                     profile.assured_bandwidth_kbps = bw_str.replace("kbps", "").trim().parse().ok();
                 }
             }
@@ -334,7 +334,7 @@ impl HuaweiOltSshAdapter {
                 if let Some(ont) = current_ont.take() {
                     onts.push(ont);
                 }
-                let id = line.splitn(2, ':').nth(1).unwrap_or("0").trim().parse().unwrap_or(0);
+                let id = line.split_once(':').map(|x| x.1).unwrap_or("0").trim().parse().unwrap_or(0);
                 current_ont = Some(OntStatus {
                     frame,
                     slot,

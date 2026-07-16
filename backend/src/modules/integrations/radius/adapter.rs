@@ -218,9 +218,7 @@ fn build_radius_packet(request: &RadiusRequest, secret: &str) -> Vec<u8> {
 
     // Authenticator (16 bytes) - will be filled later
     let authenticator_pos = packet.len();
-    for _ in 0..16 {
-        packet.push(0);
-    }
+    packet.extend_from_slice(&[0u8; 16]);
 
     // Attributes
     for attr in &request.attributes {
@@ -514,11 +512,8 @@ impl RadiusClient for RadiusAdapter {
             identifier,
             attributes: vec![
                 RadiusAttribute::UserName(request.username.clone()),
-                RadiusAttribute::UserPassword(request.password.clone()),
-                RadiusAttribute::NasIpAddress(request.nas_ip.clone()),
-                RadiusAttribute::NasPort(request.nas_port),
-                RadiusAttribute::ServiceType(2), // Framed
-                RadiusAttribute::FramedProtocol(1), // PPP
+                RadiusAttribute::UserPassword(request.password.clone()),            RadiusAttribute::NasIpAddress(request.nas_ip.clone()),
+            RadiusAttribute::NasPort(request.nas_port),
             ],
         };
 

@@ -68,6 +68,98 @@ impl SubscriptionService {
         Ok(new_sub.insert(db).await?)
     }
 
+    /// Reactivate a suspended or cancelled subscription
+    pub async fn reactivate_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        let sub = Self::get_subscription(db, id).await?;
+
+        // Only suspended or cancelled subscriptions can be reactivated
+        if sub.status != "suspended" && sub.status != "cancelled" {
+            return Err(AppError::Validation(format!(
+                "Cannot reactivate subscription in '{}' status; must be 'suspended' or 'cancelled'",
+                sub.status
+            )));
+        }
+
+        let now = chrono::Utc::now();
+        let next_billing = now.date_naive() + chrono::Duration::days((sub.billing_period_months as i64) * 30);
+
+        let mut active: SubscriptionActiveModel = sub.into();
+        active.status = Set("active".to_string());
+        active.next_billing_date = Set(Some(next_billing));
+        active.updated_at = Set(now);
+        Ok(active.update(db).await?)
+    }
+
+    /// Upgrade a subscription to a new plan (proration handled at billing layer)
+    pub async fn upgrade_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+        new_plan_id: i64,
+        new_billing_period_months: Option<i32>,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        let sub = Self::get_subscription(db, id).await?;
+
+        if sub.status != "active" {
+            return Err(AppError::Validation(format!(
+                "Cannot upgrade subscription in '{}' status; must be 'active'",
+                sub.status
+            )));
+        }
+
+        // Don't allow downgrade via upgrade endpoint
+        if sub.plan_id == new_plan_id {
+            return Err(AppError::Validation(
+                "New plan must be different from current plan".into(),
+            ));
+        }
+
+        let now = chrono::Utc::now();
+        let mut active: SubscriptionActiveModel = sub.into();
+        active.plan_id = Set(new_plan_id);
+        if let Some(period) = new_billing_period_months {
+            active.billing_period_months = Set(period);
+        }
+        active.updated_at = Set(now);
+        Ok(active.update(db).await?)
+    }
+
+    /// Downgrade a subscription to a lower plan
+    /// Takes effect at next billing cycle (soft downgrade)
+    pub async fn downgrade_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+        new_plan_id: i64,
+        new_billing_period_months: Option<i32>,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        let sub = Self::get_subscription(db, id).await?;
+
+        if sub.status != "active" {
+            return Err(AppError::Validation(format!(
+                "Cannot downgrade subscription in '{}' status; must be 'active'",
+                sub.status
+            )));
+        }
+
+        if sub.plan_id == new_plan_id {
+            return Err(AppError::Validation(
+                "New plan must be different from current plan".into(),
+            ));
+        }
+
+        let now = chrono::Utc::now();
+        let mut active: SubscriptionActiveModel = sub.into();
+        active.plan_id = Set(new_plan_id);
+        active.review_status = Set(Some("pending_downgrade".to_string()));
+        if let Some(period) = new_billing_period_months {
+            active.billing_period_months = Set(period);
+        }
+        active.updated_at = Set(now);
+        Ok(active.update(db).await?)
+    }
+
     pub async fn cancel_subscription(
         db: &DatabaseConnection,
         id: i64,
@@ -92,5 +184,3 @@ impl SubscriptionService {
         Ok(active.update(db).await?)
     }
 }
-
-

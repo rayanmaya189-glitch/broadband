@@ -109,11 +109,11 @@ pub async fn execute_olt_command(
     let result = tokio::task::spawn_blocking(move || {
         // Connect
         let session = ssh_connect(&host, port, &username, &password, timeout_secs)
-            .map_err(|e| AppError::External(e))?;
+            .map_err(AppError::External)?;
 
         // Execute command
         let output = ssh_execute_command(&session, &command)
-            .map_err(|e| AppError::External(e))?;
+            .map_err(AppError::External)?;
 
         // Session will be dropped and cleaned up automatically
 
@@ -146,22 +146,22 @@ pub async fn execute_olt_command_with_enable(
     let result = tokio::task::spawn_blocking(move || {
         // Connect
         let session = ssh_connect(&host, port, &username, &password, timeout_secs)
-            .map_err(|e| AppError::External(e))?;
+            .map_err(AppError::External)?;
 
         // Enter enable mode
         debug!("Entering enable mode");
         let enable_output = ssh_execute_command(&session, "enable")
-            .map_err(|e| AppError::External(e))?;
+            .map_err(AppError::External)?;
 
         if enable_output.contains("Password:") || enable_output.contains("password:") {
             let _ = ssh_execute_command(&session, &enable_password)
-                .map_err(|e| AppError::External(e))?;
+                .map_err(AppError::External)?;
         }
         info!("Entered enable mode");
 
         // Execute the actual command
         let output = ssh_execute_command(&session, &command)
-            .map_err(|e| AppError::External(e))?;
+            .map_err(AppError::External)?;
 
         // Session will be dropped and cleaned up automatically
 

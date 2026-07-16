@@ -2,7 +2,6 @@
 ///
 /// Per §23 Notifications doc: supports Email, SMS, WhatsApp, Push, In-App
 /// with Handlebars templates for variable substitution.
-
 use handlebars::Handlebars;
 use serde_json::Value;
 use tracing::debug;
@@ -12,6 +11,12 @@ use crate::shared::errors::AppError;
 /// Template engine wrapper.
 pub struct TemplateEngine {
     handlebars: Handlebars<'static>,
+}
+
+impl Default for TemplateEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TemplateEngine {

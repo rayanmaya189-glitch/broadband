@@ -61,10 +61,10 @@ pub fn v1_routes() -> Router<SharedState> {
 fn audit_history_routes() -> Router<SharedState> {
     use crate::modules::audit::api::http as audit_http;
     Router::new()
+        .route("/entity-types", axum::routing::get(audit_http::list_entity_types))
         .route("/:entity_type", axum::routing::get(audit_http::search_history))
         .route("/:entity_type/:history_id", axum::routing::get(audit_http::get_history_entry))
         .route("/rollback/:entity_type/:entity_id", axum::routing::post(audit_http::rollback_entity))
-        .route("/entity-types", axum::routing::get(audit_http::list_entity_types))
 }
 
 fn auth_routes() -> Router<SharedState> {
@@ -76,8 +76,8 @@ fn auth_routes() -> Router<SharedState> {
         // 2FA / TOTP (§28 Security)
         .route("/2fa/setup", axum::routing::post(id_http::setup_2fa))
         .route("/2fa/confirm", axum::routing::post(id_http::confirm_2fa))
-        .route("/2fa/verify/:user_id", axum::routing::post(id_http::verify_2fa))
-        .route("/2fa/backup-verify/:user_id", axum::routing::post(id_http::verify_backup_code))
+        .route("/2fa/verify", axum::routing::post(id_http::verify_2fa))
+        .route("/2fa/backup-verify", axum::routing::post(id_http::verify_backup_code))
         .route("/2fa/disable", axum::routing::delete(id_http::disable_2fa))
 }
 
@@ -150,14 +150,11 @@ fn subscription_routes() -> Router<SharedState> {
             "/",
             axum::routing::get(http::list_subscriptions).post(http::create_subscription),
         )
-        .route(
-            "/:id/cancel",
-            axum::routing::post(http::cancel_subscription),
-        )
-        .route(
-            "/:id/suspend",
-            axum::routing::post(http::suspend_subscription),
-        )
+        .route("/:id/cancel", axum::routing::post(http::cancel_subscription))
+        .route("/:id/suspend", axum::routing::post(http::suspend_subscription))
+        .route("/:id/reactivate", axum::routing::post(http::reactivate_subscription))
+        .route("/:id/upgrade", axum::routing::post(http::upgrade_subscription))
+        .route("/:id/downgrade", axum::routing::post(http::downgrade_subscription))
 }
 
 fn billing_routes() -> Router<SharedState> {
@@ -171,6 +168,8 @@ fn billing_routes() -> Router<SharedState> {
             "/payments",
             axum::routing::get(http::list_payments).post(http::record_payment),
         )
+        .route("/invoices/overdue", axum::routing::get(http::list_overdue_invoices))
+        .route("/invoices/auto-generate", axum::routing::post(http::auto_generate_invoices))
 }
 
 fn rbac_routes() -> Router<SharedState> {
@@ -282,6 +281,8 @@ fn notification_routes() -> Router<SharedState> {
             axum::routing::get(http::list_templates).post(http::create_template),
         )
         .route("/send", axum::routing::post(http::send_notification))
+        .route("/list", axum::routing::get(http::list_notifications))
+        .route("/retry", axum::routing::post(http::retry_failed_notifications))
 }
 
 fn audit_routes() -> Router<SharedState> {

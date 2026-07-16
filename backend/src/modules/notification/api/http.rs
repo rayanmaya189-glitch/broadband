@@ -34,14 +34,14 @@ pub async fn list_templates(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let (tmpls, total) = NotificationService::list_templates(&state.db, p.page(), p.limit()).await?;
     let items: Vec<TemplateResponse> = tmpls
-            .into_iter()
-            .map(|t| TemplateResponse {
-                id: t.id,
-                name: t.name,
-                channel: t.channel,
-                is_active: t.is_active,
-            })
-            .collect();
+        .into_iter()
+        .map(|t| TemplateResponse {
+            id: t.id,
+            name: t.name,
+            channel: t.channel,
+            is_active: t.is_active,
+        })
+        .collect();
     Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
 }
 
@@ -128,4 +128,36 @@ pub async fn send_notification(
             recipient_address: n.recipient_address,
         }),
     ))
+}
+
+/// GET /api/v1/notifications/list
+pub async fn list_notifications(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let (items, total) = NotificationService::list_notifications(&state.db, p.page(), p.limit()).await?;
+    let resp: Vec<NotificationResponse> = items
+        .into_iter()
+        .map(|n| NotificationResponse {
+            id: n.id,
+            channel: n.channel,
+            status: n.status,
+            recipient_address: n.recipient_address,
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "items": resp, "total": total })))
+}
+
+/// POST /api/v1/notifications/retry
+pub async fn retry_failed_notifications(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "notification.retry").map_err(|e| AppError::Forbidden(e.1))?;
+    let count = NotificationService::retry_failed_notifications(&state.db).await?;
+    Ok(Json(serde_json::json!({
+        "retried": count,
+        "message": format!("{} notification(s) queued for retry", count),
+    })))
 }

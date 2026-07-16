@@ -1,5 +1,5 @@
-/// Monitoring business rules and constants
-
+/// Monitoring business rules and constants.
+///
 /// Health score thresholds
 pub const HEALTH_SCORE_CRITICAL: i32 = 30;
 pub const HEALTH_SCORE_WARNING: i32 = 60;

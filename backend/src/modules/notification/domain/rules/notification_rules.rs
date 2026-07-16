@@ -16,14 +16,13 @@ impl NotificationRules {
 
     /// Check if channel is valid for recipient type
     pub fn is_channel_valid_for_recipient(channel: &str, recipient_type: &str) -> bool {
-        match (channel, recipient_type) {
-            ("email", "customer") | ("email", "user") => true,
-            ("sms", "customer") | ("sms", "user") => true,
-            ("whatsapp", "customer") => true,
-            ("push", "customer") | ("push", "user") => true,
-            ("in_app", _) => true,
-            _ => false,
-        }
+        matches!((channel, recipient_type),
+            ("email", "customer") | ("email", "user")
+            | ("sms", "customer") | ("sms", "user")
+            | ("whatsapp", "customer")
+            | ("push", "customer") | ("push", "user")
+            | ("in_app", _)
+        )
     }
 
     /// Calculate retry delay with exponential backoff

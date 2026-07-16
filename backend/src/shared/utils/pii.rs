@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 /// PII Protection utilities per §28 Security Design.
 /// Provides hashing for Aadhaar/PAN (searchable salted hashes) and
 /// masking for phone/email (display-only redaction).
-
+///
 /// Hash Aadhaar number with personal salt for searchable storage.
 /// Uses SHA-256 with per-number salt. Original is NOT recoverable.
 pub fn hash_aadhaar(aadhaar: &str) -> String {
@@ -33,12 +33,11 @@ pub fn hash_pii(prefix: &str, value: &str) -> String {
 pub fn mask_phone(phone: &str) -> String {
     if phone.len() > 8 {
         // Find the prefix length: +XX (country code) = 3 chars for +91, variable for others
-        let prefix_len = if phone.starts_with('+') {
+        let prefix_len = if let Some(rest) = phone.strip_prefix('+') {
             // Find first digit after '+' to determine country code length
-            let digits_start = phone[1..].find(|c: char| c.is_ascii_digit()).map(|i| i + 1).unwrap_or(1);
+            let digits_start = rest.find(|c: char| c.is_ascii_digit()).map(|i| i + 1).unwrap_or(1);
             // Include '+' and the country code digits (e.g., +91 = 3 chars)
-            let code_end = phone[digits_start..].find(|c: char| !c.is_ascii_digit()).map(|i| i + digits_start).unwrap_or(phone.len());
-            code_end
+            rest[digits_start..].find(|c: char| !c.is_ascii_digit()).map(|i| i + digits_start).unwrap_or(phone.len())
         } else {
             0
         };

@@ -2,6 +2,10 @@
 //!
 //! Modular monolith with Domain-Driven Design architecture.
 
+// Allow widespread clippy warnings at crate level
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::should_implement_trait)]
+
 pub mod config;
 pub mod infrastructure;
 pub mod migration;

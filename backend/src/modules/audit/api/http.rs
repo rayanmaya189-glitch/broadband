@@ -1,6 +1,5 @@
 /// Audit API endpoints per §27 Audit Design.
 /// Provides entity history search, detail, and rollback endpoints.
-
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use chrono::NaiveDate;

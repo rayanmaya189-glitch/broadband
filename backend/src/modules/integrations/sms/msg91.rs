@@ -195,10 +195,10 @@ impl SmsProvider for Msg91Adapter {
     }
 
     async fn verify_otp(&self, phone: &str, otp: &str) -> Result<bool, AppError> {
+        let mobile = format!("{}{}", self.config.country_code, phone);
         let verify_url = format!(
             "https://api.msg91.com/api/v5/otp/verify?mobile={}&otp={}",
-            format!("{}{}", self.config.country_code, phone),
-            otp
+            mobile, otp
         );
 
         debug!(phone = %phone, "Verifying OTP via MSG91");

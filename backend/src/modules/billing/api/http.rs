@@ -105,7 +105,6 @@ pub async fn create_invoice(
     )
     .await?;
 
-    // Publish event to outbox
     let payload = serde_json::json!({
         "invoice_id": inv.id,
         "invoice_number": inv.invoice_number,
@@ -114,14 +113,7 @@ pub async fn create_invoice(
         "due_date": inv.due_date,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db,
-        "invoice.generated",
-        "invoice",
-        inv.id,
-        payload,
-        None,
-        None,
-        Some(inv.branch_id),
+        &state.db, "invoice.generated", "invoice", inv.id, payload, None, None, Some(inv.branch_id),
     ).await {
         tracing::error!(invoice_id = inv.id, error = %e, "Failed to publish invoice.generated event");
     }
@@ -160,7 +152,6 @@ pub async fn record_payment(
     )
     .await?;
 
-    // Publish event to outbox
     let payload = serde_json::json!({
         "payment_id": pay.id,
         "payment_number": pay.payment_number,
@@ -171,14 +162,7 @@ pub async fn record_payment(
         "status": pay.status,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db,
-        "payment.completed",
-        "payment",
-        pay.id,
-        payload,
-        None,
-        None,
-        Some(pay.branch_id),
+        &state.db, "payment.completed", "payment", pay.id, payload, None, None, Some(pay.branch_id),
     ).await {
         tracing::error!(payment_id = pay.id, error = %e, "Failed to publish payment.completed event");
     }
@@ -220,4 +204,44 @@ pub async fn list_payments(
         })
         .collect();
     Ok(Json(serde_json::json!({"items": resp, "total": total})))
+}
+
+/// GET /api/v1/billing/invoices/overdue
+/// List overdue invoices (due_date < today, status = pending)
+pub async fn list_overdue_invoices(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let bid = if user.is_company_wide {
+        None
+    } else {
+        user.branch_id
+    };
+    let items = BillingService::list_overdue_invoices(&state.db, bid).await?;
+    let resp: Vec<InvoiceResponse> = items
+        .into_iter()
+        .map(|i| InvoiceResponse {
+            id: i.id,
+            invoice_number: i.invoice_number,
+            customer_id: i.customer_id,
+            total_amount: i.total_amount.to_string(),
+            status: i.status,
+            due_date: i.due_date.to_string(),
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "items": resp, "total": resp.len() })))
+}
+
+/// POST /api/v1/billing/invoices/auto-generate
+/// Auto-generate invoices for subscriptions due for billing
+pub async fn auto_generate_invoices(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "billing.invoice.auto_generate").map_err(|e| AppError::Forbidden(e.1))?;
+    let count = BillingService::auto_generate_invoices(&state.db).await?;
+    Ok(Json(serde_json::json!({
+        "generated": count,
+        "message": format!("{} invoice(s) auto-generated", count),
+    })))
 }
