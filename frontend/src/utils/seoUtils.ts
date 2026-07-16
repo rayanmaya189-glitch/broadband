@@ -25,7 +25,7 @@ export const reportWebVitals = (metrics: WebVitals): void => {
   }
 
   // Console logging for development
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('Web Vitals:', metrics);
   }
 };
@@ -43,7 +43,7 @@ export const loadWebVitals = (): void => {
       if ('PerformanceObserver' in window) {
         const lcpObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
-          const lastEntry = entries[entries.length - 1];
+          const lastEntry = entries[entries.length - 1] as any;
           reportWebVitals({ lcp: lastEntry.renderTime || lastEntry.loadTime });
         });
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
