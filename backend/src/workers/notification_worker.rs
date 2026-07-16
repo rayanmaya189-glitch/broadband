@@ -12,7 +12,7 @@ use crate::modules::integrations::sms::SmsProvider;
 pub struct NotificationWorker {
     db: DatabaseConnection,
     smtp_adapter: Option<LettreSmtpAdapter>,
-    sms_adapter: Msg91Adapter,
+    sms_adapter: Option<Msg91Adapter>,
 }
 
 impl NotificationWorker {
@@ -24,10 +24,17 @@ impl NotificationWorker {
             warn!("SMTP not configured, email notifications disabled");
             None
         };
+        let sms_adapter = Msg91Adapter::from_env();
+        let sms = if sms_adapter.is_configured() {
+            Some(sms_adapter)
+        } else {
+            warn!("MSG91 not configured (missing MSG91_AUTH_KEY), SMS notifications disabled");
+            None
+        };
         Self {
             db,
             smtp_adapter: smtp,
-            sms_adapter: Msg91Adapter::from_env(),
+            sms_adapter: sms,
         }
     }
 
@@ -296,7 +303,9 @@ impl NotificationWorker {
 
     /// Send SMS via cached MSG91 adapter
     async fn send_sms_via_msg91(&self, phone: &str, message: &str) -> anyhow::Result<String> {
-        let request_id = self.sms_adapter.send_sms(phone, message, None).await
+        let adapter = self.sms_adapter.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("MSG91 not configured (missing MSG91_AUTH_KEY)"))?;
+        let request_id = adapter.send_sms(phone, message, None).await
             .map_err(|e| anyhow::anyhow!("MSG91 error: {}", e))?;
         Ok(request_id)
     }

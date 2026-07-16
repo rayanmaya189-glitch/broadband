@@ -133,6 +133,11 @@ impl Msg91Adapter {
         Self::new(Msg91Config::default())
     }
 
+    /// Check if the adapter is configured (has an auth key)
+    pub fn is_configured(&self) -> bool {
+        !self.config.auth_key.is_empty()
+    }
+
     /// Generate a 6-digit OTP
     fn generate_otp() -> String {
         use rand::Rng;
