@@ -1,17 +1,34 @@
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait, QueryOrder, QuerySelect};
 use tracing::{info, warn, error};
 
+use crate::modules::integrations::smtp::{LettreSmtpAdapter, EmailProvider};
+use crate::modules::integrations::sms::msg91::Msg91Adapter;
+use crate::modules::integrations::sms::SmsProvider;
+
 /// Background worker for notification delivery:
 /// - Process queued notifications
 /// - Send via email/SMS/WhatsApp
 /// - Retry failed notifications with exponential backoff
 pub struct NotificationWorker {
     db: DatabaseConnection,
+    smtp_adapter: Option<LettreSmtpAdapter>,
+    sms_adapter: Msg91Adapter,
 }
 
 impl NotificationWorker {
     pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+        let smtp_adapter = LettreSmtpAdapter::from_env();
+        let smtp = if smtp_adapter.is_configured() {
+            Some(smtp_adapter)
+        } else {
+            warn!("SMTP not configured, email notifications disabled");
+            None
+        };
+        Self {
+            db,
+            smtp_adapter: smtp,
+            sms_adapter: Msg91Adapter::from_env(),
+        }
     }
 
     /// Run the full notification worker cycle.
@@ -264,30 +281,22 @@ impl NotificationWorker {
         }
     }
 
-    /// Send email via SMTP adapter (lettre crate)
+    /// Send email via cached SMTP adapter (lettre crate)
     async fn send_email_via_smtp(
         &self,
         to: &str,
         subject: &str,
         body: &str,
     ) -> anyhow::Result<crate::modules::integrations::smtp::EmailDeliveryStatus> {
-        use crate::modules::integrations::smtp::{LettreSmtpAdapter, EmailProvider};
-
-        let adapter = LettreSmtpAdapter::from_env();
-        if !adapter.is_configured() {
-            return Err(anyhow::anyhow!("SMTP not configured (missing SMTP_USERNAME or SMTP_PASSWORD)"));
-        }
+        let adapter = self.smtp_adapter.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("SMTP not configured (missing SMTP_USERNAME or SMTP_PASSWORD)"))?;
         adapter.send_html_email(to, subject, body, None).await
             .map_err(|e| anyhow::anyhow!("SMTP error: {}", e))
     }
 
-    /// Send SMS via MSG91 adapter
+    /// Send SMS via cached MSG91 adapter
     async fn send_sms_via_msg91(&self, phone: &str, message: &str) -> anyhow::Result<String> {
-        use crate::modules::integrations::sms::msg91::Msg91Adapter;
-        use crate::modules::integrations::sms::SmsProvider;
-
-        let adapter = Msg91Adapter::from_env();
-        let request_id = adapter.send_sms(phone, message, None).await
+        let request_id = self.sms_adapter.send_sms(phone, message, None).await
             .map_err(|e| anyhow::anyhow!("MSG91 error: {}", e))?;
         Ok(request_id)
     }
