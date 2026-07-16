@@ -72,6 +72,7 @@ fn auth_routes() -> Router<SharedState> {
     Router::new()
         .route("/register", axum::routing::post(id_http::register))
         .route("/login", axum::routing::post(id_http::login))
+        .route("/login/2fa", axum::routing::post(id_http::login_2fa))
         .route("/refresh", axum::routing::post(id_http::refresh_token))
         // 2FA / TOTP (§28 Security)
         .route("/2fa/setup", axum::routing::post(id_http::setup_2fa))

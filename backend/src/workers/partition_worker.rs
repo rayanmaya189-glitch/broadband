@@ -3,7 +3,7 @@
 /// Runs as a scheduled background job (via scheduler module).
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use chrono::{Utc, Datelike, NaiveDate};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Tables that require monthly partitioning per §32 docs.
 const PARTITIONED_TABLES: &[&str] = &[
@@ -26,6 +26,7 @@ const PARTITIONED_TABLES: &[&str] = &[
 
 /// Create monthly partitions for all partitioned tables.
 /// Should be called monthly (e.g., by scheduler on the 1st of each month).
+/// Best-effort: skips tables that don't exist yet.
 pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), anyhow::Error> {
     let now = Utc::now().date_naive();
     let next_month = NaiveDate::from_ymd_opt(
@@ -44,6 +45,9 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
     let partition_start = next_month.format("%Y-%m-01").to_string();
     let partition_end = next_next_month.format("%Y-%m-01").to_string();
 
+    let mut created = 0u32;
+    let mut skipped = 0u32;
+
     for table in PARTITIONED_TABLES {
         let partition_name = format!("{}_{}", table, partition_name_suffix);
         let query = format!(
@@ -55,70 +59,78 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
             db.get_database_backend(),
             query,
         )).await {
-            Ok(_) => info!(partition = %partition_name, "Created partition"),
-            Err(e) => warn!(
-                table = table,
-                error = %e,
-                "Failed to create partition (may not exist yet)"
-            ),
+            Ok(_) => {
+                info!(partition = %partition_name, "Created partition");
+                created += 1;
+            }
+            Err(e) => {
+                // Best-effort: if the parent table doesn't exist, just skip
+                let err_str = e.to_string();
+                if err_str.contains("does not exist") || err_str.contains("relation") {
+                    warn!(
+                        table = table,
+                        "Table does not exist yet, skipping partition creation"
+                    );
+                    skipped += 1;
+                } else {
+                    warn!(
+                        table = table,
+                        error = %e,
+                        "Failed to create partition"
+                    );
+                }
+            }
         }
     }
+
+    info!(
+        created = created,
+        skipped = skipped,
+        total = PARTITIONED_TABLES.len(),
+        "Partition creation cycle complete"
+    );
 
     Ok(())
 }
 
 /// Run data cleanup based on retention policies per §30 Appendix C.
+/// Best-effort: skips tables that don't exist yet.
 pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> {
     let mut total_deleted: u64 = 0;
 
-    // OTP codes (5 minutes)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM otp_codes WHERE expires_at < NOW()".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
+    // Cleanup queries - best effort, skip missing tables
+    let cleanup_queries: Vec<(&str, &str)> = vec![
+        ("otp_codes", "DELETE FROM otp_codes WHERE expires_at < NOW()"),
+        ("user_sessions", "DELETE FROM user_sessions WHERE expires_at < NOW()"),
+        ("refresh_tokens", "DELETE FROM refresh_tokens WHERE expires_at < NOW()"),
+        ("device_metrics", "DELETE FROM device_metrics WHERE recorded_at < NOW() - INTERVAL '90 days'"),
+        ("device_logs", "DELETE FROM device_logs WHERE recorded_at < NOW() - INTERVAL '30 days'"),
+        ("notifications", "DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '90 days'"),
+        ("outbox_events", "DELETE FROM outbox_events WHERE published = true AND created_at < NOW() - INTERVAL '24 hours'"),
+    ];
 
-    // Sessions (24 hours)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM user_sessions WHERE expires_at < NOW()".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
-
-    // Refresh tokens (7 days)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM refresh_tokens WHERE expires_at < NOW()".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
-
-    // Device metrics (90 days)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM device_metrics WHERE recorded_at < NOW() - INTERVAL '90 days'".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
-
-    // Device logs (30 days)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM device_logs WHERE recorded_at < NOW() - INTERVAL '30 days'".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
-
-    // Notifications (90 days)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '90 days'".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
-
-    // Old published outbox events (24 hours)
-    let result = db.execute(Statement::from_string(
-        db.get_database_backend(),
-        "DELETE FROM outbox_events WHERE published = true AND created_at < NOW() - INTERVAL '24 hours'".to_string(),
-    )).await?;
-    total_deleted += result.rows_affected();
+    for (table_name, query) in cleanup_queries {
+        match db.execute(Statement::from_string(
+            db.get_database_backend(),
+            query.to_string(),
+        )).await {
+            Ok(result) => {
+                let affected = result.rows_affected();
+                if affected > 0 {
+                    info!(table = table_name, rows_deleted = affected, "Cleaned up table");
+                }
+                total_deleted += affected;
+            }
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str.contains("does not exist") || err_str.contains("relation") {
+                    debug!(table = table_name, "Table does not exist yet, skipping cleanup");
+                } else {
+                    warn!(table = table_name, error = %e, "Failed to clean up table");
+                }
+            }
+        }
+    }
 
     // History cleanup per retention policies
     let retention_policies: Vec<(&str, i64)> = vec![
@@ -145,10 +157,16 @@ pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> 
             db.get_database_backend(),
             query,
         )).await {
-            total_deleted += result.rows_affected();
+            let affected = result.rows_affected();
+            if affected > 0 {
+                info!(table = table, rows_deleted = affected, "Cleaned up history");
+            }
+            total_deleted += affected;
         }
+        // Skip silently if table doesn't exist
     }
 
     info!(total_deleted = total_deleted, "Data cleanup completed");
     Ok(total_deleted)
 }
+

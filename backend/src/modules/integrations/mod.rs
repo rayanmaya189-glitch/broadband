@@ -10,6 +10,7 @@ pub mod factory;
 pub mod mikrotik;
 pub mod huawei;
 pub mod sms;
+pub mod smtp;
 pub mod radius;
 
 pub use factory::{DeviceAdapterFactory, DeviceType, NetworkDeviceAdapter};

@@ -102,7 +102,6 @@ impl NotificationWorker {
 
         use crate::modules::notification::domain::entities::notification;
 
-        // Fetch notifications that are in retrying status
         let retryable = notification::Entity::find()
             .filter(notification::Column::Status.eq("retrying"))
             .order_by_asc(notification::Column::CreatedAt)
@@ -111,7 +110,6 @@ impl NotificationWorker {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query retryable notifications: {}", e))?;
 
-        // Filter in Rust to avoid column comparison issues
         let retryable: Vec<_> = retryable.into_iter()
             .filter(|n| n.retry_count < n.max_retries)
             .collect();
@@ -176,19 +174,57 @@ impl NotificationWorker {
                     notification_id = notif.id,
                     recipient = %notif.recipient_address,
                     subject = ?notif.subject,
-                    "Sending email notification"
+                    "Sending email notification via SMTP"
                 );
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                Ok(())
+                // Wire actual SMTP adapter (lettre crate)
+                match self.send_email_via_smtp(
+                    &notif.recipient_address,
+                    notif.subject.as_deref().unwrap_or("AeroXe Notification"),
+                    &notif.body,
+                ).await {
+                    Ok(status) => {
+                        info!(
+                            notification_id = notif.id,
+                            message_id = %status.message_id,
+                            "Email sent successfully via SMTP"
+                        );
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!(
+                            notification_id = notif.id,
+                            error = %e,
+                            "SMTP email send failed"
+                        );
+                        Err(anyhow::anyhow!("Email delivery failed: {}", e))
+                    }
+                }
             }
             "sms" => {
                 info!(
                     notification_id = notif.id,
                     recipient = %notif.recipient_address,
-                    "Sending SMS notification"
+                    "Sending SMS notification via MSG91"
                 );
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                Ok(())
+                // Wire actual MSG91 SMS adapter
+                match self.send_sms_via_msg91(&notif.recipient_address, &notif.body).await {
+                    Ok(request_id) => {
+                        info!(
+                            notification_id = notif.id,
+                            request_id = %request_id,
+                            "SMS sent successfully via MSG91"
+                        );
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!(
+                            notification_id = notif.id,
+                            error = %e,
+                            "MSG91 SMS send failed"
+                        );
+                        Err(anyhow::anyhow!("SMS delivery failed: {}", e))
+                    }
+                }
             }
             "whatsapp" => {
                 info!(
@@ -196,6 +232,7 @@ impl NotificationWorker {
                     recipient = %notif.recipient_address,
                     "Sending WhatsApp notification"
                 );
+                // TODO: Wire WhatsApp Business API adapter
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 Ok(())
             }
@@ -205,6 +242,7 @@ impl NotificationWorker {
                     recipient = %notif.recipient_address,
                     "Sending push notification"
                 );
+                // TODO: Wire FCM/APNs push adapter
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 Ok(())
             }
@@ -214,6 +252,7 @@ impl NotificationWorker {
                     recipient = %notif.recipient_address,
                     "Creating in-app notification"
                 );
+                // In-app notifications are stored in DB, no external dispatch needed
                 Ok(())
             }
             _ => {
@@ -223,5 +262,33 @@ impl NotificationWorker {
                 ))
             }
         }
+    }
+
+    /// Send email via SMTP adapter (lettre crate)
+    async fn send_email_via_smtp(
+        &self,
+        to: &str,
+        subject: &str,
+        body: &str,
+    ) -> anyhow::Result<crate::modules::integrations::smtp::EmailDeliveryStatus> {
+        use crate::modules::integrations::smtp::{LettreSmtpAdapter, EmailProvider};
+
+        let adapter = LettreSmtpAdapter::from_env();
+        if !adapter.is_configured() {
+            return Err(anyhow::anyhow!("SMTP not configured (missing SMTP_USERNAME or SMTP_PASSWORD)"));
+        }
+        adapter.send_html_email(to, subject, body, None).await
+            .map_err(|e| anyhow::anyhow!("SMTP error: {}", e))
+    }
+
+    /// Send SMS via MSG91 adapter
+    async fn send_sms_via_msg91(&self, phone: &str, message: &str) -> anyhow::Result<String> {
+        use crate::modules::integrations::sms::msg91::Msg91Adapter;
+        use crate::modules::integrations::sms::SmsProvider;
+
+        let adapter = Msg91Adapter::from_env();
+        let request_id = adapter.send_sms(phone, message, None).await
+            .map_err(|e| anyhow::anyhow!("MSG91 error: {}", e))?;
+        Ok(request_id)
     }
 }

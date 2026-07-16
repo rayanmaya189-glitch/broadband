@@ -1,13 +1,11 @@
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use chrono::{Duration, Utc};
-// Note: JWT encoding is now handled by JwtKeyPair (RS256) — no more direct encode calls
 use rand::Rng;
 use redis::AsyncCommands;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, Set,
 };
 use sha2::{Digest, Sha256};
-
 use tracing::{debug, info};
 
 use crate::modules::identity::domain::entities::{user, user_session};
@@ -19,6 +17,8 @@ use crate::shared::utils::jwt_keys::{JwtKeyPair, StandardClaims};
 
 /// Redis key prefix for user permissions
 const REDIS_PERMS_PREFIX: &str = "aeroxe:user:";
+/// Pending 2FA token TTL (10 minutes)
+const PENDING_2FA_TTL_SECS: u64 = 600;
 
 pub struct IdentityService;
 
@@ -41,6 +41,143 @@ impl IdentityService {
         } else {
             false
         }
+    }
+
+    /// Verify password only (for 2FA flow) — returns user model without issuing tokens.
+    /// Handles account lockout and failed attempt tracking.
+    pub async fn verify_password_only(
+        db: &DatabaseConnection,
+        email: &str,
+        password: &str,
+    ) -> Result<user::Model, AppError> {
+        let user_model = user::Entity::find()
+            .filter(user::Column::Email.eq(email))
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::Unauthorized)?;
+
+        // Check account lockout
+        if user_model.status == "locked" {
+            if let Some(locked_until) = user_model.locked_until {
+                if Utc::now() < locked_until {
+                    return Err(AppError::AccountLocked);
+                }
+            }
+        }
+
+        if user_model.status != "active" {
+            return Err(AppError::Unauthorized);
+        }
+
+        let password_hash = user_model
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| AppError::Unauthorized)?;
+
+        if !Self::verify_password(password, password_hash) {
+            // Track failed attempt
+            let mut active: user::ActiveModel = user_model.clone().into();
+            let new_attempts = user_model.failed_login_attempts + 1;
+            active.failed_login_attempts = Set(new_attempts);
+            if new_attempts >= 5 {
+                active.status = Set("locked".to_string());
+                active.locked_until = Set(Some(Utc::now() + Duration::minutes(30)));
+            }
+            active.updated_at = Set(Utc::now());
+            active.update(db).await?;
+            return Err(AppError::Unauthorized);
+        }
+
+        // Reset failed attempts on successful password verification
+        let mut active: user::ActiveModel = user_model.clone().into();
+        active.failed_login_attempts = Set(0);
+        active.locked_until = Set(None);
+        active.updated_at = Set(Utc::now());
+        let updated_user = active.update(db).await?;
+
+        Ok(updated_user)
+    }
+
+    /// Generate a short-lived pending 2FA token stored in Redis.
+    /// The token encodes the user_id and is valid for 10 minutes.
+    pub fn generate_pending_2fa_token(
+        user_model: &user::Model,
+        jwt_keys: &JwtKeyPair,
+    ) -> Result<String, AppError> {
+        let claims = StandardClaims {
+            sub: user_model.id.to_string(),
+            email: user_model.email.clone(),
+            name: "pending_2fa".to_string(),
+            role: "pending".to_string(),
+            branch_id: None,
+            is_company_wide: false,
+            iat: Utc::now().timestamp(),
+            exp: (Utc::now() + Duration::seconds(PENDING_2FA_TTL_SECS as i64)).timestamp(),
+        };
+        jwt_keys.sign(&claims).map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to sign pending 2FA token: {}", e)))
+    }
+
+    /// Verify the pending 2FA token and return the user_id.
+    pub fn verify_pending_2fa_token(
+        pending_token: &str,
+        jwt_keys: &JwtKeyPair,
+    ) -> Result<i64, AppError> {
+        let claims = jwt_keys.verify(pending_token)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        // Validate this is a pending_2fa token
+        if claims.role != "pending" || claims.name != "pending_2fa" {
+            return Err(AppError::Unauthorized);
+        }
+
+        let user_id: i64 = claims.sub.parse()
+            .map_err(|_| AppError::Unauthorized)?;
+
+        Ok(user_id)
+    }
+
+    /// Complete 2FA login after TOTP verification — issues access/refresh tokens.
+    pub async fn complete_2fa_login(
+        db: &DatabaseConnection,
+        redis: &mut redis::aio::ConnectionManager,
+        settings: &crate::config::settings::Settings,
+        user_model: &user::Model,
+        jwt_keys: &JwtKeyPair,
+    ) -> Result<(String, String, user::Model), AppError> {
+        let (role, branch_id, is_company_wide, permissions) =
+            Self::load_user_context(db, user_model).await?;
+
+        // Update last login
+        let mut active: user::ActiveModel = user_model.clone().into();
+        active.last_login_at = Set(Some(Utc::now()));
+        active.updated_at = Set(Utc::now());
+        let updated_user = active.update(db).await?;
+
+        // Store permissions in Redis
+        Self::store_permissions_in_redis(
+            redis,
+            updated_user.id,
+            &permissions,
+            settings.jwt_refresh_token_ttl_secs,
+        )
+        .await?;
+
+        let access_token = Self::generate_access_token(
+            &updated_user, settings, &role, branch_id, is_company_wide, jwt_keys,
+        )?;
+        let refresh_token = Self::generate_refresh_token();
+        let refresh_token_hash = Self::hash_token(&refresh_token);
+
+        let session = user_session::ActiveModel {
+            user_id: Set(updated_user.id),
+            refresh_token_hash: Set(refresh_token_hash),
+            expires_at: Set(Utc::now() + Duration::seconds(settings.jwt_refresh_token_ttl_secs)),
+            created_at: Set(Utc::now()),
+            ..Default::default()
+        };
+        session.insert(db).await?;
+
+        Ok((access_token, refresh_token, updated_user))
     }
 
     pub async fn register(
@@ -95,7 +232,6 @@ impl IdentityService {
     ) -> Result<(String, Option<i64>, bool, Vec<String>), AppError> {
         use std::collections::BTreeSet;
 
-        // Find active user roles
         let user_roles = user_role::Entity::find()
             .filter(user_role::Column::UserId.eq(user_model.id))
             .filter(user_role::Column::IsActive.eq(true))
@@ -122,7 +258,6 @@ impl IdentityService {
             }
         }
 
-        // Gather permissions through role_permissions filtered by user's role_ids
         let mut permission_set: BTreeSet<String> = BTreeSet::new();
         if !role_ids.is_empty() {
             let rps = role_permission::Entity::find()
@@ -239,9 +374,6 @@ impl IdentityService {
     }
 
     /// Refresh access token using a valid refresh token.
-    /// Checks if Redis permissions key is about to expire and re-stores if needed.
-    /// If the remaining TTL is below 60% of the refresh token TTL, permissions are
-    /// re-stored with the full TTL to prevent expiry between refresh cycles.
     pub async fn refresh_token(
         db: &DatabaseConnection,
         redis: &mut redis::aio::ConnectionManager,
@@ -251,21 +383,17 @@ impl IdentityService {
     ) -> Result<(String, String, user::Model), AppError> {
         let token_hash = Self::hash_token(refresh_token);
 
-        // Find the session by refresh token hash
         let session = user_session::Entity::find()
             .filter(user_session::Column::RefreshTokenHash.eq(&token_hash))
             .one(db)
             .await?
             .ok_or_else(|| AppError::Unauthorized)?;
 
-        // Check if session is expired
         if Utc::now() > session.expires_at {
-            // Delete expired session
             session.delete(db).await?;
             return Err(AppError::Unauthorized);
         }
 
-        // Load the user
         let user_model = user::Entity::find_by_id(session.user_id)
             .one(db)
             .await?
@@ -279,11 +407,9 @@ impl IdentityService {
         let (role, branch_id, is_company_wide, permissions) =
             Self::load_user_context(db, &user_model).await?;
 
-        // Check if Redis permissions key is about to expire.
-        // If TTL is below 60% of max (refresh_token_ttl), re-store with full TTL.
         let perms_key = Self::redis_perms_key(user_model.id);
         let remaining_ttl = Self::get_redis_ttl(redis, &perms_key).await?;
-        let threshold = (settings.jwt_refresh_token_ttl_secs * 60) / 100; // 60% of max TTL
+        let threshold = (settings.jwt_refresh_token_ttl_secs * 60) / 100;
 
         if remaining_ttl < threshold {
             info!(
@@ -299,25 +425,15 @@ impl IdentityService {
                 settings.jwt_refresh_token_ttl_secs,
             )
             .await?;
-        } else {
-            debug!(
-                user_id = user_model.id,
-                remaining_ttl = remaining_ttl,
-                threshold = threshold,
-                "Permissions TTL sufficient during refresh, no re-store needed"
-            );
         }
 
-        // Delete old session (rotate refresh token)
         session.delete(db).await?;
 
-        // Generate new tokens
         let access_token =
             Self::generate_access_token(&user_model, settings, &role, branch_id, is_company_wide, jwt_keys)?;
         let new_refresh_token = Self::generate_refresh_token();
         let new_refresh_hash = Self::hash_token(&new_refresh_token);
 
-        // Create new session
         let new_session = user_session::ActiveModel {
             user_id: Set(user_model.id),
             refresh_token_hash: Set(new_refresh_hash),
@@ -383,8 +499,6 @@ impl IdentityService {
         let (role, branch_id, is_company_wide, permissions) =
             Self::load_user_context(db, &updated_user).await?;
 
-        // Store permissions in Redis (not in JWT) - reduces token size and prevents leak
-        // Use refresh token TTL so permissions survive token refresh cycles
         Self::store_permissions_in_redis(
             redis,
             updated_user.id,
@@ -394,12 +508,7 @@ impl IdentityService {
         .await?;
 
         let access_token = Self::generate_access_token(
-            &updated_user,
-            settings,
-            &role,
-            branch_id,
-            is_company_wide,
-            jwt_keys,
+            &updated_user, settings, &role, branch_id, is_company_wide, jwt_keys,
         )?;
         let refresh_token = Self::generate_refresh_token();
         let refresh_token_hash = Self::hash_token(&refresh_token);
@@ -416,7 +525,7 @@ impl IdentityService {
         Ok((access_token, refresh_token, updated_user))
     }
 
-    /// Generate JWT with RS256 asymmetric signing (identity claims only — permissions stored in Redis).
+    /// Generate JWT with RS256 asymmetric signing
     fn generate_access_token(
         user: &user::Model,
         settings: &crate::config::settings::Settings,
@@ -469,4 +578,3 @@ impl IdentityService {
         Ok(users)
     }
 }
-
