@@ -53,6 +53,7 @@ impl DeviceAdapterFactory {
             slot_id: None,
             pon_id: None,
             ont_id: None,
+            ssh_timeout_secs: 30,
         };
         Arc::new(HuaweiOltSshAdapter::new(config))
     }

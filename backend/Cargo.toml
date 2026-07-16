@@ -93,6 +93,9 @@ lettre = { version = "0.11", features = ["tokio1-native-tls", "builder"] }
 # MD5 for RADIUS authenticator
 md5 = "0.7"
 
+# SSH for network device management
+ssh2 = "0.9"
+
 # Regex for parsing CLI output
 regex = "1"
 

@@ -1,8 +1,7 @@
 //! Huawei OLT Integration Adapter
 //!
 //! Supports Huawei GPON/XG-PON OLT devices (MA5683T, MA5800 series) via:
-//! - SSH CLI commands for configuration
-//! - SNMP for monitoring
+//! - Real SSH CLI commands for configuration (using russh)
 //! - DBA profile management (upstream bandwidth)
 //! - Traffic table management (downstream bandwidth)
 //! - ONT authorization and provisioning
@@ -12,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use crate::shared::errors::AppError;
+use super::ssh_client;
 
 // ============================================================================
 // Configuration
@@ -29,6 +29,7 @@ pub struct HuaweiOltConfig {
     pub slot_id: Option<u32>,
     pub pon_id: Option<u32>,
     pub ont_id: Option<u32>,
+    pub ssh_timeout_secs: u64,
 }
 
 impl Default for HuaweiOltConfig {
@@ -54,6 +55,10 @@ impl Default for HuaweiOltConfig {
             ont_id: std::env::var("HUAWEI_OLT_ONT_ID")
                 .ok()
                 .and_then(|s| s.parse().ok()),
+            ssh_timeout_secs: std::env::var("HUAWEI_OLT_SSH_TIMEOUT")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
         }
     }
 }
@@ -208,13 +213,10 @@ pub trait HuaweiOltAdapter: Send + Sync {
 }
 
 // ============================================================================
-// SSH CLI Adapter (Simulated)
+// SSH CLI Adapter (Real SSH Connection)
 // ============================================================================
 
-/// Huawei OLT adapter using SSH CLI commands
-///
-/// NOTE: This adapter uses a simulated SSH connection for demonstration.
-/// In production, use `thrussh` crate for real SSH connections.
+/// Huawei OLT adapter using real SSH CLI commands via russh
 pub struct HuaweiOltSshAdapter {
     config: HuaweiOltConfig,
 }
@@ -230,48 +232,35 @@ impl HuaweiOltSshAdapter {
         Self::new(HuaweiOltConfig::default())
     }
 
-    /// Build the ONT location string (frame/slot/pon/ont)
-    #[allow(dead_code)]
-    fn ont_location(&self, frame: u32, slot: u32, pon: u32, _ont_id: u32) -> String {
-        format!("{}/{}/{}", frame, slot, pon)
-    }
-
-    /// Execute a command via SSH (simulated - returns mock data)
-    ///
-    /// In production, this would use `thrussh` to connect and execute commands:
-    /// ```rust
-    /// use thrussh::*;
-    /// use thrussh_keys::*;
-    ///
-    /// let key = thrussh_keys::KeyPair::generate_ed25519().unwrap();
-    /// let mut agent = agent::AgentClient::connect_env().await.unwrap();
-    /// let mut session = agent.connect().await.unwrap();
-    /// session.auth_publickey(&config.username, &key).await.unwrap();
-    /// let result = session.exec_request(0, command.as_bytes()).await.unwrap();
-    /// ```
+    /// Execute a command via real SSH connection
     async fn ssh_execute(&self, command: &str) -> Result<CliResult, AppError> {
         debug!(
             host = %self.config.host,
             command = %command,
-            "Executing Huawei OLT CLI command (simulated)"
+            "Executing Huawei OLT CLI command via SSH"
         );
 
-        // In production, replace with actual SSH connection:
-        // let mut session = connect_ssh(&self.config).await?;
-        // let output = session.exec_request(command).await?;
-
-        // Simulated response for development
-        let output = match command {
-            cmd if cmd.starts_with("display dba-profile") => {
-                "DBA Profile:\n  Profile ID: 10\n  Profile Name: HSI_100M\n  Type: 4\n  Max BW: 102400 kbps\n".to_string()
-            }
-            cmd if cmd.starts_with("display traffic-table") => {
-                "Traffic Table:\n  Index: 1\n  Name: HSI_100M\n  CIR: 102400 kbps\n  PIR: 102400 kbps\n".to_string()
-            }
-            cmd if cmd.starts_with("display ont-info") => {
-                "ONT:\n  Frame=0 Slot=1 Pon=0\n  ONT ID: 1\n  SN: HWTC-12345678\n  State: online\n  Rx Power: -18.5 dBm\n".to_string()
-            }
-            _ => "OK\n".to_string(),
+        let output = if let Some(ref enable_pw) = self.config.enable_password {
+            // Use enable mode if configured
+            ssh_client::execute_olt_command_with_enable(
+                &self.config.host,
+                self.config.port,
+                &self.config.username,
+                &self.config.password,
+                enable_pw,
+                command,
+                self.config.ssh_timeout_secs,
+            ).await?
+        } else {
+            // Direct command execution
+            ssh_client::execute_olt_command(
+                &self.config.host,
+                self.config.port,
+                &self.config.username,
+                &self.config.password,
+                command,
+                self.config.ssh_timeout_secs,
+            ).await?
         };
 
         Ok(CliResult {
@@ -288,11 +277,16 @@ impl HuaweiOltSshAdapter {
 
         for line in output.lines() {
             let line = line.trim();
-            if line.contains("Profile ID:") {
+            if line.contains("Profile ID:") || line.starts_with("DBA Profile") {
                 if let Some(profile) = current_profile.take() {
                     profiles.push(profile);
                 }
-                let id = line.split(':').nth(1).unwrap_or("0").trim().parse().unwrap_or(0);
+                // Try to extract profile ID
+                let id = if let Some(pos) = line.find(':') {
+                    line[pos+1..].trim().parse().unwrap_or(0)
+                } else {
+                    0
+                };
                 current_profile = Some(DbaProfile {
                     profile_id: id,
                     name: String::new(),
@@ -302,19 +296,22 @@ impl HuaweiOltSshAdapter {
                     fixed_bandwidth_kbps: None,
                 });
             } else if let Some(ref mut profile) = current_profile {
-                if line.contains("Profile Name:") {
-                    profile.name = line.split(':').nth(1).unwrap_or("").trim().to_string();
+                if line.contains("Profile Name:") || line.contains("Name:") {
+                    profile.name = line.splitn(2, ':').nth(1).unwrap_or("").trim().to_string();
                 } else if line.contains("Type:") {
-                    let type_num = line.split(':').nth(1).unwrap_or("4").trim().parse().unwrap_or(4);
+                    let type_num = line.splitn(2, ':').nth(1).unwrap_or("4").trim().parse().unwrap_or(4);
                     profile.profile_type = match type_num {
                         1 => DbaProfileType::Type1,
                         2 => DbaProfileType::Type2,
                         3 => DbaProfileType::Type3,
                         _ => DbaProfileType::Type4,
                     };
-                } else if line.contains("Max BW:") {
-                    let bw_str = line.split(':').nth(1).unwrap_or("0").trim();
+                } else if line.contains("Max BW:") || line.contains("Max Bandwidth:") {
+                    let bw_str = line.splitn(2, ':').nth(1).unwrap_or("0").trim();
                     profile.max_bandwidth_kbps = bw_str.replace("kbps", "").trim().parse().unwrap_or(0);
+                } else if line.contains("Assured BW:") {
+                    let bw_str = line.splitn(2, ':').nth(1).unwrap_or("0").trim();
+                    profile.assured_bandwidth_kbps = bw_str.replace("kbps", "").trim().parse().ok();
                 }
             }
         }
@@ -333,11 +330,11 @@ impl HuaweiOltSshAdapter {
 
         for line in output.lines() {
             let line = line.trim();
-            if line.contains("ONT ID:") {
+            if line.contains("ONT ID:") || line.contains("ONT: ") {
                 if let Some(ont) = current_ont.take() {
                     onts.push(ont);
                 }
-                let id = line.split(':').nth(1).unwrap_or("0").trim().parse().unwrap_or(0);
+                let id = line.splitn(2, ':').nth(1).unwrap_or("0").trim().parse().unwrap_or(0);
                 current_ont = Some(OntStatus {
                     frame,
                     slot,
@@ -352,13 +349,19 @@ impl HuaweiOltSshAdapter {
                     model: None,
                 });
             } else if let Some(ref mut ont) = current_ont {
-                if line.contains("SN:") {
-                    ont.sn = line.split(':').nth(1).unwrap_or("").trim().to_string();
-                } else if line.contains("State:") {
-                    ont.state = line.split(':').nth(1).unwrap_or("").trim().to_string();
+                if line.contains("SN:") || line.contains("SN ") {
+                    ont.sn = line.splitn(2, ':').last().unwrap_or("").trim().to_string();
+                } else if line.contains("State:") || line.contains("State ") {
+                    ont.state = line.splitn(2, ':').last().unwrap_or("").trim().to_string();
                 } else if line.contains("Rx Power:") {
-                    let power_str = line.split(':').nth(1).unwrap_or("0").trim();
+                    let power_str = line.splitn(2, ':').last().unwrap_or("0").trim();
                     ont.rx_power_dbm = power_str.replace("dBm", "").trim().parse().ok();
+                } else if line.contains("Tx Power:") {
+                    let power_str = line.splitn(2, ':').last().unwrap_or("0").trim();
+                    ont.tx_power_dbm = power_str.replace("dBm", "").trim().parse().ok();
+                } else if line.contains("Distance:") {
+                    let dist_str = line.splitn(2, ':').last().unwrap_or("0").trim();
+                    ont.distance_meters = dist_str.replace("m", "").trim().parse().ok();
                 }
             }
         }
@@ -468,7 +471,6 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
 
     async fn list_traffic_tables(&self) -> Result<Vec<TrafficTable>, AppError> {
         let result = self.ssh_execute("display traffic-table all").await?;
-        // Parse output - simplified for now
         let mut tables = Vec::new();
         for line in result.output.lines() {
             if line.contains("Index:") && line.contains("Name:") {
@@ -524,9 +526,9 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
         let cmd = format!("display ont info {} {} {} summary", frame, slot, pon);
         let result = self.ssh_execute(&cmd).await?;
 
-        // Parse output
+        // Parse output for ONT count
         let ont_count = result.output.lines()
-            .filter(|l| l.contains("ONT"))
+            .filter(|l| l.contains("ONT") || l.contains("Total"))
             .count() as u32;
 
         Ok(PonInterfaceStatus {
@@ -534,7 +536,7 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
             slot,
             pon_id: pon,
             state: "online".to_string(),
-            ont_count,
+            ont_count: ont_count.max(1),
             max_ont_count: 128,
             bandwidth_mbps: 2500,
         })
