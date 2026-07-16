@@ -10,6 +10,7 @@ use lettre::message::{header::ContentType, Mailbox, Message};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use tracing::{info, warn};
+use uuid;
 
 use crate::shared::errors::AppError;
 

@@ -48,27 +48,18 @@ pub struct RefreshTokenResponse {
 
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub user: UserResponse,
+    pub requires_2fa: bool,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub user: Option<UserResponse>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
-/// Returned when 2FA is required — client must call /auth/login/2fa
-#[derive(Debug, Serialize)]
-pub struct Pending2FAResponse {
-    pub requires_2fa: bool,
-    pub pending_token: String,
-    pub message: String,
-}
 
-/// Normal login response (no 2FA required)
-#[derive(Debug, Serialize)]
-pub struct LoginResponse {
-    pub requires_2fa: bool,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub user: UserResponse,
-}
+
 
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
@@ -114,9 +105,12 @@ pub async fn register(
     Ok((
         StatusCode::CREATED,
         Json(AuthResponse {
-            access_token,
-            refresh_token,
-            user: to_user_response(user),
+            requires_2fa: false,
+            access_token: Some(access_token),
+            refresh_token: Some(refresh_token),
+            user: Some(to_user_response(user)),
+            pending_token: None,
+            message: None,
         }),
     ))
 }
@@ -125,7 +119,7 @@ pub async fn register(
 pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<AuthResponse>, AppError> {
     let user_model = IdentityService::verify_password_only(
         &state.db, &req.email, &req.password,
     ).await?;
@@ -134,13 +128,14 @@ pub async fn login(
         let pending_token = IdentityService::generate_pending_2fa_token(
             &user_model, &state.jwt_keys,
         )?;
-        let resp = Pending2FAResponse {
+        return Ok(Json(AuthResponse {
             requires_2fa: true,
-            pending_token,
-            message: "2FA verification required. Call POST /auth/login/2fa with the pending_token and TOTP code.".to_string(),
-        };
-        return Ok(Json(serde_json::to_value(resp)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Serialization error: {}", e)))?));
+            access_token: None,
+            refresh_token: None,
+            user: None,
+            pending_token: Some(pending_token),
+            message: Some("2FA verification required. Call POST /auth/login/2fa with the pending_token and TOTP code.".to_string()),
+        }));
     }
 
     let mut redis = state.redis.clone();
@@ -148,14 +143,14 @@ pub async fn login(
         &state.db, &mut redis, &state.settings, &req.email, &req.password, &state.jwt_keys,
     ).await?;
 
-    let resp = LoginResponse {
+    Ok(Json(AuthResponse {
         requires_2fa: false,
-        access_token,
-        refresh_token,
-        user: to_user_response(user),
-    };
-    Ok(Json(serde_json::to_value(resp)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Serialization error: {}", e)))?))
+        access_token: Some(access_token),
+        refresh_token: Some(refresh_token),
+        user: Some(to_user_response(user)),
+        pending_token: None,
+        message: None,
+    }))
 }
 
 /// POST /api/v1/auth/login/2fa — Step 2: verify TOTP code, complete login
@@ -189,9 +184,12 @@ pub async fn login_2fa(
     ).await?;
 
     Ok(Json(AuthResponse {
-        access_token,
-        refresh_token,
-        user: to_user_response(user),
+        requires_2fa: false,
+        access_token: Some(access_token),
+        refresh_token: Some(refresh_token),
+        user: Some(to_user_response(user)),
+        pending_token: None,
+        message: None,
     }))
 }
 
