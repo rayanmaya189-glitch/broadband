@@ -1,5 +1,6 @@
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait};
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use crate::modules::scheduler::domain::entities::{
@@ -11,14 +12,21 @@ use crate::modules::scheduler::domain::entities::{
 /// Default timeout for worker execution (5 minutes)
 const WORKER_TIMEOUT_SECS: u64 = 300;
 
+/// Maximum concurrent workers to avoid overwhelming the DB pool
+const MAX_CONCURRENT_WORKERS: usize = 5;
+
 /// Background worker that checks for due jobs and triggers them concurrently.
 pub struct SchedulerWorker {
     db: DatabaseConnection,
+    semaphore: std::sync::Arc<Semaphore>,
 }
 
 impl SchedulerWorker {
     pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+        Self {
+            db,
+            semaphore: std::sync::Arc::new(Semaphore::new(MAX_CONCURRENT_WORKERS)),
+        }
     }
 
     /// Single cycle: find due jobs → spawn concurrent executions → collect results
@@ -69,11 +77,15 @@ impl SchedulerWorker {
 
             tracing::info!(job_id, job_name = %job_name, execution_id = exec_model.id, "Scheduler: spawning job");
 
-            // Clone db for the spawned task
+            // Clone for the spawned task
             let db = self.db.clone();
+            let semaphore = self.semaphore.clone();
 
-            // Spawn the job execution concurrently with timeout
+            // Spawn the job execution concurrently with timeout + semaphore
             join_set.spawn(async move {
+                // Acquire semaphore permit to limit concurrency
+                let _permit = semaphore.acquire().await.expect("semaphore closed");
+
                 let start = std::time::Instant::now();
 
                 // Wrap execution with timeout
@@ -86,7 +98,6 @@ impl SchedulerWorker {
 
                 match result {
                     Ok(Ok(output)) => {
-                        // Job completed successfully
                         let mut active: JobExecutionActiveModel = exec_model.into();
                         active.status = Set("completed".to_string());
                         active.output_payload = Set(Some(output));
@@ -100,7 +111,6 @@ impl SchedulerWorker {
                         tracing::info!(job_id, duration_ms = duration, "Scheduler: job completed");
                     }
                     Ok(Err(e)) => {
-                        // Job failed
                         tracing::error!(job_id, error = %e, duration_ms = duration, "Scheduler: job execution failed");
 
                         let mut active: JobExecutionActiveModel = exec_model.into();
@@ -115,11 +125,10 @@ impl SchedulerWorker {
                         update_job_after_run(&db, job_id, "failed").await;
                     }
                     Err(_timeout) => {
-                        // Job timed out
                         tracing::error!(job_id, timeout_secs = WORKER_TIMEOUT_SECS, "Scheduler: job timed out");
 
                         let mut active: JobExecutionActiveModel = exec_model.into();
-                        active.status = Set("timed_out".to_string());
+                        active.status = Set("failed".to_string());
                         active.error_message = Set(Some(format!("Execution timed out after {} seconds", WORKER_TIMEOUT_SECS)));
                         active.duration_ms = Set(Some(duration));
                         active.completed_at = Set(Some(Utc::now()));
@@ -127,7 +136,7 @@ impl SchedulerWorker {
                             tracing::error!(job_id, error = %e, "Failed to record timeout");
                         }
 
-                        update_job_after_run(&db, job_id, "timed_out").await;
+                        update_job_after_run(&db, job_id, "failed").await;
                     }
                 }
 
@@ -137,11 +146,8 @@ impl SchedulerWorker {
 
         // Wait for all spawned tasks to complete
         while let Some(result) = join_set.join_next().await {
-            match result {
-                Ok(_job_id) => { /* Job handled */ }
-                Err(e) => {
-                    tracing::error!(error = %e, "Scheduler: spawned task panicked");
-                }
+            if let Err(e) = result {
+                tracing::error!(error = %e, "Scheduler: spawned task panicked");
             }
         }
 
@@ -218,7 +224,6 @@ async fn execute_job(
             }))
         }
         _ => {
-            // Unknown module: publish a trigger event via outbox
             tracing::info!(target_module = %target_module, action = %action, "Scheduler: publishing trigger event for unknown module");
             let event_payload = serde_json::json!({
                 "target_module": target_module,
@@ -250,7 +255,6 @@ async fn update_job_after_run(db: &DatabaseConnection, job_id: i64, status: &str
         active.last_run_at = Set(Some(now));
         active.last_run_status = Set(Some(status.to_string()));
         active.updated_at = Set(now);
-        // Schedule next run: default to 1 hour from now
         active.next_run_at = Set(Some(now + chrono::Duration::hours(1)));
         let _ = active.update(db).await;
     }
