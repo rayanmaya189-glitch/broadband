@@ -2,7 +2,7 @@ use crate::modules::coverage::domain::entities::{
     CoverageArea, CoverageAreaActiveModel, CoverageAreaColumn, CoveragePincode,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 pub struct CoverageService;
 
@@ -10,13 +10,17 @@ impl CoverageService {
     pub async fn list_areas(
         db: &DatabaseConnection,
         branch_id: Option<i64>,
-    ) -> Result<Vec<crate::modules::coverage::domain::entities::coverage_area::Model>, AppError>
+        _page: u64,
+        _limit: u64,
+    ) -> Result<(Vec<crate::modules::coverage::domain::entities::coverage_area::Model>, u64), AppError>
     {
         let mut query = CoverageArea::find();
         if let Some(bid) = branch_id {
             query = query.filter(CoverageAreaColumn::BranchId.eq(bid));
         }
-        Ok(query.all(db).await?)
+        let total = query.clone().count(db).await?;
+        let areas = query.all(db).await?;
+        Ok((areas, total))
     }
 
     pub async fn check_pincode(
@@ -64,4 +68,3 @@ impl CoverageService {
         Ok(area.insert(db).await?)
     }
 }
-

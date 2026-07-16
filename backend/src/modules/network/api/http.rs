@@ -127,6 +127,13 @@ pub async fn create_vlan(
         req.vlan_type,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "network.vlan.created", "vlan", vlan.id,
+        serde_json::json!({"vlan_id": vlan.id, "name": vlan.name}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish network.vlan.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(VlanResponse {
@@ -147,6 +154,13 @@ pub async fn delete_vlan(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "network.vlan.delete").map_err(|e| AppError::Forbidden(e.1))?;
     NetworkService::delete_vlan(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "network.vlan.deleted", "vlan", id,
+        serde_json::json!({"vlan_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish network.vlan.deleted event");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -195,6 +209,13 @@ pub async fn create_ip_pool(
         req.total_count,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "network.ippool.created", "ip_pool", pool.id,
+        serde_json::json!({"pool_id": pool.id, "name": pool.name}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish network.ippool.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(IpPoolResponse {
@@ -250,6 +271,13 @@ pub async fn create_pppoe_session(
         req.password_encrypted,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "network.pppoe.created", "pppoe_session", session.id,
+        serde_json::json!({"session_id": session.id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish network.pppoe.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(PppoeSessionResponse {
@@ -269,6 +297,13 @@ pub async fn terminate_pppoe_session(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "network.pppoe.terminate").map_err(|e| AppError::Forbidden(e.1))?;
     NetworkService::terminate_pppoe_session(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "network.pppoe.terminated", "pppoe_session", id,
+        serde_json::json!({"session_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish network.pppoe.terminated event");
+    }
     Ok(StatusCode::OK)
 }
 
@@ -314,6 +349,13 @@ pub async fn create_mac_binding(
         req.assigned_ip,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "network.mac_binding.created", "mac_binding", binding.id,
+        serde_json::json!({"binding_id": binding.id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish network.mac_binding.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(MacBindingResponse {

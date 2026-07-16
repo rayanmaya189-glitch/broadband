@@ -2,7 +2,8 @@ use crate::modules::referral::application::services::ReferralService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use axum::extract::State;
+use crate::shared::primitives::PaginationParams;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -26,19 +27,19 @@ pub struct CreateReferralRequest {
 pub async fn list_referrals(
     State(state): State<Arc<AppState>>,
     user: UserContext,
-) -> Result<Json<Vec<ReferralResponse>>, AppError> {
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "referral.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let refs = ReferralService::list_referrals(&state.db).await?;
-    Ok(Json(
-        refs.into_iter()
+    let (refs, total) = ReferralService::list_referrals(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<ReferralResponse> = refs.into_iter()
             .map(|r| ReferralResponse {
                 id: r.id,
                 referral_code: r.referral_code,
                 status: r.status,
                 referee_phone: r.referee_phone,
             })
-            .collect(),
-    ))
+            .collect();
+    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
 }
 
 pub async fn create_referral(
@@ -55,6 +56,13 @@ pub async fn create_referral(
         req.referral_code,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "referral.created", "referral", r.id,
+        serde_json::json!({"referral_id": r.id, "referral_code": r.referral_code, "status": r.status}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish referral.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(ReferralResponse {

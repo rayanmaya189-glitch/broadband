@@ -135,6 +135,13 @@ pub async fn create_plan(
         req.is_business.unwrap_or(false),
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "plan.created", "plan", plan.id,
+        serde_json::json!({"plan_id": plan.id, "slug": plan.slug, "name": plan.name}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish plan.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(PlanResponse {
@@ -169,6 +176,13 @@ pub async fn update_pricing(
         .parse()
         .map_err(|_| AppError::Validation("Invalid price".into()))?;
     PlanService::update_pricing(&state.db, id, req.billing_period_months, price).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "plan.pricing.updated", "plan", id,
+        serde_json::json!({"plan_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish plan.pricing.updated event");
+    }
     Ok(StatusCode::OK)
 }
 
@@ -182,6 +196,13 @@ pub async fn approve_plan(
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }
     PlanService::approve_plan(&state.db, id, user.user_id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "plan.approved", "plan", id,
+        serde_json::json!({"plan_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish plan.approved event");
+    }
     Ok(StatusCode::OK)
 }
 
@@ -195,5 +216,12 @@ pub async fn deactivate_plan(
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }
     PlanService::deactivate_plan(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "plan.deactivated", "plan", id,
+        serde_json::json!({"plan_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish plan.deactivated event");
+    }
     Ok(StatusCode::NO_CONTENT)
 }

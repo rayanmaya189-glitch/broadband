@@ -2,7 +2,7 @@ use crate::modules::lead::domain::entities::{
     Lead, LeadActiveModel, LeadActivity, LeadActivityActiveModel, LeadColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{PaginatorTrait, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
 pub struct LeadService;
 
@@ -10,12 +10,15 @@ impl LeadService {
     pub async fn list_leads(
         db: &DatabaseConnection,
         branch_id: Option<i64>,
-    ) -> Result<Vec<crate::modules::lead::domain::entities::lead::Model>, AppError> {
+        _page: u64,
+        _limit: u64,
+    ) -> Result<(Vec<crate::modules::lead::domain::entities::lead::Model>, u64), AppError> {
         let mut query = Lead::find();
         if let Some(bid) = branch_id {
             query = query.filter(LeadColumn::BranchId.eq(bid));
         }
-        Ok(query.all(db).await?)
+        let t = query.clone().count(db).await?;
+        Ok((query.all(db).await?, t))
     }
 
     pub async fn create_lead(

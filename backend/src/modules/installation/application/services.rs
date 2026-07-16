@@ -2,7 +2,7 @@ use crate::modules::installation::domain::entities::{
     InstallationOrder, InstallationOrderActiveModel, InstallationOrderColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{PaginatorTrait, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
 pub struct InstallationService;
 
@@ -10,15 +10,18 @@ impl InstallationService {
     pub async fn list_orders(
         db: &DatabaseConnection,
         branch_id: Option<i64>,
+        _page: u64,
+        _limit: u64,
     ) -> Result<
-        Vec<crate::modules::installation::domain::entities::installation_order::Model>,
+        (Vec<crate::modules::installation::domain::entities::installation_order::Model>, u64),
         AppError,
     > {
         let mut query = InstallationOrder::find();
         if let Some(bid) = branch_id {
             query = query.filter(InstallationOrderColumn::BranchId.eq(bid));
         }
-        Ok(query.all(db).await?)
+        let t = query.clone().count(db).await?;
+        Ok((query.all(db).await?, t))
     }
 
     pub async fn create_order(

@@ -85,6 +85,20 @@ pub async fn register_device(
         req.management_ip,
     )
     .await?;
+    // Publish event to outbox
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "device.registered",
+        "device",
+        d.id,
+        serde_json::json!({"device_id": d.id, "name": d.name, "status": d.status}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish device.registered event");
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(DeviceResponse {
@@ -100,11 +114,25 @@ pub async fn register_device(
 
 pub async fn update_device_status(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<DeviceResponse>, AppError> {
     let d = DeviceService::update_device_status(&state.db, id, &req.status).await?;
+    // Publish event to outbox
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "device.status.updated",
+        "device",
+        d.id,
+        serde_json::json!({"device_id": d.id, "new_status": d.status}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish device.status.updated event");
+    }
+
     Ok(Json(DeviceResponse {
         id: d.id,
         name: d.name,

@@ -2,16 +2,18 @@ use crate::modules::referral::domain::entities::{
     CustomerWallet, CustomerWalletActiveModel, ReferralTracking, ReferralTrackingActiveModel,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, PaginatorTrait};
 
 pub struct ReferralService;
 
 impl ReferralService {
     pub async fn list_referrals(
         db: &DatabaseConnection,
-    ) -> Result<Vec<crate::modules::referral::domain::entities::referral_tracking::Model>, AppError>
+        _page: u64,
+        _limit: u64,
+    ) -> Result<(Vec<crate::modules::referral::domain::entities::referral_tracking::Model>, u64), AppError>
     {
-        Ok(ReferralTracking::find().all(db).await?)
+        { let q = ReferralTracking::find(); let t = q.clone().count(db).await?; Ok((q.all(db).await?, t)) }
     }
 
     pub async fn create_referral(

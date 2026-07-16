@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
+use crate::shared::primitives::PaginationParams;
 use crate::modules::gateway::application::services::GatewayService;
 
 // ── Rate Limit Rules ──
@@ -37,8 +38,9 @@ pub struct CreateRateLimitRuleRequest {
 pub async fn list_rate_limit_rules(
     State(state): State<Arc<AppState>>,
     user: UserContext,
+    Query(p): Query<PaginationParams>,
 ) -> Result<Json<Vec<RateLimitRuleResponse>>, AppError> {
-    let rules = GatewayService::list_rate_limit_rules(&state.db).await?;
+    let (rules, total_rules) = GatewayService::list_rate_limit_rules(&state.db, p.page(), p.limit()).await?;
     Ok(Json(rules.into_iter().map(|r| RateLimitRuleResponse {
         id: r.id,
         route_pattern: r.route_pattern,
@@ -60,6 +62,13 @@ pub async fn create_rate_limit_rule(
         &state.db, req.route_pattern, req.methods, req.max_requests,
         req.window_seconds, req.role, req.branch_id,
     ).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "gateway.ratelimit.created", "rate_limit_rule", rule.id,
+        serde_json::json!({"rule_id": rule.id, "route_pattern": rule.route_pattern}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish gateway.ratelimit.created event");
+    }
     Ok((StatusCode::CREATED, Json(RateLimitRuleResponse {
         id: rule.id, route_pattern: rule.route_pattern, methods: rule.methods,
         max_requests: rule.max_requests, window_seconds: rule.window_seconds,
@@ -74,6 +83,13 @@ pub async fn delete_rate_limit_rule(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "gateway.ratelimit.delete").map_err(|e| AppError::Forbidden(e.1))?;
     GatewayService::delete_rate_limit_rule(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "gateway.ratelimit.deleted", "rate_limit_rule", id,
+        serde_json::json!({"rule_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish gateway.ratelimit.deleted event");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -102,8 +118,9 @@ pub struct CreateApiKeyRequest {
 pub async fn list_api_keys(
     State(state): State<Arc<AppState>>,
     user: UserContext,
+    Query(p): Query<PaginationParams>,
 ) -> Result<Json<Vec<ApiKeyResponse>>, AppError> {
-    let keys = GatewayService::list_api_keys(&state.db).await?;
+    let (keys, total_keys) = GatewayService::list_api_keys(&state.db, p.page(), p.limit()).await?;
     Ok(Json(keys.into_iter().map(|k| ApiKeyResponse {
         id: k.id, name: k.name, key_prefix: k.key_prefix,
         permissions: k.permissions, is_active: k.is_active,
@@ -130,6 +147,13 @@ pub async fn create_api_key(
         &state.db, req.name, key_hash, key_prefix,
         req.branch_id, req.permissions, expires_at,
     ).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "gateway.apikey.created", "api_key", key.id,
+        serde_json::json!({"key_id": key.id, "name": key.name}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish gateway.apikey.created event");
+    }
 
     Ok((StatusCode::CREATED, Json(ApiKeyResponse {
         id: key.id, name: key.name, key_prefix: key.key_prefix,
@@ -145,6 +169,13 @@ pub async fn revoke_api_key(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "gateway.apikey.revoke").map_err(|e| AppError::Forbidden(e.1))?;
     GatewayService::revoke_api_key(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "gateway.apikey.revoked", "api_key", id,
+        serde_json::json!({"key_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish gateway.apikey.revoked event");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -164,8 +195,9 @@ pub struct RequestLogResponse {
 pub async fn list_request_logs(
     State(state): State<Arc<AppState>>,
     _user: UserContext,
+    Query(p): Query<PaginationParams>,
 ) -> Result<Json<Vec<RequestLogResponse>>, AppError> {
-    let logs = GatewayService::list_request_logs(&state.db, 100).await?;
+    let logs = GatewayService::list_request_logs(&state.db, 100, p.page(), p.limit()).await?;
     Ok(Json(logs.into_iter().map(|l| RequestLogResponse {
         id: l.id, method: l.method, path: l.path,
         status_code: l.status_code, response_time_ms: l.response_time_ms,

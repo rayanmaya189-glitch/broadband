@@ -108,6 +108,13 @@ pub async fn create_payment_link(
         expires_in_hours,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "payment.link.created", "payment_link", link.id,
+        serde_json::json!({"link_id": link.id, "amount": link.amount, "gateway_id": link.gateway_id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish payment.link.created event");
+    }
 
     Ok((
         StatusCode::CREATED,

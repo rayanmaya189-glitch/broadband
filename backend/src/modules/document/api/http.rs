@@ -2,7 +2,8 @@ use crate::modules::document::application::services::DocumentService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use axum::extract::{Path, State};
+use crate::shared::primitives::PaginationParams;
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sea_orm::EntityTrait;
@@ -48,21 +49,21 @@ pub struct PresignUploadResponse {
 
 pub async fn list_documents(
     State(state): State<Arc<AppState>>,
-    user: UserContext,
-) -> Result<Json<Vec<DocumentResponse>>, AppError> {
-    require_permission(&user, "document.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let docs = DocumentService::list_documents(&state.db, None).await?;
-    Ok(Json(
-        docs.into_iter()
-            .map(|d| DocumentResponse {
-                id: d.id,
-                filename: d.filename,
-                mime_type: d.mime_type,
-                file_size: d.file_size,
-                status: d.status,
-            })
-            .collect(),
-    ))
+    _user: UserContext,
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let (docs, total) = DocumentService::list_documents(&state.db, None, p.page(), p.limit()).await?;
+    let items: Vec<DocumentResponse> = docs
+        .into_iter()
+        .map(|d| DocumentResponse {
+            id: d.id,
+            filename: d.filename,
+            mime_type: d.mime_type,
+            file_size: d.file_size,
+            status: d.status,
+        })
+        .collect();
+    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
 }
 
 pub async fn confirm_upload(
@@ -82,6 +83,13 @@ pub async fn confirm_upload(
         user.user_id,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "document.uploaded", "document", d.id,
+        serde_json::json!({"document_id": d.id, "filename": d.filename}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish document.uploaded event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(DocumentResponse {
@@ -159,5 +167,12 @@ pub async fn delete_document(
 
     // Soft-delete in database
     DocumentService::delete_document(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "document.deleted", "document", id,
+        serde_json::json!({"document_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish document.deleted event");
+    }
     Ok(StatusCode::NO_CONTENT)
 }

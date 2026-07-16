@@ -2,18 +2,22 @@ use crate::modules::notification::domain::entities::{
     Notification, NotificationActiveModel, NotificationTemplate, NotificationTemplateActiveModel,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, PaginatorTrait};
 
 pub struct NotificationService;
 
 impl NotificationService {
     pub async fn list_templates(
         db: &DatabaseConnection,
+        _page: u64,
+        _limit: u64,
     ) -> Result<
-        Vec<crate::modules::notification::domain::entities::notification_template::Model>,
+        (Vec<crate::modules::notification::domain::entities::notification_template::Model>, u64),
         AppError,
     > {
-        Ok(NotificationTemplate::find().all(db).await?)
+        let q = NotificationTemplate::find();
+        let t = q.clone().count(db).await?;
+        Ok((q.all(db).await?, t))
     }
 
     pub async fn create_template(

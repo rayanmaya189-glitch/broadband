@@ -2,7 +2,8 @@ use crate::modules::discovery::application::services::DiscoveryService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use axum::extract::{Path, State};
+use crate::shared::primitives::PaginationParams;
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -34,11 +35,11 @@ pub struct ResultResponse {
 pub async fn list_scans(
     State(state): State<Arc<AppState>>,
     user: UserContext,
-) -> Result<Json<Vec<ScanResponse>>, AppError> {
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "discovery.scan.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let scans = DiscoveryService::list_scans(&state.db).await?;
-    Ok(Json(
-        scans
+    let (scans, total) = DiscoveryService::list_scans(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<ScanResponse> = scans
             .into_iter()
             .map(|s| ScanResponse {
                 id: s.id,
@@ -46,8 +47,8 @@ pub async fn list_scans(
                 scan_type: s.scan_type,
                 is_active: s.is_active,
             })
-            .collect(),
-    ))
+            .collect();
+    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
 }
 
 pub async fn create_scan(
@@ -63,6 +64,13 @@ pub async fn create_scan(
         req.scan_type,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "discovery.scan.created", "discovery_scan", s.id,
+        serde_json::json!({"scan_id": s.id, "name": s.name}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish discovery.scan.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(ScanResponse {
@@ -77,11 +85,11 @@ pub async fn create_scan(
 pub async fn list_results(
     State(state): State<Arc<AppState>>,
     user: UserContext,
-) -> Result<Json<Vec<ResultResponse>>, AppError> {
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "discovery.result.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let results = DiscoveryService::list_results(&state.db).await?;
-    Ok(Json(
-        results
+    let (results, total) = DiscoveryService::list_results(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<ResultResponse> = results
             .into_iter()
             .map(|r| ResultResponse {
                 id: r.id,
@@ -90,8 +98,8 @@ pub async fn list_results(
                 model: r.model,
                 status: r.status,
             })
-            .collect(),
-    ))
+            .collect();
+    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
 }
 
 pub async fn approve_result(
@@ -101,5 +109,12 @@ pub async fn approve_result(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "discovery.result.approve").map_err(|e| AppError::Forbidden(e.1))?;
     DiscoveryService::approve_result(&state.db, id, user.user_id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "discovery.result.approved", "discovery_result", id,
+        serde_json::json!({"result_id": id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish discovery.result.approved event");
+    }
     Ok(StatusCode::OK)
 }

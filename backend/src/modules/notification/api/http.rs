@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,7 @@ use crate::modules::notification::application::services::NotificationService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
+use crate::shared::primitives::PaginationParams;
 
 #[derive(Debug, Serialize)]
 pub struct TemplateResponse {
@@ -29,10 +30,10 @@ pub struct CreateTemplateRequest {
 pub async fn list_templates(
     State(state): State<Arc<AppState>>,
     _user: UserContext,
-) -> Result<Json<Vec<TemplateResponse>>, AppError> {
-    let tmpls = NotificationService::list_templates(&state.db).await?;
-    Ok(Json(
-        tmpls
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let (tmpls, total) = NotificationService::list_templates(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<TemplateResponse> = tmpls
             .into_iter()
             .map(|t| TemplateResponse {
                 id: t.id,
@@ -40,8 +41,8 @@ pub async fn list_templates(
                 channel: t.channel,
                 is_active: t.is_active,
             })
-            .collect(),
-    ))
+            .collect();
+    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
 }
 
 pub async fn create_template(
@@ -58,6 +59,13 @@ pub async fn create_template(
         req.subject_template,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "notification.template.created", "notification_template", t.id,
+        serde_json::json!({"template_id": t.id}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish notification.template.created event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(TemplateResponse {
@@ -104,6 +112,13 @@ pub async fn send_notification(
         req.body,
     )
     .await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db, "notification.sent", "notification", n.id,
+        serde_json::json!({"notification_id": n.id, "channel": n.channel}), None,
+        Some(user.user_id), user.branch_id,
+    ).await {
+        tracing::error!(error = %e, "Failed to publish notification.sent event");
+    }
     Ok((
         StatusCode::CREATED,
         Json(NotificationResponse {

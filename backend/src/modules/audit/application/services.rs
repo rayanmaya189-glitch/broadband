@@ -1,6 +1,6 @@
 use crate::modules::audit::domain::entities::{AuditLog, AuditLogActiveModel};
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, PaginatorTrait};
 
 pub struct AuditService;
 
@@ -37,8 +37,10 @@ impl AuditService {
 
     pub async fn list_logs(
         db: &DatabaseConnection,
-    ) -> Result<Vec<crate::modules::audit::domain::entities::audit_log::Model>, AppError> {
-        Ok(AuditLog::find().all(db).await?)
+        _page: u64,
+        _limit: u64,
+    ) -> Result<(Vec<crate::modules::audit::domain::entities::audit_log::Model>, u64), AppError> {
+        { let q = AuditLog::find(); let t = q.clone().count(db).await?; Ok((q.all(db).await?, t)) }
     }
 }
 

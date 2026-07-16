@@ -2,7 +2,7 @@ use crate::modules::document::domain::entities::{
     DocumentFile, DocumentFileActiveModel, DocumentFileColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 pub struct DocumentService;
 
@@ -10,13 +10,17 @@ impl DocumentService {
     pub async fn list_documents(
         db: &DatabaseConnection,
         uploaded_by: Option<i64>,
-    ) -> Result<Vec<crate::modules::document::domain::entities::document_file::Model>, AppError>
+        _page: u64,
+        _limit: u64,
+    ) -> Result<(Vec<crate::modules::document::domain::entities::document_file::Model>, u64), AppError>
     {
         let mut query = DocumentFile::find();
         if let Some(uid) = uploaded_by {
             query = query.filter(DocumentFileColumn::UploadedBy.eq(uid));
         }
-        Ok(query.all(db).await?)
+        let total = query.clone().count(db).await?;
+        let docs = query.all(db).await?;
+        Ok((docs, total))
     }
 
     pub async fn create_document(
@@ -58,4 +62,3 @@ impl DocumentService {
         Ok(())
     }
 }
-

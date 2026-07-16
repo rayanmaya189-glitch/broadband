@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, PaginatorTrait};
 use chrono::Utc;
 use crate::shared::errors::AppError;
 use crate::modules::compliance::domain::entities::{
