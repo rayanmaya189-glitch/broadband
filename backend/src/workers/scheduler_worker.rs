@@ -63,7 +63,7 @@ impl SchedulerWorker {
 
             tracing::info!(job_id, job_name = %job_name, execution_id = exec_model.id, "Scheduler: executing job");
 
-            // Execute the job (simplified: record success or timeout)
+            // Execute the job
             let start = std::time::Instant::now();
             let result = self.execute_job(&target_module, &action, &payload).await;
             let duration = start.elapsed().as_millis() as i64;
@@ -84,6 +84,8 @@ impl SchedulerWorker {
                     Self::update_job_after_run(&self.db, job_id, "completed").await;
                 }
                 Err(e) => {
+                    tracing::error!(job_id, error = %e, "Scheduler: job execution failed");
+
                     let mut active: JobExecutionActiveModel = exec_model.into();
                     active.status = Set("failed".to_string());
                     active.error_message = Set(Some(e.to_string()));
@@ -108,34 +110,70 @@ impl SchedulerWorker {
         action: &str,
         _payload: &serde_json::Value,
     ) -> Result<serde_json::Value, anyhow::Error> {
-        // Route to the appropriate module handler
         match target_module {
             "billing" => {
-                tracing::info!(action = %action, "Scheduler: triggering billing job");
-                Ok(serde_json::json!({ "module": "billing", "action": action, "status": "triggered" }))
+                tracing::info!(action = %action, "Scheduler: running billing worker cycle");
+                let worker = crate::workers::billing_worker::BillingWorker::new(self.db.clone());
+                worker.run_cycle().await?;
+                Ok(serde_json::json!({
+                    "module": "billing",
+                    "action": action,
+                    "status": "completed"
+                }))
             }
             "notification" => {
-                tracing::info!(action = %action, "Scheduler: triggering notification job");
-                Ok(serde_json::json!({ "module": "notification", "action": action, "status": "triggered" }))
+                tracing::info!(action = %action, "Scheduler: running notification worker cycle");
+                let worker = crate::workers::notification_worker::NotificationWorker::new(self.db.clone());
+                worker.run_cycle().await?;
+                Ok(serde_json::json!({
+                    "module": "notification",
+                    "action": action,
+                    "status": "completed"
+                }))
             }
             "device_sync" => {
-                tracing::info!(action = %action, "Scheduler: triggering device sync job");
-                Ok(serde_json::json!({ "module": "device_sync", "action": action, "status": "triggered" }))
+                tracing::info!(action = %action, "Scheduler: running device sync worker cycle");
+                let worker = crate::workers::device_sync_worker::DeviceSyncWorker::new(self.db.clone());
+                worker.run_cycle().await?;
+                Ok(serde_json::json!({
+                    "module": "device_sync",
+                    "action": action,
+                    "status": "completed"
+                }))
             }
             "bandwidth" => {
-                tracing::info!(action = %action, "Scheduler: triggering bandwidth job");
-                Ok(serde_json::json!({ "module": "bandwidth", "action": action, "status": "triggered" }))
+                tracing::info!(action = %action, "Scheduler: running bandwidth worker cycle");
+                let worker = crate::workers::bandwidth_worker::BandwidthWorker::new(self.db.clone());
+                worker.run_cycle().await?;
+                Ok(serde_json::json!({
+                    "module": "bandwidth",
+                    "action": action,
+                    "status": "completed"
+                }))
             }
             "monitoring" => {
-                tracing::info!(action = %action, "Scheduler: triggering monitoring job");
-                Ok(serde_json::json!({ "module": "monitoring", "action": action, "status": "triggered" }))
+                tracing::info!(action = %action, "Scheduler: running monitoring worker cycle");
+                let worker = crate::workers::monitoring_worker::MonitoringWorker::new(self.db.clone());
+                worker.run_cycle().await?;
+                Ok(serde_json::json!({
+                    "module": "monitoring",
+                    "action": action,
+                    "status": "completed"
+                }))
             }
             "cleanup" => {
-                tracing::info!(action = %action, "Scheduler: triggering cleanup job");
-                Ok(serde_json::json!({ "module": "cleanup", "action": action, "status": "triggered" }))
+                tracing::info!(action = %action, "Scheduler: running cleanup");
+                // Cleanup outbox events older than 24 hours
+                crate::infrastructure::messaging::outbox::cleanup_published_events(&self.db, 24).await?;
+                Ok(serde_json::json!({
+                    "module": "cleanup",
+                    "action": action,
+                    "status": "completed"
+                }))
             }
             _ => {
-                // Generic: publish a trigger event via outbox
+                // Unknown module: publish a trigger event via outbox for other systems to handle
+                tracing::info!(target_module = %target_module, action = %action, "Scheduler: publishing trigger event for unknown module");
                 let event_payload = serde_json::json!({
                     "target_module": target_module,
                     "action": action,
@@ -150,7 +188,11 @@ impl SchedulerWorker {
                     None,
                     None,
                 ).await?;
-                Ok(serde_json::json!({ "module": target_module, "action": action, "status": "event_published" }))
+                Ok(serde_json::json!({
+                    "module": target_module,
+                    "action": action,
+                    "status": "event_published"
+                }))
             }
         }
     }
