@@ -10,7 +10,7 @@ use lettre::message::{header::ContentType, Mailbox, Message};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use tracing::{info, warn};
-use uuid;
+use uuid::Uuid;
 
 use crate::shared::errors::AppError;
 
@@ -86,7 +86,7 @@ impl LettreSmtpAdapter {
             .as_ref()
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("SMTP not configured")))?;
 
-        let tracking_id = uuid::Uuid::new_v4().to_string();
+        let tracking_id = Uuid::new_v4().to_string();
 
         match transport.send(message).await {
             Ok(_response) => {
