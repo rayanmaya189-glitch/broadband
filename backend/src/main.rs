@@ -206,6 +206,22 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Bandwidth worker started (every minute)");
         }
 
+        // Scheduler worker - runs every 30 seconds
+        {
+            let db = worker_db.clone();
+            let worker = aeroxe_backend::workers::scheduler_worker::SchedulerWorker::new(db);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = worker.run_cycle().await {
+                        tracing::error!(error = %e, "Scheduler worker cycle failed");
+                    }
+                }
+            });
+            tracing::info!("Scheduler worker started (every 30 seconds)");
+        }
+
         // Outbox cleanup worker - runs every hour
         {
             let db = worker_db.clone();

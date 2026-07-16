@@ -36,6 +36,7 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/billing", billing_routes())
         .nest("/rbac", rbac_routes())
         .nest("/accounting", accounting_routes())
+        .nest("/scheduler", scheduler_routes())
         .nest("/network", network_routes())
         .nest("/devices", device_routes())
         .nest("/bandwidth", bandwidth_routes())
@@ -175,7 +176,26 @@ fn rbac_routes() -> Router<SharedState> {
 
 fn accounting_routes() -> Router<SharedState> {
     use crate::modules::accounting::api::http;
-    Router::new().route("/accounts", axum::routing::get(http::list_accounts))
+    Router::new()
+        .route("/accounts", axum::routing::get(http::list_accounts).post(http::create_account))
+        .route("/accounts/:id", axum::routing::put(http::update_account))
+        .route("/journal", axum::routing::get(http::list_journal_entries).post(http::create_journal_entry))
+        .route("/journal/:id/post", axum::routing::post(http::post_journal_entry))
+        .route("/journal/:id/void", axum::routing::post(http::void_journal_entry))
+        .route("/trial-balance", axum::routing::get(http::generate_trial_balance))
+        .route("/statements/profit-loss", axum::routing::get(http::profit_and_loss))
+        .route("/statements/balance-sheet", axum::routing::get(http::balance_sheet))
+        .route("/gst/:type", axum::routing::get(http::gst_return))
+}
+
+fn scheduler_routes() -> Router<SharedState> {
+    use crate::modules::scheduler::api::http;
+    Router::new()
+        .route("/jobs", axum::routing::get(http::list_jobs).post(http::create_job))
+        .route("/jobs/:id", axum::routing::get(http::get_job).put(http::update_job).delete(http::delete_job))
+        .route("/jobs/:id/trigger", axum::routing::post(http::trigger_job))
+        .route("/executions", axum::routing::get(http::list_executions))
+        .route("/stats", axum::routing::get(http::scheduler_stats))
 }
 
 fn network_routes() -> Router<SharedState> {

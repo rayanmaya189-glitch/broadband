@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, QueryOrder, QuerySelect, PaginatorTrait};
 use chrono::Utc;
 use crate::shared::errors::AppError;
 use crate::modules::scheduler::domain::entities::{
@@ -82,7 +82,8 @@ impl SchedulerService {
             .one(db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Job definition {} not found", id)))?;
-        job.delete(db).await?;
+        let active: job_definition::ActiveModel = job.into();
+        active.delete(db).await?;
         Ok(())
     }
 
@@ -97,9 +98,12 @@ impl SchedulerService {
 
     // ── Job Executions ──
 
-    pub async fn list_executions(db: &DatabaseConnection, job_definition_id: i64) -> Result<Vec<job_execution::Model>, AppError> {
-        Ok(JobExecution::find()
-            .filter(job_execution::Column::JobDefinitionId.eq(job_definition_id))
+    pub async fn list_executions(db: &DatabaseConnection, job_definition_id: Option<i64>) -> Result<Vec<job_execution::Model>, AppError> {
+        let mut query = JobExecution::find();
+        if let Some(jid) = job_definition_id {
+            query = query.filter(job_execution::Column::JobDefinitionId.eq(jid));
+        }
+        Ok(query
             .order_by_desc(job_execution::Column::StartedAt)
             .limit(50)
             .all(db)
