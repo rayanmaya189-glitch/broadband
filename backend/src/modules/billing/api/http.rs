@@ -103,6 +103,28 @@ pub async fn create_invoice(
         amt,
     )
     .await?;
+
+    // Publish event to outbox
+    let payload = serde_json::json!({
+        "invoice_id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "customer_id": inv.customer_id,
+        "total_amount": inv.total_amount,
+        "due_date": inv.due_date,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "invoice.generated",
+        "invoice",
+        inv.id,
+        payload,
+        None,
+        None,
+        Some(inv.branch_id),
+    ).await {
+        tracing::error!(invoice_id = inv.id, error = %e, "Failed to publish invoice.generated event");
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(InvoiceResponse {
@@ -135,6 +157,30 @@ pub async fn record_payment(
         req.payment_method,
     )
     .await?;
+
+    // Publish event to outbox
+    let payload = serde_json::json!({
+        "payment_id": pay.id,
+        "payment_number": pay.payment_number,
+        "invoice_id": pay.invoice_id,
+        "customer_id": pay.customer_id,
+        "amount": pay.amount,
+        "payment_method": pay.payment_method,
+        "status": pay.status,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "payment.completed",
+        "payment",
+        pay.id,
+        payload,
+        None,
+        None,
+        Some(pay.branch_id),
+    ).await {
+        tracing::error!(payment_id = pay.id, error = %e, "Failed to publish payment.completed event");
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(PaymentResponse {

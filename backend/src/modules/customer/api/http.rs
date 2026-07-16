@@ -112,6 +112,29 @@ pub async fn create_customer(
         req.alternate_phone,
     )
     .await?;
+
+    // Publish event to outbox
+    let payload = serde_json::json!({
+        "customer_id": customer.id,
+        "customer_code": customer.customer_code,
+        "branch_id": customer.branch_id,
+        "name": customer.name,
+        "phone": customer.phone,
+        "status": customer.status,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "customer.created",
+        "customer",
+        customer.id,
+        payload,
+        None,
+        None,
+        Some(customer.branch_id),
+    ).await {
+        tracing::error!(customer_id = customer.id, error = %e, "Failed to publish customer.created event");
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(CustomerResponse {
@@ -153,7 +176,34 @@ pub async fn update_customer_status(
     Path(id): Path<i64>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<CustomerResponse>, AppError> {
+    let old_status = CustomerService::get_customer(&state.db, id).await.map(|c| c.status).unwrap_or_default();
     let customer = CustomerService::update_customer_status(&state.db, id, &req.status).await?;
+
+    // Publish status change event
+    let event_type = match req.status.as_str() {
+        "active" => "customer.activated",
+        "suspended" => "customer.suspended",
+        "terminated" => "customer.terminated",
+        _ => "customer.status.changed",
+    };
+    let payload = serde_json::json!({
+        "customer_id": customer.id,
+        "old_status": old_status,
+        "new_status": customer.status,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        event_type,
+        "customer",
+        customer.id,
+        payload,
+        None,
+        None,
+        Some(customer.branch_id),
+    ).await {
+        tracing::error!(customer_id = customer.id, error = %e, "Failed to publish customer status event");
+    }
+
     Ok(Json(CustomerResponse {
         id: customer.id,
         customer_code: customer.customer_code,

@@ -73,6 +73,28 @@ pub async fn create_subscription(
         req.billing_period_months,
     )
     .await?;
+
+    // Publish event to outbox
+    let payload = serde_json::json!({
+        "subscription_id": sub.id,
+        "customer_id": sub.customer_id,
+        "plan_id": sub.plan_id,
+        "branch_id": sub.branch_id,
+        "status": sub.status,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "subscription.created",
+        "subscription",
+        sub.id,
+        payload,
+        None,
+        None,
+        Some(sub.branch_id),
+    ).await {
+        tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.created event");
+    }
+
     Ok((
         StatusCode::CREATED,
         Json(SubscriptionResponse {
@@ -94,6 +116,25 @@ pub async fn cancel_subscription(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
     SubscriptionService::cancel_subscription(&state.db, id, "").await?;
+
+    // Publish event to outbox
+    let payload = serde_json::json!({
+        "subscription_id": id,
+        "action": "cancelled",
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "subscription.cancelled",
+        "subscription",
+        id,
+        payload,
+        None,
+        None,
+        None,
+    ).await {
+        tracing::error!(subscription_id = id, error = %e, "Failed to publish subscription.cancelled event");
+    }
+
     Ok(StatusCode::OK)
 }
 
@@ -103,5 +144,24 @@ pub async fn suspend_subscription(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
     SubscriptionService::suspend_subscription(&state.db, id, "").await?;
+
+    // Publish event to outbox
+    let payload = serde_json::json!({
+        "subscription_id": id,
+        "action": "suspended",
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "subscription.suspended",
+        "subscription",
+        id,
+        payload,
+        None,
+        None,
+        None,
+    ).await {
+        tracing::error!(subscription_id = id, error = %e, "Failed to publish subscription.suspended event");
+    }
+
     Ok(StatusCode::OK)
 }
