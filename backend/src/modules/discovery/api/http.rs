@@ -1,7 +1,7 @@
 use crate::modules::discovery::application::services::DiscoveryService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
@@ -33,8 +33,9 @@ pub struct ResultResponse {
 
 pub async fn list_scans(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<ScanResponse>>, AppError> {
+    require_permission(&user, "discovery.scan.view").map_err(|e| AppError::Forbidden(e.1))?;
     let scans = DiscoveryService::list_scans(&state.db).await?;
     Ok(Json(
         scans
@@ -54,6 +55,7 @@ pub async fn create_scan(
     user: UserContext,
     Json(req): Json<CreateScanRequest>,
 ) -> Result<(StatusCode, Json<ScanResponse>), AppError> {
+    require_permission(&user, "discovery.scan.create").map_err(|e| AppError::Forbidden(e.1))?;
     let s = DiscoveryService::create_scan(
         &state.db,
         user.branch_id.unwrap_or(0),
@@ -74,8 +76,9 @@ pub async fn create_scan(
 
 pub async fn list_results(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<ResultResponse>>, AppError> {
+    require_permission(&user, "discovery.result.view").map_err(|e| AppError::Forbidden(e.1))?;
     let results = DiscoveryService::list_results(&state.db).await?;
     Ok(Json(
         results
@@ -96,6 +99,7 @@ pub async fn approve_result(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "discovery.result.approve").map_err(|e| AppError::Forbidden(e.1))?;
     DiscoveryService::approve_result(&state.db, id, user.user_id).await?;
     Ok(StatusCode::OK)
 }

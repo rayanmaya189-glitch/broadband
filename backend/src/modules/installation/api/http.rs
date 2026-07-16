@@ -1,7 +1,7 @@
 use crate::modules::installation::application::services::InstallationService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
@@ -36,6 +36,7 @@ pub async fn list_installations(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<Vec<InstallationResponse>>, AppError> {
+    require_permission(&user, "installation.order.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -60,6 +61,7 @@ pub async fn create_installation(
     user: UserContext,
     Json(req): Json<CreateOrderRequest>,
 ) -> Result<(StatusCode, Json<InstallationResponse>), AppError> {
+    require_permission(&user, "installation.order.create").map_err(|e| AppError::Forbidden(e.1))?;
     let o = InstallationService::create_order(
         &state.db,
         req.customer_id,
@@ -80,10 +82,11 @@ pub async fn create_installation(
 
 pub async fn schedule_installation(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<ScheduleRequest>,
 ) -> Result<Json<InstallationResponse>, AppError> {
+    require_permission(&user, "installation.order.schedule").map_err(|e| AppError::Forbidden(e.1))?;
     let date: chrono::NaiveDate = req
         .scheduled_date
         .parse()
@@ -106,9 +109,10 @@ pub async fn schedule_installation(
 
 pub async fn complete_installation(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<InstallationResponse>, AppError> {
+    require_permission(&user, "installation.order.complete").map_err(|e| AppError::Forbidden(e.1))?;
     let o = InstallationService::complete_order(&state.db, id).await?;
     Ok(Json(InstallationResponse {
         id: o.id,
@@ -120,9 +124,10 @@ pub async fn complete_installation(
 
 pub async fn cancel_installation(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "installation.order.cancel").map_err(|e| AppError::Forbidden(e.1))?;
     InstallationService::cancel_order(&state.db, id).await?;
     Ok(StatusCode::OK)
 }

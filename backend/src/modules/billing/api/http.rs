@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::billing::application::services::BillingService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use crate::shared::primitives::PaginationParams;
 
 #[derive(Debug, Serialize)]
@@ -78,9 +78,10 @@ pub async fn list_invoices(
 /// POST /api/v1/billing/invoices
 pub async fn create_invoice(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateInvoiceRequest>,
 ) -> Result<(StatusCode, Json<InvoiceResponse>), AppError> {
+    require_permission(&user, "billing.invoice.create").map_err(|e| AppError::Forbidden(e.1))?;
     let start: chrono::NaiveDate = req
         .billing_period_start
         .parse()
@@ -141,9 +142,10 @@ pub async fn create_invoice(
 /// POST /api/v1/billing/payments
 pub async fn record_payment(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<RecordPaymentRequest>,
 ) -> Result<(StatusCode, Json<PaymentResponse>), AppError> {
+    require_permission(&user, "billing.payment.record").map_err(|e| AppError::Forbidden(e.1))?;
     let amt: sea_orm::prelude::Decimal = req
         .amount
         .parse()

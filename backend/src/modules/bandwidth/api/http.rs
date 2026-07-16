@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::bandwidth::application::services::BandwidthService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct BandwidthProfileResponse {
@@ -46,9 +46,10 @@ pub async fn list_profiles(
 
 pub async fn create_profile(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateProfileRequest>,
 ) -> Result<(StatusCode, Json<BandwidthProfileResponse>), AppError> {
+    require_permission(&user, "bandwidth.profile.create").map_err(|e| AppError::Forbidden(e.1))?;
     let p =
         BandwidthService::create_profile(&state.db, req.name, req.download_kbps, req.upload_kbps)
             .await?;
@@ -66,10 +67,11 @@ pub async fn create_profile(
 
 pub async fn update_profile(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<Json<BandwidthProfileResponse>, AppError> {
+    require_permission(&user, "bandwidth.profile.update").map_err(|e| AppError::Forbidden(e.1))?;
     let p = BandwidthService::update_profile(
         &state.db,
         id,
@@ -99,9 +101,10 @@ pub struct UpdateProfileRequest {
 
 pub async fn delete_profile(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "bandwidth.profile.delete").map_err(|e| AppError::Forbidden(e.1))?;
     BandwidthService::delete_profile(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

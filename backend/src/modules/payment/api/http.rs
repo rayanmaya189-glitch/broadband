@@ -11,7 +11,7 @@ use crate::modules::payment::infrastructure::gateway_adapter::{
 };
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct PaymentLinkResponse {
@@ -80,9 +80,10 @@ pub struct RetryPaymentRequest {
 /// POST /api/v1/payments/create-link
 pub async fn create_payment_link(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreatePaymentLinkRequest>,
 ) -> Result<(StatusCode, Json<PaymentLinkResponse>), AppError> {
+    require_permission(&user, "payment.link.create").map_err(|e| AppError::Forbidden(e.1))?;
     let amount: sea_orm::prelude::Decimal = req
         .amount
         .parse()
@@ -130,6 +131,7 @@ pub async fn record_manual_payment(
     user: UserContext,
     Json(req): Json<ManualPaymentRequest>,
 ) -> Result<(StatusCode, Json<PaymentLinkResponse>), AppError> {
+    require_permission(&user, "payment.manual.record").map_err(|e| AppError::Forbidden(e.1))?;
     let amount: sea_orm::prelude::Decimal = req
         .amount
         .parse()
@@ -374,8 +376,9 @@ pub async fn handle_payu_webhook(
 /// GET /api/v1/payments/gateways
 pub async fn list_gateways(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<GatewayConfigResponse>>, AppError> {
+    require_permission(&user, "payment.gateway.view").map_err(|e| AppError::Forbidden(e.1))?;
     let gateways = PaymentService::list_gateways(&state.db).await?;
     Ok(Json(
         gateways

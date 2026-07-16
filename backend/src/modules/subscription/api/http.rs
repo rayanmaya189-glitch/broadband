@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::subscription::application::services::SubscriptionService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use crate::shared::primitives::PaginationParams;
 
 #[derive(Debug, Serialize)]
@@ -62,9 +62,10 @@ pub async fn list_subscriptions(
 
 pub async fn create_subscription(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateSubscriptionRequest>,
 ) -> Result<(StatusCode, Json<SubscriptionResponse>), AppError> {
+    require_permission(&user, "subscription.create").map_err(|e| AppError::Forbidden(e.1))?;
     let sub = SubscriptionService::create_subscription(
         &state.db,
         req.customer_id,
@@ -112,9 +113,10 @@ pub async fn create_subscription(
 
 pub async fn cancel_subscription(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "subscription.cancel").map_err(|e| AppError::Forbidden(e.1))?;
     SubscriptionService::cancel_subscription(&state.db, id, "").await?;
 
     // Publish event to outbox
@@ -140,9 +142,10 @@ pub async fn cancel_subscription(
 
 pub async fn suspend_subscription(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "subscription.suspend").map_err(|e| AppError::Forbidden(e.1))?;
     SubscriptionService::suspend_subscription(&state.db, id, "").await?;
 
     // Publish event to outbox

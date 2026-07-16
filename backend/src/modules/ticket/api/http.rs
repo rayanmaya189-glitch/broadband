@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::ticket::application::services::TicketService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct TicketResponse {
@@ -35,6 +35,7 @@ pub async fn list_tickets(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<Vec<TicketResponse>>, AppError> {
+    require_permission(&user, "ticket.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -62,6 +63,7 @@ pub async fn create_ticket(
     user: UserContext,
     Json(req): Json<CreateTicketRequest>,
 ) -> Result<(StatusCode, Json<TicketResponse>), AppError> {
+    require_permission(&user, "ticket.create").map_err(|e| AppError::Forbidden(e.1))?;
     let t = TicketService::create_ticket(
         &state.db,
         user.branch_id.unwrap_or(0),
@@ -90,9 +92,10 @@ pub async fn create_ticket(
 
 pub async fn get_ticket(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<TicketResponse>, AppError> {
+    require_permission(&user, "ticket.view").map_err(|e| AppError::Forbidden(e.1))?;
     let t = TicketService::get_ticket(&state.db, id).await?;
     Ok(Json(TicketResponse {
         id: t.id,
@@ -107,10 +110,11 @@ pub async fn get_ticket(
 
 pub async fn assign_ticket(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<AssignRequest>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "ticket.assign").map_err(|e| AppError::Forbidden(e.1))?;
     TicketService::assign_ticket(&state.db, id, req.assigned_to).await?;
     Ok(StatusCode::OK)
 }
@@ -126,6 +130,7 @@ pub async fn resolve_ticket(
     Path(id): Path<i64>,
     Json(req): Json<ResolveRequest>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "ticket.resolve").map_err(|e| AppError::Forbidden(e.1))?;
     TicketService::resolve_ticket(&state.db, id, user.user_id, req.resolution_notes).await?;
     Ok(StatusCode::OK)
 }

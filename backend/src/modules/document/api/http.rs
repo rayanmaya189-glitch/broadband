@@ -1,7 +1,7 @@
 use crate::modules::document::application::services::DocumentService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
@@ -48,8 +48,9 @@ pub struct PresignUploadResponse {
 
 pub async fn list_documents(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<DocumentResponse>>, AppError> {
+    require_permission(&user, "document.view").map_err(|e| AppError::Forbidden(e.1))?;
     let docs = DocumentService::list_documents(&state.db, None).await?;
     Ok(Json(
         docs.into_iter()
@@ -69,6 +70,7 @@ pub async fn confirm_upload(
     user: UserContext,
     Json(req): Json<UploadRequest>,
 ) -> Result<(StatusCode, Json<DocumentResponse>), AppError> {
+    require_permission(&user, "document.upload").map_err(|e| AppError::Forbidden(e.1))?;
     let d = DocumentService::create_document(
         &state.db,
         req.filename.clone(),
@@ -97,6 +99,7 @@ pub async fn presign_upload(
     user: UserContext,
     Json(req): Json<PresignUploadRequest>,
 ) -> Result<(StatusCode, Json<PresignUploadResponse>), AppError> {
+    require_permission(&user, "document.upload").map_err(|e| AppError::Forbidden(e.1))?;
     let storage = state
         .storage
         .as_ref()
@@ -134,9 +137,10 @@ pub async fn presign_upload(
 
 pub async fn delete_document(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "document.delete").map_err(|e| AppError::Forbidden(e.1))?;
     // Get document info before deletion
     let doc = crate::modules::document::domain::entities::DocumentFile::find_by_id(id)
         .one(&state.db)

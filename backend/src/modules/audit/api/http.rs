@@ -1,15 +1,16 @@
 use crate::modules::audit::application::services::AuditService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::State;
 use axum::Json;
 use std::sync::Arc;
 
 pub async fn list_audit_logs(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&user, "audit.log.view").map_err(|e| AppError::Forbidden(e.1))?;
     let logs = AuditService::list_logs(&state.db).await?;
     Ok(Json(
         logs.into_iter()

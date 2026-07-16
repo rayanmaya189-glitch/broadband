@@ -1,7 +1,7 @@
 use crate::modules::coverage::application::services::CoverageService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
@@ -20,6 +20,7 @@ pub async fn list_coverage_areas(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<Vec<CoverageAreaResponse>>, AppError> {
+    require_permission(&user, "coverage.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -74,6 +75,7 @@ pub async fn create_coverage_area(
     user: UserContext,
     Json(req): Json<CreateAreaRequest>,
 ) -> Result<(StatusCode, Json<CoverageAreaResponse>), AppError> {
+    require_permission(&user, "coverage.create").map_err(|e| AppError::Forbidden(e.1))?;
     let a = CoverageService::create_area(
         &state.db,
         user.branch_id.unwrap_or(0),

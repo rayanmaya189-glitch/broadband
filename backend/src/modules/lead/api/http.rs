@@ -1,7 +1,7 @@
 use crate::modules::lead::application::services::LeadService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
@@ -30,6 +30,7 @@ pub async fn list_leads(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<Vec<LeadResponse>>, AppError> {
+    require_permission(&user, "lead.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -55,6 +56,7 @@ pub async fn create_lead(
     user: UserContext,
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<(StatusCode, Json<LeadResponse>), AppError> {
+    require_permission(&user, "lead.create").map_err(|e| AppError::Forbidden(e.1))?;
     let l = LeadService::create_lead(
         &state.db,
         user.branch_id.unwrap_or(0),
@@ -78,10 +80,11 @@ pub async fn create_lead(
 
 pub async fn update_lead_status(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<LeadResponse>, AppError> {
+    require_permission(&user, "lead.status.update").map_err(|e| AppError::Forbidden(e.1))?;
     let l = LeadService::update_lead_status(&state.db, id, &req.status).await?;
     Ok(Json(LeadResponse {
         id: l.id,

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use crate::modules::gateway::application::services::GatewayService;
 
 // ── Rate Limit Rules ──
@@ -36,7 +36,7 @@ pub struct CreateRateLimitRuleRequest {
 
 pub async fn list_rate_limit_rules(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<RateLimitRuleResponse>>, AppError> {
     let rules = GatewayService::list_rate_limit_rules(&state.db).await?;
     Ok(Json(rules.into_iter().map(|r| RateLimitRuleResponse {
@@ -52,9 +52,10 @@ pub async fn list_rate_limit_rules(
 
 pub async fn create_rate_limit_rule(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateRateLimitRuleRequest>,
 ) -> Result<(StatusCode, Json<RateLimitRuleResponse>), AppError> {
+    require_permission(&user, "gateway.ratelimit.create").map_err(|e| AppError::Forbidden(e.1))?;
     let rule = GatewayService::create_rate_limit_rule(
         &state.db, req.route_pattern, req.methods, req.max_requests,
         req.window_seconds, req.role, req.branch_id,
@@ -69,8 +70,9 @@ pub async fn create_rate_limit_rule(
 pub async fn delete_rate_limit_rule(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<i64>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "gateway.ratelimit.delete").map_err(|e| AppError::Forbidden(e.1))?;
     GatewayService::delete_rate_limit_rule(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -99,7 +101,7 @@ pub struct CreateApiKeyRequest {
 
 pub async fn list_api_keys(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<ApiKeyResponse>>, AppError> {
     let keys = GatewayService::list_api_keys(&state.db).await?;
     Ok(Json(keys.into_iter().map(|k| ApiKeyResponse {
@@ -111,9 +113,10 @@ pub async fn list_api_keys(
 
 pub async fn create_api_key(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<ApiKeyResponse>), AppError> {
+    require_permission(&user, "gateway.apikey.create").map_err(|e| AppError::Forbidden(e.1))?;
     // Generate a random API key
     let raw_key = format!("ax_{}_{}", uuid::Uuid::new_v4().to_string().replace("-", ""), chrono::Utc::now().timestamp());
     let key_hash = format!("{:x}", md5::compute(raw_key.as_bytes()));
@@ -138,8 +141,9 @@ pub async fn create_api_key(
 pub async fn revoke_api_key(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<i64>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "gateway.apikey.revoke").map_err(|e| AppError::Forbidden(e.1))?;
     GatewayService::revoke_api_key(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

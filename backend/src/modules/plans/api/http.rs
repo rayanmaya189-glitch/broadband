@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::plans::application::services::PlanService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct PlanResponse {
@@ -119,6 +119,7 @@ pub async fn create_plan(
     user: UserContext,
     Json(req): Json<CreatePlanRequest>,
 ) -> Result<(StatusCode, Json<PlanResponse>), AppError> {
+    require_permission(&user, "plan.create").map_err(|e| AppError::Forbidden(e.1))?;
     if !user.is_company_wide {
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }
@@ -159,6 +160,7 @@ pub async fn update_pricing(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePricingRequest>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "plan.pricing.update").map_err(|e| AppError::Forbidden(e.1))?;
     if !user.is_company_wide {
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }
@@ -175,6 +177,7 @@ pub async fn approve_plan(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "plan.approve").map_err(|e| AppError::Forbidden(e.1))?;
     if !user.is_company_wide {
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }
@@ -187,6 +190,7 @@ pub async fn deactivate_plan(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "plan.deactivate").map_err(|e| AppError::Forbidden(e.1))?;
     if !user.is_company_wide {
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }

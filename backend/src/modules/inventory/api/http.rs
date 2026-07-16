@@ -1,7 +1,7 @@
 use crate::modules::inventory::application::services::InventoryService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
@@ -29,6 +29,7 @@ pub async fn list_inventory(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<Vec<InventoryItemResponse>>, AppError> {
+    require_permission(&user, "inventory.item.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -53,6 +54,7 @@ pub async fn create_inventory_item(
     user: UserContext,
     Json(req): Json<CreateItemRequest>,
 ) -> Result<(StatusCode, Json<InventoryItemResponse>), AppError> {
+    require_permission(&user, "inventory.item.create").map_err(|e| AppError::Forbidden(e.1))?;
     let i = InventoryService::create_item(
         &state.db,
         user.branch_id.unwrap_or(0),
@@ -74,10 +76,11 @@ pub async fn create_inventory_item(
 
 pub async fn assign_inventory_item(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<AssignItemRequest>,
 ) -> Result<Json<InventoryItemResponse>, AppError> {
+    require_permission(&user, "inventory.item.assign").map_err(|e| AppError::Forbidden(e.1))?;
     let i = InventoryService::assign_item(&state.db, id, req.assigned_to).await?;
     Ok(Json(InventoryItemResponse {
         id: i.id,

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::modules::notification::application::services::NotificationService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, Serialize)]
 pub struct TemplateResponse {
@@ -46,9 +46,10 @@ pub async fn list_templates(
 
 pub async fn create_template(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateTemplateRequest>,
 ) -> Result<(StatusCode, Json<TemplateResponse>), AppError> {
+    require_permission(&user, "notification.template.create").map_err(|e| AppError::Forbidden(e.1))?;
     let t = NotificationService::create_template(
         &state.db,
         req.name,
@@ -89,9 +90,10 @@ pub struct NotificationResponse {
 
 pub async fn send_notification(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<SendNotificationRequest>,
 ) -> Result<(StatusCode, Json<NotificationResponse>), AppError> {
+    require_permission(&user, "notification.send").map_err(|e| AppError::Forbidden(e.1))?;
     let n = NotificationService::send_notification(
         &state.db,
         req.channel.clone(),

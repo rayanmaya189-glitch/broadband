@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use crate::modules::compliance::application::services::ComplianceService;
 
 // ── KYC Verifications ──
@@ -41,8 +41,9 @@ pub struct UpdateKycStatusRequest {
 
 pub async fn list_kyc_verifications(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<KycResponse>>, AppError> {
+    require_permission(&user, "compliance.kyc.view").map_err(|e| AppError::Forbidden(e.1))?;
     let kycs = ComplianceService::list_kyc_verifications(&state.db).await?;
     Ok(Json(kycs.into_iter().map(|k| KycResponse {
         id: k.id, customer_id: k.customer_id, document_type: k.document_type,
@@ -53,9 +54,10 @@ pub async fn list_kyc_verifications(
 
 pub async fn create_kyc_verification(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateKycRequest>,
 ) -> Result<(StatusCode, Json<KycResponse>), AppError> {
+    require_permission(&user, "compliance.kyc.create").map_err(|e| AppError::Forbidden(e.1))?;
     let kyc = ComplianceService::create_kyc_verification(
         &state.db, req.customer_id, req.document_type, req.document_number_hash, req.provider,
     ).await?;
@@ -68,9 +70,10 @@ pub async fn create_kyc_verification(
 pub async fn update_kyc_status(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<i64>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<UpdateKycStatusRequest>,
 ) -> Result<Json<KycResponse>, AppError> {
+    require_permission(&user, "compliance.kyc.update").map_err(|e| AppError::Forbidden(e.1))?;
     let kyc = ComplianceService::update_kyc_status(
         &state.db, id, req.status, req.rejection_reason, req.provider_reference,
     ).await?;
@@ -205,8 +208,9 @@ pub struct UpdateRetentionPolicyRequest {
 
 pub async fn list_retention_policies(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<RetentionPolicyResponse>>, AppError> {
+    require_permission(&user, "compliance.retention.view").map_err(|e| AppError::Forbidden(e.1))?;
     let policies = ComplianceService::list_retention_policies(&state.db).await?;
     Ok(Json(policies.into_iter().map(|p| RetentionPolicyResponse {
         id: p.id, entity_type: p.entity_type, retention_days: p.retention_days,
@@ -216,9 +220,10 @@ pub async fn list_retention_policies(
 
 pub async fn create_retention_policy(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateRetentionPolicyRequest>,
 ) -> Result<(StatusCode, Json<RetentionPolicyResponse>), AppError> {
+    require_permission(&user, "compliance.retention.create").map_err(|e| AppError::Forbidden(e.1))?;
     let p = ComplianceService::create_retention_policy(
         &state.db, req.entity_type, req.retention_days, req.action, req.description, req.legal_basis,
     ).await?;
@@ -231,9 +236,10 @@ pub async fn create_retention_policy(
 pub async fn update_retention_policy(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<i64>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<UpdateRetentionPolicyRequest>,
 ) -> Result<Json<RetentionPolicyResponse>, AppError> {
+    require_permission(&user, "compliance.retention.update").map_err(|e| AppError::Forbidden(e.1))?;
     let p = ComplianceService::update_retention_policy(&state.db, id, req.retention_days, req.action, req.is_active).await?;
     Ok(Json(RetentionPolicyResponse {
         id: p.id, entity_type: p.entity_type, retention_days: p.retention_days,

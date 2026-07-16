@@ -1,7 +1,7 @@
 use crate::modules::referral::application::services::ReferralService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
@@ -25,8 +25,9 @@ pub struct CreateReferralRequest {
 
 pub async fn list_referrals(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<ReferralResponse>>, AppError> {
+    require_permission(&user, "referral.view").map_err(|e| AppError::Forbidden(e.1))?;
     let refs = ReferralService::list_referrals(&state.db).await?;
     Ok(Json(
         refs.into_iter()
@@ -45,6 +46,7 @@ pub async fn create_referral(
     user: UserContext,
     Json(req): Json<CreateReferralRequest>,
 ) -> Result<(StatusCode, Json<ReferralResponse>), AppError> {
+    require_permission(&user, "referral.create").map_err(|e| AppError::Forbidden(e.1))?;
     let r = ReferralService::create_referral(
         &state.db,
         req.program_id,
