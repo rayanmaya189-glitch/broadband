@@ -12,7 +12,7 @@ impl DiscoveryRules {
     pub const ZTE_ENTERPRISE_ID: i32 = 4881;
 
     pub fn is_valid_interval(seconds: i32) -> bool {
-        seconds >= Self::MIN_SCAN_INTERVAL && seconds <= Self::MAX_SCAN_INTERVAL
+        (Self::MIN_SCAN_INTERVAL..=Self::MAX_SCAN_INTERVAL).contains(&seconds)
     }
 
     pub fn vendor_from_enterprise_id(id: i32) -> &'static str {

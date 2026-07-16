@@ -58,11 +58,7 @@ impl Phone {
         // Or with country code 91 and then 10 digits
         if digits.len() == 10 && matches!(digits.chars().next(), Some('6'..='9')) {
             true
-        } else if digits.len() == 12 && digits.starts_with("91") {
-            true
-        } else {
-            false
-        }
+        } else { digits.len() == 12 && digits.starts_with("91") }
     }
 
     /// Format as international number

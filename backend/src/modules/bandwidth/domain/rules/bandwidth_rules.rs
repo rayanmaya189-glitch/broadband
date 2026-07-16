@@ -35,6 +35,6 @@ impl BandwidthRules {
 
     /// Check if priority is valid
     pub fn is_valid_priority(priority: i32) -> bool {
-        priority >= Self::MIN_PRIORITY && priority <= Self::MAX_PRIORITY
+        (Self::MIN_PRIORITY..=Self::MAX_PRIORITY).contains(&priority)
     }
 }

@@ -2,6 +2,7 @@ use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, Ac
 use tracing::{info, warn, error};
 
 use crate::infrastructure::messaging::outbox;
+use crate::modules::integrations::{DeviceAdapterFactory, DeviceType};
 
 /// Background worker for bandwidth profile management:
 /// - Apply pending bandwidth profiles to network devices
@@ -170,16 +171,72 @@ impl BandwidthWorker {
     /// Apply bandwidth profile to a network device.
     async fn apply_to_device(
         &self,
-        _app: &crate::modules::bandwidth::domain::entities::bandwidth_application::Model,
+        app: &crate::modules::bandwidth::domain::entities::bandwidth_application::Model,
     ) -> anyhow::Result<()> {
-        // In production: use Mikrotik RouterOS API to set queue trees
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        use crate::modules::bandwidth::domain::entities::bandwidth_profile;
+        use crate::modules::device::domain::entities::network_device;
 
-        // Simulate occasional failures (10% failure rate)
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        if rng.gen_ratio(1, 10) {
-            return Err(anyhow::anyhow!("Simulated device connection timeout"));
+        // Fetch the bandwidth profile
+        let profile = bandwidth_profile::Entity::find_by_id(app.profile_id)
+            .one(&self.db)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to query bandwidth profile: {}", e))?
+            .ok_or_else(|| anyhow::anyhow!("Bandwidth profile {} not found", app.profile_id))?;
+
+        // Fetch the device if specified
+        let device = if let Some(device_id) = app.device_id {
+            network_device::Entity::find_by_id(device_id)
+                .one(&self.db)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to query device: {}", e))?
+        } else {
+            None
+        };
+
+        // Create adapter based on device type
+        if let Some(ref device) = device {
+            // Determine device type from model_id (1-100 = MikroTik, 101-200 = Huawei OLT)
+            let device_type = if device.device_model_id >= 101 && device.device_model_id <= 200 {
+                DeviceType::Olt
+            } else {
+                DeviceType::Router
+            };
+
+            if let Some(adapter) = DeviceAdapterFactory::create_for_device(
+                &device_type,
+                &device.management_ip,
+            ) {
+                // Apply bandwidth using the adapter
+                let queue_name = format!("bw_{}", app.subscription_id);
+                let target = &device.management_ip;
+
+                adapter.apply_bandwidth(
+                    &queue_name,
+                    target,
+                    profile.download_kbps.max(0) as u32,
+                    profile.upload_kbps.max(0) as u32,
+                ).await.map_err(|e| anyhow::anyhow!("Adapter error: {}", e))?;
+
+                info!(
+                    application_id = app.id,
+                    device_name = %device.name,
+                    profile_name = %profile.name,
+                    "Applied bandwidth profile via adapter"
+                );
+            } else {
+                warn!(
+                    application_id = app.id,
+                    device_model_id = device.device_model_id,
+                    "No adapter available for device model"
+                );
+                return Err(anyhow::anyhow!("No adapter for device model {}", device.device_model_id));
+            }
+        } else {
+            warn!(
+                application_id = app.id,
+                "No device specified for bandwidth application"
+            );
+            return Err(anyhow::anyhow!("No device specified for bandwidth application"));
         }
 
         Ok(())

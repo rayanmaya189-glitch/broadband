@@ -1,7 +1,8 @@
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait};
-use tracing::{info, warn, error};
+use tracing::{debug, info, warn, error};
 
 use crate::infrastructure::messaging::outbox;
+use crate::modules::integrations::{DeviceAdapterFactory, DeviceType};
 
 /// Background worker for device synchronization:
 /// - Poll device health status
@@ -182,13 +183,53 @@ impl DeviceSyncWorker {
         Ok(())
     }
 
-    /// Check device health via SNMP or API.
+    /// Check device health via real network device adapters.
     async fn check_device_health(
         &self,
-        _device: &crate::modules::device::domain::entities::network_device::Model,
+        device: &crate::modules::device::domain::entities::network_device::Model,
     ) -> i32 {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        rng.gen_range(70..100)
+        // Determine device type from model_id (1-100 = MikroTik, 101-200 = Huawei OLT)
+        let device_type = if device.device_model_id >= 101 && device.device_model_id <= 200 {
+            DeviceType::Olt
+        } else {
+            DeviceType::Router
+        };
+
+        if let Some(adapter) = DeviceAdapterFactory::create_for_device(
+            &device_type,
+            &device.management_ip,
+        ) {
+            match adapter.get_health_score().await {
+                Ok(score) => {
+                    debug!(
+                        device_id = device.id,
+                        device_name = %device.name,
+                        health_score = score,
+                        "Device health score from adapter"
+                    );
+                    score
+                }
+                Err(e) => {
+                    warn!(
+                        device_id = device.id,
+                        device_name = %device.name,
+                        error = %e,
+                        "Failed to get device health from adapter, using fallback"
+                    );
+                    // Fallback: return degraded score (50) to avoid false offline alerts
+                    50
+                }
+            }
+        } else {
+            // No adapter available for this device type, use simulated health
+            warn!(
+                device_id = device.id,
+                device_name = %device.name,
+                "No adapter available for device type, using simulated health"
+            );
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            rng.gen_range(70..100)
+        }
     }
 }

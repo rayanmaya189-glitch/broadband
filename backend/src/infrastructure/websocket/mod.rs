@@ -157,7 +157,7 @@ async fn handle_socket(
 
     if let Ok(welcome_json) = serde_json::to_string(&welcome) {
         let _ = sender
-            .send(axum::extract::ws::Message::Text(welcome_json.into()))
+            .send(axum::extract::ws::Message::Text(welcome_json))
             .await;
     }
 

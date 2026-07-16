@@ -42,10 +42,6 @@ impl AuthRules {
         let digits: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
         if digits.len() == 10 {
             matches!(digits.chars().next(), Some('6'..='9'))
-        } else if digits.len() == 12 && digits.starts_with("91") {
-            true
-        } else {
-            false
-        }
+        } else { digits.len() == 12 && digits.starts_with("91") }
     }
 }

@@ -18,7 +18,7 @@ impl ApprovalRepository {
             requested_by: Set(request.requested_by),
             branch_id: Set(request.branch_id),
             status: Set(request.status.to_string()),
-            payload: Set(request.payload.clone().into()),
+            payload: Set(request.payload.clone()),
             reason: Set(request.reason.clone()),
             reviewer_id: Set(request.reviewer_id),
             reviewer_comment: Set(request.reviewer_comment.clone()),

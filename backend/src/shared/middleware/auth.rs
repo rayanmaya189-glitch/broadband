@@ -9,6 +9,7 @@ use crate::shared::app_state::AppState;
 
 /// User context extracted from JWT token + Redis permissions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct UserContext {
     pub user_id: i64,
     pub email: String,
@@ -18,18 +19,6 @@ pub struct UserContext {
     pub permissions: Vec<String>,
 }
 
-impl Default for UserContext {
-    fn default() -> Self {
-        Self {
-            user_id: 0,
-            email: String::new(),
-            role: String::new(),
-            branch_id: None,
-            is_company_wide: false,
-            permissions: Vec::new(),
-        }
-    }
-}
 
 #[axum::async_trait]
 impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {

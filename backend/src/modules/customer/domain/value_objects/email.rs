@@ -67,7 +67,7 @@ impl Email {
 
     /// Get the domain part of the email
     pub fn domain(&self) -> &str {
-        self.0.split('@').last().unwrap_or("")
+        self.0.split('@').next_back().unwrap_or("")
     }
 }
 

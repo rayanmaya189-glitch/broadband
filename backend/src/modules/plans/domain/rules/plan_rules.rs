@@ -19,8 +19,7 @@ impl PlanRules {
 
     /// Check if speed is within valid range
     pub fn is_valid_speed(download_mbps: i32, upload_mbps: i32) -> bool {
-        download_mbps >= Self::MIN_DOWNLOAD_MBPS
-            && download_mbps <= Self::MAX_DOWNLOAD_MBPS
+        (Self::MIN_DOWNLOAD_MBPS..=Self::MAX_DOWNLOAD_MBPS).contains(&download_mbps)
             && upload_mbps <= download_mbps
     }
 

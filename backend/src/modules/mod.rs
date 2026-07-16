@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod document;
 pub mod identity;
 pub mod installation;
+pub mod integrations;
 pub mod inventory;
 pub mod lead;
 pub mod network;

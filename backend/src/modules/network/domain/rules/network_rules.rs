@@ -29,12 +29,12 @@ impl NetworkRules {
 
     /// Check if VLAN tag is valid
     pub fn is_valid_vlan_tag(tag: i32) -> bool {
-        tag >= Self::MIN_VLAN_TAG && tag <= Self::MAX_VLAN_TAG
+        (Self::MIN_VLAN_TAG..=Self::MAX_VLAN_TAG).contains(&tag)
     }
 
     /// Check if VLAN tag is in management range
     pub fn is_management_vlan(tag: i32) -> bool {
-        tag >= Self::MANAGEMENT_VLAN_START && tag <= Self::MANAGEMENT_VLAN_END
+        (Self::MANAGEMENT_VLAN_START..=Self::MANAGEMENT_VLAN_END).contains(&tag)
     }
 
     /// Get VLAN type from tag range
