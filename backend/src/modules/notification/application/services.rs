@@ -73,3 +73,4 @@ impl NotificationService {
         Ok(Notification::find().all(db).await?)
     }
 }
+

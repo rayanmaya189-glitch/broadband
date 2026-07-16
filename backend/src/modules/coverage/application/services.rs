@@ -64,3 +64,4 @@ impl CoverageService {
         Ok(area.insert(db).await?)
     }
 }
+

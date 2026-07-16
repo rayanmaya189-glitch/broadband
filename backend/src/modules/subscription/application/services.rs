@@ -92,3 +92,4 @@ impl SubscriptionService {
         Ok(active.update(db).await?)
     }
 }
+

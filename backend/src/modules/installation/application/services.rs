@@ -94,3 +94,4 @@ impl InstallationService {
         Ok(active.update(db).await?)
     }
 }
+

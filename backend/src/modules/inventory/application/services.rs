@@ -70,3 +70,4 @@ impl InventoryService {
             .await?)
     }
 }
+

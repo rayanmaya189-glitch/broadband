@@ -56,3 +56,4 @@ impl DiscoveryService {
         Ok(active.update(db).await?)
     }
 }
+

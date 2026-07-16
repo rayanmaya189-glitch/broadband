@@ -41,3 +41,4 @@ impl AuditService {
         Ok(AuditLog::find().all(db).await?)
     }
 }
+

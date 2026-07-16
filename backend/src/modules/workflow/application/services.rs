@@ -110,3 +110,4 @@ impl ApprovalService {
         ApprovalRepository::reject(db, id, reviewer_id, comment).await
     }
 }
+
