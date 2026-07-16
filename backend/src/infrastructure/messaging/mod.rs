@@ -1,6 +1,7 @@
 pub mod nats_client;
 pub mod outbox;
 pub mod outbox_entity;
+pub mod subscribers;
 
 use async_nats::Client;
 use chrono::{DateTime, Utc};

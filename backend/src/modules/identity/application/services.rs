@@ -1,6 +1,6 @@
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, EncodingKey, Header};
+// Note: JWT encoding is now handled by JwtKeyPair (RS256) — no more direct encode calls
 use rand::Rng;
 use redis::AsyncCommands;
 use sea_orm::{
@@ -15,6 +15,7 @@ use crate::modules::security::domain::entities::{
     permission as perm_entity, role, role_permission, user_role,
 };
 use crate::shared::errors::AppError;
+use crate::shared::utils::jwt_keys::{JwtKeyPair, StandardClaims};
 
 /// Redis key prefix for user permissions
 const REDIS_PERMS_PREFIX: &str = "aeroxe:user:";
@@ -246,6 +247,7 @@ impl IdentityService {
         redis: &mut redis::aio::ConnectionManager,
         settings: &crate::config::settings::Settings,
         refresh_token: &str,
+        jwt_keys: &JwtKeyPair,
     ) -> Result<(String, String, user::Model), AppError> {
         let token_hash = Self::hash_token(refresh_token);
 
@@ -311,7 +313,7 @@ impl IdentityService {
 
         // Generate new tokens
         let access_token =
-            Self::generate_access_token(&user_model, settings, &role, branch_id, is_company_wide)?;
+            Self::generate_access_token(&user_model, settings, &role, branch_id, is_company_wide, jwt_keys)?;
         let new_refresh_token = Self::generate_refresh_token();
         let new_refresh_hash = Self::hash_token(&new_refresh_token);
 
@@ -334,6 +336,7 @@ impl IdentityService {
         settings: &crate::config::settings::Settings,
         email: &str,
         password: &str,
+        jwt_keys: &JwtKeyPair,
     ) -> Result<(String, String, user::Model), AppError> {
         let user_model = user::Entity::find()
             .filter(user::Column::Email.eq(email))
@@ -396,6 +399,7 @@ impl IdentityService {
             &role,
             branch_id,
             is_company_wide,
+            jwt_keys,
         )?;
         let refresh_token = Self::generate_refresh_token();
         let refresh_token_hash = Self::hash_token(&refresh_token);
@@ -412,31 +416,26 @@ impl IdentityService {
         Ok((access_token, refresh_token, updated_user))
     }
 
-    /// Generate JWT with identity claims only (no permissions - stored in Redis)
+    /// Generate JWT with RS256 asymmetric signing (identity claims only — permissions stored in Redis).
     fn generate_access_token(
         user: &user::Model,
         settings: &crate::config::settings::Settings,
         role: &str,
         branch_id: Option<i64>,
         is_company_wide: bool,
+        jwt_keys: &JwtKeyPair,
     ) -> Result<String, AppError> {
-        let claims = serde_json::json!({
-            "sub": user.id.to_string(),
-            "email": user.email,
-            "name": user.name,
-            "role": role,
-            "branch_id": branch_id,
-            "is_company_wide": is_company_wide,
-            "iat": Utc::now().timestamp(),
-            "exp": (Utc::now() + Duration::seconds(settings.jwt_access_token_ttl_secs)).timestamp(),
-        });
-        let token = encode(
-            &Header::new(jsonwebtoken::Algorithm::HS256),
-            &claims,
-            &EncodingKey::from_secret(settings.jwt_secret.as_bytes()),
-        )
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT encoding error: {}", e)))?;
-        Ok(token)
+        let claims = StandardClaims {
+            sub: user.id.to_string(),
+            email: user.email.clone(),
+            name: user.name.clone(),
+            role: role.to_string(),
+            branch_id,
+            is_company_wide,
+            iat: Utc::now().timestamp(),
+            exp: (Utc::now() + Duration::seconds(settings.jwt_access_token_ttl_secs)).timestamp(),
+        };
+        jwt_keys.sign(&claims).map_err(|e| AppError::Internal(anyhow::anyhow!("JWT signing error: {}", e)))
     }
 
     fn generate_refresh_token() -> String {

@@ -41,6 +41,16 @@ argon2 = { version = "0.5", features = ["std", "password-hash"] }
 rand = "0.8"
 uuid = { version = "1", features = ["v4", "serde"] }
 
+# RSA key generation for JWT RS256
+rsa = { version = "0.9", features = ["pem"] }
+pkcs8 = "0.10"
+
+# SHA1 for TOTP (RFC 6238 authenticator compatibility)
+sha1 = "0.10"
+
+# Prometheus metrics
+prometheus = "0.13"
+
 # DateTime
 chrono = { version = "0.4", features = ["serde"] }
 

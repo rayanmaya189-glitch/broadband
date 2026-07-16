@@ -14,7 +14,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use aeroxe_backend::config::settings::Settings;
 use aeroxe_backend::infrastructure::cache::create_redis_pool;
 use aeroxe_backend::infrastructure::database::create_database_pool;
+use aeroxe_backend::infrastructure::metrics::create_metrics;
 use aeroxe_backend::shared::app_state::AppState;
+use aeroxe_backend::shared::utils::jwt_keys::init_jwt_keys;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -74,8 +76,15 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Initialize JWT RS256 key pair
+    let jwt_keys = init_jwt_keys(&settings.jwt_private_key_pem, &settings.jwt_public_key_pem)?;
+    tracing::info!("JWT RS256 keys ready");
+
+    // Initialize global JWT keys for branch_scope middleware
+    aeroxe_backend::shared::middleware::branch_scope::init_jwt_keys_global(jwt_keys.clone());
+
     // Build shared state
-    let mut app_state = AppState::new(db, redis, settings.clone());
+    let mut app_state = AppState::new(db, redis, settings.clone(), jwt_keys.clone());
     if let Some(client) = nats_client {
         app_state = app_state.with_nats(client);
     }
@@ -89,6 +98,9 @@ async fn main() -> anyhow::Result<()> {
             tracing::warn!(error = %e, "Failed to initialize storage service, file uploads will be unavailable");
         }
     }
+    // Initialize Prometheus metrics
+    let metrics = create_metrics();
+    app_state = app_state.with_metrics(metrics.clone());
     let state = Arc::new(app_state);
 
     // Build CORS layer
@@ -123,11 +135,13 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
 
-    // Start outbox worker in background (if NATS is available)
+    // Start outbox worker and NATS subscribers (if NATS is available)
     if let Some(nats_client) = state.nats.clone() {
+        // Start outbox worker
         let outbox_db = state.db.clone();
+        let outbox_client = nats_client.clone();
         let outbox_publisher =
-            aeroxe_backend::infrastructure::messaging::EventPublisher::new(nats_client);
+            aeroxe_backend::infrastructure::messaging::EventPublisher::new(outbox_client);
         let outbox_worker = aeroxe_backend::workers::outbox_worker::OutboxWorker::new(
             std::sync::Arc::new(outbox_db),
             outbox_publisher,
@@ -136,6 +150,17 @@ async fn main() -> anyhow::Result<()> {
             outbox_worker.run().await;
         });
         tracing::info!("Outbox worker started");
+
+        // Start NATS event subscribers for cross-module communication
+        let sub_db = Arc::new(state.db.clone());
+        tokio::spawn(async move {
+            if let Err(e) = aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
+                nats_client, sub_db,
+            ).await {
+                tracing::error!(error = %e, "NATS subscribers failed");
+            }
+        });
+        tracing::info!("NATS event subscribers started");
     }
 
     // Start background workers

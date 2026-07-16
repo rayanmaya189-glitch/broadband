@@ -22,6 +22,7 @@ mod m014_create_events;
 mod m015_create_documents;
 mod m016_seed_roles_permissions;
 mod m017_seed_initial_plans;
+mod m018_add_2fa_backup_codes;
 
 pub struct Migrator;
 
@@ -74,6 +75,7 @@ impl MigratorTrait for Migrator {
             Box::new(m015_create_documents::Migration),
             Box::new(m016_seed_roles_permissions::Migration),
             Box::new(m017_seed_initial_plans::Migration),
+            Box::new(m018_add_2fa_backup_codes::Migration),
         ]
     }
 }

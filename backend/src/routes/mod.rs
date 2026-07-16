@@ -52,22 +52,33 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/installations", installation_routes())
         .nest("/payments", payment_routes())
         .nest("/approvals", approval_routes())
+        .route("/metrics", axum::routing::get(crate::infrastructure::metrics_handler::metrics_handler))
+        .route("/metrics/summary", axum::routing::get(crate::infrastructure::metrics_handler::metrics_summary_handler))
+        // Entity History & Rollback (§32)
+        .nest("/audit/history", audit_history_routes())
+}
+
+fn audit_history_routes() -> Router<SharedState> {
+    use crate::modules::audit::api::http as audit_http;
+    Router::new()
+        .route("/:entity_type", axum::routing::get(audit_http::search_history))
+        .route("/:entity_type/:history_id", axum::routing::get(audit_http::get_history_entry))
+        .route("/rollback/:entity_type/:entity_id", axum::routing::post(audit_http::rollback_entity))
+        .route("/entity-types", axum::routing::get(audit_http::list_entity_types))
 }
 
 fn auth_routes() -> Router<SharedState> {
+    use crate::modules::identity::api::http as id_http;
     Router::new()
-        .route(
-            "/register",
-            axum::routing::post(crate::modules::identity::api::http::register),
-        )
-        .route(
-            "/login",
-            axum::routing::post(crate::modules::identity::api::http::login),
-        )
-        .route(
-            "/refresh",
-            axum::routing::post(crate::modules::identity::api::http::refresh_token),
-        )
+        .route("/register", axum::routing::post(id_http::register))
+        .route("/login", axum::routing::post(id_http::login))
+        .route("/refresh", axum::routing::post(id_http::refresh_token))
+        // 2FA / TOTP (§28 Security)
+        .route("/2fa/setup", axum::routing::post(id_http::setup_2fa))
+        .route("/2fa/confirm", axum::routing::post(id_http::confirm_2fa))
+        .route("/2fa/verify/:user_id", axum::routing::post(id_http::verify_2fa))
+        .route("/2fa/backup-verify/:user_id", axum::routing::post(id_http::verify_backup_code))
+        .route("/2fa/disable", axum::routing::delete(id_http::disable_2fa))
 }
 
 fn user_routes() -> Router<SharedState> {
@@ -274,8 +285,7 @@ fn notification_routes() -> Router<SharedState> {
 }
 
 fn audit_routes() -> Router<SharedState> {
-    use crate::modules::audit::api::http;
-    Router::new().route("/logs", axum::routing::get(http::list_audit_logs))
+    Router::new()
 }
 
 fn lead_routes() -> Router<SharedState> {

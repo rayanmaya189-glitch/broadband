@@ -4,9 +4,24 @@ use axum::extract::FromRequestParts;
 use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::Response;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
 use crate::shared::middleware::auth::UserContext;
+use crate::shared::utils::jwt_keys::{JwtKeyPair, StandardClaims};
+use std::sync::OnceLock;
+
+/// Global JWT key pair reference for the branch scope middleware.
+/// Initialized once at startup via `init_jwt_keys_global`.
+static JWT_KEYS: OnceLock<JwtKeyPair> = OnceLock::new();
+
+/// Initialize the global JWT key pair. Call once at startup.
+pub fn init_jwt_keys_global(keys: JwtKeyPair) {
+    let _ = JWT_KEYS.set(keys);
+}
+
+/// Get the global JWT key pair reference.
+fn get_jwt_keys() -> Option<&'static JwtKeyPair> {
+    JWT_KEYS.get()
+}
 
 /// Company-wide roles that bypass branch filtering.
 const COMPANY_WIDE_ROLES: &[&str] = &["super_admin", "isp_owner", "finance_manager"];
@@ -66,50 +81,19 @@ fn extract_user_context_from_headers(headers: &axum::http::HeaderMap) -> Option<
 
     let token = auth_header.strip_prefix("Bearer ")?;
 
-    let mut validation = Validation::default();
-    validation.algorithms = vec![Algorithm::HS256];
+    let jwt_keys = get_jwt_keys()?;
+    let claims: StandardClaims = jwt_keys.verify(token).ok()?;
 
-    let secret = std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "aeroxe-jwt-secret-change-in-production".to_string());
-    let key = DecodingKey::from_secret(secret.as_bytes());
-
-    let token_data = decode::<serde_json::Value>(token, &key, &validation).ok()?;
-
-    let claims = token_data.claims;
-
-    let user_id = claims
-        .get("sub")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<i64>().ok())
-        .unwrap_or(0);
-
-    let email = claims
-        .get("email")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let role = claims
-        .get("role")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let branch_id = claims.get("branch_id").and_then(|v| v.as_i64());
-
-    let is_company_wide = claims
-        .get("is_company_wide")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let user_id = claims.sub.parse::<i64>().unwrap_or(0);
 
     // Note: permissions are NOT fetched here (no Redis call in middleware).
     // Full permissions are loaded by the auth extractor per-handler.
     Some(UserContext {
         user_id,
-        email,
-        role,
-        branch_id,
-        is_company_wide,
+        email: claims.email,
+        role: claims.role,
+        branch_id: claims.branch_id,
+        is_company_wide: claims.is_company_wide,
         permissions: Vec::new(), // Placeholder - full permissions loaded per-handler
     })
 }

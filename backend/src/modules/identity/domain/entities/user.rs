@@ -20,6 +20,7 @@ pub struct Model {
     pub locked_until: Option<chrono::DateTime<chrono::Utc>>,
     pub two_factor_enabled: bool,
     pub two_factor_secret: Option<String>,
+    pub two_factor_backup_codes: Option<String>,
     pub phone_verified: bool,
     pub email_verified: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,

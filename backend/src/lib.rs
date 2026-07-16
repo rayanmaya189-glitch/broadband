@@ -13,3 +13,6 @@ pub mod workers;
 // Re-export commonly used types
 pub use shared::app_state::AppState;
 pub use shared::errors::AppError;
+
+// Test infrastructure
+

@@ -17,8 +17,10 @@ pub struct Settings {
     // NATS
     pub nats_url: String,
 
-    // JWT
-    pub jwt_secret: String,
+    // JWT (RS256 asymmetric keys)
+    pub jwt_private_key_pem: Option<String>,
+    pub jwt_public_key_pem: Option<String>,
+    pub jwt_secret: String, // fallback for dev mode
     pub jwt_access_token_ttl_secs: i64,
     pub jwt_refresh_token_ttl_secs: i64,
 
@@ -63,6 +65,8 @@ impl Settings {
 
             nats_url: env::var("NATS_URL").unwrap_or_else(|_| "nats://127.0.0.1:4222".to_string()),
 
+            jwt_private_key_pem: env::var("JWT_PRIVATE_KEY").ok(),
+            jwt_public_key_pem: env::var("JWT_PUBLIC_KEY").ok(),
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "aeroxe-jwt-secret-change-in-production".to_string()),
             jwt_access_token_ttl_secs: env::var("JWT_ACCESS_TOKEN_TTL_SECS")

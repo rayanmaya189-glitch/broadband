@@ -1,0 +1,2 @@
+# Clippy strict linting per §30 Appendix B
+# Applied via cargo clippy command, not via rustflags to avoid cargo check issues

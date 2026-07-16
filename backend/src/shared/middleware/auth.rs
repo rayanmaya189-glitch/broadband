@@ -1,11 +1,11 @@
 use axum::http::request::Parts;
 use axum::http::StatusCode;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::modules::identity::application::services::IdentityService;
 use crate::shared::app_state::AppState;
+use crate::shared::utils::jwt_keys::StandardClaims;
 
 /// User context extracted from JWT token + Redis permissions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,42 +46,14 @@ impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
             )
         })?;
 
-        let mut validation = Validation::default();
-        validation.algorithms = vec![Algorithm::HS256];
-
-        let secret = std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| "aeroxe-jwt-secret-change-in-production".to_string());
-        let key = DecodingKey::from_secret(secret.as_bytes());
-
-        let token_data = decode::<serde_json::Value>(token, &key, &validation)
+        let claims: StandardClaims = state.jwt_keys.verify(token)
             .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
 
-        let claims = token_data.claims;
-
-        let user_id = claims
-            .get("sub")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-
-        let email = claims
-            .get("email")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let role = claims
-            .get("role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let branch_id = claims.get("branch_id").and_then(|v| v.as_i64());
-
-        let is_company_wide = claims
-            .get("is_company_wide")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let user_id = claims.sub.parse::<i64>().unwrap_or(0);
+        let email = claims.email;
+        let role = claims.role;
+        let branch_id = claims.branch_id;
+        let is_company_wide = claims.is_company_wide;
 
         // Fetch permissions from Redis (not from JWT) - prevents token leak exposure
         let mut redis = state.redis.clone();

@@ -4,6 +4,8 @@ use crate::config::settings::Settings;
 use crate::infrastructure::messaging::EventPublisher;
 use crate::infrastructure::storage::StorageService;
 use crate::shared::middleware::rate_limit::RateLimitStore;
+use crate::infrastructure::metrics::SharedMetrics;
+use crate::shared::utils::jwt_keys::JwtKeyPair;
 
 /// Shared application state available to all handlers.
 pub struct AppState {
@@ -14,6 +16,8 @@ pub struct AppState {
     pub settings: Settings,
     pub storage: Option<StorageService>,
     pub rate_limit_store: Arc<RateLimitStore>,
+    pub jwt_keys: Arc<JwtKeyPair>,
+    pub metrics: Option<SharedMetrics>,
 }
 
 impl AppState {
@@ -21,6 +25,7 @@ impl AppState {
         db: sea_orm::DatabaseConnection,
         redis: redis::aio::ConnectionManager,
         settings: Settings,
+        jwt_keys: JwtKeyPair,
     ) -> Self {
         Self {
             db,
@@ -30,6 +35,8 @@ impl AppState {
             settings,
             storage: None,
             rate_limit_store: Arc::new(RateLimitStore::new()),
+            jwt_keys: Arc::new(jwt_keys),
+            metrics: None,
         }
     }
 
@@ -41,6 +48,11 @@ impl AppState {
 
     pub fn with_storage(mut self, storage: StorageService) -> Self {
         self.storage = Some(storage);
+        self
+    }
+
+    pub fn with_metrics(mut self, metrics: SharedMetrics) -> Self {
+        self.metrics = Some(metrics);
         self
     }
 }
