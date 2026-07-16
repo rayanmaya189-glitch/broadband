@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// KYC verification records for customer identity verification.
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "kyc_verifications")]
+#[sea_orm(schema_name = "compliance", table_name = "")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

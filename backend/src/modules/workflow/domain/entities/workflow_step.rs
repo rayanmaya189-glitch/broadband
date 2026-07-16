@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Individual steps within a workflow instance.
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "workflow_steps")]
+#[sea_orm(schema_name = "workflow", table_name = "")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

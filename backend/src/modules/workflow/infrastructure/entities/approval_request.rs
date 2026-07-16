@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// SeaORM entity for approval_requests table
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "approval_requests")]
+#[sea_orm(schema_name = "workflow", table_name = "approval_requests")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Scheduled job definitions (cron-like recurring tasks).
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "job_definitions")]
+#[sea_orm(schema_name = "scheduler", table_name = "")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

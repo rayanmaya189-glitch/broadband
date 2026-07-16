@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 // --- Role ---
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "roles")]
+#[sea_orm(schema_name = "security", table_name = "")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

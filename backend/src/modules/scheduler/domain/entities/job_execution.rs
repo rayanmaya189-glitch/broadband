@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Record of each scheduled job execution.
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "job_executions")]
+#[sea_orm(schema_name = "scheduler", table_name = "")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

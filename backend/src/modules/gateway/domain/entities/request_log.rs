@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Request logs for gateway analytics and audit trail.
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "gateway_request_logs")]
+#[sea_orm(schema_name = "gateway", table_name = "")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
