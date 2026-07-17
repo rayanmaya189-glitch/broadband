@@ -1,7 +1,7 @@
 use crate::modules::device::domain::value_objects::{DeviceId, DeviceStatus, DeviceType};
 
 /// NetworkDevice aggregate root - represents a managed network device
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NetworkDevice {
     pub id: DeviceId,
     pub branch_id: i64,

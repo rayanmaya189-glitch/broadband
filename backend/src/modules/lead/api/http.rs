@@ -128,3 +128,129 @@ pub async fn update_lead_status(
 pub struct UpdateStatusRequest {
     pub status: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ConvertLeadRequest {
+    #[serde(default)]
+    pub plan_id: Option<i64>,
+    #[serde(default)]
+    pub address: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConvertLeadResponse {
+    pub lead_id: i64,
+    pub customer_id: i64,
+    pub customer_code: String,
+    pub status: String,
+}
+
+/// POST /api/v1/leads/:id/convert
+/// Converts a qualified lead into a customer, creates customer record,
+/// links the lead, and publishes lead.converted event.
+pub async fn convert_lead(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<ConvertLeadRequest>,
+) -> Result<(StatusCode, Json<ConvertLeadResponse>), AppError> {
+    require_permission(&user, "lead.convert").map_err(|e| AppError::Forbidden(e.1))?;
+
+    // 1. Fetch the lead
+    let lead = LeadService::get_lead(&state.db, id).await?;
+
+    // 2. Validate lead is in a convertible state
+    let convertible_statuses = ["quoted", "interested", "surveyed"];
+    if !convertible_statuses.contains(&lead.status.as_str()) {
+        return Err(AppError::Validation(format!(
+            "Lead in status '{}' cannot be converted. Must be: quoted, interested, or surveyed",
+            lead.status
+        )));
+    }
+
+    // 3. Create customer from lead data
+    let branch_id = user.branch_id.unwrap_or(lead.branch_id);
+    let customer = crate::modules::customer::application::services::CustomerService::create_customer(
+        &state.db,
+        branch_id,
+        lead.name.clone(),
+        lead.email.clone(),
+        lead.phone.clone(),
+        None,
+    )
+    .await?;
+
+    // 4. Link lead to the new customer
+    LeadService::update_lead_status(&state.db, id, "converted").await?;
+    LeadService::link_customer(&state.db, id, customer.id).await?;
+
+    // 5. Add installation address if provided
+    if let Some(addr) = req.address {
+        let line1 = addr["line1"].as_str().unwrap_or("");
+        let city = addr["city"].as_str().unwrap_or("");
+        let state_val = addr["state"].as_str().unwrap_or("");
+        let pincode = addr["pincode"].as_str().unwrap_or("");
+        if !line1.is_empty() && !city.is_empty() {
+            let _ = crate::modules::customer::application::services::CustomerService::add_address(
+                &state.db,
+                customer.id,
+                "installation".to_string(),
+                line1.to_string(),
+                addr["line2"].as_str().map(|s| s.to_string()),
+                city.to_string(),
+                state_val.to_string(),
+                pincode.to_string(),
+                addr["landmark"].as_str().map(|s| s.to_string()),
+            )
+            .await;
+        }
+    }
+
+    // 6. Log activity
+    let _ = LeadService::log_activity(
+        &state.db,
+        id,
+        "converted".to_string(),
+        format!("Lead converted to customer {}", customer.customer_code),
+        user.user_id,
+    )
+    .await;
+
+    // 7. Publish lead.converted event
+    let payload = serde_json::json!({
+        "lead_id": id,
+        "customer_id": customer.id,
+        "customer_code": customer.customer_code,
+        "lead_name": lead.name,
+        "plan_id": req.plan_id,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "lead.converted",
+        "lead",
+        id,
+        payload,
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    ).await {
+        tracing::error!(lead_id = id, error = %e, "Failed to publish lead.converted event");
+    }
+
+    tracing::info!(
+        lead_id = id,
+        customer_id = customer.id,
+        customer_code = %customer.customer_code,
+        "Lead successfully converted to customer"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ConvertLeadResponse {
+            lead_id: id,
+            customer_id: customer.id,
+            customer_code: customer.customer_code,
+            status: "converted".to_string(),
+        }),
+    ))
+}

@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use rust_decimal::Decimal;
+
     // ── Customer Lifecycle Tests ──
 
     #[test]
@@ -89,7 +91,8 @@ mod tests {
         let valid_phones = vec!["+919876543210", "9876543210", "+91-9876543210"];
         for phone in valid_phones {
             let cleaned: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
-            assert_eq!(cleaned.len(), 12, "Phone {} should have 12 digits", phone);
+            // +91 prefix gives 12 digits, without prefix gives 10 digits
+            assert!(cleaned.len() >= 10 && cleaned.len() <= 12, "Phone {} should have 10-12 digits, got {}", phone, cleaned.len());
         }
     }
 
@@ -118,18 +121,18 @@ mod tests {
     #[test]
     fn test_pro_rata_calculation() {
         // Per docs §10-subscriptions: mid-cycle plan change pro-rata
-        let old_plan_price = rust_decimal_macros::dec!(600.00);
-        let new_plan_price = rust_decimal_macros::dec!(1000.00);
-        let billing_period_days = 30;
-        let days_used = 10;
+        let old_plan_price = "600.00".parse::<Decimal>().unwrap();
+        let new_plan_price = "1000.00".parse::<Decimal>().unwrap();
+        let billing_period_days: i32 = 30;
+        let days_used: i32 = 10;
         let remaining_days = billing_period_days - days_used;
 
-        let old_daily = old_plan_price / billing_period_days;
-        let new_daily = new_plan_price / billing_period_days;
-        let credit = old_daily * remaining_days;
-        let charge = new_daily * remaining_days;
+        let old_daily = old_plan_price / Decimal::from(billing_period_days);
+        let new_daily = new_plan_price / Decimal::from(billing_period_days);
+        let credit = old_daily * Decimal::from(remaining_days);
+        let charge = new_daily * Decimal::from(remaining_days);
         let adjustment = charge - credit;
 
-        assert!(adjustment > rust_decimal_macros::dec!(0), "Upgrade should result in additional charge");
+        assert!(adjustment > Decimal::from(0), "Upgrade should result in additional charge");
     }
 }

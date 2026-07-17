@@ -12,5 +12,7 @@ pub mod huawei;
 pub mod sms;
 pub mod smtp;
 pub mod radius;
+pub mod whatsapp;
+pub mod push;
 
 pub use factory::{DeviceAdapterFactory, DeviceType, NetworkDeviceAdapter};

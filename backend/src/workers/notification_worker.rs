@@ -4,15 +4,19 @@ use tracing::{info, warn, error};
 use crate::modules::integrations::smtp::{LettreSmtpAdapter, EmailProvider};
 use crate::modules::integrations::sms::msg91::Msg91Adapter;
 use crate::modules::integrations::sms::SmsProvider;
+use crate::modules::integrations::whatsapp::WhatsAppAdapter;
+use crate::modules::integrations::push::FcmAdapter;
 
 /// Background worker for notification delivery:
 /// - Process queued notifications
-/// - Send via email/SMS/WhatsApp
+/// - Send via email/SMS/WhatsApp/Push
 /// - Retry failed notifications with exponential backoff
 pub struct NotificationWorker {
     db: DatabaseConnection,
     smtp_adapter: Option<LettreSmtpAdapter>,
     sms_adapter: Option<Msg91Adapter>,
+    whatsapp_adapter: Option<WhatsAppAdapter>,
+    push_adapter: Option<FcmAdapter>,
 }
 
 impl NotificationWorker {
@@ -31,10 +35,26 @@ impl NotificationWorker {
             warn!("MSG91 not configured (missing MSG91_AUTH_KEY), SMS notifications disabled");
             None
         };
+        let whatsapp_adapter = WhatsAppAdapter::from_env();
+        let whatsapp = if whatsapp_adapter.is_configured() {
+            Some(whatsapp_adapter)
+        } else {
+            warn!("WhatsApp Business API not configured, WhatsApp notifications disabled");
+            None
+        };
+        let push_adapter = FcmAdapter::from_env();
+        let push = if push_adapter.is_configured() {
+            Some(push_adapter)
+        } else {
+            warn!("FCM not configured, push notifications disabled");
+            None
+        };
         Self {
             db,
             smtp_adapter: smtp,
             sms_adapter: sms,
+            whatsapp_adapter: whatsapp,
+            push_adapter: push,
         }
     }
 
@@ -254,21 +274,58 @@ impl NotificationWorker {
                 info!(
                     notification_id = notif.id,
                     recipient = %notif.recipient_address,
-                    "Sending WhatsApp notification"
+                    "Sending WhatsApp notification via WhatsApp Business API"
                 );
-                // TODO: Wire WhatsApp Business API adapter
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                Ok(())
+                match self.send_whatsapp_notification(
+                    &notif.recipient_address,
+                    &notif.body,
+                ).await {
+                    Ok(status) => {
+                        info!(
+                            notification_id = notif.id,
+                            message_id = %status.message_id,
+                            "WhatsApp message sent successfully"
+                        );
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!(
+                            notification_id = notif.id,
+                            error = %e,
+                            "WhatsApp Business API send failed"
+                        );
+                        Err(anyhow::anyhow!("WhatsApp delivery failed: {}", e))
+                    }
+                }
             }
             "push" => {
                 info!(
                     notification_id = notif.id,
                     recipient = %notif.recipient_address,
-                    "Sending push notification"
+                    "Sending push notification via FCM"
                 );
-                // TODO: Wire FCM/APNs push adapter
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                Ok(())
+                match self.send_push_notification(
+                    &notif.recipient_address,
+                    notif.subject.as_deref().unwrap_or("AeroXe Notification"),
+                    &notif.body,
+                ).await {
+                    Ok(status) => {
+                        info!(
+                            notification_id = notif.id,
+                            message_id = %status.message_id,
+                            "Push notification sent successfully"
+                        );
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!(
+                            notification_id = notif.id,
+                            error = %e,
+                            "FCM push notification failed"
+                        );
+                        Err(anyhow::anyhow!("Push delivery failed: {}", e))
+                    }
+                }
             }
             "in_app" => {
                 info!(
@@ -308,5 +365,35 @@ impl NotificationWorker {
         let request_id = adapter.send_sms(phone, message, None).await
             .map_err(|e| anyhow::anyhow!("MSG91 error: {}", e))?;
         Ok(request_id)
+    }
+
+    /// Send WhatsApp notification via WhatsApp Business API
+    async fn send_whatsapp_notification(
+        &self,
+        phone: &str,
+        message: &str,
+    ) -> anyhow::Result<crate::modules::integrations::whatsapp::WhatsAppDeliveryStatus> {
+        let adapter = self.whatsapp_adapter.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("WhatsApp Business API not configured (missing WHATSAPP_ACCESS_TOKEN)"))?;
+        adapter.send_text_message(phone, message).await
+            .map_err(|e| anyhow::anyhow!("WhatsApp error: {}", e))
+    }
+
+    /// Send push notification via FCM
+    async fn send_push_notification(
+        &self,
+        device_token: &str,
+        title: &str,
+        body: &str,
+    ) -> anyhow::Result<crate::modules::integrations::push::PushDeliveryStatus> {
+        let _adapter = self.push_adapter.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("FCM not configured (missing FCM_SERVICE_ACCOUNT_KEY)"))?;
+        // NOTE: FCM send_push requires &mut self for token caching;
+        // Create a fresh adapter per call for simplicity
+        let mut adapter_clone = crate::modules::integrations::push::FcmAdapter::new(
+            crate::modules::integrations::push::FcmConfig::from_env()
+        );
+        adapter_clone.send_push(device_token, title, body, None).await
+            .map_err(|e| anyhow::anyhow!("FCM error: {}", e))
     }
 }

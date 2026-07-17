@@ -151,7 +151,9 @@ async fn handle_customer_event(
             // Create customer wallet for referral rewards
             if let Some(customer_id) = envelope.payload.get("customer_id") {
                 if let Some(id) = customer_id.as_i64() {
-                    let _ = create_customer_wallet(db, id).await;
+                    if let Err(e) = create_customer_wallet(db, id).await {
+                        error!(event_id = %envelope.event_id, customer_id = id, error = %e, "Failed to create customer wallet");
+                    }
                 }
             }
         }
@@ -163,7 +165,9 @@ async fn handle_customer_event(
             // Provision bandwidth profile for the customer's subscription
             if let Some(customer_id) = envelope.payload.get("customer_id") {
                 if let Some(id) = customer_id.as_i64() {
-                    let _ = provision_customer_bandwidth(db, id).await;
+                    if let Err(e) = provision_customer_bandwidth(db, id).await {
+                        error!(event_id = %envelope.event_id, customer_id = id, error = %e, "Failed to provision bandwidth");
+                    }
                 }
             }
         }
@@ -175,7 +179,9 @@ async fn handle_customer_event(
             // Revoke bandwidth by applying throttle profile
             if let Some(customer_id) = envelope.payload.get("customer_id") {
                 if let Some(id) = customer_id.as_i64() {
-                    let _ = revoke_customer_bandwidth(db, id).await;
+                    if let Err(e) = revoke_customer_bandwidth(db, id).await {
+                        error!(event_id = %envelope.event_id, customer_id = id, error = %e, "Failed to revoke bandwidth");
+                    }
                 }
             }
         }
@@ -187,7 +193,9 @@ async fn handle_customer_event(
             // Restore full bandwidth
             if let Some(customer_id) = envelope.payload.get("customer_id") {
                 if let Some(id) = customer_id.as_i64() {
-                    let _ = provision_customer_bandwidth(db, id).await;
+                    if let Err(e) = provision_customer_bandwidth(db, id).await {
+                        error!(event_id = %envelope.event_id, customer_id = id, error = %e, "Failed to restore bandwidth");
+                    }
                 }
             }
         }
@@ -199,20 +207,26 @@ async fn handle_customer_event(
             // Release all resources: bandwidth, PPPoE sessions
             if let Some(customer_id) = envelope.payload.get("customer_id") {
                 if let Some(id) = customer_id.as_i64() {
-                    let _ = cleanup_customer_resources(db, id).await;
+                    if let Err(e) = cleanup_customer_resources(db, id).await {
+                        error!(event_id = %envelope.event_id, customer_id = id, error = %e, "Failed to cleanup customer resources");
+                    }
                 }
             }
         }
         "customer.kyc.submitted" => {
             info!(event_id = %envelope.event_id, "KYC submitted - trigger verification workflow");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = handle_kyc_submitted(db, customer_id).await;
+                if let Err(e) = handle_kyc_submitted(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to handle KYC submission");
+                }
             }
         }
         "customer.kyc.verified" => {
             info!(event_id = %envelope.event_id, "KYC verified - activate customer account");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = handle_kyc_verified(db, customer_id).await;
+                if let Err(e) = handle_kyc_verified(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to handle KYC verification");
+                }
             }
         }
         _ => {
@@ -336,7 +350,7 @@ async fn revoke_customer_bandwidth(db: &DatabaseConnection, customer_id: i64) ->
 
 /// Handle KYC submission - update customer status to kyc_pending
 async fn handle_kyc_submitted(db: &DatabaseConnection, customer_id: i64) -> Result<(), AppError> {
-    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
     use crate::modules::customer::domain::entities::customer;
 
     if let Some(cust) = customer::Entity::find_by_id(customer_id).one(db).await? {
@@ -461,31 +475,41 @@ async fn handle_subscription_event(
         "subscription.created" => {
             info!(event_id = %envelope.event_id, "New subscription - provision bandwidth profile");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = provision_customer_bandwidth(db, customer_id).await;
+                if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to provision bandwidth for new subscription");
+                }
             }
         }
         "subscription.suspended" => {
             info!(event_id = %envelope.event_id, "Subscription suspended - apply rate limit");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = revoke_customer_bandwidth(db, customer_id).await;
+                if let Err(e) = revoke_customer_bandwidth(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to revoke bandwidth for suspended subscription");
+                }
             }
         }
         "subscription.reactivated" => {
             info!(event_id = %envelope.event_id, "Subscription reactivated - restore bandwidth");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = provision_customer_bandwidth(db, customer_id).await;
+                if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to restore bandwidth for reactivated subscription");
+                }
             }
         }
         "subscription.cancelled" => {
             info!(event_id = %envelope.event_id, "Subscription cancelled - cleanup resources");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = cleanup_customer_resources(db, customer_id).await;
+                if let Err(e) = cleanup_customer_resources(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to cleanup resources for cancelled subscription");
+                }
             }
         }
         "subscription.upgraded" | "subscription.downgraded" => {
             info!(event_id = %envelope.event_id, event_type = %envelope.event_type, "Plan changed - re-provision bandwidth");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = provision_customer_bandwidth(db, customer_id).await;
+                if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to re-provision bandwidth after plan change");
+                }
             }
         }
         _ => {
@@ -555,11 +579,13 @@ async fn handle_invoice_event(
                 envelope.payload.get("invoice_number").and_then(|v| v.as_str()),
                 envelope.payload.get("total_amount"),
             ) {
-                let _ = create_notification(
+                if let Err(e) = create_notification(
                     db, customer_id, "email",
                     &format!("Payment Reminder - Invoice {}", invoice_number),
                     &format!("Dear customer, your invoice {} for ₹{} is due. Please make the payment to avoid service interruption.", invoice_number, total),
-                ).await;
+                ).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create invoice notification");
+                }
             }
         }
         "invoice.sent" => {
@@ -571,11 +597,13 @@ async fn handle_invoice_event(
                 envelope.payload.get("customer_id").and_then(|v| v.as_i64()),
                 envelope.payload.get("invoice_number").and_then(|v| v.as_str()),
             ) {
-                let _ = create_notification(
+                if let Err(e) = create_notification(
                     db, customer_id, "sms",
                     &format!("URGENT: Invoice {} is overdue. Pay immediately to avoid service suspension.", invoice_number),
                     &format!("Payment overdue for invoice {}. Please pay now.", invoice_number),
-                ).await;
+                ).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create overdue notification");
+                }
             }
         }
         "invoice.voided" => {
@@ -597,26 +625,32 @@ async fn handle_payment_event(
             info!(event_id = %envelope.event_id, "Payment completed - mark invoice paid");
             // Update invoice status to paid
             if let Some(invoice_id) = envelope.payload.get("invoice_id").and_then(|v| v.as_i64()) {
-                let _ = mark_invoice_paid(db, invoice_id).await;
+                if let Err(e) = mark_invoice_paid(db, invoice_id).await {
+                    error!(event_id = %envelope.event_id, invoice_id, error = %e, "Failed to mark invoice as paid");
+                }
             }
             // Send payment confirmation notification
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
                 let amount = envelope.payload.get("amount").map(|v| v.to_string()).unwrap_or_default();
-                let _ = create_notification(
+                if let Err(e) = create_notification(
                     db, customer_id, "email",
                     "Payment Confirmation",
                     &format!("Your payment of ₹{} has been received successfully.", amount),
-                ).await;
+                ).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create payment confirmation notification");
+                }
             }
         }
         "payment.failed" => {
             info!(event_id = %envelope.event_id, "Payment failed - notify customer");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let _ = create_notification(
+                if let Err(e) = create_notification(
                     db, customer_id, "email",
                     "Payment Failed",
                     "Your payment could not be processed. Please try again or contact support.",
-                ).await;
+                ).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create payment failure notification");
+                }
             }
         }
         "refund.approved" => {
@@ -626,11 +660,13 @@ async fn handle_payment_event(
             info!(event_id = %envelope.event_id, "Refund processed - update accounting");
             if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
                 let amount = envelope.payload.get("amount").map(|v| v.to_string()).unwrap_or_default();
-                let _ = create_notification(
+                if let Err(e) = create_notification(
                     db, customer_id, "email",
                     "Refund Processed",
                     &format!("Your refund of ₹{} has been processed.", amount),
-                ).await;
+                ).await {
+                    error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create refund notification");
+                }
             }
         }
         _ => {

@@ -29,21 +29,22 @@ pub fn hash_pii(prefix: &str, value: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Mask phone number for display: +919876543210 → +91******3210
+/// Mask phone number for display: +919876543210 → +91*******3210
 pub fn mask_phone(phone: &str) -> String {
     if phone.len() > 8 {
-        // Find the prefix length: +XX (country code) = 3 chars for +91, variable for others
+        // Detect country code: +XX (2-3 digits for India, US, UK, etc.)
         let prefix_len = if let Some(rest) = phone.strip_prefix('+') {
-            // Find first digit after '+' to determine country code length
-            let digits_start = rest.find(|c: char| c.is_ascii_digit()).map(|i| i + 1).unwrap_or(1);
-            // Include '+' and the country code digits (e.g., +91 = 3 chars)
-            rest[digits_start..].find(|c: char| !c.is_ascii_digit()).map(|i| i + digits_start).unwrap_or(phone.len())
+            // Country codes are typically 1-3 digits after the '+'
+            let code_end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+            // Cap at 2 digits max (covers +1, +44, +91, +92, etc.)
+            let code_len = code_end.min(2);
+            code_len + 1 // +1 for the '+' character itself
         } else {
             0
         };
         let suffix_len = 4;
-        let mask_len = phone.len() - prefix_len - suffix_len;
-        if mask_len > 0 {
+        if phone.len() > prefix_len + suffix_len {
+            let mask_len = phone.len() - prefix_len - suffix_len;
             format!("{}{}{}",
                 &phone[..prefix_len],
                 "*".repeat(mask_len),

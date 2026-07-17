@@ -119,7 +119,30 @@ impl MonitoringWorker {
                         created_at: chrono::Utc::now(),
                     };
 
-                    // TODO: Save to database
+                    // Save metric to database
+                    let active_model = metric_record::ActiveModel {
+                        id: sea_orm::ActiveValue::NotSet,
+                        device_id: sea_orm::ActiveValue::Set(device.id),
+                        branch_id: sea_orm::ActiveValue::Set(device.branch_id),
+                        metric_name: sea_orm::ActiveValue::Set("device_health".to_string()),
+                        metric_value: sea_orm::ActiveValue::Set(health_score as f64),
+                        unit: sea_orm::ActiveValue::Set(Some("score".to_string())),
+                        tags: sea_orm::ActiveValue::Set(None),
+                        recorded_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                        created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+                    };
+
+                    if let Err(e) = metric_record::Entity::insert(active_model)
+                        .exec(&self.db)
+                        .await
+                    {
+                        warn!(
+                            device_id = device.id,
+                            error = %e,
+                            "Failed to save metric record to database"
+                        );
+                    }
+
                     metrics.push(metric);
 
                     // Check if health score requires alert
@@ -192,13 +215,53 @@ impl MonitoringWorker {
             updated_at: chrono::Utc::now(),
         };
 
-        // TODO: Save alert to database
-        info!(
-            device_id = device.id,
-            health_score,
-            severity,
-            "Created health alert"
-        );
+        // Save alert to database
+        let active_model = monitoring_alert::ActiveModel {
+            id: sea_orm::ActiveValue::NotSet,
+            device_id: sea_orm::ActiveValue::Set(device.id),
+            branch_id: sea_orm::ActiveValue::Set(device.branch_id),
+            alert_rule_id: sea_orm::ActiveValue::Set(None),
+            alert_type: sea_orm::ActiveValue::Set("device_health".to_string()),
+            severity: sea_orm::ActiveValue::Set(severity.to_string()),
+            status: sea_orm::ActiveValue::Set("active".to_string()),
+            title: sea_orm::ActiveValue::Set(format!("Device health degraded: {}", device.name)),
+            message: sea_orm::ActiveValue::Set(format!(
+                "Device {} has health score {} (threshold: {})",
+                device.name, health_score, monitoring_rules::HEALTH_SCORE_WARNING
+            )),
+            metric_name: sea_orm::ActiveValue::Set(Some("device_health".to_string())),
+            metric_value: sea_orm::ActiveValue::Set(Some(health_score as f64)),
+            threshold_value: sea_orm::ActiveValue::Set(Some(monitoring_rules::HEALTH_SCORE_WARNING as f64)),
+            acknowledged_by: sea_orm::ActiveValue::Set(None),
+            acknowledged_at: sea_orm::ActiveValue::Set(None),
+            resolved_by: sea_orm::ActiveValue::Set(None),
+            resolved_at: sea_orm::ActiveValue::Set(None),
+            resolution_notes: sea_orm::ActiveValue::Set(None),
+            created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+        };
+
+        match monitoring_alert::Entity::insert(active_model)
+            .exec(&self.db)
+            .await
+        {
+            Ok(result) => {
+                info!(
+                    alert_id = result.last_insert_id,
+                    device_id = device.id,
+                    health_score,
+                    severity,
+                    "Created health alert"
+                );
+            }
+            Err(e) => {
+                error!(
+                    device_id = device.id,
+                    error = %e,
+                    "Failed to save alert to database"
+                );
+            }
+        }
 
         // Publish alert event
         let payload = serde_json::json!({
@@ -257,7 +320,23 @@ impl MonitoringWorker {
                                 health_score,
                                 "Auto-resolving alert - device healthy"
                             );
-                            // TODO: Update alert status to auto_resolved
+                            // Update alert status to auto_resolved
+                        let mut active: monitoring_alert::ActiveModel = alert.clone().into();
+                        active.status = sea_orm::ActiveValue::Set("auto_resolved".to_string());
+                        active.resolved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
+                        active.resolution_notes = sea_orm::ActiveValue::Set(Some("Device recovered automatically".to_string()));
+                        active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+
+                        if let Err(e) = monitoring_alert::Entity::update(active)
+                            .exec(&self.db)
+                            .await
+                        {
+                            warn!(
+                                alert_id = alert.id,
+                                error = %e,
+                                "Failed to auto-resolve alert"
+                            );
+                        }
                         }
                     }
                 }

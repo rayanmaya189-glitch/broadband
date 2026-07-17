@@ -1,7 +1,7 @@
 use crate::modules::compliance::domain::value_objects::{KycId, KycStatus};
 
 /// KycVerification aggregate root - represents a KYC verification record
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct KycVerification {
     pub id: KycId,
     pub customer_id: i64,

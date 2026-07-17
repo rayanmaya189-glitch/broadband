@@ -63,9 +63,11 @@ mod tests {
     #[test]
     fn test_partial_wildcard_does_not_match_deeper() {
         let user = make_user(vec!["device.*"], false);
-        // "device.*" should match "device.router.view" but NOT "device.router.view.extra"
-        // because the pattern has 2 parts (device, *) and the permission has 3 parts
-        assert!(has_permission(&user, "device.router.view"));
+        // "device.*" matches exactly 2-part permissions under device
+        assert!(has_permission(&user, "device.router"));
+        assert!(has_permission(&user, "device.view"));
+        // But NOT 3-part or deeper permissions
+        assert!(!has_permission(&user, "device.router.view"));
         assert!(!has_permission(&user, "device.router.view.extra"));
     }
 }

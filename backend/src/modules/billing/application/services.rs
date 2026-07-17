@@ -187,10 +187,21 @@ impl BillingService {
                 continue; // Skip if already invoiced
             }
 
-            // TODO: Fetch plan price from plans module (needs cross-module service call)
-            // For now, create a placeholder invoice
+            // Fetch plan price from plans module
+            use crate::modules::plans::domain::entities::{PlanPricing, PlanPricingColumn};
+            let pricing = PlanPricing::find()
+                .filter(PlanPricingColumn::PlanId.eq(sub.plan_id))
+                .filter(PlanPricingColumn::BillingPeriodMonths.eq(sub.billing_period_months))
+                .filter(PlanPricingColumn::IsActive.eq(true))
+                .one(db)
+                .await?;
+
+            let plan_price = pricing
+                .map(|p| p.price)
+                .unwrap_or(sea_orm::prelude::Decimal::ZERO);
+
             let period_start = sub.next_billing_date.unwrap_or(today);
-            let period_end = period_start + chrono::Duration::days(30);
+            let period_end = period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
 
             let now = chrono::Utc::now();
             let invoice_number = format!(
@@ -206,10 +217,10 @@ impl BillingService {
                 subscription_id: Set(sub.id),
                 billing_period_start: Set(period_start),
                 billing_period_end: Set(period_end),
-                subtotal: Set(sea_orm::prelude::Decimal::ZERO), // TODO: Fetch plan price
+                subtotal: Set(plan_price),
                 discount_amount: Set(sea_orm::prelude::Decimal::ZERO),
                 tax_amount: Set(sea_orm::prelude::Decimal::ZERO),
-                total_amount: Set(sea_orm::prelude::Decimal::ZERO), // TODO: Fetch plan price
+                total_amount: Set(plan_price),
                 currency: Set("INR".to_string()),
                 status: Set("pending".to_string()),
                 due_date: Set(period_end + chrono::Duration::days(15)),

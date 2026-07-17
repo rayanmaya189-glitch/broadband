@@ -1,7 +1,7 @@
 use crate::modules::plans::domain::value_objects::{PlanId, PlanStatus};
 
 /// Plan aggregate root - represents an ISP internet plan
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Plan {
     pub id: PlanId,
     pub slug: String,

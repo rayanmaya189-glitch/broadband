@@ -8,6 +8,7 @@ use crate::modules::scheduler::domain::entities::{
     JobDefinition, JobDefinitionActiveModel,
     JobExecutionActiveModel,
 };
+use crate::modules::scheduler::domain::value_objects::Schedule;
 
 /// Default timeout for worker execution (5 minutes)
 const WORKER_TIMEOUT_SECS: u64 = 300;
@@ -250,12 +251,38 @@ async fn execute_job(
 
 async fn update_job_after_run(db: &DatabaseConnection, job_id: i64, status: &str) {
     if let Ok(Some(job)) = JobDefinition::find_by_id(job_id).one(db).await {
+        // Clone fields before moving job into ActiveModel
+        let job_type = job.job_type.clone();
+        let schedule_str = job.schedule.clone();
+        let is_active = job.is_active;
+
         let mut active: JobDefinitionActiveModel = job.into();
         let now = Utc::now();
         active.last_run_at = Set(Some(now));
         active.last_run_status = Set(Some(status.to_string()));
         active.updated_at = Set(now);
-        active.next_run_at = Set(Some(now + chrono::Duration::hours(1)));
+
+        // Calculate next_run_at based on the job's schedule
+        let next_run = if is_active {
+            match Schedule::parse(&job_type, &schedule_str) {
+                Ok(schedule) => schedule.next_run_after(now),
+                Err(e) => {
+                    tracing::warn!(
+                        job_id,
+                        job_type = %job_type,
+                        schedule = %schedule_str,
+                        error = %e,
+                        "Scheduler: failed to parse schedule, disabling job"
+                    );
+                    active.is_active = Set(false);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        active.next_run_at = Set(next_run);
+
         let _ = active.update(db).await;
     }
 }

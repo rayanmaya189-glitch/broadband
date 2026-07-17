@@ -208,7 +208,7 @@ mod tests {
         .unwrap();
 
         customer.activate(true).unwrap();
-        let result = customer.suspend("non-payment");
+        let result = customer.suspend();
         assert!(result.is_ok());
         assert_eq!(customer.status, CustomerStatus::Suspended);
     }
@@ -228,8 +228,8 @@ mod tests {
         .unwrap();
 
         customer.activate(true).unwrap();
-        customer.suspend("non-payment").unwrap();
-        let result = customer.suspend("another reason");
+        customer.suspend().unwrap();
+        let result = customer.suspend();
         assert_eq!(result, Err(CustomerDomainError::AlreadySuspended));
     }
 

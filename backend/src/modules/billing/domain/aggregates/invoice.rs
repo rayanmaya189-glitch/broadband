@@ -145,9 +145,9 @@ mod tests {
             1,
             chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
-            Money::new(1000, 0),
-            Money::new(0, 0),
-            Money::new(180, 0),
+            Money::new(1000),
+            Money::new(0),
+            Money::new(180),
             chrono::NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
         );
         assert!(invoice.is_ok());
@@ -165,9 +165,9 @@ mod tests {
             1,
             chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
-            Money::new(1000, 0),
-            Money::new(0, 0),
-            Money::new(180, 0),
+            Money::new(1000),
+            Money::new(0),
+            Money::new(180),
             chrono::NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
         )
         .unwrap();
@@ -187,9 +187,9 @@ mod tests {
             1,
             chrono::NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
             chrono::NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
-            Money::new(1000, 0),
-            Money::new(0, 0),
-            Money::new(180, 0),
+            Money::new(1000),
+            Money::new(0),
+            Money::new(180),
             chrono::NaiveDate::from_ymd_opt(2026, 8, 15).unwrap(),
         )
         .unwrap();

@@ -51,8 +51,8 @@ impl Email {
             return false;
         }
 
-        // Must have at least one dot in domain
-        domain.contains('.')
+        // Must have at least one dot in domain and domain must not start with a dot
+        domain.contains('.') && !domain.starts_with('.')
     }
 
     /// Get the email as a string

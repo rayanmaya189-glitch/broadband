@@ -103,11 +103,38 @@ async fn main() -> anyhow::Result<()> {
     app_state = app_state.with_metrics(metrics.clone());
     let state = Arc::new(app_state);
 
-    // Build CORS layer
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // Build CORS layer - production lockdown
+    // In production, restrict origins to configured list; in development, allow any
+    let cors = if settings.app_env == "production" {
+        let origins: Vec<_> = settings
+            .cors_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::PATCH,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::ACCEPT,
+                "X-Request-ID".parse().unwrap(),
+                "X-Idempotency-Key".parse().unwrap(),
+            ])
+            .max_age(std::time::Duration::from_secs(3600))
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
 
     // Clone rate_limit_store for the middleware closure
     let rate_limit_store = state.rate_limit_store.clone();

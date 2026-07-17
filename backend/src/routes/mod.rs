@@ -18,10 +18,32 @@ async fn health_check() -> axum::Json<serde_json::Value> {
     }))
 }
 
-async fn readiness_check() -> axum::Json<serde_json::Value> {
+async fn readiness_check(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+) -> axum::Json<serde_json::Value> {
+    use sea_orm::{EntityTrait, QuerySelect};
+    use crate::modules::branches::domain::entities::branch;
+
+    let mut checks = serde_json::Map::new();
+    let mut is_ready = true;
+
+    // Check database connectivity by querying a simple table
+    match branch::Entity::find().limit(1).all(&state.db).await {
+        Ok(_) => {
+            checks.insert("database".to_string(), serde_json::json!("ok"));
+        }
+        Err(e) => {
+            checks.insert("database".to_string(), serde_json::json!({"error": e.to_string()}));
+            is_ready = false;
+        }
+    }
+
+    let status = if is_ready { "ready" } else { "not_ready" };
+
     axum::Json(serde_json::json!({
-        "status": "ready",
+        "status": status,
         "service": "aeroxe-backend",
+        "checks": checks,
     }))
 }
 
@@ -53,6 +75,7 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/installations", installation_routes())
         .nest("/payments", payment_routes())
         .nest("/approvals", approval_routes())
+        .nest("/monitoring", monitoring_routes())
         .route("/metrics", axum::routing::get(crate::infrastructure::metrics_handler::metrics_handler))
         .route("/metrics/summary", axum::routing::get(crate::infrastructure::metrics_handler::metrics_summary_handler))
         // Entity History & Rollback (§32)
@@ -299,6 +322,7 @@ fn lead_routes() -> Router<SharedState> {
             axum::routing::get(http::list_leads).post(http::create_lead),
         )
         .route("/:id/status", axum::routing::put(http::update_lead_status))
+        .route("/:id/convert", axum::routing::post(http::convert_lead))
 }
 
 fn referral_routes() -> Router<SharedState> {
@@ -396,6 +420,17 @@ fn payment_routes() -> Router<SharedState> {
             axum::routing::post(http::handle_payu_webhook),
         )
         .route("/:id/retry", axum::routing::post(http::retry_payment))
+}
+
+fn monitoring_routes() -> Router<SharedState> {
+    use crate::modules::monitoring::api::http as mon_http;
+    Router::new()
+        .route("/metrics", axum::routing::get(mon_http::list_metrics))
+        .route("/metrics/:device_id", axum::routing::get(mon_http::get_device_metrics))
+        .route("/alerts", axum::routing::get(mon_http::list_alerts).post(mon_http::create_alert))
+        .route("/alerts/stats", axum::routing::get(mon_http::get_alert_stats))
+        .route("/alerts/:id/acknowledge", axum::routing::post(mon_http::acknowledge_alert))
+        .route("/alerts/:id/resolve", axum::routing::post(mon_http::resolve_alert))
 }
 
 fn approval_routes() -> Router<SharedState> {

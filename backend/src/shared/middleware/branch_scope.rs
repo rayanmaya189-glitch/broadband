@@ -67,7 +67,7 @@ impl BranchScope {
         }
 
         let ids: Vec<String> = self.branch_ids.iter().map(|id| id.to_string()).collect();
-        format!("branch_id IN ({})", ids.join(","))
+        format!("branch_id IN ({})", ids.join(", "))
     }
 }
 

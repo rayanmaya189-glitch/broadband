@@ -1,7 +1,7 @@
 use crate::modules::document::domain::value_objects::{DocumentFileId, DocumentStatus};
 
 /// DocumentFile aggregate root - represents a stored document
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DocumentFile {
     pub id: DocumentFileId,
     pub filename: String,

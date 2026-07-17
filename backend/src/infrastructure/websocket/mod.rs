@@ -1,4 +1,5 @@
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::response::Response;
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -8,6 +9,7 @@ use tracing::{debug, info, warn};
 
 use crate::shared::app_state::SharedState;
 use crate::shared::middleware::auth::UserContext;
+use crate::shared::utils::jwt_keys::StandardClaims;
 
 /// WebSocket channels based on user roles
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -118,13 +120,61 @@ pub fn resolve_channels(user: &UserContext) -> Vec<WsChannel> {
     channels
 }
 
-/// WebSocket upgrade handler
+/// Query parameters for WebSocket upgrade.
+/// Supports both `?token=xxx` (JWT in query) and `?api_key=xxx` (API key auth).
+#[derive(Debug, Deserialize, Default)]
+pub struct WsQueryParams {
+    /// JWT access token passed as query parameter (for browser WebSocket clients
+    /// that cannot set the Authorization header during the upgrade).
+    #[serde(default)]
+    pub token: Option<String>,
+}
+
+/// WebSocket upgrade handler with token-based auth.
+///
+/// Browser WebSocket API does not support setting custom headers,
+/// so we accept JWT via query parameter `?token=xxx`.
+/// The token is verified against the same RS256 keypair used for REST auth.
 pub async fn ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
     State(state): State<SharedState>,
-    user: UserContext,
-) -> Response {
-    ws.on_upgrade(move |socket| handle_socket(socket, state, user))
+    axum::extract::Query(params): axum::extract::Query<WsQueryParams>,
+) -> Result<Response, (StatusCode, String)> {
+    // Extract token from query parameter
+    let token = params.token.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "Missing token query parameter. Use ?token=<jwt>".to_string(),
+        )
+    })?;
+
+    // Verify JWT token
+    let claims: StandardClaims = state.jwt_keys.verify(&token).map_err(|e| {
+        (
+            StatusCode::UNAUTHORIZED,
+            format!("Invalid token: {}", e),
+        )
+    })?;
+
+    let user_id = claims.sub.parse::<i64>().map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "Invalid user ID in token".to_string(),
+        )
+    })?;
+
+    // Build UserContext from JWT claims (same as REST middleware)
+    let user = UserContext {
+        user_id,
+        email: claims.email,
+        role: claims.role,
+        branch_id: claims.branch_id,
+        is_company_wide: claims.is_company_wide,
+        permissions: Vec::new(), // WS connections get role-based channel access, not granular permissions
+    };
+
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user))
+    )
 }
 
 /// Handle individual WebSocket connection
@@ -162,21 +212,37 @@ async fn handle_socket(
     }
 
     // Handle incoming WebSocket messages (client -> server)
-    while let Some(Ok(msg)) = receiver.next().await {
-        match msg {
-            axum::extract::ws::Message::Text(text) => {
-                if let Err(e) = handle_client_message(&user, text.to_string()).await {
-                    warn!(user_id = user_id, error = %e, "Error handling client message");
+    let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(30));
+    loop {
+        tokio::select! {
+            _ = heartbeat.tick() => {
+                // Send periodic ping to detect stale connections
+                if sender.send(axum::extract::ws::Message::Ping(vec![].into())).await.is_err() {
+                    warn!(user_id = user_id, "WebSocket heartbeat ping failed, closing");
+                    break;
                 }
             }
-            axum::extract::ws::Message::Ping(data) => {
-                let _ = sender.send(axum::extract::ws::Message::Pong(data)).await;
+            msg = receiver.next() => {
+                match msg {
+                    Some(Ok(axum::extract::ws::Message::Text(text))) => {
+                        if let Err(e) = handle_client_message(&user, text.to_string()).await {
+                            warn!(user_id = user_id, error = %e, "Error handling client message");
+                        }
+                    }
+                    Some(Ok(axum::extract::ws::Message::Ping(data))) => {
+                        let _ = sender.send(axum::extract::ws::Message::Pong(data)).await;
+                    }
+                    Some(Ok(axum::extract::ws::Message::Close(_))) => {
+                        info!(user_id = user_id, "WebSocket client disconnected");
+                        break;
+                    }
+                    None => {
+                        info!(user_id = user_id, "WebSocket stream ended");
+                        break;
+                    }
+                    _ => {}
+                }
             }
-            axum::extract::ws::Message::Close(_) => {
-                info!(user_id = user_id, "WebSocket client disconnected");
-                break;
-            }
-            _ => {}
         }
     }
 

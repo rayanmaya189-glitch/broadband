@@ -86,7 +86,7 @@ impl RateLimitStore {
             timestamps.push(now);
         }
 
-        let remaining = (tier.max_requests - count).max(0);
+        let remaining = (tier.max_requests - timestamps.len() as i32).max(0);
         let retry_after = if !allowed {
             timestamps.first().map(|ts| {
                 let expires_at = *ts + Duration::seconds(tier.window_seconds as i64);

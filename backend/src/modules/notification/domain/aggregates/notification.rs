@@ -99,7 +99,8 @@ impl Notification {
     }
 
     pub fn can_retry(&self) -> bool {
-        self.status == NotificationStatus::Failed && self.retry_count < self.max_retries
+        matches!(self.status, NotificationStatus::Retrying | NotificationStatus::Failed)
+            && self.retry_count < self.max_retries
     }
 
     pub fn retry_delay_seconds(&self) -> u64 {

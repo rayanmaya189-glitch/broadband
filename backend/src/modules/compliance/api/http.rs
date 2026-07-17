@@ -43,7 +43,7 @@ pub struct UpdateKycStatusRequest {
 pub async fn list_kyc_verifications(
     State(state): State<Arc<AppState>>,
     user: UserContext,
-    Query(p): Query<PaginationParams>,
+    Query(_p): Query<PaginationParams>,
 ) -> Result<Json<Vec<KycResponse>>, AppError> {
     require_permission(&user, "compliance.kyc.view").map_err(|e| AppError::Forbidden(e.1))?;
     let kycs = ComplianceService::list_kyc_verifications(&state.db).await?;

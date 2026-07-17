@@ -44,6 +44,16 @@ impl LeadService {
         Ok(lead.insert(db).await?)
     }
 
+    pub async fn get_lead(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::lead::domain::entities::lead::Model, AppError> {
+        Lead::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Lead {} not found", id)))
+    }
+
     pub async fn update_lead_status(
         db: &DatabaseConnection,
         id: i64,
@@ -57,6 +67,24 @@ impl LeadService {
         active.status = Set(new_status.to_string());
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
+    }
+
+    /// Link a converted lead to the newly created customer
+    pub async fn link_customer(
+        db: &DatabaseConnection,
+        lead_id: i64,
+        customer_id: i64,
+    ) -> Result<(), AppError> {
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+        let lead = Lead::find_by_id(lead_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Lead {} not found", lead_id)))?;
+        let mut active: crate::modules::lead::domain::entities::lead::ActiveModel = lead.into();
+        active.converted_customer_id = Set(Some(customer_id));
+        active.updated_at = Set(chrono::Utc::now());
+        active.update(db).await?;
+        Ok(())
     }
 
     pub async fn log_activity(

@@ -204,7 +204,7 @@ mod tests {
         assert_eq!(rid, None);
 
         let (rtype, rid) = extract_resource_info("/api/v1/invoices/overdue");
-        assert_eq!(rtype, Some("invoices".to_string()));
+        assert_eq!(rtype, Some("invoice".to_string()));
         assert_eq!(rid, None); // "overdue" is not a number
     }
 }

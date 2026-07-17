@@ -1,7 +1,7 @@
 use crate::modules::branches::domain::value_objects::{BranchId, BranchStatus};
 
 /// Branch aggregate root - represents a geographic service location
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Branch {
     pub id: BranchId,
     pub name: String,

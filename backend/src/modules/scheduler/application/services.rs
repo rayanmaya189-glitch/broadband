@@ -6,6 +6,7 @@ use crate::modules::scheduler::domain::entities::{
     JobDefinition, JobDefinitionActiveModel,
     JobExecution, JobExecutionActiveModel,
 };
+use crate::modules::scheduler::domain::value_objects::Schedule;
 
 /// Scheduler service for managing recurring and delayed jobs.
 pub struct SchedulerService;
@@ -36,6 +37,21 @@ impl SchedulerService {
         timeout_seconds: Option<i32>,
     ) -> Result<job_definition::Model, AppError> {
         let now = Utc::now();
+
+        // Calculate initial next_run_at based on schedule
+        let next_run = match Schedule::parse(&job_type, &schedule) {
+            Ok(sched) => sched.next_run_after(now),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    job_type = %job_type,
+                    schedule = %schedule,
+                    "Failed to parse schedule for initial next_run_at"
+                );
+                None
+            }
+        };
+
         let job = JobDefinitionActiveModel {
             name: Set(name),
             description: Set(description),
@@ -46,7 +62,7 @@ impl SchedulerService {
             payload: Set(payload),
             is_active: Set(true),
             timeout_seconds: Set(timeout_seconds),
-            next_run_at: Set(None),
+            next_run_at: Set(next_run),
             last_run_at: Set(None),
             last_run_status: Set(None),
             created_at: Set(now),
@@ -69,10 +85,36 @@ impl SchedulerService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Job definition {} not found", id)))?;
         let mut active: job_definition::ActiveModel = job.into();
-        if let Some(s) = schedule { active.schedule = Set(s); }
+
+        // If schedule or is_active changed, recalculate next_run_at
+        let mut recalc = false;
+        if let Some(ref s) = schedule {
+            active.schedule = Set(s.clone());
+            recalc = true;
+        }
         if let Some(p) = payload { active.payload = Set(p); }
-        if let Some(a) = is_active { active.is_active = Set(a); }
+        if let Some(a) = is_active {
+            active.is_active = Set(a);
+            recalc = true;
+        }
         if let Some(t) = timeout_seconds { active.timeout_seconds = Set(Some(t)); }
+
+        if recalc {
+            // Read the updated values to recalculate
+            let job_type_str = active.job_type.as_ref().clone();
+            let schedule_str = active.schedule.as_ref().clone();
+            let active_flag = *active.is_active.as_ref();
+            let next_run = if active_flag {
+                match Schedule::parse(&job_type_str, &schedule_str) {
+                    Ok(sched) => sched.next_run_after(Utc::now()),
+                    Err(_) => None,
+                }
+            } else {
+                None
+            };
+            active.next_run_at = Set(next_run);
+        }
+
         active.updated_at = Set(Utc::now());
         Ok(active.update(db).await?)
     }
@@ -211,4 +253,3 @@ impl SchedulerService {
         }))
     }
 }
-

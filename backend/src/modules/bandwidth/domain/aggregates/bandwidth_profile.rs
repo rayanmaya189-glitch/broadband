@@ -1,7 +1,7 @@
 use crate::modules::bandwidth::domain::value_objects::{BandwidthProfileId, BandwidthStatus};
 
 /// BandwidthProfile aggregate root - represents a traffic shaping profile
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BandwidthProfile {
     pub id: BandwidthProfileId,
     pub name: String,
