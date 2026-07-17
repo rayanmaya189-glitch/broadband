@@ -113,26 +113,40 @@ async fn main() -> anyhow::Result<()> {
     let rate_limit_store = state.rate_limit_store.clone();
 
     // Build application router with middlewares
+    // Layer order matters: outermost layer runs first on request, last on response
+    // IMPORTANT: CORS must be outermost to handle preflight OPTIONS before other layers
     let app = Router::new()
         .nest("/api/v1", aeroxe_backend::routes::v1_routes())
         .merge(aeroxe_backend::routes::health_routes())
+        // 1. Request body size limit (10 MB default)
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(10 * 1024 * 1024))
+        // 2. Security headers (adds headers to every response)
+        .layer(axum::middleware::from_fn(
+            aeroxe_backend::shared::middleware::security_headers::security_headers_middleware,
+        ))
+        // 3. Audit middleware (captures timing, logs after response)
+        .layer(axum::middleware::from_fn(
+            aeroxe_backend::shared::middleware::audit::audit_middleware,
+        ))
+        // 4. Rate limiting (with injected store)
         .layer(axum::middleware::from_fn({
             let store = rate_limit_store.clone();
             move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
                 let store = store.clone();
                 async move {
-                    // Inject RateLimitStore into request extensions
                     let mut req = req;
                     req.extensions_mut().insert(store);
                     aeroxe_backend::shared::middleware::rate_limit::rate_limit_middleware(req, next).await
                 }
             }
         }))
+        // 5. Branch scope (extracts JWT, sets BranchScope in extensions)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::branch_scope::branch_scope_middleware,
         ))
-        .layer(cors)
         .layer(TraceLayer::new_for_http())
+        // 6. CORS (outermost for preflight handling)
+        .layer(cors)
         .with_state(state.clone());
 
     // Start outbox worker and NATS subscribers (if NATS is available)

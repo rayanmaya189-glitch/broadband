@@ -7,6 +7,7 @@ pub fn health_routes() -> Router<SharedState> {
     Router::new()
         .route("/health", get(health_check))
         .route("/ready", get(readiness_check))
+        .route("/ws", get(crate::infrastructure::websocket::ws_handler))
 }
 
 async fn health_check() -> axum::Json<serde_json::Value> {

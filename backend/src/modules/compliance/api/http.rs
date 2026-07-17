@@ -7,8 +7,8 @@ use std::sync::Arc;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use crate::shared::primitives::PaginationParams;
 use crate::modules::compliance::application::services::ComplianceService;
+use crate::shared::primitives::PaginationParams;
 
 // ── KYC Verifications ──
 
@@ -46,7 +46,7 @@ pub async fn list_kyc_verifications(
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<Vec<KycResponse>>, AppError> {
     require_permission(&user, "compliance.kyc.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let (kycs, total_kyc) = ComplianceService::list_kyc_verifications(&state.db, p.page(), p.limit()).await?;
+    let kycs = ComplianceService::list_kyc_verifications(&state.db).await?;
     Ok(Json(kycs.into_iter().map(|k| KycResponse {
         id: k.id, customer_id: k.customer_id, document_type: k.document_type,
         status: k.status, provider: k.provider,
@@ -160,13 +160,14 @@ pub async fn grant_consent(
     user: UserContext,
     Json(req): Json<GrantConsentRequest>,
 ) -> Result<(StatusCode, Json<ConsentResponse>), AppError> {
+    let consent_type = req.consent_type.clone();
     let c = ComplianceService::grant_consent(
         &state.db, req.customer_id, req.consent_type, req.collection_channel,
         req.ip_address, req.user_agent,
     ).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db, "compliance.consent.granted", "consent", c.id,
-        serde_json::json!({"consent_id": c.id, "customer_id": c.customer_id, "consent_type": c.consent_type}), None,
+        serde_json::json!({"consent_id": c.id, "customer_id": c.customer_id, "consent_type": consent_type}), None,
         Some(user.user_id), user.branch_id,
     ).await {
         tracing::error!(error = %e, "Failed to publish compliance.consent.granted event");
@@ -182,10 +183,11 @@ pub async fn revoke_consent(
     user: UserContext,
     Json(req): Json<RevokeConsentRequest>,
 ) -> Result<StatusCode, AppError> {
+    let consent_type = req.consent_type.clone();
     ComplianceService::revoke_consent(&state.db, req.customer_id, req.consent_type).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db, "compliance.consent.revoked", "consent", req.customer_id,
-        serde_json::json!({"customer_id": req.customer_id, "consent_type": req.consent_type}), None,
+        serde_json::json!({"customer_id": req.customer_id, "consent_type": consent_type}), None,
         Some(user.user_id), user.branch_id,
     ).await {
         tracing::error!(error = %e, "Failed to publish compliance.consent.revoked event");
@@ -239,10 +241,9 @@ pub struct UpdateRetentionPolicyRequest {
 pub async fn list_retention_policies(
     State(state): State<Arc<AppState>>,
     user: UserContext,
-    Query(p): Query<PaginationParams>,
 ) -> Result<Json<Vec<RetentionPolicyResponse>>, AppError> {
     require_permission(&user, "compliance.retention.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let (policies, total_pol) = ComplianceService::list_retention_policies(&state.db, p.page(), p.limit()).await?;
+    let policies = ComplianceService::list_retention_policies(&state.db).await?;
     Ok(Json(policies.into_iter().map(|p| RetentionPolicyResponse {
         id: p.id, entity_type: p.entity_type, retention_days: p.retention_days,
         action: p.action, is_active: p.is_active, description: p.description, legal_basis: p.legal_basis,

@@ -69,8 +69,8 @@ impl OutboxWorker {
         let mut published_count: u64 = 0;
 
         for event in &events {
-            // Build NATS subject from event type
-            let subject = format!("aeroxe.{}", event.event_type);
+            // Build NATS subject from event type (matches subscriber expectations)
+            let subject = format!("events.{}", event.event_type);
 
             // Publish to NATS
             match self

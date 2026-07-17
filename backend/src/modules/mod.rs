@@ -3,6 +3,7 @@ pub mod audit;
 pub mod bandwidth;
 pub mod billing;
 pub mod branches;
+pub mod compliance;
 pub mod coverage;
 pub mod customer;
 pub mod device;
