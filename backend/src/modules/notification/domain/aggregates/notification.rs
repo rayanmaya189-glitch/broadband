@@ -1,4 +1,6 @@
-use crate::modules::notification::domain::value_objects::{NotificationChannel, NotificationId, NotificationStatus};
+use crate::modules::notification::domain::value_objects::{
+    NotificationChannel, NotificationId, NotificationStatus,
+};
 
 /// Notification aggregate root - represents a multi-channel notification
 #[derive(Debug, Clone)]
@@ -99,8 +101,10 @@ impl Notification {
     }
 
     pub fn can_retry(&self) -> bool {
-        matches!(self.status, NotificationStatus::Retrying | NotificationStatus::Failed)
-            && self.retry_count < self.max_retries
+        matches!(
+            self.status,
+            NotificationStatus::Retrying | NotificationStatus::Failed
+        ) && self.retry_count < self.max_retries
     }
 
     pub fn retry_delay_seconds(&self) -> u64 {
@@ -136,7 +140,8 @@ mod tests {
             "+919876543210".to_string(),
             None,
             "Your OTP is 123456".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
         notif.mark_sent();
         assert_eq!(notif.status, NotificationStatus::Sent);
         notif.mark_delivered().unwrap();
@@ -152,7 +157,8 @@ mod tests {
             "user@example.com".to_string(),
             None,
             "Body".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
         notif.mark_failed("SMTP error".to_string()).unwrap();
         assert!(notif.can_retry());
         assert_eq!(notif.retry_count, 1);

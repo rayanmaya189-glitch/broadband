@@ -31,8 +31,13 @@ pub enum BranchDomainError {
 impl std::fmt::Display for BranchDomainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidSlug => write!(f, "Branch slug must be lowercase alphanumeric with hyphens"),
-            Self::InvalidCode => write!(f, "Branch code must be 2-20 uppercase alphanumeric characters"),
+            Self::InvalidSlug => {
+                write!(f, "Branch slug must be lowercase alphanumeric with hyphens")
+            }
+            Self::InvalidCode => write!(
+                f,
+                "Branch code must be 2-20 uppercase alphanumeric characters"
+            ),
             Self::BranchNotFound(id) => write!(f, "Branch {} not found", id),
             Self::SlugAlreadyExists(slug) => write!(f, "Branch slug '{}' already exists", slug),
             Self::CodeAlreadyExists(code) => write!(f, "Branch code '{}' already exists", code),

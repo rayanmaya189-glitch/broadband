@@ -84,7 +84,8 @@ impl SubscriptionService {
         }
 
         let now = chrono::Utc::now();
-        let next_billing = now.date_naive() + chrono::Duration::days((sub.billing_period_months as i64) * 30);
+        let next_billing =
+            now.date_naive() + chrono::Duration::days((sub.billing_period_months as i64) * 30);
 
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("active".to_string());

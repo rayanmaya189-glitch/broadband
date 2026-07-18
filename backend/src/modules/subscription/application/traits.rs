@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type SubscriptionModel = crate::modules::subscription::domain::entities::subscription::Model;
 

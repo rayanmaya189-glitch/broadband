@@ -11,17 +11,21 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        crate::migration::drop_tables(manager, vec![
-            "approval_requests",
-            "approval_workflows",
-            "permission_group_permissions",
-            "permission_groups",
-            "user_roles",
-            "role_permissions",
-            "permissions",
-            "roles",
-            "user_sessions",
-            "users",
-        ]).await
+        crate::migration::drop_tables(
+            manager,
+            vec![
+                "approval_requests",
+                "approval_workflows",
+                "permission_group_permissions",
+                "permission_groups",
+                "user_roles",
+                "role_permissions",
+                "permissions",
+                "roles",
+                "user_sessions",
+                "users",
+            ],
+        )
+        .await
     }
 }

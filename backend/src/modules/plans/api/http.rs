@@ -136,10 +136,17 @@ pub async fn create_plan(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "plan.created", "plan", plan.id,
-        serde_json::json!({"plan_id": plan.id, "slug": plan.slug, "name": plan.name}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "plan.created",
+        "plan",
+        plan.id,
+        serde_json::json!({"plan_id": plan.id, "slug": plan.slug, "name": plan.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish plan.created event");
     }
     Ok((
@@ -177,10 +184,17 @@ pub async fn update_pricing(
         .map_err(|_| AppError::Validation("Invalid price".into()))?;
     PlanService::update_pricing(&state.db, id, req.billing_period_months, price).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "plan.pricing.updated", "plan", id,
-        serde_json::json!({"plan_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "plan.pricing.updated",
+        "plan",
+        id,
+        serde_json::json!({"plan_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish plan.pricing.updated event");
     }
     Ok(StatusCode::OK)
@@ -197,10 +211,17 @@ pub async fn approve_plan(
     }
     PlanService::approve_plan(&state.db, id, user.user_id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "plan.approved", "plan", id,
-        serde_json::json!({"plan_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "plan.approved",
+        "plan",
+        id,
+        serde_json::json!({"plan_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish plan.approved event");
     }
     Ok(StatusCode::OK)
@@ -217,10 +238,17 @@ pub async fn deactivate_plan(
     }
     PlanService::deactivate_plan(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "plan.deactivated", "plan", id,
-        serde_json::json!({"plan_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "plan.deactivated",
+        "plan",
+        id,
+        serde_json::json!({"plan_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish plan.deactivated event");
     }
     Ok(StatusCode::NO_CONTENT)

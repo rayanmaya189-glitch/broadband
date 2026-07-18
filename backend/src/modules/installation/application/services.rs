@@ -2,7 +2,10 @@ use crate::modules::installation::domain::entities::{
     InstallationOrder, InstallationOrderActiveModel, InstallationOrderColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{PaginatorTrait, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct InstallationService;
 
@@ -13,7 +16,10 @@ impl InstallationService {
         _page: u64,
         _limit: u64,
     ) -> Result<
-        (Vec<crate::modules::installation::domain::entities::installation_order::Model>, u64),
+        (
+            Vec<crate::modules::installation::domain::entities::installation_order::Model>,
+            u64,
+        ),
         AppError,
     > {
         let mut query = InstallationOrder::find();
@@ -97,4 +103,3 @@ impl InstallationService {
         Ok(active.update(db).await?)
     }
 }
-

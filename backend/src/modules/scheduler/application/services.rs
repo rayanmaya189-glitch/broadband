@@ -1,12 +1,14 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, QueryOrder, QuerySelect, PaginatorTrait};
-use chrono::Utc;
-use crate::shared::errors::AppError;
 use crate::modules::scheduler::domain::entities::{
-    job_definition, job_execution,
-    JobDefinition, JobDefinitionActiveModel,
-    JobExecution, JobExecutionActiveModel,
+    job_definition, job_execution, JobDefinition, JobDefinitionActiveModel, JobExecution,
+    JobExecutionActiveModel,
 };
 use crate::modules::scheduler::domain::value_objects::Schedule;
+use crate::shared::errors::AppError;
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
+};
 
 /// Scheduler service for managing recurring and delayed jobs.
 pub struct SchedulerService;
@@ -14,11 +16,16 @@ pub struct SchedulerService;
 impl SchedulerService {
     // ── Job Definitions ──
 
-    pub async fn list_job_definitions(db: &DatabaseConnection) -> Result<Vec<job_definition::Model>, AppError> {
+    pub async fn list_job_definitions(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<job_definition::Model>, AppError> {
         Ok(JobDefinition::find().all(db).await?)
     }
 
-    pub async fn get_job_definition(db: &DatabaseConnection, id: i64) -> Result<job_definition::Model, AppError> {
+    pub async fn get_job_definition(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<job_definition::Model, AppError> {
         JobDefinition::find_by_id(id)
             .one(db)
             .await?
@@ -92,12 +99,16 @@ impl SchedulerService {
             active.schedule = Set(s.clone());
             recalc = true;
         }
-        if let Some(p) = payload { active.payload = Set(p); }
+        if let Some(p) = payload {
+            active.payload = Set(p);
+        }
         if let Some(a) = is_active {
             active.is_active = Set(a);
             recalc = true;
         }
-        if let Some(t) = timeout_seconds { active.timeout_seconds = Set(Some(t)); }
+        if let Some(t) = timeout_seconds {
+            active.timeout_seconds = Set(Some(t));
+        }
 
         if recalc {
             // Read the updated values to recalculate
@@ -129,7 +140,9 @@ impl SchedulerService {
         Ok(())
     }
 
-    pub async fn get_due_jobs(db: &DatabaseConnection) -> Result<Vec<job_definition::Model>, AppError> {
+    pub async fn get_due_jobs(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<job_definition::Model>, AppError> {
         let now = Utc::now();
         Ok(JobDefinition::find()
             .filter(job_definition::Column::IsActive.eq(true))
@@ -140,7 +153,10 @@ impl SchedulerService {
 
     // ── Job Executions ──
 
-    pub async fn list_executions(db: &DatabaseConnection, job_definition_id: Option<i64>) -> Result<Vec<job_execution::Model>, AppError> {
+    pub async fn list_executions(
+        db: &DatabaseConnection,
+        job_definition_id: Option<i64>,
+    ) -> Result<Vec<job_execution::Model>, AppError> {
         let mut query = JobExecution::find();
         if let Some(jid) = job_definition_id {
             query = query.filter(job_execution::Column::JobDefinitionId.eq(jid));
@@ -180,7 +196,9 @@ impl SchedulerService {
         let exec = JobExecution::find_by_id(execution_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("Job execution {} not found", execution_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Job execution {} not found", execution_id))
+            })?;
         let mut active: job_execution::ActiveModel = exec.into();
         let started = *active.started_at.as_ref();
         let duration = Utc::now().signed_duration_since(started).num_milliseconds();
@@ -210,7 +228,9 @@ impl SchedulerService {
         let exec = JobExecution::find_by_id(execution_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("Job execution {} not found", execution_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Job execution {} not found", execution_id))
+            })?;
         let mut active: job_execution::ActiveModel = exec.into();
         let started = *active.started_at.as_ref();
         let duration = Utc::now().signed_duration_since(started).num_milliseconds();
@@ -232,15 +252,19 @@ impl SchedulerService {
         Ok(active.update(db).await?)
     }
 
-    pub async fn get_scheduler_stats(db: &DatabaseConnection) -> Result<serde_json::Value, AppError> {
+    pub async fn get_scheduler_stats(
+        db: &DatabaseConnection,
+    ) -> Result<serde_json::Value, AppError> {
         let total_jobs = JobDefinition::find().count(db).await? as i64;
         let active_jobs = JobDefinition::find()
             .filter(job_definition::Column::IsActive.eq(true))
-            .count(db).await? as i64;
+            .count(db)
+            .await? as i64;
         let total_executions = JobExecution::find().count(db).await? as i64;
         let failed_executions = JobExecution::find()
             .filter(job_execution::Column::Status.eq("failed"))
-            .count(db).await? as i64;
+            .count(db)
+            .await? as i64;
 
         Ok(serde_json::json!({
             "total_definitions": total_jobs,

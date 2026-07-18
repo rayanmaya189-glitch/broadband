@@ -10,7 +10,10 @@ impl ReferralRules {
 
     /// Check if referral code is valid format
     pub fn is_valid_referral_code(code: &str) -> bool {
-        code.len() == Self::REFERRAL_CODE_LENGTH && code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+        code.len() == Self::REFERRAL_CODE_LENGTH
+            && code
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
     }
 
     /// Check if customer can refer (not self-referral)

@@ -28,13 +28,15 @@ impl TemplateEngine {
         // ── Built-in templates ──
 
         // Invoice email template
-        let _ = hb.register_template_string("invoice_email",
+        let _ = hb.register_template_string(
+            "invoice_email",
             "Subject: Invoice {{invoice_number}} from AeroXe Broadband\n\n\
              Dear {{customer_name}},\n\n\
              Your invoice {{invoice_number}} for ₹{{total_amount}} is due on {{due_date}}.\n\n\
              Please make the payment to avoid service interruption.\n\n\
              Payment Link: {{payment_url}}\n\n\
-             Thank you,\nAeroXe Broadband Team");
+             Thank you,\nAeroXe Broadband Team",
+        );
 
         // Payment reminder
         let _ = hb.register_template_string("payment_reminder",
@@ -47,21 +49,26 @@ impl TemplateEngine {
              AeroXe Broadband Team");
 
         // Welcome email
-        let _ = hb.register_template_string("welcome_email",
+        let _ = hb.register_template_string(
+            "welcome_email",
             "Subject: Welcome to AeroXe Broadband!\n\n\
              Dear {{customer_name}},\n\n\
              Welcome to AeroXe Broadband! Your account has been activated.\n\n\
              Plan: {{plan_name}}\n\
              PPPOE Username: {{pppoe_username}}\n\n\
              If you have any questions, please contact support.\n\n\
-             Best regards,\nAeroXe Broadband Team");
+             Best regards,\nAeroXe Broadband Team",
+        );
 
         // OTP SMS (concise)
-        let _ = hb.register_template_string("otp_sms",
-            "Your AeroXe verification code is {{otp}}. Valid for 5 minutes. Do not share.");
+        let _ = hb.register_template_string(
+            "otp_sms",
+            "Your AeroXe verification code is {{otp}}. Valid for 5 minutes. Do not share.",
+        );
 
         // Installation notification
-        let _ = hb.register_template_string("installation_notify",
+        let _ = hb.register_template_string(
+            "installation_notify",
             "Subject: Installation Scheduled\n\n\
              Dear {{customer_name}},\n\n\
              Your broadband installation has been scheduled for:\n\
@@ -69,10 +76,12 @@ impl TemplateEngine {
              Time: {{scheduled_time_slot}}\n\
              Technician: {{technician_name}}\n\n\
              Please ensure someone is available at the installation address.\n\n\
-             AeroXe Broadband Team");
+             AeroXe Broadband Team",
+        );
 
         // Ticket confirmation
-        let _ = hb.register_template_string("ticket_confirm",
+        let _ = hb.register_template_string(
+            "ticket_confirm",
             "Subject: Support Ticket #{{ticket_number}} Created\n\n\
              Dear {{customer_name}},\n\n\
              Your support ticket has been created:\n\
@@ -80,16 +89,19 @@ impl TemplateEngine {
              Subject: {{subject}}\n\
              Category: {{category}}\n\n\
              Our team will respond within the SLA timeframe.\n\n\
-             AeroXe Broadband Team");
+             AeroXe Broadband Team",
+        );
 
         // Referral reward notification
-        let _ = hb.register_template_string("referral_reward",
+        let _ = hb.register_template_string(
+            "referral_reward",
             "Subject: Referral Reward!\n\n\
              Dear {{referrer_name}},\n\n\
              Congratulations! You've earned a referral reward of ₹{{reward_amount}}.\n\
              Reward Type: {{reward_type}}\n\n\
              Thank you for spreading the word about AeroXe Broadband!\n\n\
-             AeroXe Broadband Team");
+             AeroXe Broadband Team",
+        );
 
         Self { handlebars: hb }
     }
@@ -105,7 +117,9 @@ impl TemplateEngine {
     pub fn register_template(&mut self, name: &str, template_str: &str) -> Result<(), AppError> {
         self.handlebars
             .register_template_string(name, template_str)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Template registration error: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Template registration error: {}", e))
+            })?;
         debug!(template = name, "Registered custom notification template");
         Ok(())
     }

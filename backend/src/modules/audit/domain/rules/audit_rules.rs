@@ -10,11 +10,17 @@ impl AuditRules {
 
     /// Check if action is security-sensitive
     pub fn is_security_sensitive(action: &str) -> bool {
-        matches!(action, "login" | "logout" | "password_change" | "2fa_enable" | "role_assign")
+        matches!(
+            action,
+            "login" | "logout" | "password_change" | "2fa_enable" | "role_assign"
+        )
     }
 
     /// Check if resource type should be audited
     pub fn should_audit(resource_type: &str) -> bool {
-        matches!(resource_type, "user" | "role" | "plan" | "invoice" | "payment" | "device" | "network")
+        matches!(
+            resource_type,
+            "user" | "role" | "plan" | "invoice" | "payment" | "device" | "network"
+        )
     }
 }

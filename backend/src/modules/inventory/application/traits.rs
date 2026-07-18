@@ -1,9 +1,10 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type InventoryItemModel = crate::modules::inventory::domain::entities::inventory_item::Model;
-pub type InventoryMovementModel = crate::modules::inventory::domain::entities::inventory_movement::Model;
+pub type InventoryMovementModel =
+    crate::modules::inventory::domain::entities::inventory_movement::Model;
 
 #[async_trait]
 pub trait InventoryServiceTrait: Send + Sync {

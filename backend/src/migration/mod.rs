@@ -1,5 +1,5 @@
 //! AeroXe Backend - Database Migration Runner
-//! 
+//!
 //! SeaORM migrations for all 17 database schema changes.
 //! Run with: `cargo run -- migrate` or `cargo run -- migrate --apply`
 
@@ -43,7 +43,8 @@ pub async fn exec_sql_file(manager: &SchemaManager<'_>, sql: &str) -> Result<(),
 pub async fn drop_tables(manager: &SchemaManager<'_>, tables: Vec<&str>) -> Result<(), DbErr> {
     let conn = manager.get_connection();
     for table in tables {
-        conn.execute_unprepared(&format!("DROP TABLE IF EXISTS {} CASCADE", table)).await?;
+        conn.execute_unprepared(&format!("DROP TABLE IF EXISTS {} CASCADE", table))
+            .await?;
     }
     Ok(())
 }

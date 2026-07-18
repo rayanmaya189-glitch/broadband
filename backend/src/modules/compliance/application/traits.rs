@@ -1,10 +1,12 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
-pub type KycVerificationModel = crate::modules::compliance::domain::entities::kyc_verification::Model;
+pub type KycVerificationModel =
+    crate::modules::compliance::domain::entities::kyc_verification::Model;
 pub type ConsentModel = crate::modules::compliance::domain::entities::consent::Model;
-pub type DataRetentionPolicyModel = crate::modules::compliance::domain::entities::data_retention_policy::Model;
+pub type DataRetentionPolicyModel =
+    crate::modules::compliance::domain::entities::data_retention_policy::Model;
 
 #[async_trait]
 pub trait ComplianceServiceTrait: Send + Sync {

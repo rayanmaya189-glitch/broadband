@@ -62,7 +62,11 @@ impl JournalEntry {
         }
     }
 
-    pub fn set_totals(&mut self, debit: rust_decimal::Decimal, credit: rust_decimal::Decimal) -> Result<(), AccountingDomainError> {
+    pub fn set_totals(
+        &mut self,
+        debit: rust_decimal::Decimal,
+        credit: rust_decimal::Decimal,
+    ) -> Result<(), AccountingDomainError> {
         if debit != credit {
             return Err(AccountingDomainError::DebitCreditMismatch);
         }
@@ -105,8 +109,10 @@ mod tests {
     #[test]
     fn test_new_journal_entry() {
         let entry = JournalEntry::new(
-            "JE-001".to_string(), chrono::Utc::now().date_naive(),
-            "Test entry".to_string(), Some(1),
+            "JE-001".to_string(),
+            chrono::Utc::now().date_naive(),
+            "Test entry".to_string(),
+            Some(1),
         );
         assert_eq!(entry.status, JournalEntryStatus::Draft);
         assert!(entry.is_balanced());
@@ -115,10 +121,17 @@ mod tests {
     #[test]
     fn test_post_entry() {
         let mut entry = JournalEntry::new(
-            "JE-001".to_string(), chrono::Utc::now().date_naive(),
-            "Test".to_string(), Some(1),
+            "JE-001".to_string(),
+            chrono::Utc::now().date_naive(),
+            "Test".to_string(),
+            Some(1),
         );
-        entry.set_totals(rust_decimal_macros::dec!(100), rust_decimal_macros::dec!(100)).unwrap();
+        entry
+            .set_totals(
+                rust_decimal_macros::dec!(100),
+                rust_decimal_macros::dec!(100),
+            )
+            .unwrap();
         entry.post().unwrap();
         assert_eq!(entry.status, JournalEntryStatus::Posted);
     }
@@ -126,11 +139,16 @@ mod tests {
     #[test]
     fn test_debit_credit_mismatch() {
         let mut entry = JournalEntry::new(
-            "JE-001".to_string(), chrono::Utc::now().date_naive(),
-            "Test".to_string(), Some(1),
+            "JE-001".to_string(),
+            chrono::Utc::now().date_naive(),
+            "Test".to_string(),
+            Some(1),
         );
         assert_eq!(
-            entry.set_totals(rust_decimal_macros::dec!(100), rust_decimal_macros::dec!(50)),
+            entry.set_totals(
+                rust_decimal_macros::dec!(100),
+                rust_decimal_macros::dec!(50)
+            ),
             Err(AccountingDomainError::DebitCreditMismatch)
         );
     }

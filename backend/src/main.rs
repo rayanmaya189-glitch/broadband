@@ -146,7 +146,9 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api/v1", aeroxe_backend::routes::v1_routes())
         .merge(aeroxe_backend::routes::health_routes())
         // 1. Request body size limit (10 MB default)
-        .layer(tower_http::limit::RequestBodyLimitLayer::new(10 * 1024 * 1024))
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(
+            10 * 1024 * 1024,
+        ))
         // 2. Security headers (adds headers to every response)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::security_headers::security_headers_middleware,
@@ -163,7 +165,8 @@ async fn main() -> anyhow::Result<()> {
                 async move {
                     let mut req = req;
                     req.extensions_mut().insert(store);
-                    aeroxe_backend::shared::middleware::rate_limit::rate_limit_middleware(req, next).await
+                    aeroxe_backend::shared::middleware::rate_limit::rate_limit_middleware(req, next)
+                        .await
                 }
             }
         }))
@@ -195,9 +198,13 @@ async fn main() -> anyhow::Result<()> {
         // Start NATS event subscribers for cross-module communication
         let sub_db = Arc::new(state.db.clone());
         tokio::spawn(async move {
-            if let Err(e) = aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
-                nats_client, sub_db,
-            ).await {
+            if let Err(e) =
+                aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
+                    nats_client,
+                    sub_db,
+                )
+                .await
+            {
                 tracing::error!(error = %e, "NATS subscribers failed");
             }
         });
@@ -295,7 +302,12 @@ async fn main() -> anyhow::Result<()> {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
                 loop {
                     interval.tick().await;
-                    if let Err(e) = aeroxe_backend::infrastructure::messaging::outbox::cleanup_published_events(&db, 24).await {
+                    if let Err(e) =
+                        aeroxe_backend::infrastructure::messaging::outbox::cleanup_published_events(
+                            &db, 24,
+                        )
+                        .await
+                    {
                         tracing::error!(error = %e, "Outbox cleanup failed");
                     }
                 }

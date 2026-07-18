@@ -29,11 +29,7 @@ pub struct DeviceMetrics {
 
 impl DeviceMetrics {
     /// Create a new device metrics snapshot
-    pub fn new(
-        device_id: i64,
-        branch_id: i64,
-        health_score: i32,
-    ) -> Self {
+    pub fn new(device_id: i64, branch_id: i64, health_score: i32) -> Self {
         let now = Utc::now();
         Self {
             id: 0,

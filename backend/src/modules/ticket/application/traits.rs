@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type TicketModel = crate::modules::ticket::domain::entities::ticket::Model;
 pub type TicketCommentModel = crate::modules::ticket::domain::entities::ticket_comment::Model;
@@ -13,11 +13,7 @@ pub trait TicketServiceTrait: Send + Sync {
         branch_id: Option<i64>,
     ) -> Result<Vec<TicketModel>, AppError>;
 
-    async fn get_ticket(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<TicketModel, AppError>;
+    async fn get_ticket(&self, db: &DatabaseConnection, id: i64) -> Result<TicketModel, AppError>;
 
     async fn create_ticket(
         &self,

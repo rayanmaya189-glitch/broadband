@@ -41,7 +41,13 @@ impl std::fmt::Display for LeadDomainError {
 impl std::error::Error for LeadDomainError {}
 
 impl Lead {
-    pub fn new(branch_id: i64, name: String, phone: String, email: Option<String>, source: LeadSource) -> Self {
+    pub fn new(
+        branch_id: i64,
+        name: String,
+        phone: String,
+        email: Option<String>,
+        source: LeadSource,
+    ) -> Self {
         Self {
             id: LeadId::new(0),
             branch_id,
@@ -100,13 +106,25 @@ mod tests {
 
     #[test]
     fn test_new_lead() {
-        let lead = Lead::new(1, "Priya".to_string(), "+919876543210".to_string(), None, LeadSource::LandingPage);
+        let lead = Lead::new(
+            1,
+            "Priya".to_string(),
+            "+919876543210".to_string(),
+            None,
+            LeadSource::LandingPage,
+        );
         assert_eq!(lead.status, LeadStatus::New);
     }
 
     #[test]
     fn test_lead_pipeline() {
-        let mut lead = Lead::new(1, "Priya".to_string(), "+919876543210".to_string(), None, LeadSource::Referral);
+        let mut lead = Lead::new(
+            1,
+            "Priya".to_string(),
+            "+919876543210".to_string(),
+            None,
+            LeadSource::Referral,
+        );
         lead.advance().unwrap(); // contacted
         lead.advance().unwrap(); // interested
         lead.advance().unwrap(); // surveyed
@@ -118,7 +136,13 @@ mod tests {
 
     #[test]
     fn test_mark_lost() {
-        let mut lead = Lead::new(1, "Priya".to_string(), "+919876543210".to_string(), None, LeadSource::WalkIn);
+        let mut lead = Lead::new(
+            1,
+            "Priya".to_string(),
+            "+919876543210".to_string(),
+            None,
+            LeadSource::WalkIn,
+        );
         lead.mark_lost("Not interested".to_string()).unwrap();
         assert_eq!(lead.status, LeadStatus::Lost);
     }

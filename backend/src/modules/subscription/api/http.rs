@@ -44,7 +44,9 @@ pub struct DowngradeSubscriptionRequest {
     pub new_billing_period_months: Option<i32>,
 }
 
-fn to_response(s: crate::modules::subscription::domain::entities::subscription::Model) -> SubscriptionResponse {
+fn to_response(
+    s: crate::modules::subscription::domain::entities::subscription::Model,
+) -> SubscriptionResponse {
     SubscriptionResponse {
         id: s.id,
         customer_id: s.customer_id,
@@ -111,7 +113,9 @@ pub async fn create_subscription(
         None,
         None,
         Some(sub.branch_id),
-    ).await {
+    )
+    .await
+    {
         tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.created event");
     }
 
@@ -129,8 +133,17 @@ pub async fn cancel_subscription(
 
     let payload = serde_json::json!({ "subscription_id": id, "action": "cancelled" });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "subscription.cancelled", "subscription", id, payload, None, None, None,
-    ).await {
+        &state.db,
+        "subscription.cancelled",
+        "subscription",
+        id,
+        payload,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         tracing::error!(subscription_id = id, error = %e, "Failed to publish subscription.cancelled event");
     }
 
@@ -148,8 +161,17 @@ pub async fn suspend_subscription(
 
     let payload = serde_json::json!({ "subscription_id": id, "action": "suspended" });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "subscription.suspended", "subscription", id, payload, None, None, None,
-    ).await {
+        &state.db,
+        "subscription.suspended",
+        "subscription",
+        id,
+        payload,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         tracing::error!(subscription_id = id, error = %e, "Failed to publish subscription.suspended event");
     }
 
@@ -172,8 +194,17 @@ pub async fn reactivate_subscription(
         "status": sub.status,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "subscription.reactivated", "subscription", sub.id, payload, None, None, None,
-    ).await {
+        &state.db,
+        "subscription.reactivated",
+        "subscription",
+        sub.id,
+        payload,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.reactivated event");
     }
 
@@ -189,8 +220,12 @@ pub async fn upgrade_subscription(
 ) -> Result<Json<SubscriptionResponse>, AppError> {
     require_permission(&user, "subscription.upgrade").map_err(|e| AppError::Forbidden(e.1))?;
     let sub = SubscriptionService::upgrade_subscription(
-        &state.db, id, req.new_plan_id, req.new_billing_period_months,
-    ).await?;
+        &state.db,
+        id,
+        req.new_plan_id,
+        req.new_billing_period_months,
+    )
+    .await?;
 
     let payload = serde_json::json!({
         "subscription_id": sub.id,
@@ -199,8 +234,17 @@ pub async fn upgrade_subscription(
         "new_plan_id": sub.plan_id,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "subscription.upgraded", "subscription", sub.id, payload, None, None, None,
-    ).await {
+        &state.db,
+        "subscription.upgraded",
+        "subscription",
+        sub.id,
+        payload,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.upgraded event");
     }
 
@@ -216,8 +260,12 @@ pub async fn downgrade_subscription(
 ) -> Result<Json<SubscriptionResponse>, AppError> {
     require_permission(&user, "subscription.downgrade").map_err(|e| AppError::Forbidden(e.1))?;
     let sub = SubscriptionService::downgrade_subscription(
-        &state.db, id, req.new_plan_id, req.new_billing_period_months,
-    ).await?;
+        &state.db,
+        id,
+        req.new_plan_id,
+        req.new_billing_period_months,
+    )
+    .await?;
 
     let payload = serde_json::json!({
         "subscription_id": sub.id,
@@ -226,8 +274,17 @@ pub async fn downgrade_subscription(
         "new_plan_id": sub.plan_id,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "subscription.downgrade.pending", "subscription", sub.id, payload, None, None, None,
-    ).await {
+        &state.db,
+        "subscription.downgrade.pending",
+        "subscription",
+        sub.id,
+        payload,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.downgrade.pending event");
     }
 

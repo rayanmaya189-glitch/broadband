@@ -32,9 +32,9 @@ impl PlanRules {
     pub fn calculate_period_discount(months: i32) -> rust_decimal::Decimal {
         match months {
             1 => rust_decimal::Decimal::ZERO,
-            3 => rust_decimal_macros::dec!(0.05),   // 5% discount
-            6 => rust_decimal_macros::dec!(0.08),   // 8% discount
-            12 => rust_decimal_macros::dec!(0.12),  // 12% discount
+            3 => rust_decimal_macros::dec!(0.05), // 5% discount
+            6 => rust_decimal_macros::dec!(0.08), // 8% discount
+            12 => rust_decimal_macros::dec!(0.12), // 12% discount
             _ => rust_decimal::Decimal::ZERO,
         }
     }

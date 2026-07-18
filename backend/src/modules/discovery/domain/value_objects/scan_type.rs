@@ -29,13 +29,20 @@ impl ScanType {
     }
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::SnmpWalk => "snmp_walk", Self::Lldp => "lldp", Self::Cdp => "cdp",
-            Self::ArpScan => "arp_scan", Self::MacTable => "mac_table", Self::PonScan => "pon_scan",
-            Self::DhcpScan => "dhcp_scan", Self::IcmpSweep => "icmp_sweep",
+            Self::SnmpWalk => "snmp_walk",
+            Self::Lldp => "lldp",
+            Self::Cdp => "cdp",
+            Self::ArpScan => "arp_scan",
+            Self::MacTable => "mac_table",
+            Self::PonScan => "pon_scan",
+            Self::DhcpScan => "dhcp_scan",
+            Self::IcmpSweep => "icmp_sweep",
         }
     }
 }
 
 impl fmt::Display for ScanType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

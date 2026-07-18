@@ -3,7 +3,8 @@ pub struct AccountingRules;
 
 impl AccountingRules {
     /// Valid account types
-    pub const VALID_ACCOUNT_TYPES: &[&str] = &["asset", "liability", "equity", "revenue", "expense"];
+    pub const VALID_ACCOUNT_TYPES: &[&str] =
+        &["asset", "liability", "equity", "revenue", "expense"];
 
     /// Account code ranges by type
     pub const ASSET_RANGE: (i32, i32) = (1000, 1999);

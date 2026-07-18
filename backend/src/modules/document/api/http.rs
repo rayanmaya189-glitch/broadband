@@ -52,7 +52,8 @@ pub async fn list_documents(
     _user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let (docs, total) = DocumentService::list_documents(&state.db, None, p.page(), p.limit()).await?;
+    let (docs, total) =
+        DocumentService::list_documents(&state.db, None, p.page(), p.limit()).await?;
     let items: Vec<DocumentResponse> = docs
         .into_iter()
         .map(|d| DocumentResponse {
@@ -63,7 +64,9 @@ pub async fn list_documents(
             status: d.status,
         })
         .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn confirm_upload(
@@ -84,10 +87,17 @@ pub async fn confirm_upload(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "document.uploaded", "document", d.id,
-        serde_json::json!({"document_id": d.id, "filename": d.filename}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "document.uploaded",
+        "document",
+        d.id,
+        serde_json::json!({"document_id": d.id, "filename": d.filename}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish document.uploaded event");
     }
     Ok((
@@ -168,10 +178,17 @@ pub async fn delete_document(
     // Soft-delete in database
     DocumentService::delete_document(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "document.deleted", "document", id,
-        serde_json::json!({"document_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "document.deleted",
+        "document",
+        id,
+        serde_json::json!({"document_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish document.deleted event");
     }
     Ok(StatusCode::NO_CONTENT)

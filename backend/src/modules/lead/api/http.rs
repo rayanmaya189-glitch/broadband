@@ -40,16 +40,18 @@ pub async fn list_leads(
     };
     let (leads, total) = LeadService::list_leads(&state.db, bid, p.page(), p.limit()).await?;
     let items: Vec<LeadResponse> = leads
-            .into_iter()
-            .map(|l| LeadResponse {
-                id: l.id,
-                name: l.name,
-                phone: l.phone,
-                status: l.status,
-                source: l.source,
-            })
-            .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+        .into_iter()
+        .map(|l| LeadResponse {
+            id: l.id,
+            name: l.name,
+            phone: l.phone,
+            status: l.status,
+            source: l.source,
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn create_lead(
@@ -77,7 +79,9 @@ pub async fn create_lead(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish lead.created event");
     }
 
@@ -111,7 +115,9 @@ pub async fn update_lead_status(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish lead.status.updated event");
     }
 
@@ -170,15 +176,16 @@ pub async fn convert_lead(
 
     // 3. Create customer from lead data
     let branch_id = user.branch_id.unwrap_or(lead.branch_id);
-    let customer = crate::modules::customer::application::services::CustomerService::create_customer(
-        &state.db,
-        branch_id,
-        lead.name.clone(),
-        lead.email.clone(),
-        lead.phone.clone(),
-        None,
-    )
-    .await?;
+    let customer =
+        crate::modules::customer::application::services::CustomerService::create_customer(
+            &state.db,
+            branch_id,
+            lead.name.clone(),
+            lead.email.clone(),
+            lead.phone.clone(),
+            None,
+        )
+        .await?;
 
     // 4. Link lead to the new customer
     LeadService::update_lead_status(&state.db, id, "converted").await?;
@@ -233,7 +240,9 @@ pub async fn convert_lead(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(lead_id = id, error = %e, "Failed to publish lead.converted event");
     }
 

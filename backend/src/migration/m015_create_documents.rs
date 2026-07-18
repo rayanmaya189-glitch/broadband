@@ -11,10 +11,14 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        crate::migration::drop_tables(manager, vec![
-            "document_access_logs_2026_07",
-            "document_access_logs",
-            "document_files",
-        ]).await
+        crate::migration::drop_tables(
+            manager,
+            vec![
+                "document_access_logs_2026_07",
+                "document_access_logs",
+                "document_files",
+            ],
+        )
+        .await
     }
 }

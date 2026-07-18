@@ -2,7 +2,10 @@ use crate::modules::inventory::domain::entities::{
     InventoryItem, InventoryItemActiveModel, InventoryItemColumn, InventoryMovement,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{PaginatorTrait, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct InventoryService;
 
@@ -12,8 +15,13 @@ impl InventoryService {
         branch_id: Option<i64>,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::inventory::domain::entities::inventory_item::Model>, u64), AppError>
-    {
+    ) -> Result<
+        (
+            Vec<crate::modules::inventory::domain::entities::inventory_item::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let mut query = InventoryItem::find();
         if let Some(bid) = branch_id {
             query = query.filter(InventoryItemColumn::BranchId.eq(bid));
@@ -73,4 +81,3 @@ impl InventoryService {
             .await?)
     }
 }
-

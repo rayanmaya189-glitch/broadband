@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type VlanModel = crate::modules::network::domain::entities::vlan::Model;
 pub type IpPoolModel = crate::modules::network::domain::entities::ip_pool::Model;
@@ -9,10 +9,7 @@ pub type MacBindingModel = crate::modules::network::domain::entities::mac_bindin
 
 #[async_trait]
 pub trait NetworkServiceTrait: Send + Sync {
-    async fn list_vlans(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<VlanModel>, AppError>;
+    async fn list_vlans(&self, db: &DatabaseConnection) -> Result<Vec<VlanModel>, AppError>;
 
     async fn create_vlan(
         &self,
@@ -22,16 +19,9 @@ pub trait NetworkServiceTrait: Send + Sync {
         branch_id: i64,
     ) -> Result<VlanModel, AppError>;
 
-    async fn delete_vlan(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError>;
+    async fn delete_vlan(&self, db: &DatabaseConnection, id: i64) -> Result<(), AppError>;
 
-    async fn list_ip_pools(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<IpPoolModel>, AppError>;
+    async fn list_ip_pools(&self, db: &DatabaseConnection) -> Result<Vec<IpPoolModel>, AppError>;
 
     async fn create_ip_pool(
         &self,

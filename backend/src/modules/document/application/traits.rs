@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type DocumentFileModel = crate::modules::document::domain::entities::document_file::Model;
 
@@ -22,9 +22,5 @@ pub trait DocumentServiceTrait: Send + Sync {
         storage_path: String,
     ) -> Result<DocumentFileModel, AppError>;
 
-    async fn delete_document(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError>;
+    async fn delete_document(&self, db: &DatabaseConnection, id: i64) -> Result<(), AppError>;
 }

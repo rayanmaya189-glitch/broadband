@@ -31,7 +31,9 @@ impl std::fmt::Display for AuditDomainError {
         match self {
             Self::AuditNotFound(id) => write!(f, "Audit log {} not found", id),
             Self::InvalidAction => write!(f, "Invalid audit action"),
-            Self::CannotModifyAuditLog => write!(f, "Audit logs are immutable and cannot be modified"),
+            Self::CannotModifyAuditLog => {
+                write!(f, "Audit logs are immutable and cannot be modified")
+            }
         }
     }
 }
@@ -67,7 +69,11 @@ impl AuditLog {
         }
     }
 
-    pub fn with_changes(mut self, old: Option<serde_json::Value>, new: Option<serde_json::Value>) -> Self {
+    pub fn with_changes(
+        mut self,
+        old: Option<serde_json::Value>,
+        new: Option<serde_json::Value>,
+    ) -> Self {
         self.old_data = old;
         self.new_data = new;
         self
@@ -94,9 +100,14 @@ mod tests {
     #[test]
     fn test_new_audit_log() {
         let log = AuditLog::new(
-            Some(1), Some("admin@aeroxe.com".to_string()), Some("super_admin".to_string()),
-            AuditAction::Login, Some("user".to_string()), Some("1".to_string()),
-            Some("10.0.1.50".to_string()), Some("Mozilla/5.0".to_string()),
+            Some(1),
+            Some("admin@aeroxe.com".to_string()),
+            Some("super_admin".to_string()),
+            AuditAction::Login,
+            Some("user".to_string()),
+            Some("1".to_string()),
+            Some("10.0.1.50".to_string()),
+            Some("Mozilla/5.0".to_string()),
             AuditResult::Granted,
         );
         assert!(log.is_granted());

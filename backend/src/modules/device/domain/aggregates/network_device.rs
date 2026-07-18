@@ -31,8 +31,12 @@ impl std::fmt::Display for DeviceDomainError {
             Self::DeviceNotFound(id) => write!(f, "Device {} not found", id),
             Self::DuplicateSerialNumber(sn) => write!(f, "Serial number '{}' already exists", sn),
             Self::InvalidManagementIp => write!(f, "Invalid management IP address"),
-            Self::CannotDecommissionOnlineDevice => write!(f, "Cannot decommission an online device"),
-            Self::FirmwareUpdateAlreadyInProgress => write!(f, "Firmware update already in progress"),
+            Self::CannotDecommissionOnlineDevice => {
+                write!(f, "Cannot decommission an online device")
+            }
+            Self::FirmwareUpdateAlreadyInProgress => {
+                write!(f, "Firmware update already in progress")
+            }
         }
     }
 }
@@ -108,8 +112,12 @@ mod tests {
     #[test]
     fn test_new_device() {
         let device = NetworkDevice::new(
-            1, "OLT-01".to_string(), 1, "SN-001".to_string(),
-            "10.0.1.1".to_string(), DeviceType::Olt,
+            1,
+            "OLT-01".to_string(),
+            1,
+            "SN-001".to_string(),
+            "10.0.1.1".to_string(),
+            DeviceType::Olt,
         );
         assert!(device.is_ok());
         let device = device.unwrap();
@@ -119,8 +127,12 @@ mod tests {
     #[test]
     fn test_invalid_ip() {
         let device = NetworkDevice::new(
-            1, "OLT-01".to_string(), 1, "SN-001".to_string(),
-            "invalid-ip".to_string(), DeviceType::Olt,
+            1,
+            "OLT-01".to_string(),
+            1,
+            "SN-001".to_string(),
+            "invalid-ip".to_string(),
+            DeviceType::Olt,
         );
         assert_eq!(device, Err(DeviceDomainError::InvalidManagementIp));
     }
@@ -128,9 +140,14 @@ mod tests {
     #[test]
     fn test_device_lifecycle() {
         let mut device = NetworkDevice::new(
-            1, "OLT-01".to_string(), 1, "SN-001".to_string(),
-            "10.0.1.1".to_string(), DeviceType::Olt,
-        ).unwrap();
+            1,
+            "OLT-01".to_string(),
+            1,
+            "SN-001".to_string(),
+            "10.0.1.1".to_string(),
+            DeviceType::Olt,
+        )
+        .unwrap();
         device.go_online();
         assert!(device.is_online());
         device.set_degraded(30);

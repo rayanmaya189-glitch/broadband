@@ -25,7 +25,10 @@ mod tests {
 
     #[test]
     fn test_exact_permission_match() {
-        let user = make_user(vec!["customer.account.view", "billing.invoice.create"], false);
+        let user = make_user(
+            vec!["customer.account.view", "billing.invoice.create"],
+            false,
+        );
         assert!(has_permission(&user, "customer.account.view"));
         assert!(has_permission(&user, "billing.invoice.create"));
         assert!(!has_permission(&user, "device.router.restart"));

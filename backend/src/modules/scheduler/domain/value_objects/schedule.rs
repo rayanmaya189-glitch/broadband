@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc, Datelike, Timelike, TimeZone};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Timelike, Utc};
 
 /// Parsed schedule that can calculate the next run time.
 #[derive(Debug, Clone)]
@@ -56,51 +56,83 @@ impl Schedule {
         let parts: Vec<&str> = expr.split_whitespace().collect();
         if parts.len() != 5 {
             return Err(ScheduleParseError::InvalidCronFormat(format!(
-                "Expected 5 fields, got {}", parts.len()
+                "Expected 5 fields, got {}",
+                parts.len()
             )));
         }
         let minutes = parse_cron_field(parts[0], 0, 59, "minute")?;
         let hours = parse_cron_field(parts[1], 0, 23, "hour")?;
-        let (days_of_month, dom_is_wildcard) = parse_cron_field_with_wildcard(parts[2], 1, 31, "day_of_month")?;
+        let (days_of_month, dom_is_wildcard) =
+            parse_cron_field_with_wildcard(parts[2], 1, 31, "day_of_month")?;
         let months = parse_cron_field(parts[3], 1, 12, "month")?;
-        let (days_of_week, dow_is_wildcard) = parse_cron_field_with_wildcard(parts[4], 0, 6, "day_of_week")?;
+        let (days_of_week, dow_is_wildcard) =
+            parse_cron_field_with_wildcard(parts[4], 0, 6, "day_of_week")?;
 
         Ok(Schedule::Cron {
-            minutes, hours, days_of_month, months, days_of_week,
-            dom_is_wildcard, dow_is_wildcard,
+            minutes,
+            hours,
+            days_of_month,
+            months,
+            days_of_week,
+            dom_is_wildcard,
+            dow_is_wildcard,
         })
     }
 
     pub fn parse_interval(expr: &str) -> Result<Self, ScheduleParseError> {
         let expr = expr.trim();
         if let Some(s) = expr.strip_suffix('h') {
-            let hours: u64 = s.trim().parse()
-                .map_err(|_| ScheduleParseError::InvalidInterval(format!("Invalid hours: {}", expr)))?;
-            return Ok(Schedule::Interval { seconds: hours * 3600 });
+            let hours: u64 = s.trim().parse().map_err(|_| {
+                ScheduleParseError::InvalidInterval(format!("Invalid hours: {}", expr))
+            })?;
+            return Ok(Schedule::Interval {
+                seconds: hours * 3600,
+            });
         }
         if let Some(s) = expr.strip_suffix('m') {
-            let minutes: u64 = s.trim().parse()
-                .map_err(|_| ScheduleParseError::InvalidInterval(format!("Invalid minutes: {}", expr)))?;
-            return Ok(Schedule::Interval { seconds: minutes * 60 });
+            let minutes: u64 = s.trim().parse().map_err(|_| {
+                ScheduleParseError::InvalidInterval(format!("Invalid minutes: {}", expr))
+            })?;
+            return Ok(Schedule::Interval {
+                seconds: minutes * 60,
+            });
         }
         if let Some(s) = expr.strip_suffix('s') {
-            let seconds: u64 = s.trim().parse()
-                .map_err(|_| ScheduleParseError::InvalidInterval(format!("Invalid seconds: {}", expr)))?;
+            let seconds: u64 = s.trim().parse().map_err(|_| {
+                ScheduleParseError::InvalidInterval(format!("Invalid seconds: {}", expr))
+            })?;
             return Ok(Schedule::Interval { seconds });
         }
-        let seconds: u64 = expr.parse()
-            .map_err(|_| ScheduleParseError::InvalidInterval(format!("Invalid interval: {}", expr)))?;
+        let seconds: u64 = expr.parse().map_err(|_| {
+            ScheduleParseError::InvalidInterval(format!("Invalid interval: {}", expr))
+        })?;
         Ok(Schedule::Interval { seconds })
     }
 
     pub fn next_run_after(&self, after: DateTime<Utc>) -> Option<DateTime<Utc>> {
         match self {
             Schedule::Cron {
-                minutes, hours, days_of_month, months, days_of_week,
-                dom_is_wildcard, dow_is_wildcard,
-            } => next_cron_run(after, minutes, hours, days_of_month, months, days_of_week, *dom_is_wildcard, *dow_is_wildcard),
+                minutes,
+                hours,
+                days_of_month,
+                months,
+                days_of_week,
+                dom_is_wildcard,
+                dow_is_wildcard,
+            } => next_cron_run(
+                after,
+                minutes,
+                hours,
+                days_of_month,
+                months,
+                days_of_week,
+                *dom_is_wildcard,
+                *dow_is_wildcard,
+            ),
             Schedule::Interval { seconds } => {
-                if *seconds == 0 { return None; }
+                if *seconds == 0 {
+                    return None;
+                }
                 Some(after + Duration::seconds(*seconds as i64))
             }
             Schedule::OneTime | Schedule::Disabled => None,
@@ -110,58 +142,103 @@ impl Schedule {
 
 // ── Cron field parsing ──
 
-fn parse_cron_field(field: &str, min: u32, max: u32, name: &str) -> Result<Vec<u32>, ScheduleParseError> {
+fn parse_cron_field(
+    field: &str,
+    min: u32,
+    max: u32,
+    name: &str,
+) -> Result<Vec<u32>, ScheduleParseError> {
     let (_values, _is_wildcard) = parse_cron_field_inner(field, min, max, name)?;
     Ok(_values)
 }
 
-fn parse_cron_field_with_wildcard(field: &str, min: u32, max: u32, name: &str)
-    -> Result<(Vec<u32>, bool), ScheduleParseError>
-{
+fn parse_cron_field_with_wildcard(
+    field: &str,
+    min: u32,
+    max: u32,
+    name: &str,
+) -> Result<(Vec<u32>, bool), ScheduleParseError> {
     parse_cron_field_inner(field, min, max, name)
 }
 
-fn parse_cron_field_inner(field: &str, min: u32, max: u32, name: &str)
-    -> Result<(Vec<u32>, bool), ScheduleParseError>
-{
+fn parse_cron_field_inner(
+    field: &str,
+    min: u32,
+    max: u32,
+    name: &str,
+) -> Result<(Vec<u32>, bool), ScheduleParseError> {
     let mut values = Vec::new();
     let is_wildcard = field.trim() == "*";
 
     for part in field.split(',') {
         let part = part.trim();
         if part == "*" {
-            for i in min..=max { values.push(i); }
+            for i in min..=max {
+                values.push(i);
+            }
         } else if let Some((start_str, end_str)) = part.split_once('-') {
-            let start: u32 = start_str.trim().parse().map_err(|_|
-                ScheduleParseError::InvalidCronFormat(format!("Invalid {} range start: {}", name, start_str)))?;
-            let end: u32 = end_str.trim().parse().map_err(|_|
-                ScheduleParseError::InvalidCronFormat(format!("Invalid {} range end: {}", name, end_str)))?;
+            let start: u32 = start_str.trim().parse().map_err(|_| {
+                ScheduleParseError::InvalidCronFormat(format!(
+                    "Invalid {} range start: {}",
+                    name, start_str
+                ))
+            })?;
+            let end: u32 = end_str.trim().parse().map_err(|_| {
+                ScheduleParseError::InvalidCronFormat(format!(
+                    "Invalid {} range end: {}",
+                    name, end_str
+                ))
+            })?;
             if start < min || end > max || start > end {
                 return Err(ScheduleParseError::InvalidCronFormat(format!(
-                    "{} range {}-{} out of bounds [{}/{}]", name, start, end, min, max)));
+                    "{} range {}-{} out of bounds [{}/{}]",
+                    name, start, end, min, max
+                )));
             }
-            for i in start..=end { values.push(i); }
+            for i in start..=end {
+                values.push(i);
+            }
         } else if let Some((base_str, step_str)) = part.split_once('/') {
-            let step: u32 = step_str.trim().parse().map_err(|_|
-                ScheduleParseError::InvalidCronFormat(format!("Invalid {} step: {}", name, step_str)))?;
+            let step: u32 = step_str.trim().parse().map_err(|_| {
+                ScheduleParseError::InvalidCronFormat(format!(
+                    "Invalid {} step: {}",
+                    name, step_str
+                ))
+            })?;
             if step == 0 {
-                return Err(ScheduleParseError::InvalidCronFormat(format!("{} step cannot be 0", name)));
+                return Err(ScheduleParseError::InvalidCronFormat(format!(
+                    "{} step cannot be 0",
+                    name
+                )));
             }
             if base_str == "*" {
                 let mut i = min;
-                while i <= max { values.push(i); i += step; }
+                while i <= max {
+                    values.push(i);
+                    i += step;
+                }
             } else {
-                let start: u32 = base_str.trim().parse().map_err(|_|
-                    ScheduleParseError::InvalidCronFormat(format!("Invalid {} step base: {}", name, base_str)))?;
+                let start: u32 = base_str.trim().parse().map_err(|_| {
+                    ScheduleParseError::InvalidCronFormat(format!(
+                        "Invalid {} step base: {}",
+                        name, base_str
+                    ))
+                })?;
                 let mut i = start;
-                while i <= max { values.push(i); i += step; }
+                while i <= max {
+                    values.push(i);
+                    i += step;
+                }
             }
         } else {
-            let value: u32 = part.parse().map_err(|_|
-                ScheduleParseError::InvalidCronFormat(format!("Invalid {} value: {}", name, part)))?;
+            let value: u32 = part.parse().map_err(|_| {
+                ScheduleParseError::InvalidCronFormat(format!("Invalid {} value: {}", name, part))
+            })?;
             if value < min || value > max {
                 return Err(ScheduleParseError::InvalidCronFormat(format!(
-                    "{} value {} out of bounds [{}/{}]", name, value, min, max)));
+                    "{} value {} out of bounds [{}/{}]",
+                    name, value, min, max
+                )));
             }
             values.push(value);
         }
@@ -197,7 +274,8 @@ fn next_cron_run(
 
         // Check day (standard cron: AND when both non-wildcard, OR otherwise)
         let dom_match = dom_is_wildcard || days_of_month.contains(&candidate.day());
-        let dow_match = dow_is_wildcard || days_of_week.contains(&candidate.weekday().number_from_sunday());
+        let dow_match =
+            dow_is_wildcard || days_of_week.contains(&candidate.weekday().number_from_sunday());
         let day_matches = if !dom_is_wildcard && !dow_is_wildcard {
             dom_match && dow_match
         } else if !dom_is_wildcard {
@@ -208,7 +286,8 @@ fn next_cron_run(
 
         if !day_matches {
             candidate = (candidate + Duration::days(1))
-                .with_hour(0)?.with_minute(0)?;
+                .with_hour(0)?
+                .with_minute(0)?;
             continue;
         }
 
@@ -236,7 +315,10 @@ fn advance_to_next_month(current: DateTime<Utc>, months: &[u32]) -> Option<DateT
     let mut month = current.month();
     for _ in 0..13 {
         month += 1;
-        if month > 12 { month = 1; year += 1; }
+        if month > 12 {
+            month = 1;
+            year += 1;
+        }
         if months.contains(&month) {
             return Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single();
         }
@@ -252,7 +334,9 @@ fn advance_to_next_hour(current: DateTime<Utc>, hours: &[u32]) -> Option<DateTim
             return candidate.with_hour(h);
         }
     }
-    let next_day = (candidate + Duration::days(1)).with_hour(0)?.with_minute(0)?;
+    let next_day = (candidate + Duration::days(1))
+        .with_hour(0)?
+        .with_minute(0)?;
     next_day.with_hour(*hours.first()?)
 }
 
@@ -355,7 +439,11 @@ mod tests {
         let next = schedule.next_run_after(after).unwrap();
         // After Jan 15, next 1st-of-month is Feb 1
         assert_eq!(next.day(), 1);
-        assert!(next.month() > 1, "Expected month > January, got {}", next.month());
+        assert!(
+            next.month() > 1,
+            "Expected month > January, got {}",
+            next.month()
+        );
     }
 
     #[test]

@@ -46,7 +46,9 @@ pub async fn list_jobs(
     Query(_p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let jobs = SchedulerService::list_job_definitions(&state.db).await?;
-    Ok(Json(serde_json::json!({ "items": jobs, "total": jobs.len() })))
+    Ok(Json(
+        serde_json::json!({ "items": jobs, "total": jobs.len() }),
+    ))
 }
 
 /// GET /api/v1/scheduler/jobs/:id
@@ -76,8 +78,12 @@ pub async fn create_job(
         req.action,
         req.payload.unwrap_or(serde_json::json!({})),
         req.timeout_seconds,
-    ).await?;
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(job).unwrap_or_default())))
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::to_value(job).unwrap_or_default()),
+    ))
 }
 
 /// PUT /api/v1/scheduler/jobs/:id
@@ -89,8 +95,14 @@ pub async fn update_job(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "scheduler.job.update").map_err(|e| AppError::Forbidden(e.1))?;
     let job = SchedulerService::update_job_definition(
-        &state.db, id, req.schedule, req.payload, req.is_active, req.timeout_seconds,
-    ).await?;
+        &state.db,
+        id,
+        req.schedule,
+        req.payload,
+        req.is_active,
+        req.timeout_seconds,
+    )
+    .await?;
     Ok(Json(serde_json::to_value(job).unwrap_or_default()))
 }
 
@@ -114,9 +126,15 @@ pub async fn trigger_job(
     require_permission(&user, "scheduler.job.trigger").map_err(|e| AppError::Forbidden(e.1))?;
     let job = SchedulerService::get_job_definition(&state.db, id).await?;
     let execution = SchedulerService::start_execution(
-        &state.db, job.id, serde_json::json!({ "triggered_by": user.user_id }),
-    ).await?;
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(execution).unwrap_or_default())))
+        &state.db,
+        job.id,
+        serde_json::json!({ "triggered_by": user.user_id }),
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::to_value(execution).unwrap_or_default()),
+    ))
 }
 
 /// GET /api/v1/scheduler/executions
@@ -126,7 +144,9 @@ pub async fn list_executions(
     Query(q): Query<ExecutionsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let jobs = SchedulerService::list_executions(&state.db, q.job_id).await?;
-    Ok(Json(serde_json::json!({ "items": jobs, "total": jobs.len() })))
+    Ok(Json(
+        serde_json::json!({ "items": jobs, "total": jobs.len() }),
+    ))
 }
 
 /// GET /api/v1/scheduler/stats

@@ -13,7 +13,8 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         crate::migration::exec_stmt_raw(manager, "DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE is_system = TRUE)").await?;
         crate::migration::exec_stmt_raw(manager, "DELETE FROM permissions").await?;
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM roles WHERE is_system = TRUE").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM roles WHERE is_system = TRUE")
+            .await?;
         Ok(())
     }
 }

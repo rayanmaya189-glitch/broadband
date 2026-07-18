@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type NetworkDeviceModel = crate::modules::device::domain::entities::network_device::Model;
 pub type DevicePortModel = crate::modules::device::domain::entities::device_port::Model;

@@ -22,7 +22,12 @@ mod tests {
         ];
 
         for (from, to) in &valid_transitions {
-            assert!(is_valid_transition(from, to), "Transition {} → {} should be valid", from, to);
+            assert!(
+                is_valid_transition(from, to),
+                "Transition {} → {} should be valid",
+                from,
+                to
+            );
         }
 
         let invalid_transitions = vec![
@@ -34,7 +39,12 @@ mod tests {
         ];
 
         for (from, to) in &invalid_transitions {
-            assert!(!is_valid_transition(from, to), "Transition {} → {} should be invalid", from, to);
+            assert!(
+                !is_valid_transition(from, to),
+                "Transition {} → {} should be invalid",
+                from,
+                to
+            );
         }
     }
 
@@ -92,7 +102,12 @@ mod tests {
         for phone in valid_phones {
             let cleaned: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
             // +91 prefix gives 12 digits, without prefix gives 10 digits
-            assert!(cleaned.len() >= 10 && cleaned.len() <= 12, "Phone {} should have 10-12 digits, got {}", phone, cleaned.len());
+            assert!(
+                cleaned.len() >= 10 && cleaned.len() <= 12,
+                "Phone {} should have 10-12 digits, got {}",
+                phone,
+                cleaned.len()
+            );
         }
     }
 
@@ -101,19 +116,31 @@ mod tests {
     #[test]
     fn test_branch_scoping_rules() {
         // Per docs §5-branches: customers are branch-scoped, plans are company-wide
-        let branch_scoped_resources = vec!["customers", "subscriptions", "network_devices", "tickets"];
+        let branch_scoped_resources =
+            vec!["customers", "subscriptions", "network_devices", "tickets"];
         let company_wide_resources = vec!["plans", "users", "roles"];
 
         for resource in &branch_scoped_resources {
-            assert!(is_branch_scoped(resource), "{} should be branch-scoped", resource);
+            assert!(
+                is_branch_scoped(resource),
+                "{} should be branch-scoped",
+                resource
+            );
         }
         for resource in &company_wide_resources {
-            assert!(!is_branch_scoped(resource), "{} should be company-wide", resource);
+            assert!(
+                !is_branch_scoped(resource),
+                "{} should be company-wide",
+                resource
+            );
         }
     }
 
     fn is_branch_scoped(resource: &str) -> bool {
-        matches!(resource, "customers" | "subscriptions" | "network_devices" | "tickets" | "ip_pools" | "vlans")
+        matches!(
+            resource,
+            "customers" | "subscriptions" | "network_devices" | "tickets" | "ip_pools" | "vlans"
+        )
     }
 
     // ── Pro-Rata Billing Test ──
@@ -133,6 +160,9 @@ mod tests {
         let charge = new_daily * Decimal::from(remaining_days);
         let adjustment = charge - credit;
 
-        assert!(adjustment > Decimal::from(0), "Upgrade should result in additional charge");
+        assert!(
+            adjustment > Decimal::from(0),
+            "Upgrade should result in additional charge"
+        );
     }
 }

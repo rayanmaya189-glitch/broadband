@@ -1,5 +1,5 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait};
-use tracing::{debug, info, warn, error};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use tracing::{debug, error, info, warn};
 
 use crate::infrastructure::messaging::outbox;
 use crate::modules::integrations::{DeviceAdapterFactory, DeviceType};
@@ -86,7 +86,9 @@ impl DeviceSyncWorker {
                     None,
                     None,
                     Some(device.branch_id),
-                ).await {
+                )
+                .await
+                {
                     error!(
                         device_id = device.id,
                         error = %e,
@@ -170,7 +172,9 @@ impl DeviceSyncWorker {
                 None,
                 None,
                 Some(device.branch_id),
-            ).await {
+            )
+            .await
+            {
                 error!(
                     device_id = device.id,
                     error = %e,
@@ -179,7 +183,10 @@ impl DeviceSyncWorker {
             }
         }
 
-        info!(count = count, "Device sync worker: marked devices as offline");
+        info!(
+            count = count,
+            "Device sync worker: marked devices as offline"
+        );
         Ok(())
     }
 
@@ -195,10 +202,9 @@ impl DeviceSyncWorker {
             DeviceType::Router
         };
 
-        if let Some(adapter) = DeviceAdapterFactory::create_for_device(
-            &device_type,
-            &device.management_ip,
-        ) {
+        if let Some(adapter) =
+            DeviceAdapterFactory::create_for_device(&device_type, &device.management_ip)
+        {
             match adapter.get_health_score().await {
                 Ok(score) => {
                     debug!(

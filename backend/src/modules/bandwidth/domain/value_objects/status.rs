@@ -20,10 +20,17 @@ impl BandwidthStatus {
         }
     }
     pub fn as_str(&self) -> &'static str {
-        match self { Self::Active => "active", Self::Inactive => "inactive", Self::Applying => "applying", Self::Failed => "failed" }
+        match self {
+            Self::Active => "active",
+            Self::Inactive => "inactive",
+            Self::Applying => "applying",
+            Self::Failed => "failed",
+        }
     }
 }
 
 impl fmt::Display for BandwidthStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

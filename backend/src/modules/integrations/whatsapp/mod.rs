@@ -371,7 +371,10 @@ impl WhatsAppAdapter {
     }
 
     /// Check delivery status of a message (via API polling)
-    pub async fn check_delivery(&self, message_id: &str) -> Result<WhatsAppDeliveryStatus, AppError> {
+    pub async fn check_delivery(
+        &self,
+        message_id: &str,
+    ) -> Result<WhatsAppDeliveryStatus, AppError> {
         let url = format!(
             "{}/{}/{}",
             self.config.api_url, self.config.api_version, message_id
@@ -431,10 +434,7 @@ impl WhatsAppAdapter {
 /// Normalize an Indian phone number for WhatsApp
 /// WhatsApp expects numbers without + or leading zeros
 fn normalize_phone(phone: &str) -> String {
-    let cleaned: String = phone
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect();
+    let cleaned: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
 
     // If starts with 0, assume India and prepend 91
     if cleaned.starts_with('0') && cleaned.len() <= 11 {

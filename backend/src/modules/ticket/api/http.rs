@@ -45,18 +45,20 @@ pub async fn list_tickets(
     };
     let (tickets, total) = TicketService::list_tickets(&state.db, bid, p.page(), p.limit()).await?;
     let items: Vec<TicketResponse> = tickets
-            .into_iter()
-            .map(|t| TicketResponse {
-                id: t.id,
-                ticket_number: t.ticket_number,
-                subject: t.subject,
-                category: t.category,
-                priority: t.priority,
-                status: t.status,
-                created_at: t.created_at.to_rfc3339(),
-            })
-            .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+        .into_iter()
+        .map(|t| TicketResponse {
+            id: t.id,
+            ticket_number: t.ticket_number,
+            subject: t.subject,
+            category: t.category,
+            priority: t.priority,
+            status: t.status,
+            created_at: t.created_at.to_rfc3339(),
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn create_ticket(
@@ -87,7 +89,9 @@ pub async fn create_ticket(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish ticket.created event");
     }
 
@@ -141,7 +145,9 @@ pub async fn assign_ticket(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish ticket.assigned event");
     }
 
@@ -171,7 +177,9 @@ pub async fn resolve_ticket(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish ticket.resolved event");
     }
 

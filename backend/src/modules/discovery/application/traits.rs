@@ -1,9 +1,10 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type DiscoveryScanModel = crate::modules::discovery::domain::entities::discovery_scan::Model;
-pub type DiscoveryResultModel = crate::modules::discovery::domain::entities::discovery_result::Model;
+pub type DiscoveryResultModel =
+    crate::modules::discovery::domain::entities::discovery_result::Model;
 
 #[async_trait]
 pub trait DiscoveryServiceTrait: Send + Sync {

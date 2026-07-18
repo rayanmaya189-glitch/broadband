@@ -17,12 +17,17 @@ impl VlanStatus {
         }
     }
     pub fn as_str(&self) -> &'static str {
-        match self { Self::Active => "active", Self::Inactive => "inactive" }
+        match self {
+            Self::Active => "active",
+            Self::Inactive => "inactive",
+        }
     }
 }
 
 impl fmt::Display for VlanStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 /// PPPoE session status
@@ -43,10 +48,16 @@ impl PppoeSessionStatus {
         }
     }
     pub fn as_str(&self) -> &'static str {
-        match self { Self::Active => "active", Self::Inactive => "inactive", Self::Terminated => "terminated" }
+        match self {
+            Self::Active => "active",
+            Self::Inactive => "inactive",
+            Self::Terminated => "terminated",
+        }
     }
 }
 
 impl fmt::Display for PppoeSessionStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

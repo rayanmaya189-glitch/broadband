@@ -96,8 +96,12 @@ mod tests {
     #[test]
     fn test_new_document() {
         let doc = DocumentFile::new(
-            "photo.jpg".to_string(), "image/jpeg".to_string(), 1024,
-            "bucket".to_string(), "key".to_string(), 1,
+            "photo.jpg".to_string(),
+            "image/jpeg".to_string(),
+            1024,
+            "bucket".to_string(),
+            "key".to_string(),
+            1,
         );
         assert!(doc.is_ok());
         assert!(doc.unwrap().is_active());
@@ -106,9 +110,16 @@ mod tests {
     #[test]
     fn test_file_too_large() {
         let doc = DocumentFile::new(
-            "large.pdf".to_string(), "application/pdf".to_string(), 20 * 1024 * 1024,
-            "bucket".to_string(), "key".to_string(), 1,
+            "large.pdf".to_string(),
+            "application/pdf".to_string(),
+            20 * 1024 * 1024,
+            "bucket".to_string(),
+            "key".to_string(),
+            1,
         );
-        assert_eq!(doc, Err(DocumentDomainError::FileTooLarge(20 * 1024 * 1024)));
+        assert_eq!(
+            doc,
+            Err(DocumentDomainError::FileTooLarge(20 * 1024 * 1024))
+        );
     }
 }

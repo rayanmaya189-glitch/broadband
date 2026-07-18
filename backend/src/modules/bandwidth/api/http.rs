@@ -33,16 +33,18 @@ pub async fn list_profiles(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let (profiles, total) = BandwidthService::list_profiles(&state.db, p.page(), p.limit()).await?;
     let items: Vec<BandwidthProfileResponse> = profiles
-            .into_iter()
-            .map(|p| BandwidthProfileResponse {
-                id: p.id,
-                name: p.name,
-                download_kbps: p.download_kbps,
-                upload_kbps: p.upload_kbps,
-                is_active: p.is_active,
-            })
-            .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+        .into_iter()
+        .map(|p| BandwidthProfileResponse {
+            id: p.id,
+            name: p.name,
+            download_kbps: p.download_kbps,
+            upload_kbps: p.upload_kbps,
+            is_active: p.is_active,
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn create_profile(
@@ -55,10 +57,17 @@ pub async fn create_profile(
         BandwidthService::create_profile(&state.db, req.name, req.download_kbps, req.upload_kbps)
             .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "bandwidth.profile.created", "bandwidth_profile", p.id,
-        serde_json::json!({"profile_id": p.id, "name": p.name}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "bandwidth.profile.created",
+        "bandwidth_profile",
+        p.id,
+        serde_json::json!({"profile_id": p.id, "name": p.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish bandwidth.profile.created event");
     }
     Ok((
@@ -89,10 +98,17 @@ pub async fn update_profile(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "bandwidth.profile.updated", "bandwidth_profile", p.id,
-        serde_json::json!({"profile_id": p.id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "bandwidth.profile.updated",
+        "bandwidth_profile",
+        p.id,
+        serde_json::json!({"profile_id": p.id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish bandwidth.profile.updated event");
     }
     Ok(Json(BandwidthProfileResponse {
@@ -122,10 +138,17 @@ pub async fn delete_profile(
     require_permission(&user, "bandwidth.profile.delete").map_err(|e| AppError::Forbidden(e.1))?;
     BandwidthService::delete_profile(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "bandwidth.profile.deleted", "bandwidth_profile", id,
-        serde_json::json!({"profile_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "bandwidth.profile.deleted",
+        "bandwidth_profile",
+        id,
+        serde_json::json!({"profile_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish bandwidth.profile.deleted event");
     }
     Ok(StatusCode::NO_CONTENT)

@@ -131,7 +131,9 @@ pub async fn create_customer(
         None,
         None,
         Some(customer.branch_id),
-    ).await {
+    )
+    .await
+    {
         tracing::error!(customer_id = customer.id, error = %e, "Failed to publish customer.created event");
     }
 
@@ -176,7 +178,10 @@ pub async fn update_customer_status(
     Path(id): Path<i64>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<CustomerResponse>, AppError> {
-    let old_status = CustomerService::get_customer(&state.db, id).await.map(|c| c.status).unwrap_or_default();
+    let old_status = CustomerService::get_customer(&state.db, id)
+        .await
+        .map(|c| c.status)
+        .unwrap_or_default();
     let customer = CustomerService::update_customer_status(&state.db, id, &req.status).await?;
 
     // Publish status change event
@@ -200,7 +205,9 @@ pub async fn update_customer_status(
         None,
         None,
         Some(customer.branch_id),
-    ).await {
+    )
+    .await
+    {
         tracing::error!(customer_id = customer.id, error = %e, "Failed to publish customer status event");
     }
 

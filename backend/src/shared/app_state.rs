@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use crate::config::settings::Settings;
 use crate::infrastructure::messaging::EventPublisher;
+use crate::infrastructure::metrics::SharedMetrics;
 use crate::infrastructure::storage::StorageService;
 use crate::shared::middleware::rate_limit::RateLimitStore;
-use crate::infrastructure::metrics::SharedMetrics;
 use crate::shared::utils::jwt_keys::JwtKeyPair;
 
 /// Shared application state available to all handlers.

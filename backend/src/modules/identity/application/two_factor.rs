@@ -75,7 +75,10 @@ pub fn verify_totp(secret_base32: &str, code: &str) -> bool {
     // Check current step and ±1 skew window
     for offset in 0..=TOTP_SKEW as u64 {
         // Check current + offset and current - offset
-        for &step in &[current_step.wrapping_add(offset), current_step.wrapping_sub(offset)] {
+        for &step in &[
+            current_step.wrapping_add(offset),
+            current_step.wrapping_sub(offset),
+        ] {
             let expected = generate_totp_code(&secret_bytes, step);
             if expected == code {
                 return true;
@@ -104,7 +107,11 @@ fn generate_totp_code(secret: &[u8], step: u64) -> String {
         | ((result[offset + 2] as u32) << 8)
         | (result[offset + 3] as u32);
 
-    format!("{:0>width$}", code % 10u32.pow(TOTP_DIGITS as u32), width = TOTP_DIGITS)
+    format!(
+        "{:0>width$}",
+        code % 10u32.pow(TOTP_DIGITS as u32),
+        width = TOTP_DIGITS
+    )
 }
 
 /// Verify a backup code against its stored hash.

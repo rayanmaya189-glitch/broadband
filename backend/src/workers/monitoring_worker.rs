@@ -1,5 +1,5 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
-use tracing::{info, warn, error};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use tracing::{error, info, warn};
 
 use crate::infrastructure::messaging::outbox;
 use crate::modules::device::domain::entities::network_device;
@@ -47,7 +47,10 @@ impl MonitoringWorker {
             return Ok(());
         }
 
-        info!(count = count, "Monitoring worker: collecting metrics from devices");
+        info!(
+            count = count,
+            "Monitoring worker: collecting metrics from devices"
+        );
 
         for device in &devices {
             match self.collect_single_device_metrics(device).await {
@@ -86,10 +89,7 @@ impl MonitoringWorker {
             DeviceType::Router
         };
 
-        let adapter = DeviceAdapterFactory::create_for_device(
-            &device_type,
-            &device.management_ip,
-        );
+        let adapter = DeviceAdapterFactory::create_for_device(&device_type, &device.management_ip);
 
         let mut metrics = Vec::new();
 
@@ -201,7 +201,9 @@ impl MonitoringWorker {
             title: format!("Device health degraded: {}", device.name),
             message: format!(
                 "Device {} has health score {} (threshold: {})",
-                device.name, health_score, monitoring_rules::HEALTH_SCORE_WARNING
+                device.name,
+                health_score,
+                monitoring_rules::HEALTH_SCORE_WARNING
             ),
             metric_name: Some("device_health".to_string()),
             metric_value: Some(health_score as f64),
@@ -227,11 +229,15 @@ impl MonitoringWorker {
             title: sea_orm::ActiveValue::Set(format!("Device health degraded: {}", device.name)),
             message: sea_orm::ActiveValue::Set(format!(
                 "Device {} has health score {} (threshold: {})",
-                device.name, health_score, monitoring_rules::HEALTH_SCORE_WARNING
+                device.name,
+                health_score,
+                monitoring_rules::HEALTH_SCORE_WARNING
             )),
             metric_name: sea_orm::ActiveValue::Set(Some("device_health".to_string())),
             metric_value: sea_orm::ActiveValue::Set(Some(health_score as f64)),
-            threshold_value: sea_orm::ActiveValue::Set(Some(monitoring_rules::HEALTH_SCORE_WARNING as f64)),
+            threshold_value: sea_orm::ActiveValue::Set(Some(
+                monitoring_rules::HEALTH_SCORE_WARNING as f64,
+            )),
             acknowledged_by: sea_orm::ActiveValue::Set(None),
             acknowledged_at: sea_orm::ActiveValue::Set(None),
             resolved_by: sea_orm::ActiveValue::Set(None),
@@ -281,7 +287,9 @@ impl MonitoringWorker {
             None,
             None,
             Some(device.branch_id),
-        ).await {
+        )
+        .await
+        {
             error!(
                 device_id = device.id,
                 error = %e,
@@ -321,22 +329,25 @@ impl MonitoringWorker {
                                 "Auto-resolving alert - device healthy"
                             );
                             // Update alert status to auto_resolved
-                        let mut active: monitoring_alert::ActiveModel = alert.clone().into();
-                        active.status = sea_orm::ActiveValue::Set("auto_resolved".to_string());
-                        active.resolved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
-                        active.resolution_notes = sea_orm::ActiveValue::Set(Some("Device recovered automatically".to_string()));
-                        active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+                            let mut active: monitoring_alert::ActiveModel = alert.clone().into();
+                            active.status = sea_orm::ActiveValue::Set("auto_resolved".to_string());
+                            active.resolved_at =
+                                sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
+                            active.resolution_notes = sea_orm::ActiveValue::Set(Some(
+                                "Device recovered automatically".to_string(),
+                            ));
+                            active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
-                        if let Err(e) = monitoring_alert::Entity::update(active)
-                            .exec(&self.db)
-                            .await
-                        {
-                            warn!(
-                                alert_id = alert.id,
-                                error = %e,
-                                "Failed to auto-resolve alert"
-                            );
-                        }
+                            if let Err(e) = monitoring_alert::Entity::update(active)
+                                .exec(&self.db)
+                                .await
+                            {
+                                warn!(
+                                    alert_id = alert.id,
+                                    error = %e,
+                                    "Failed to auto-resolve alert"
+                                );
+                            }
                         }
                     }
                 }
@@ -351,7 +362,8 @@ impl MonitoringWorker {
         info!("Monitoring worker: cleaning up old data");
 
         let metric_cutoff = chrono::Utc::now() - chrono::Duration::days(90);
-        let alert_cutoff = chrono::Utc::now() - chrono::Duration::hours(monitoring_rules::ALERT_EXPIRY_HOURS);
+        let alert_cutoff =
+            chrono::Utc::now() - chrono::Duration::hours(monitoring_rules::ALERT_EXPIRY_HOURS);
 
         // Delete old metrics
         let metrics_deleted = metric_record::Entity::delete_many()

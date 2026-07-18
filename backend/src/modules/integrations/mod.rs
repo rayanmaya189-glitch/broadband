@@ -7,12 +7,12 @@
 //! - RADIUS (PPPoE authentication)
 
 pub mod factory;
-pub mod mikrotik;
 pub mod huawei;
+pub mod mikrotik;
+pub mod push;
+pub mod radius;
 pub mod sms;
 pub mod smtp;
-pub mod radius;
 pub mod whatsapp;
-pub mod push;
 
 pub use factory::{DeviceAdapterFactory, DeviceType, NetworkDeviceAdapter};

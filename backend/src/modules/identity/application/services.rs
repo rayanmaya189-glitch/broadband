@@ -114,7 +114,9 @@ impl IdentityService {
             iat: Utc::now().timestamp(),
             exp: (Utc::now() + Duration::seconds(PENDING_2FA_TTL_SECS as i64)).timestamp(),
         };
-        jwt_keys.sign(&claims).map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to sign pending 2FA token: {}", e)))
+        jwt_keys.sign(&claims).map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to sign pending 2FA token: {}", e))
+        })
     }
 
     /// Verify the pending 2FA token and return the user_id.
@@ -122,7 +124,8 @@ impl IdentityService {
         pending_token: &str,
         jwt_keys: &JwtKeyPair,
     ) -> Result<i64, AppError> {
-        let claims = jwt_keys.verify(pending_token)
+        let claims = jwt_keys
+            .verify(pending_token)
             .map_err(|_| AppError::Unauthorized)?;
 
         // Validate this is a pending_2fa token
@@ -130,8 +133,7 @@ impl IdentityService {
             return Err(AppError::Unauthorized);
         }
 
-        let user_id: i64 = claims.sub.parse()
-            .map_err(|_| AppError::Unauthorized)?;
+        let user_id: i64 = claims.sub.parse().map_err(|_| AppError::Unauthorized)?;
 
         Ok(user_id)
     }
@@ -163,7 +165,12 @@ impl IdentityService {
         .await?;
 
         let access_token = Self::generate_access_token(
-            &updated_user, settings, &role, branch_id, is_company_wide, jwt_keys,
+            &updated_user,
+            settings,
+            &role,
+            branch_id,
+            is_company_wide,
+            jwt_keys,
         )?;
         let refresh_token = Self::generate_refresh_token();
         let refresh_token_hash = Self::hash_token(&refresh_token);
@@ -429,8 +436,14 @@ impl IdentityService {
 
         session.delete(db).await?;
 
-        let access_token =
-            Self::generate_access_token(&user_model, settings, &role, branch_id, is_company_wide, jwt_keys)?;
+        let access_token = Self::generate_access_token(
+            &user_model,
+            settings,
+            &role,
+            branch_id,
+            is_company_wide,
+            jwt_keys,
+        )?;
         let new_refresh_token = Self::generate_refresh_token();
         let new_refresh_hash = Self::hash_token(&new_refresh_token);
 
@@ -508,7 +521,12 @@ impl IdentityService {
         .await?;
 
         let access_token = Self::generate_access_token(
-            &updated_user, settings, &role, branch_id, is_company_wide, jwt_keys,
+            &updated_user,
+            settings,
+            &role,
+            branch_id,
+            is_company_wide,
+            jwt_keys,
         )?;
         let refresh_token = Self::generate_refresh_token();
         let refresh_token_hash = Self::hash_token(&refresh_token);
@@ -544,7 +562,9 @@ impl IdentityService {
             iat: Utc::now().timestamp(),
             exp: (Utc::now() + Duration::seconds(settings.jwt_access_token_ttl_secs)).timestamp(),
         };
-        jwt_keys.sign(&claims).map_err(|e| AppError::Internal(anyhow::anyhow!("JWT signing error: {}", e)))
+        jwt_keys
+            .sign(&claims)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("JWT signing error: {}", e)))
     }
 
     fn generate_refresh_token() -> String {

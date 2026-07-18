@@ -11,14 +11,23 @@ pub enum JobStatus {
 impl JobStatus {
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
-            "idle" => Some(Self::Idle), "running" => Some(Self::Running), "failed" => Some(Self::Failed), _ => None,
+            "idle" => Some(Self::Idle),
+            "running" => Some(Self::Running),
+            "failed" => Some(Self::Failed),
+            _ => None,
         }
     }
     pub fn as_str(&self) -> &'static str {
-        match self { Self::Idle => "idle", Self::Running => "running", Self::Failed => "failed" }
+        match self {
+            Self::Idle => "idle",
+            Self::Running => "running",
+            Self::Failed => "failed",
+        }
     }
 }
 
 impl fmt::Display for JobStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

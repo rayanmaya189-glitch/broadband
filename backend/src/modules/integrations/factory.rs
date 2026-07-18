@@ -6,12 +6,16 @@
 use std::sync::Arc;
 
 pub use crate::modules::device::domain::value_objects::DeviceType;
-use crate::modules::integrations::huawei::adapter::{HuaweiOltAdapter, HuaweiOltConfig, HuaweiOltSshAdapter};
-use crate::modules::integrations::mikrotik::adapter::{MikrotikDeviceAdapter, MikrotikAdapter, MikrotikConfig};
+use crate::modules::integrations::huawei::adapter::{
+    HuaweiOltAdapter, HuaweiOltConfig, HuaweiOltSshAdapter,
+};
+use crate::modules::integrations::mikrotik::adapter::{
+    MikrotikAdapter, MikrotikConfig, MikrotikDeviceAdapter,
+};
 use crate::modules::integrations::radius::adapter::{RadiusAdapter, RadiusClient};
-use crate::modules::integrations::sms::SmsProvider;
 use crate::modules::integrations::sms::msg91::Msg91Adapter;
 use crate::modules::integrations::sms::twilio::TwilioSmsAdapter;
+use crate::modules::integrations::sms::SmsProvider;
 use crate::shared::errors::AppError;
 
 /// Device adapter factory for creating adapters based on device type
@@ -80,40 +84,28 @@ impl DeviceAdapterFactory {
         match device_type {
             DeviceType::Router | DeviceType::Switch | DeviceType::AccessPoint => {
                 // Use MikroTik adapter for routers, switches, and APs
-                let username = std::env::var("MIKROTIK_USERNAME")
-                    .unwrap_or_else(|_| "admin".to_string());
-                let password = std::env::var("MIKROTIK_PASSWORD")
-                    .unwrap_or_default();
+                let username =
+                    std::env::var("MIKROTIK_USERNAME").unwrap_or_else(|_| "admin".to_string());
+                let password = std::env::var("MIKROTIK_PASSWORD").unwrap_or_default();
                 let port: u16 = std::env::var("MIKROTIK_PORT")
                     .unwrap_or_else(|_| "443".to_string())
                     .parse()
                     .unwrap_or(443);
 
-                let adapter = Self::create_mikrotik(
-                    management_ip,
-                    port,
-                    &username,
-                    &password,
-                );
+                let adapter = Self::create_mikrotik(management_ip, port, &username, &password);
                 Some(Arc::new(MikrotikNetworkAdapter(adapter)))
             }
             DeviceType::Olt | DeviceType::Ont => {
                 // Use Huawei OLT adapter for OLT and ONT devices
-                let username = std::env::var("HUAWEI_OLT_USERNAME")
-                    .unwrap_or_else(|_| "root".to_string());
-                let password = std::env::var("HUAWEI_OLT_PASSWORD")
-                    .unwrap_or_default();
+                let username =
+                    std::env::var("HUAWEI_OLT_USERNAME").unwrap_or_else(|_| "root".to_string());
+                let password = std::env::var("HUAWEI_OLT_PASSWORD").unwrap_or_default();
                 let port: u16 = std::env::var("HUAWEI_OLT_PORT")
                     .unwrap_or_else(|_| "22".to_string())
                     .parse()
                     .unwrap_or(22);
 
-                let adapter = Self::create_huawei_olt(
-                    management_ip,
-                    port,
-                    &username,
-                    &password,
-                );
+                let adapter = Self::create_huawei_olt(management_ip, port, &username, &password);
                 Some(Arc::new(HuaweiNetworkAdapter(adapter)))
             }
         }
@@ -217,8 +209,9 @@ impl NetworkDeviceAdapter for MikrotikNetworkAdapter {
 
     async fn get_status_info(&self) -> Result<serde_json::Value, AppError> {
         let status = self.0.get_device_status().await?;
-        Ok(serde_json::to_value(status)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize status: {}", e)))?)
+        Ok(serde_json::to_value(status).map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to serialize status: {}", e))
+        })?)
     }
 }
 
@@ -290,11 +283,9 @@ impl NetworkDeviceAdapter for HuaweiNetworkAdapter {
             let pon = parts[2].parse().unwrap_or(0);
             let ont_id = parts[3].parse().unwrap_or(0);
 
-            self.0.apply_bandwidth_to_ont(
-                frame, slot, pon, ont_id,
-                1,
-                Some(index),
-            ).await?;
+            self.0
+                .apply_bandwidth_to_ont(frame, slot, pon, ont_id, 1, Some(index))
+                .await?;
         }
 
         Ok(())
@@ -324,7 +315,8 @@ impl NetworkDeviceAdapter for HuaweiNetworkAdapter {
             .unwrap_or(0);
 
         let pon_status = self.0.get_pon_status(frame, slot, pon).await?;
-        Ok(serde_json::to_value(pon_status)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize status: {}", e)))?)
+        Ok(serde_json::to_value(pon_status).map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to serialize status: {}", e))
+        })?)
     }
 }

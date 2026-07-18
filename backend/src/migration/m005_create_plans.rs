@@ -11,16 +11,20 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        crate::migration::drop_tables(manager, vec![
-            "bandwidth_applications",
-            "bandwidth_profiles_history",
-            "bandwidth_profiles",
-            "plan_service_packages",
-            "service_packages",
-            "speed_profiles",
-            "plan_pricing",
-            "plans_history",
-            "plans",
-        ]).await
+        crate::migration::drop_tables(
+            manager,
+            vec![
+                "bandwidth_applications",
+                "bandwidth_profiles_history",
+                "bandwidth_profiles",
+                "plan_service_packages",
+                "service_packages",
+                "speed_profiles",
+                "plan_pricing",
+                "plans_history",
+                "plans",
+            ],
+        )
+        .await
     }
 }

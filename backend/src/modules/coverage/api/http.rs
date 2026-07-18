@@ -38,7 +38,9 @@ pub async fn list_coverage_areas(
             is_active: a.is_active,
         })
         .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,10 +87,17 @@ pub async fn create_coverage_area(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "coverage.area.created", "coverage_area", a.id,
-        serde_json::json!({"area_id": a.id, "name": a.name}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "coverage.area.created",
+        "coverage_area",
+        a.id,
+        serde_json::json!({"area_id": a.id, "name": a.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish coverage.area.created event");
     }
     Ok((

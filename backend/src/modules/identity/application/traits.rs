@@ -1,22 +1,15 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type UserModel = crate::modules::identity::domain::entities::user::Model;
 pub type UserSessionModel = crate::modules::identity::domain::entities::user_session::Model;
 
 #[async_trait]
 pub trait IdentityServiceTrait: Send + Sync {
-    async fn list_users(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<UserModel>, AppError>;
+    async fn list_users(&self, db: &DatabaseConnection) -> Result<Vec<UserModel>, AppError>;
 
-    async fn get_user(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<UserModel, AppError>;
+    async fn get_user(&self, db: &DatabaseConnection, id: i64) -> Result<UserModel, AppError>;
 
     async fn create_user(
         &self,

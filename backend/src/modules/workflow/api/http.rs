@@ -4,11 +4,11 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::shared::app_state::AppState;
-use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::{UserContext, has_permission};
 use crate::modules::workflow::application::services::ApprovalService;
 use crate::modules::workflow::domain::approval::ApprovalWorkflowType;
+use crate::shared::app_state::AppState;
+use crate::shared::errors::AppError;
+use crate::shared::middleware::auth::{has_permission, UserContext};
 
 #[derive(Deserialize)]
 pub struct CreateApprovalRequest {
@@ -62,10 +62,17 @@ pub async fn create_approval_request(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "workflow.approval.created", "approval_request", id,
-        serde_json::json!({"request_id": id, "workflow_type": input.workflow_type}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "workflow.approval.created",
+        "approval_request",
+        id,
+        serde_json::json!({"request_id": id, "workflow_type": input.workflow_type}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish workflow.approval.created event");
     }
 
@@ -149,10 +156,17 @@ pub async fn approve_request(
 
     ApprovalService::approve_request(&state.db, id, user.user_id, input.comment).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "workflow.approval.approved", "approval_request", id,
-        serde_json::json!({"request_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "workflow.approval.approved",
+        "approval_request",
+        id,
+        serde_json::json!({"request_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish workflow.approval.approved event");
     }
 
@@ -172,13 +186,22 @@ pub async fn reject_request(
         return Err(AppError::Forbidden("Permission required".to_string()));
     }
 
-    let comment = input.comment.unwrap_or_else(|| "No comment provided".to_string());
+    let comment = input
+        .comment
+        .unwrap_or_else(|| "No comment provided".to_string());
     ApprovalService::reject_request(&state.db, id, user.user_id, comment).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "workflow.approval.rejected", "approval_request", id,
-        serde_json::json!({"request_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "workflow.approval.rejected",
+        "approval_request",
+        id,
+        serde_json::json!({"request_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish workflow.approval.rejected event");
     }
 

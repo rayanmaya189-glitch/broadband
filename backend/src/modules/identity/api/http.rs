@@ -58,9 +58,6 @@ pub struct AuthResponse {
     pub message: Option<String>,
 }
 
-
-
-
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
     pub id: i64,
@@ -95,12 +92,25 @@ pub async fn register(
     let email = req.email.clone();
     let password = req.password.clone();
     let user = IdentityService::register(
-        &state.db, req.email, req.phone, req.name, req.password, req.branch_id,
-    ).await?;
+        &state.db,
+        req.email,
+        req.phone,
+        req.name,
+        req.password,
+        req.branch_id,
+    )
+    .await?;
 
     let mut redis = state.redis.clone();
-    let (access_token, refresh_token, _) =
-        IdentityService::login(&state.db, &mut redis, &state.settings, &email, &password, &state.jwt_keys).await?;
+    let (access_token, refresh_token, _) = IdentityService::login(
+        &state.db,
+        &mut redis,
+        &state.settings,
+        &email,
+        &password,
+        &state.jwt_keys,
+    )
+    .await?;
 
     Ok((
         StatusCode::CREATED,
@@ -120,14 +130,12 @@ pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
-    let user_model = IdentityService::verify_password_only(
-        &state.db, &req.email, &req.password,
-    ).await?;
+    let user_model =
+        IdentityService::verify_password_only(&state.db, &req.email, &req.password).await?;
 
     if user_model.two_factor_enabled {
-        let pending_token = IdentityService::generate_pending_2fa_token(
-            &user_model, &state.jwt_keys,
-        )?;
+        let pending_token =
+            IdentityService::generate_pending_2fa_token(&user_model, &state.jwt_keys)?;
         return Ok(Json(AuthResponse {
             requires_2fa: true,
             access_token: None,
@@ -140,8 +148,14 @@ pub async fn login(
 
     let mut redis = state.redis.clone();
     let (access_token, refresh_token, user) = IdentityService::login(
-        &state.db, &mut redis, &state.settings, &req.email, &req.password, &state.jwt_keys,
-    ).await?;
+        &state.db,
+        &mut redis,
+        &state.settings,
+        &req.email,
+        &req.password,
+        &state.jwt_keys,
+    )
+    .await?;
 
     Ok(Json(AuthResponse {
         requires_2fa: false,
@@ -158,9 +172,7 @@ pub async fn login_2fa(
     State(state): State<Arc<AppState>>,
     Json(req): Json<Login2FARequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
-    let user_id = IdentityService::verify_pending_2fa_token(
-        &req.pending_token, &state.jwt_keys,
-    )?;
+    let user_id = IdentityService::verify_pending_2fa_token(&req.pending_token, &state.jwt_keys)?;
 
     let user_model = user::Entity::find_by_id(user_id)
         .one(&state.db)
@@ -171,7 +183,9 @@ pub async fn login_2fa(
         return Err(AppError::Unauthorized);
     }
 
-    let secret = user_model.two_factor_secret.as_deref()
+    let secret = user_model
+        .two_factor_secret
+        .as_deref()
         .ok_or_else(|| AppError::BadRequest("2FA not configured".into()))?;
 
     if !two_factor::verify_totp(secret, &req.code) {
@@ -180,8 +194,13 @@ pub async fn login_2fa(
 
     let mut redis = state.redis.clone();
     let (access_token, refresh_token, user) = IdentityService::complete_2fa_login(
-        &state.db, &mut redis, &state.settings, &user_model, &state.jwt_keys,
-    ).await?;
+        &state.db,
+        &mut redis,
+        &state.settings,
+        &user_model,
+        &state.jwt_keys,
+    )
+    .await?;
 
     Ok(Json(AuthResponse {
         requires_2fa: false,
@@ -199,10 +218,18 @@ pub async fn refresh_token(
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, AppError> {
     let mut redis = state.redis.clone();
-    let (access_token, refresh_token, _) =
-        IdentityService::refresh_token(&state.db, &mut redis, &state.settings, &req.refresh_token, &state.jwt_keys)
-            .await?;
-    Ok(Json(RefreshTokenResponse { access_token, refresh_token }))
+    let (access_token, refresh_token, _) = IdentityService::refresh_token(
+        &state.db,
+        &mut redis,
+        &state.settings,
+        &req.refresh_token,
+        &state.jwt_keys,
+    )
+    .await?;
+    Ok(Json(RefreshTokenResponse {
+        access_token,
+        refresh_token,
+    }))
 }
 
 /// GET /api/v1/users/me
@@ -256,7 +283,9 @@ pub async fn setup_2fa(
 
     let mut active: user::ActiveModel = user_model.into();
     active.two_factor_secret = Set(Some(setup.secret_base32.clone()));
-    active.two_factor_backup_codes = Set(Some(serde_json::to_string(&setup.backup_code_hashes).unwrap_or_default()));
+    active.two_factor_backup_codes = Set(Some(
+        serde_json::to_string(&setup.backup_code_hashes).unwrap_or_default(),
+    ));
     active.updated_at = Set(chrono::Utc::now());
     active.update(&state.db).await?;
 
@@ -274,8 +303,9 @@ pub async fn confirm_2fa(
     Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_model = IdentityService::get_user(&state.db, user.user_id).await?;
-    let secret = user_model.two_factor_secret.as_deref()
-        .ok_or_else(|| AppError::BadRequest("2FA not initialized. Call /2fa/setup first.".to_string()))?;
+    let secret = user_model.two_factor_secret.as_deref().ok_or_else(|| {
+        AppError::BadRequest("2FA not initialized. Call /2fa/setup first.".to_string())
+    })?;
 
     if user_model.two_factor_enabled {
         return Err(AppError::Conflict("2FA is already enabled".to_string()));
@@ -300,10 +330,13 @@ pub async fn verify_2fa(
     Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_model = user::Entity::find_by_id(user.user_id)
-        .one(&state.db).await?
+        .one(&state.db)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
-    let secret = user_model.two_factor_secret.as_deref()
+    let secret = user_model
+        .two_factor_secret
+        .as_deref()
         .ok_or_else(|| AppError::BadRequest("2FA not enabled for this user".to_string()))?;
 
     if two_factor::verify_totp(secret, &req.code) {
@@ -320,10 +353,13 @@ pub async fn verify_backup_code(
     Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_model = user::Entity::find_by_id(user.user_id)
-        .one(&state.db).await?
+        .one(&state.db)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
-    let backup_hashes_json = user_model.two_factor_backup_codes.as_deref()
+    let backup_hashes_json = user_model
+        .two_factor_backup_codes
+        .as_deref()
         .ok_or_else(|| AppError::BadRequest("No backup codes found".to_string()))?;
     let stored_hashes: Vec<String> = serde_json::from_str(backup_hashes_json)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid backup codes format")))?;
@@ -332,10 +368,13 @@ pub async fn verify_backup_code(
 
     if valid {
         let mut active: user::ActiveModel = user_model.into();
-        active.two_factor_backup_codes = Set(Some(serde_json::to_string(&remaining).unwrap_or_default()));
+        active.two_factor_backup_codes =
+            Set(Some(serde_json::to_string(&remaining).unwrap_or_default()));
         active.updated_at = Set(chrono::Utc::now());
         active.update(&state.db).await?;
-        Ok(Json(serde_json::json!({ "verified": true, "remaining_codes": remaining.len() })))
+        Ok(Json(
+            serde_json::json!({ "verified": true, "remaining_codes": remaining.len() }),
+        ))
     } else {
         Err(AppError::Unauthorized)
     }
@@ -352,11 +391,15 @@ pub async fn disable_2fa(
         return Err(AppError::BadRequest("2FA is not enabled".to_string()));
     }
 
-    let secret = user_model.two_factor_secret.as_deref()
+    let secret = user_model
+        .two_factor_secret
+        .as_deref()
         .ok_or_else(|| AppError::BadRequest("2FA secret not found".to_string()))?;
 
     if !two_factor::verify_totp(secret, &req.code) {
-        return Err(AppError::BadRequest("Invalid TOTP code. Cannot disable 2FA without valid code.".to_string()));
+        return Err(AppError::BadRequest(
+            "Invalid TOTP code. Cannot disable 2FA without valid code.".to_string(),
+        ));
     }
 
     let mut active: user::ActiveModel = user_model.into();

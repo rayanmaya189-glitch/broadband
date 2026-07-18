@@ -79,7 +79,12 @@ mod tests {
 
     #[test]
     fn test_new_vlan() {
-        let vlan = Vlan::new(1, 200, "Customer Data".to_string(), VlanType::CustomerResidential);
+        let vlan = Vlan::new(
+            1,
+            200,
+            "Customer Data".to_string(),
+            VlanType::CustomerResidential,
+        );
         assert!(vlan.is_ok());
         let vlan = vlan.unwrap();
         assert!(vlan.is_available());
@@ -93,7 +98,12 @@ mod tests {
 
     #[test]
     fn test_invalid_vlan_id_too_high() {
-        let vlan = Vlan::new(1, 4095, "Invalid".to_string(), VlanType::CustomerResidential);
+        let vlan = Vlan::new(
+            1,
+            4095,
+            "Invalid".to_string(),
+            VlanType::CustomerResidential,
+        );
         assert_eq!(vlan, Err(VlanDomainError::InvalidVlanId));
     }
 }

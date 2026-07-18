@@ -1,3 +1,4 @@
+use chrono::{DateTime, NaiveDate, Utc};
 /// Entity History & Rollback Module per §32 docs.
 /// PostgreSQL trigger-based change tracking with JSONB snapshots.
 /// Provides search, diff, and safe rollback to any previous state.
@@ -5,7 +6,6 @@
 /// SECURITY: All entity_type inputs are validated against a whitelist
 /// to prevent SQL injection via table name interpolation.
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
-use chrono::{DateTime, Utc, NaiveDate};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -137,10 +137,7 @@ impl EntityHistoryService {
         };
 
         // Get total count
-        let count_query = format!(
-            "SELECT COUNT(*) as count FROM {} h {}",
-            table, where_clause
-        );
+        let count_query = format!("SELECT COUNT(*) as count FROM {} h {}", table, where_clause);
         let count_result = db
             .query_one(Statement::from_string(
                 db.get_database_backend(),
@@ -251,8 +248,9 @@ impl EntityHistoryService {
             .ok_or_else(|| AppError::NotFound("History entry not found".into()))?;
 
         // 2. Validate old_data exists for restoration
-        let old_data = entry.old_data
-            .ok_or_else(|| AppError::BadRequest("Cannot rollback: no previous state available".into()))?;
+        let old_data = entry.old_data.ok_or_else(|| {
+            AppError::BadRequest("Cannot rollback: no previous state available".into())
+        })?;
 
         // 3. Safety checks per entity type
         Self::validate_rollback_safety(db, entity_type, entity_id).await?;
@@ -274,10 +272,8 @@ impl EntityHistoryService {
                     set_clauses.join(", "),
                     entity_id
                 );
-                db.execute(Statement::from_string(
-                    db.get_database_backend(),
-                    query,
-                )).await?;
+                db.execute(Statement::from_string(db.get_database_backend(), query))
+                    .await?;
             }
         }
 
@@ -296,7 +292,8 @@ impl EntityHistoryService {
         db.execute(Statement::from_string(
             db.get_database_backend(),
             rollback_query,
-        )).await?;
+        ))
+        .await?;
 
         Ok(RollbackResult {
             history_id: history_id.to_string(),
@@ -362,9 +359,7 @@ impl EntityHistoryService {
                     .map(|r| r.try_get::<i64>("", "c").unwrap_or(0))
                     .unwrap_or(0);
                 if count > 0 {
-                    return Err(AppError::BadRequest(
-                        "Cannot rollback online device".into(),
-                    ));
+                    return Err(AppError::BadRequest("Cannot rollback online device".into()));
                 }
             }
             _ => {}
@@ -393,6 +388,9 @@ mod tests {
 
     #[test]
     fn test_allowed_entity_types_count() {
-        assert!(ALLOWED_ENTITY_TYPES.len() >= 20, "Should have at least 20 entity types");
+        assert!(
+            ALLOWED_ENTITY_TYPES.len() >= 20,
+            "Should have at least 20 entity types"
+        );
     }
 }

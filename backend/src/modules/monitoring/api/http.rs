@@ -1,14 +1,16 @@
+use crate::modules::monitoring::domain::entities::{metric_record, monitoring_alert};
+use crate::shared::app_state::SharedState;
+use crate::shared::errors::AppError;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
     response::IntoResponse,
+    Json,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+};
 use serde::{Deserialize, Serialize};
-use crate::shared::app_state::SharedState;
-use crate::shared::errors::AppError;
-use crate::modules::monitoring::domain::entities::{metric_record, monitoring_alert};
 
 /// Query parameters for listing metrics
 #[derive(Debug, Deserialize)]
@@ -95,15 +97,17 @@ pub async fn list_metrics(
     let total = records.len();
     let metrics: Vec<serde_json::Value> = records
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id,
-            "device_id": r.device_id,
-            "branch_id": r.branch_id,
-            "metric_name": r.metric_name,
-            "metric_value": r.metric_value,
-            "unit": r.unit,
-            "recorded_at": r.recorded_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "device_id": r.device_id,
+                "branch_id": r.branch_id,
+                "metric_name": r.metric_name,
+                "metric_value": r.metric_value,
+                "unit": r.unit,
+                "recorded_at": r.recorded_at,
+            })
+        })
         .collect();
     Ok(Json(MetricsResponse { metrics, total }))
 }
@@ -114,8 +118,7 @@ pub async fn get_device_metrics(
     Path(device_id): Path<i64>,
     Query(query): Query<MetricsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut q = metric_record::Entity::find()
-        .filter(metric_record::Column::DeviceId.eq(device_id));
+    let mut q = metric_record::Entity::find().filter(metric_record::Column::DeviceId.eq(device_id));
     if let Some(ref name) = query.metric_name {
         q = q.filter(metric_record::Column::MetricName.eq(name.as_str()));
     }
@@ -128,14 +131,16 @@ pub async fn get_device_metrics(
     let total = records.len();
     let metrics: Vec<serde_json::Value> = records
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id,
-            "device_id": r.device_id,
-            "metric_name": r.metric_name,
-            "metric_value": r.metric_value,
-            "unit": r.unit,
-            "recorded_at": r.recorded_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "device_id": r.device_id,
+                "metric_name": r.metric_name,
+                "metric_value": r.metric_value,
+                "unit": r.unit,
+                "recorded_at": r.recorded_at,
+            })
+        })
         .collect();
     Ok(Json(MetricsResponse { metrics, total }))
 }
@@ -163,19 +168,21 @@ pub async fn list_alerts(
     let total = records.len();
     let alerts: Vec<serde_json::Value> = records
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id,
-            "device_id": r.device_id,
-            "branch_id": r.branch_id,
-            "severity": r.severity,
-            "status": r.status,
-            "title": r.title,
-            "message": r.message,
-            "acknowledged_by": r.acknowledged_by,
-            "resolved_by": r.resolved_by,
-            "resolved_at": r.resolved_at,
-            "created_at": r.created_at,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "device_id": r.device_id,
+                "branch_id": r.branch_id,
+                "severity": r.severity,
+                "status": r.status,
+                "title": r.title,
+                "message": r.message,
+                "acknowledged_by": r.acknowledged_by,
+                "resolved_by": r.resolved_by,
+                "resolved_at": r.resolved_at,
+                "created_at": r.created_at,
+            })
+        })
         .collect();
     Ok(Json(AlertsResponse { alerts, total }))
 }
@@ -197,7 +204,14 @@ pub async fn get_alert_stats(
     for alert in &active {
         *by_branch.entry(alert.branch_id).or_insert(0) += 1;
     }
-    Ok(Json(AlertStatsResponse { total_active, critical, high, medium, low, by_branch }))
+    Ok(Json(AlertStatsResponse {
+        total_active,
+        critical,
+        high,
+        medium,
+        low,
+        by_branch,
+    }))
 }
 
 /// POST /api/v1/monitoring/alerts
@@ -219,11 +233,14 @@ pub async fn create_alert(
         ..Default::default()
     };
     let result = active.insert(&state.db).await?;
-    Ok((StatusCode::CREATED, Json(serde_json::json!({
-        "id": result.id,
-        "status": result.status,
-        "created_at": result.created_at,
-    }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "id": result.id,
+            "status": result.status,
+            "created_at": result.created_at,
+        })),
+    ))
 }
 
 /// POST /api/v1/monitoring/alerts/:id/acknowledge

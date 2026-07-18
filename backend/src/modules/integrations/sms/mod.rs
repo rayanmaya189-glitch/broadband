@@ -10,8 +10,8 @@
 //! - DLT (Distributed Ledger Technology) compliance for TRAI
 //! - Retry logic with exponential backoff
 
-use async_trait::async_trait;
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
 
 pub mod msg91;
 pub mod twilio;
@@ -34,11 +34,7 @@ pub struct SmsDeliveryStatus {
 #[async_trait]
 pub trait SmsProvider: Send + Sync {
     /// Send OTP to a phone number
-    async fn send_otp(
-        &self,
-        phone: &str,
-        template_id: Option<&str>,
-    ) -> Result<String, AppError>;
+    async fn send_otp(&self, phone: &str, template_id: Option<&str>) -> Result<String, AppError>;
 
     /// Verify OTP
     async fn verify_otp(&self, phone: &str, otp: &str) -> Result<bool, AppError>;

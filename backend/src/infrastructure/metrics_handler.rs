@@ -9,11 +9,13 @@ use tracing::debug;
 use crate::shared::app_state::SharedState;
 
 /// GET /api/v1/metrics — Prometheus scrape endpoint.
-pub async fn metrics_handler(
-    State(state): State<SharedState>,
-) -> impl IntoResponse {
+pub async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
     let Some(metrics) = &state.metrics else {
-        return (StatusCode::SERVICE_UNAVAILABLE, "Metrics not initialized".to_string()).into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Metrics not initialized".to_string(),
+        )
+            .into_response();
     };
 
     let encoder = TextEncoder::new();
@@ -25,9 +27,13 @@ pub async fn metrics_handler(
 
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         buffer,
-    ).into_response()
+    )
+        .into_response()
 }
 
 /// GET /api/v1/metrics/summary — JSON summary of key metrics for dashboards.

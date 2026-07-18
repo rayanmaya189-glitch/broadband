@@ -21,8 +21,8 @@ async fn health_check() -> axum::Json<serde_json::Value> {
 async fn readiness_check(
     axum::extract::State(state): axum::extract::State<SharedState>,
 ) -> axum::Json<serde_json::Value> {
-    use sea_orm::{EntityTrait, QuerySelect};
     use crate::modules::branches::domain::entities::branch;
+    use sea_orm::{EntityTrait, QuerySelect};
 
     let mut checks = serde_json::Map::new();
     let mut is_ready = true;
@@ -33,7 +33,10 @@ async fn readiness_check(
             checks.insert("database".to_string(), serde_json::json!("ok"));
         }
         Err(e) => {
-            checks.insert("database".to_string(), serde_json::json!({"error": e.to_string()}));
+            checks.insert(
+                "database".to_string(),
+                serde_json::json!({"error": e.to_string()}),
+            );
             is_ready = false;
         }
     }
@@ -76,8 +79,14 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/payments", payment_routes())
         .nest("/approvals", approval_routes())
         .nest("/monitoring", monitoring_routes())
-        .route("/metrics", axum::routing::get(crate::infrastructure::metrics_handler::metrics_handler))
-        .route("/metrics/summary", axum::routing::get(crate::infrastructure::metrics_handler::metrics_summary_handler))
+        .route(
+            "/metrics",
+            axum::routing::get(crate::infrastructure::metrics_handler::metrics_handler),
+        )
+        .route(
+            "/metrics/summary",
+            axum::routing::get(crate::infrastructure::metrics_handler::metrics_summary_handler),
+        )
         // Entity History & Rollback (§32)
         .nest("/audit/history", audit_history_routes())
 }
@@ -85,10 +94,22 @@ pub fn v1_routes() -> Router<SharedState> {
 fn audit_history_routes() -> Router<SharedState> {
     use crate::modules::audit::api::http as audit_http;
     Router::new()
-        .route("/entity-types", axum::routing::get(audit_http::list_entity_types))
-        .route("/:entity_type", axum::routing::get(audit_http::search_history))
-        .route("/:entity_type/:history_id", axum::routing::get(audit_http::get_history_entry))
-        .route("/rollback/:entity_type/:entity_id", axum::routing::post(audit_http::rollback_entity))
+        .route(
+            "/entity-types",
+            axum::routing::get(audit_http::list_entity_types),
+        )
+        .route(
+            "/:entity_type",
+            axum::routing::get(audit_http::search_history),
+        )
+        .route(
+            "/:entity_type/:history_id",
+            axum::routing::get(audit_http::get_history_entry),
+        )
+        .route(
+            "/rollback/:entity_type/:entity_id",
+            axum::routing::post(audit_http::rollback_entity),
+        )
 }
 
 fn auth_routes() -> Router<SharedState> {
@@ -102,7 +123,10 @@ fn auth_routes() -> Router<SharedState> {
         .route("/2fa/setup", axum::routing::post(id_http::setup_2fa))
         .route("/2fa/confirm", axum::routing::post(id_http::confirm_2fa))
         .route("/2fa/verify", axum::routing::post(id_http::verify_2fa))
-        .route("/2fa/backup-verify", axum::routing::post(id_http::verify_backup_code))
+        .route(
+            "/2fa/backup-verify",
+            axum::routing::post(id_http::verify_backup_code),
+        )
         .route("/2fa/disable", axum::routing::delete(id_http::disable_2fa))
 }
 
@@ -175,11 +199,26 @@ fn subscription_routes() -> Router<SharedState> {
             "/",
             axum::routing::get(http::list_subscriptions).post(http::create_subscription),
         )
-        .route("/:id/cancel", axum::routing::post(http::cancel_subscription))
-        .route("/:id/suspend", axum::routing::post(http::suspend_subscription))
-        .route("/:id/reactivate", axum::routing::post(http::reactivate_subscription))
-        .route("/:id/upgrade", axum::routing::post(http::upgrade_subscription))
-        .route("/:id/downgrade", axum::routing::post(http::downgrade_subscription))
+        .route(
+            "/:id/cancel",
+            axum::routing::post(http::cancel_subscription),
+        )
+        .route(
+            "/:id/suspend",
+            axum::routing::post(http::suspend_subscription),
+        )
+        .route(
+            "/:id/reactivate",
+            axum::routing::post(http::reactivate_subscription),
+        )
+        .route(
+            "/:id/upgrade",
+            axum::routing::post(http::upgrade_subscription),
+        )
+        .route(
+            "/:id/downgrade",
+            axum::routing::post(http::downgrade_subscription),
+        )
 }
 
 fn billing_routes() -> Router<SharedState> {
@@ -193,8 +232,14 @@ fn billing_routes() -> Router<SharedState> {
             "/payments",
             axum::routing::get(http::list_payments).post(http::record_payment),
         )
-        .route("/invoices/overdue", axum::routing::get(http::list_overdue_invoices))
-        .route("/invoices/auto-generate", axum::routing::post(http::auto_generate_invoices))
+        .route(
+            "/invoices/overdue",
+            axum::routing::get(http::list_overdue_invoices),
+        )
+        .route(
+            "/invoices/auto-generate",
+            axum::routing::post(http::auto_generate_invoices),
+        )
 }
 
 fn rbac_routes() -> Router<SharedState> {
@@ -212,22 +257,51 @@ fn rbac_routes() -> Router<SharedState> {
 fn accounting_routes() -> Router<SharedState> {
     use crate::modules::accounting::api::http;
     Router::new()
-        .route("/accounts", axum::routing::get(http::list_accounts).post(http::create_account))
+        .route(
+            "/accounts",
+            axum::routing::get(http::list_accounts).post(http::create_account),
+        )
         .route("/accounts/:id", axum::routing::put(http::update_account))
-        .route("/journal", axum::routing::get(http::list_journal_entries).post(http::create_journal_entry))
-        .route("/journal/:id/post", axum::routing::post(http::post_journal_entry))
-        .route("/journal/:id/void", axum::routing::post(http::void_journal_entry))
-        .route("/trial-balance", axum::routing::get(http::generate_trial_balance))
-        .route("/statements/profit-loss", axum::routing::get(http::profit_and_loss))
-        .route("/statements/balance-sheet", axum::routing::get(http::balance_sheet))
+        .route(
+            "/journal",
+            axum::routing::get(http::list_journal_entries).post(http::create_journal_entry),
+        )
+        .route(
+            "/journal/:id/post",
+            axum::routing::post(http::post_journal_entry),
+        )
+        .route(
+            "/journal/:id/void",
+            axum::routing::post(http::void_journal_entry),
+        )
+        .route(
+            "/trial-balance",
+            axum::routing::get(http::generate_trial_balance),
+        )
+        .route(
+            "/statements/profit-loss",
+            axum::routing::get(http::profit_and_loss),
+        )
+        .route(
+            "/statements/balance-sheet",
+            axum::routing::get(http::balance_sheet),
+        )
         .route("/gst/:type", axum::routing::get(http::gst_return))
 }
 
 fn scheduler_routes() -> Router<SharedState> {
     use crate::modules::scheduler::api::http;
     Router::new()
-        .route("/jobs", axum::routing::get(http::list_jobs).post(http::create_job))
-        .route("/jobs/:id", axum::routing::get(http::get_job).put(http::update_job).delete(http::delete_job))
+        .route(
+            "/jobs",
+            axum::routing::get(http::list_jobs).post(http::create_job),
+        )
+        .route(
+            "/jobs/:id",
+            axum::routing::get(http::get_job)
+                .put(http::update_job)
+                .delete(http::delete_job),
+        )
         .route("/jobs/:id/trigger", axum::routing::post(http::trigger_job))
         .route("/executions", axum::routing::get(http::list_executions))
         .route("/stats", axum::routing::get(http::scheduler_stats))
@@ -307,7 +381,10 @@ fn notification_routes() -> Router<SharedState> {
         )
         .route("/send", axum::routing::post(http::send_notification))
         .route("/list", axum::routing::get(http::list_notifications))
-        .route("/retry", axum::routing::post(http::retry_failed_notifications))
+        .route(
+            "/retry",
+            axum::routing::post(http::retry_failed_notifications),
+        )
 }
 
 fn audit_routes() -> Router<SharedState> {
@@ -426,11 +503,26 @@ fn monitoring_routes() -> Router<SharedState> {
     use crate::modules::monitoring::api::http as mon_http;
     Router::new()
         .route("/metrics", axum::routing::get(mon_http::list_metrics))
-        .route("/metrics/:device_id", axum::routing::get(mon_http::get_device_metrics))
-        .route("/alerts", axum::routing::get(mon_http::list_alerts).post(mon_http::create_alert))
-        .route("/alerts/stats", axum::routing::get(mon_http::get_alert_stats))
-        .route("/alerts/:id/acknowledge", axum::routing::post(mon_http::acknowledge_alert))
-        .route("/alerts/:id/resolve", axum::routing::post(mon_http::resolve_alert))
+        .route(
+            "/metrics/:device_id",
+            axum::routing::get(mon_http::get_device_metrics),
+        )
+        .route(
+            "/alerts",
+            axum::routing::get(mon_http::list_alerts).post(mon_http::create_alert),
+        )
+        .route(
+            "/alerts/stats",
+            axum::routing::get(mon_http::get_alert_stats),
+        )
+        .route(
+            "/alerts/:id/acknowledge",
+            axum::routing::post(mon_http::acknowledge_alert),
+        )
+        .route(
+            "/alerts/:id/resolve",
+            axum::routing::post(mon_http::resolve_alert),
+        )
 }
 
 fn approval_routes() -> Router<SharedState> {

@@ -12,8 +12,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use crate::shared::errors::AppError;
 use super::{SmsDeliveryStatus, SmsProvider};
+use crate::shared::errors::AppError;
 
 // ============================================================================
 // Configuration
@@ -33,12 +33,9 @@ impl Default for Msg91Config {
     fn default() -> Self {
         Self {
             auth_key: std::env::var("MSG91_AUTH_KEY").unwrap_or_default(),
-            sender_id: std::env::var("MSG91_SENDER_ID")
-                .unwrap_or_else(|_| "AEROXE".to_string()),
-            route: std::env::var("MSG91_ROUTE")
-                .unwrap_or_else(|_| "4".to_string()), // 4 = Transactional
-            country_code: std::env::var("MSG91_COUNTRY_CODE")
-                .unwrap_or_else(|_| "91".to_string()),
+            sender_id: std::env::var("MSG91_SENDER_ID").unwrap_or_else(|_| "AEROXE".to_string()),
+            route: std::env::var("MSG91_ROUTE").unwrap_or_else(|_| "4".to_string()), // 4 = Transactional
+            country_code: std::env::var("MSG91_COUNTRY_CODE").unwrap_or_else(|_| "91".to_string()),
             api_url: std::env::var("MSG91_API_URL")
                 .unwrap_or_else(|_| "https://api.msg91.com/api/v5/otp".to_string()),
         }
@@ -105,8 +102,6 @@ pub struct Msg91Response {
     pub request_id: Option<String>,
 }
 
-
-
 // ============================================================================
 // MSG91 Adapter
 // ============================================================================
@@ -148,11 +143,7 @@ impl Msg91Adapter {
 
 #[async_trait]
 impl SmsProvider for Msg91Adapter {
-    async fn send_otp(
-        &self,
-        phone: &str,
-        template_id: Option<&str>,
-    ) -> Result<String, AppError> {
+    async fn send_otp(&self, phone: &str, template_id: Option<&str>) -> Result<String, AppError> {
         let otp = Self::generate_otp();
 
         let body = serde_json::json!({
@@ -190,10 +181,7 @@ impl SmsProvider for Msg91Adapter {
             .await
             .map_err(|e| AppError::External(format!("Failed to parse MSG91 response: {}", e)))?;
 
-        let request_id = result["request_id"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let request_id = result["request_id"].as_str().unwrap_or("").to_string();
 
         info!(phone = %phone, request_id = %request_id, "Sent OTP via MSG91");
         Ok(otp)
@@ -281,10 +269,7 @@ impl SmsProvider for Msg91Adapter {
             .await
             .map_err(|e| AppError::External(format!("Failed to parse MSG91 response: {}", e)))?;
 
-        let request_id = result["request_id"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let request_id = result["request_id"].as_str().unwrap_or("").to_string();
 
         info!(phone = %phone, request_id = %request_id, "Sent SMS via MSG91");
         Ok(request_id)
@@ -340,10 +325,7 @@ impl SmsProvider for Msg91Adapter {
             .await
             .map_err(|e| AppError::External(format!("Failed to parse MSG91 response: {}", e)))?;
 
-        let request_id = result["request_id"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let request_id = result["request_id"].as_str().unwrap_or("").to_string();
 
         info!(count = phones.len(), request_id = %request_id, "Sent bulk SMS via MSG91");
         Ok(request_id)

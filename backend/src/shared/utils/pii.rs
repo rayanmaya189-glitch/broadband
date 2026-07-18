@@ -35,7 +35,9 @@ pub fn mask_phone(phone: &str) -> String {
         // Detect country code: +XX (2-3 digits for India, US, UK, etc.)
         let prefix_len = if let Some(rest) = phone.strip_prefix('+') {
             // Country codes are typically 1-3 digits after the '+'
-            let code_end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+            let code_end = rest
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(rest.len());
             // Cap at 2 digits max (covers +1, +44, +91, +92, etc.)
             let code_len = code_end.min(2);
             code_len + 1 // +1 for the '+' character itself
@@ -45,10 +47,11 @@ pub fn mask_phone(phone: &str) -> String {
         let suffix_len = 4;
         if phone.len() > prefix_len + suffix_len {
             let mask_len = phone.len() - prefix_len - suffix_len;
-            format!("{}{}{}",
+            format!(
+                "{}{}{}",
                 &phone[..prefix_len],
                 "*".repeat(mask_len),
-                &phone[phone.len()-suffix_len..]
+                &phone[phone.len() - suffix_len..]
             )
         } else {
             phone.to_string()
@@ -64,7 +67,7 @@ pub fn mask_email(email: &str) -> String {
     if parts.len() == 2 && parts[0].len() > 2 {
         let user = parts[0];
         let domain = parts[1];
-        format!("{}****{}@{}", &user[..1], &user[user.len()-1..], domain)
+        format!("{}****{}@{}", &user[..1], &user[user.len() - 1..], domain)
     } else {
         email.to_string()
     }
@@ -73,7 +76,7 @@ pub fn mask_email(email: &str) -> String {
 /// Mask Aadhaar for display: 1234-5678-9012 → XXXX-XXXX-9012
 pub fn mask_aadhaar(aadhaar: &str) -> String {
     if aadhaar.len() >= 4 {
-        format!("XXXX-XXXX-{}", &aadhaar[aadhaar.len()-4..])
+        format!("XXXX-XXXX-{}", &aadhaar[aadhaar.len() - 4..])
     } else {
         "XXXX".to_string()
     }
@@ -82,7 +85,7 @@ pub fn mask_aadhaar(aadhaar: &str) -> String {
 /// Mask PAN for display: ABCDE1234F → XXXXX234F
 pub fn mask_pan(pan: &str) -> String {
     if pan.len() >= 4 {
-        format!("XXXXX{}", &pan[pan.len()-4..])
+        format!("XXXXX{}", &pan[pan.len() - 4..])
     } else {
         "XXXXX".to_string()
     }

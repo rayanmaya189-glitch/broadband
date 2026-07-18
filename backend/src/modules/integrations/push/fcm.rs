@@ -232,11 +232,13 @@ impl FcmAdapter {
 
         // Parse service account key
         let sa_key: serde_json::Value = serde_json::from_str(&self.config.service_account_key)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid service account key: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Invalid service account key: {}", e))
+            })?;
 
-        let client_email = sa_key["client_email"]
-            .as_str()
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing client_email in service account")))?;
+        let client_email = sa_key["client_email"].as_str().ok_or_else(|| {
+            AppError::Internal(anyhow::anyhow!("Missing client_email in service account"))
+        })?;
 
         // Build JWT claims for OAuth2 token exchange
         let now = chrono::Utc::now().timestamp();
@@ -279,7 +281,10 @@ impl FcmAdapter {
 
         if !response.status().is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(AppError::External(format!("Token exchange error: {}", body)));
+            return Err(AppError::External(format!(
+                "Token exchange error: {}",
+                body
+            )));
         }
 
         let token_response: serde_json::Value = response
@@ -372,7 +377,10 @@ impl FcmAdapter {
             if !response.status().is_success() {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                return Err(AppError::External(format!("FCM API error ({}): {}", status, body)));
+                return Err(AppError::External(format!(
+                    "FCM API error ({}): {}",
+                    status, body
+                )));
             }
 
             let result: FcmResponse = response

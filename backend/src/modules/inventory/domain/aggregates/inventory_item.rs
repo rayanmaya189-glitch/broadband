@@ -39,7 +39,12 @@ impl std::fmt::Display for InventoryDomainError {
 impl std::error::Error for InventoryDomainError {}
 
 impl InventoryItem {
-    pub fn new(branch_id: i64, item_type: String, serial_number: Option<String>, barcode: Option<String>) -> Self {
+    pub fn new(
+        branch_id: i64,
+        item_type: String,
+        serial_number: Option<String>,
+        barcode: Option<String>,
+    ) -> Self {
         Self {
             id: InventoryItemId::new(0),
             branch_id,

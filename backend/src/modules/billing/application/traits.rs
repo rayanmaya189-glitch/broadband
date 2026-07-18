@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type InvoiceModel = crate::modules::billing::domain::entities::invoice::Model;
 pub type PaymentModel = crate::modules::billing::domain::entities::payment::Model;
@@ -15,11 +15,8 @@ pub trait BillingServiceTrait: Send + Sync {
         limit: u64,
     ) -> Result<(Vec<InvoiceModel>, u64), AppError>;
 
-    async fn get_invoice(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<InvoiceModel, AppError>;
+    async fn get_invoice(&self, db: &DatabaseConnection, id: i64)
+        -> Result<InvoiceModel, AppError>;
 
     async fn create_invoice(
         &self,

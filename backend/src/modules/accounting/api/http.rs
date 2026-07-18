@@ -82,7 +82,9 @@ pub struct AccountResponse {
     pub description: Option<String>,
 }
 
-impl From<crate::modules::accounting::domain::entities::chart_of_accounts::Model> for AccountResponse {
+impl From<crate::modules::accounting::domain::entities::chart_of_accounts::Model>
+    for AccountResponse
+{
     fn from(m: crate::modules::accounting::domain::entities::chart_of_accounts::Model) -> Self {
         Self {
             id: m.id,
@@ -113,7 +115,9 @@ pub struct JournalEntryResponse {
     pub created_at: String,
 }
 
-impl From<crate::modules::accounting::domain::entities::journal_entry::Model> for JournalEntryResponse {
+impl From<crate::modules::accounting::domain::entities::journal_entry::Model>
+    for JournalEntryResponse
+{
     fn from(m: crate::modules::accounting::domain::entities::journal_entry::Model) -> Self {
         Self {
             id: m.id,
@@ -141,7 +145,9 @@ pub struct JournalLineResponse {
     pub description: Option<String>,
 }
 
-impl From<crate::modules::accounting::domain::entities::journal_entry_line::Model> for JournalLineResponse {
+impl From<crate::modules::accounting::domain::entities::journal_entry_line::Model>
+    for JournalLineResponse
+{
     fn from(m: crate::modules::accounting::domain::entities::journal_entry_line::Model) -> Self {
         Self {
             id: m.id,
@@ -162,7 +168,9 @@ pub async fn list_accounts(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let accounts = AccountingService::list_accounts(&state.db).await?;
     let resp: Vec<AccountResponse> = accounts.into_iter().map(AccountResponse::from).collect();
-    Ok(Json(serde_json::json!({ "items": resp, "total": resp.len() })))
+    Ok(Json(
+        serde_json::json!({ "items": resp, "total": resp.len() }),
+    ))
 }
 
 /// POST /api/v1/accounting/accounts
@@ -171,7 +179,8 @@ pub async fn create_account(
     user: UserContext,
     Json(req): Json<CreateAccountRequest>,
 ) -> Result<(StatusCode, Json<AccountResponse>), AppError> {
-    require_permission(&user, "accounting.accounts.create").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "accounting.accounts.create")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let account = AccountingService::create_account(
         &state.db,
         req.code,
@@ -179,7 +188,8 @@ pub async fn create_account(
         req.account_type,
         req.parent_id,
         req.description,
-    ).await?;
+    )
+    .await?;
     Ok((StatusCode::CREATED, Json(AccountResponse::from(account))))
 }
 
@@ -190,8 +200,11 @@ pub async fn update_account(
     Path(id): Path<i64>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> Result<Json<AccountResponse>, AppError> {
-    require_permission(&user, "accounting.accounts.update").map_err(|e| AppError::Forbidden(e.1))?;
-    let account = AccountingService::update_account(&state.db, id, req.name, req.description, req.is_active).await?;
+    require_permission(&user, "accounting.accounts.update")
+        .map_err(|e| AppError::Forbidden(e.1))?;
+    let account =
+        AccountingService::update_account(&state.db, id, req.name, req.description, req.is_active)
+            .await?;
     Ok(Json(AccountResponse::from(account)))
 }
 
@@ -220,18 +233,28 @@ pub async fn create_journal_entry(
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
     require_permission(&user, "accounting.journal.create").map_err(|e| AppError::Forbidden(e.1))?;
 
-    let entry_date: chrono::NaiveDate = req.entry_date.parse()
-        .map_err(|_| AppError::Validation("Invalid entry_date format, expected YYYY-MM-DD".into()))?;
+    let entry_date: chrono::NaiveDate = req.entry_date.parse().map_err(|_| {
+        AppError::Validation("Invalid entry_date format, expected YYYY-MM-DD".into())
+    })?;
 
-    let lines: Vec<crate::modules::accounting::application::services::CreateJournalLine> = req.lines
+    let lines: Vec<crate::modules::accounting::application::services::CreateJournalLine> = req
+        .lines
         .into_iter()
         .map(|l| {
-            Ok(crate::modules::accounting::application::services::CreateJournalLine {
-                account_id: l.account_id,
-                debit: l.debit.parse().map_err(|_| AppError::Validation("Invalid debit amount".into()))?,
-                credit: l.credit.parse().map_err(|_| AppError::Validation("Invalid credit amount".into()))?,
-                description: l.description,
-            })
+            Ok(
+                crate::modules::accounting::application::services::CreateJournalLine {
+                    account_id: l.account_id,
+                    debit: l
+                        .debit
+                        .parse()
+                        .map_err(|_| AppError::Validation("Invalid debit amount".into()))?,
+                    credit: l
+                        .credit
+                        .parse()
+                        .map_err(|_| AppError::Validation("Invalid credit amount".into()))?,
+                    description: l.description,
+                },
+            )
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
@@ -243,15 +266,19 @@ pub async fn create_journal_entry(
         req.reference_id,
         lines,
         Some(user.user_id),
-    ).await?;
+    )
+    .await?;
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({
-        "id": entry.id,
-        "entry_number": entry.entry_number,
-        "total_debit": entry.total_debit.to_string(),
-        "total_credit": entry.total_credit.to_string(),
-        "status": entry.status,
-    }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "id": entry.id,
+            "entry_number": entry.entry_number,
+            "total_debit": entry.total_debit.to_string(),
+            "total_credit": entry.total_credit.to_string(),
+            "status": entry.status,
+        })),
+    ))
 }
 
 /// POST /api/v1/accounting/journal/:id/post
@@ -282,12 +309,18 @@ pub async fn generate_trial_balance(
     _user: UserContext,
     Query(q): Query<TrialBalanceQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let start: chrono::NaiveDate = q.period_start.parse()
+    let start: chrono::NaiveDate = q
+        .period_start
+        .parse()
         .map_err(|_| AppError::Validation("Invalid period_start".into()))?;
-    let end: chrono::NaiveDate = q.period_end.parse()
+    let end: chrono::NaiveDate = q
+        .period_end
+        .parse()
         .map_err(|_| AppError::Validation("Invalid period_end".into()))?;
     let rows = AccountingService::generate_trial_balance(&state.db, start, end).await?;
-    Ok(Json(serde_json::json!({ "period_start": start, "period_end": end, "rows": rows })))
+    Ok(Json(
+        serde_json::json!({ "period_start": start, "period_end": end, "rows": rows }),
+    ))
 }
 
 /// GET /api/v1/accounting/statements/profit-loss
@@ -296,9 +329,13 @@ pub async fn profit_and_loss(
     _user: UserContext,
     Query(q): Query<ProfitLossQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let start: chrono::NaiveDate = q.period_start.parse()
+    let start: chrono::NaiveDate = q
+        .period_start
+        .parse()
         .map_err(|_| AppError::Validation("Invalid period_start".into()))?;
-    let end: chrono::NaiveDate = q.period_end.parse()
+    let end: chrono::NaiveDate = q
+        .period_end
+        .parse()
         .map_err(|_| AppError::Validation("Invalid period_end".into()))?;
     let stmt = AccountingService::profit_and_loss(&state.db, start, end).await?;
     Ok(Json(serde_json::to_value(stmt).unwrap_or_default()))
@@ -310,7 +347,9 @@ pub async fn balance_sheet(
     _user: UserContext,
     Query(q): Query<BalanceSheetQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let date: chrono::NaiveDate = q.as_of_date.parse()
+    let date: chrono::NaiveDate = q
+        .as_of_date
+        .parse()
         .map_err(|_| AppError::Validation("Invalid as_of_date".into()))?;
     let stmt = AccountingService::balance_sheet(&state.db, date).await?;
     Ok(Json(serde_json::to_value(stmt).unwrap_or_default()))
@@ -324,8 +363,16 @@ pub async fn gst_return(
     Query(q): Query<GstQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !["GSTR1", "GSTR3B"].contains(&return_type.as_str()) {
-        return Err(AppError::Validation("Invalid GST return type, must be GSTR1 or GSTR3B".into()));
+        return Err(AppError::Validation(
+            "Invalid GST return type, must be GSTR1 or GSTR3B".into(),
+        ));
     }
-    let data = AccountingService::generate_gst_return(&state.db, return_type, q.period_month, q.period_year).await?;
+    let data = AccountingService::generate_gst_return(
+        &state.db,
+        return_type,
+        q.period_month,
+        q.period_year,
+    )
+    .await?;
     Ok(Json(serde_json::to_value(data).unwrap_or_default()))
 }

@@ -2,7 +2,10 @@ use crate::modules::lead::domain::entities::{
     Lead, LeadActiveModel, LeadActivity, LeadActivityActiveModel, LeadColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{PaginatorTrait, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct LeadService;
 
@@ -12,7 +15,13 @@ impl LeadService {
         branch_id: Option<i64>,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::lead::domain::entities::lead::Model>, u64), AppError> {
+    ) -> Result<
+        (
+            Vec<crate::modules::lead::domain::entities::lead::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let mut query = Lead::find();
         if let Some(bid) = branch_id {
             query = query.filter(LeadColumn::BranchId.eq(bid));
@@ -117,4 +126,3 @@ impl LeadService {
             .await?)
     }
 }
-

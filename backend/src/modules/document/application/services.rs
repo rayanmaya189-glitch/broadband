@@ -2,7 +2,10 @@ use crate::modules::document::domain::entities::{
     DocumentFile, DocumentFileActiveModel, DocumentFileColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct DocumentService;
 
@@ -12,8 +15,13 @@ impl DocumentService {
         uploaded_by: Option<i64>,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::document::domain::entities::document_file::Model>, u64), AppError>
-    {
+    ) -> Result<
+        (
+            Vec<crate::modules::document::domain::entities::document_file::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let mut query = DocumentFile::find();
         if let Some(uid) = uploaded_by {
             query = query.filter(DocumentFileColumn::UploadedBy.eq(uid));

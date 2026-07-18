@@ -1,5 +1,5 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait};
-use tracing::{info, error};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use tracing::{error, info};
 
 use crate::infrastructure::messaging::outbox;
 
@@ -37,9 +37,7 @@ impl BillingWorker {
         // Find invoices that are past due date but not yet marked overdue
         let overdue_invoices = invoice::Entity::find()
             .filter(invoice::Column::DueDate.lt(today))
-            .filter(
-                invoice::Column::Status.is_in(vec!["pending", "sent"])
-            )
+            .filter(invoice::Column::Status.is_in(vec!["pending", "sent"]))
             .all(&self.db)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query overdue invoices: {}", e))?;
@@ -84,7 +82,9 @@ impl BillingWorker {
                 None,
                 None,
                 Some(inv.branch_id),
-            ).await {
+            )
+            .await
+            {
                 error!(
                     invoice_id = inv.id,
                     error = %e,
@@ -180,7 +180,9 @@ impl BillingWorker {
                 None,
                 None,
                 Some(inv.branch_id),
-            ).await {
+            )
+            .await
+            {
                 error!(
                     invoice_id = inv.id,
                     error = %e,
@@ -191,7 +193,10 @@ impl BillingWorker {
             reminders_sent += 1;
         }
 
-        info!(count = reminders_sent, "Billing worker: dunning reminders sent");
+        info!(
+            count = reminders_sent,
+            "Billing worker: dunning reminders sent"
+        );
         Ok(())
     }
 
@@ -262,7 +267,9 @@ impl BillingWorker {
                 None,
                 None,
                 Some(sub.branch_id),
-            ).await {
+            )
+            .await
+            {
                 error!(
                     subscription_id = sub.id,
                     error = %e,

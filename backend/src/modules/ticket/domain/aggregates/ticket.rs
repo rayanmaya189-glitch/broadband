@@ -145,9 +145,14 @@ mod tests {
     #[test]
     fn test_new_ticket() {
         let ticket = Ticket::new(
-            "TKT-001".to_string(), 1, Some(1), 1,
-            "connectivity".to_string(), TicketPriority::Medium,
-            "No internet".to_string(), "Customer has no internet".to_string(),
+            "TKT-001".to_string(),
+            1,
+            Some(1),
+            1,
+            "connectivity".to_string(),
+            TicketPriority::Medium,
+            "No internet".to_string(),
+            "Customer has no internet".to_string(),
             "customer".to_string(),
         );
         assert!(ticket.is_ok());
@@ -158,11 +163,17 @@ mod tests {
     #[test]
     fn test_ticket_lifecycle() {
         let mut ticket = Ticket::new(
-            "TKT-001".to_string(), 1, Some(1), 1,
-            "connectivity".to_string(), TicketPriority::High,
-            "No internet".to_string(), "Description".to_string(),
+            "TKT-001".to_string(),
+            1,
+            Some(1),
+            1,
+            "connectivity".to_string(),
+            TicketPriority::High,
+            "No internet".to_string(),
+            "Description".to_string(),
             "customer".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
         ticket.assign(2).unwrap();
         assert_eq!(ticket.status, TicketStatus::Assigned);
         ticket.start_progress();
@@ -175,11 +186,17 @@ mod tests {
     #[test]
     fn test_escalate_ticket() {
         let mut ticket = Ticket::new(
-            "TKT-001".to_string(), 1, None, 1,
-            "connectivity".to_string(), TicketPriority::Low,
-            "Issue".to_string(), "Desc".to_string(),
+            "TKT-001".to_string(),
+            1,
+            None,
+            1,
+            "connectivity".to_string(),
+            TicketPriority::Low,
+            "Issue".to_string(),
+            "Desc".to_string(),
             "phone".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
         ticket.escalate();
         assert_eq!(ticket.priority, TicketPriority::Medium);
         assert_eq!(ticket.status, TicketStatus::Escalated);

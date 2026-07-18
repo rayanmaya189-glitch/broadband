@@ -31,8 +31,12 @@ impl std::fmt::Display for BandwidthDomainError {
         match self {
             Self::InvalidSpeed => write!(f, "Speed values must be positive"),
             Self::ProfileNotFound(id) => write!(f, "Bandwidth profile {} not found", id),
-            Self::InvalidBurstConfiguration => write!(f, "Burst speed must be greater than sustained speed"),
-            Self::CannotApplyInactiveProfile => write!(f, "Cannot apply an inactive bandwidth profile"),
+            Self::InvalidBurstConfiguration => {
+                write!(f, "Burst speed must be greater than sustained speed")
+            }
+            Self::CannotApplyInactiveProfile => {
+                write!(f, "Cannot apply an inactive bandwidth profile")
+            }
         }
     }
 }
@@ -65,7 +69,12 @@ impl BandwidthProfile {
         })
     }
 
-    pub fn set_burst(&mut self, download: i32, upload: i32, duration: i32) -> Result<(), BandwidthDomainError> {
+    pub fn set_burst(
+        &mut self,
+        download: i32,
+        upload: i32,
+        duration: i32,
+    ) -> Result<(), BandwidthDomainError> {
         if download < self.download_kbps || upload < self.upload_kbps {
             return Err(BandwidthDomainError::InvalidBurstConfiguration);
         }

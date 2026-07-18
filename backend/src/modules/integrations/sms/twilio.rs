@@ -105,11 +105,7 @@ impl TwilioSmsAdapter {
     }
 
     /// Send SMS via Twilio Messaging API
-    async fn send_message(
-        &self,
-        to: &str,
-        body: &str,
-    ) -> Result<TwilioMessageResponse, AppError> {
+    async fn send_message(&self, to: &str, body: &str) -> Result<TwilioMessageResponse, AppError> {
         let url = format!(
             "{}/2010-04-01/Accounts/{}/Messages.json",
             self.config.api_url, self.config.account_sid
@@ -154,11 +150,7 @@ impl TwilioSmsAdapter {
 
 #[async_trait]
 impl SmsProvider for TwilioSmsAdapter {
-    async fn send_otp(
-        &self,
-        phone: &str,
-        _template_id: Option<&str>,
-    ) -> Result<String, AppError> {
+    async fn send_otp(&self, phone: &str, _template_id: Option<&str>) -> Result<String, AppError> {
         // Use Twilio Verify API if service SID is configured
         if let Some(ref service_sid) = self.config.verify_service_sid {
             let url = format!(
@@ -180,7 +172,9 @@ impl SmsProvider for TwilioSmsAdapter {
                 .form(&form)
                 .send()
                 .await
-                .map_err(|e| AppError::External(format!("Twilio Verify API request failed: {}", e)))?;
+                .map_err(|e| {
+                    AppError::External(format!("Twilio Verify API request failed: {}", e))
+                })?;
 
             if !response.status().is_success() {
                 let status = response.status();
@@ -192,10 +186,9 @@ impl SmsProvider for TwilioSmsAdapter {
                 )));
             }
 
-            let result: serde_json::Value = response
-                .json()
-                .await
-                .map_err(|e| AppError::External(format!("Failed to parse Twilio response: {}", e)))?;
+            let result: serde_json::Value = response.json().await.map_err(|e| {
+                AppError::External(format!("Failed to parse Twilio response: {}", e))
+            })?;
 
             let sid = result["sid"].as_str().unwrap_or("").to_string();
             info!(phone = %phone, sid = %sid, "Sent OTP via Twilio Verify");
@@ -213,7 +206,9 @@ impl SmsProvider for TwilioSmsAdapter {
             otp
         );
 
-        let result = self.send_message(&format!("+91{}", phone), &message).await?;
+        let result = self
+            .send_message(&format!("+91{}", phone), &message)
+            .await?;
         Ok(result.sid)
     }
 
@@ -225,10 +220,7 @@ impl SmsProvider for TwilioSmsAdapter {
                 self.config.api_url, service_sid
             );
 
-            let form = [
-                ("To", &format!("+91{}", phone)),
-                ("Code", &otp.to_string()),
-            ];
+            let form = [("To", &format!("+91{}", phone)), ("Code", &otp.to_string())];
 
             debug!(phone = %phone, "Verifying OTP via Twilio Verify");
 
@@ -239,7 +231,9 @@ impl SmsProvider for TwilioSmsAdapter {
                 .form(&form)
                 .send()
                 .await
-                .map_err(|e| AppError::External(format!("Twilio Verify API request failed: {}", e)))?;
+                .map_err(|e| {
+                    AppError::External(format!("Twilio Verify API request failed: {}", e))
+                })?;
 
             if !response.status().is_success() {
                 let status = response.status();
@@ -251,10 +245,9 @@ impl SmsProvider for TwilioSmsAdapter {
                 )));
             }
 
-            let result: TwilioVerifyResponse = response
-                .json()
-                .await
-                .map_err(|e| AppError::External(format!("Failed to parse Twilio response: {}", e)))?;
+            let result: TwilioVerifyResponse = response.json().await.map_err(|e| {
+                AppError::External(format!("Failed to parse Twilio response: {}", e))
+            })?;
 
             info!(phone = %phone, valid = result.valid, "OTP verification result from Twilio");
             return Ok(result.valid);

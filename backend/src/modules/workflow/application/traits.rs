@@ -1,8 +1,9 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
-pub type WorkflowInstanceModel = crate::modules::workflow::domain::entities::workflow_instance::Model;
+pub type WorkflowInstanceModel =
+    crate::modules::workflow::domain::entities::workflow_instance::Model;
 pub type WorkflowStepModel = crate::modules::workflow::domain::entities::workflow_step::Model;
 
 #[async_trait]

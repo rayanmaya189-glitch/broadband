@@ -6,7 +6,9 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::modules::audit::domain::entity_history::{EntityHistoryService, PaginatedResult, HistoryEntry};
+use crate::modules::audit::domain::entity_history::{
+    EntityHistoryService, HistoryEntry, PaginatedResult,
+};
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::UserContext;
@@ -101,8 +103,8 @@ pub async fn rollback_entity(
 }
 
 /// GET /api/v1/audit/entity-types — List allowed entity types
-pub async fn list_entity_types(
-    _user: UserContext,
-) -> Result<Json<Vec<&'static str>>, AppError> {
-    Ok(Json(crate::modules::audit::domain::entity_history::ALLOWED_ENTITY_TYPES.to_vec()))
+pub async fn list_entity_types(_user: UserContext) -> Result<Json<Vec<&'static str>>, AppError> {
+    Ok(Json(
+        crate::modules::audit::domain::entity_history::ALLOWED_ENTITY_TYPES.to_vec(),
+    ))
 }

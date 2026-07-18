@@ -150,11 +150,7 @@ impl ApprovalRequest {
     }
 
     /// Reject the request
-    pub fn reject(
-        &mut self,
-        reviewer_id: i64,
-        comment: String,
-    ) -> Result<(), AppError> {
+    pub fn reject(&mut self, reviewer_id: i64, comment: String) -> Result<(), AppError> {
         if !self.can_review() {
             return Err(AppError::BadRequest(
                 "Approval request cannot be reviewed".to_string(),
@@ -221,10 +217,7 @@ impl ApprovalWorkflowConfig {
                 workflow_type: ApprovalWorkflowType::PlanCreation,
                 required_approvers: 1,
                 expiry_hours: 72,
-                allowed_reviewer_roles: vec![
-                    "super_admin".to_string(),
-                    "isp_owner".to_string(),
-                ],
+                allowed_reviewer_roles: vec!["super_admin".to_string(), "isp_owner".to_string()],
                 auto_approve_conditions: None,
             },
             Self {

@@ -290,4 +290,3 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to list gateways: {}", e)))
     }
 }
-

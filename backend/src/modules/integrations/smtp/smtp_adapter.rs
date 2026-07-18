@@ -44,7 +44,8 @@ impl LettreSmtpAdapter {
         }
 
         if config.use_tls {
-            if let Ok(builder) = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.host) {
+            if let Ok(builder) = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.host)
+            {
                 let creds = Credentials::new(config.username.clone(), config.password.clone());
                 return Some(builder.port(config.port).credentials(creds).build());
             }
@@ -69,9 +70,9 @@ impl LettreSmtpAdapter {
 
     /// Parse email address (supports "Name <email>" and plain "email" formats)
     fn parse_email(email: &str) -> Result<Mailbox, AppError> {
-        email.parse().map_err(|_| {
-            AppError::Internal(anyhow::anyhow!("Invalid email address: {}", email))
-        })
+        email
+            .parse()
+            .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid email address: {}", email)))
     }
 
     /// Build and send an email message

@@ -21,5 +21,6 @@ impl WorkflowRules {
     }
 
     /// Minimum refund amount requiring approval (₹5000)
-    pub const MIN_REFUND_APPROVAL_AMOUNT: rust_decimal::Decimal = rust_decimal_macros::dec!(5000.00);
+    pub const MIN_REFUND_APPROVAL_AMOUNT: rust_decimal::Decimal =
+        rust_decimal_macros::dec!(5000.00);
 }

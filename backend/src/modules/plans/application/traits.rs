@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type PlanModel = crate::modules::plans::domain::entities::plan::Model;
 pub type PlanPricingModel = crate::modules::plans::domain::entities::plan_pricing::Model;
@@ -8,10 +8,7 @@ pub type SpeedProfileModel = crate::modules::plans::domain::entities::speed_prof
 
 #[async_trait]
 pub trait PlanServiceTrait: Send + Sync {
-    async fn list_active_plans(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<PlanModel>, AppError>;
+    async fn list_active_plans(&self, db: &DatabaseConnection) -> Result<Vec<PlanModel>, AppError>;
 
     async fn get_plan_with_pricing(
         &self,
@@ -50,10 +47,7 @@ pub trait PlanServiceTrait: Send + Sync {
         device_type: String,
     ) -> Result<SpeedProfileModel, AppError>;
 
-    async fn list_all_plans(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<PlanModel>, AppError>;
+    async fn list_all_plans(&self, db: &DatabaseConnection) -> Result<Vec<PlanModel>, AppError>;
 
     async fn approve_plan(
         &self,
@@ -62,9 +56,5 @@ pub trait PlanServiceTrait: Send + Sync {
         approved_by: i64,
     ) -> Result<PlanModel, AppError>;
 
-    async fn deactivate_plan(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError>;
+    async fn deactivate_plan(&self, db: &DatabaseConnection, id: i64) -> Result<(), AppError>;
 }

@@ -29,13 +29,20 @@ pub enum RoleDomainError {
 impl std::fmt::Display for RoleDomainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidSlug => write!(f, "Role slug must be lowercase alphanumeric with underscores"),
+            Self::InvalidSlug => write!(
+                f,
+                "Role slug must be lowercase alphanumeric with underscores"
+            ),
             Self::RoleNotFound(id) => write!(f, "Role {} not found", id),
             Self::CannotDeleteSystemRole => write!(f, "Cannot delete a system role"),
             Self::CannotModifySystemRole => write!(f, "Cannot modify a system role"),
             Self::CircularHierarchy => write!(f, "Circular role hierarchy detected"),
-            Self::RoleAlreadyHasPermission(ref p) => write!(f, "Role already has permission '{}'", p),
-            Self::RoleMissingPermission(ref p) => write!(f, "Role does not have permission '{}'", p),
+            Self::RoleAlreadyHasPermission(ref p) => {
+                write!(f, "Role already has permission '{}'", p)
+            }
+            Self::RoleMissingPermission(ref p) => {
+                write!(f, "Role does not have permission '{}'", p)
+            }
         }
     }
 }
@@ -43,7 +50,11 @@ impl std::fmt::Display for RoleDomainError {
 impl std::error::Error for RoleDomainError {}
 
 impl Role {
-    pub fn new(name: String, slug: String, description: Option<String>) -> Result<Self, RoleDomainError> {
+    pub fn new(
+        name: String,
+        slug: String,
+        description: Option<String>,
+    ) -> Result<Self, RoleDomainError> {
         if !Self::is_valid_slug(&slug) {
             return Err(RoleDomainError::InvalidSlug);
         }
@@ -80,13 +91,17 @@ impl Role {
         let before = self.permissions.len();
         self.permissions.retain(|p| p.name != permission_name);
         if self.permissions.len() == before {
-            return Err(RoleDomainError::RoleMissingPermission(permission_name.to_string()));
+            return Err(RoleDomainError::RoleMissingPermission(
+                permission_name.to_string(),
+            ));
         }
         Ok(())
     }
 
     pub fn has_permission(&self, permission_name: &str) -> bool {
-        self.permissions.iter().any(|p| p.name == permission_name || p.matches_wildcard(permission_name))
+        self.permissions
+            .iter()
+            .any(|p| p.name == permission_name || p.matches_wildcard(permission_name))
     }
 
     pub fn can_be_deleted(&self) -> Result<(), RoleDomainError> {
@@ -129,18 +144,35 @@ mod tests {
     #[test]
     fn test_add_permission() {
         let mut role = Role::new("Admin".to_string(), "admin".to_string(), None).unwrap();
-        let perm = Permission::new("device.view".to_string(), "device".to_string(), "view".to_string());
+        let perm = Permission::new(
+            "device.view".to_string(),
+            "device".to_string(),
+            "view".to_string(),
+        );
         assert!(role.add_permission(perm).is_ok());
         assert!(role.has_permission("device.view"));
         // Duplicate should fail
-        let perm2 = Permission::new("device.view".to_string(), "device".to_string(), "view".to_string());
-        assert_eq!(role.add_permission(perm2), Err(RoleDomainError::RoleAlreadyHasPermission("device.view".to_string())));
+        let perm2 = Permission::new(
+            "device.view".to_string(),
+            "device".to_string(),
+            "view".to_string(),
+        );
+        assert_eq!(
+            role.add_permission(perm2),
+            Err(RoleDomainError::RoleAlreadyHasPermission(
+                "device.view".to_string()
+            ))
+        );
     }
 
     #[test]
     fn test_cannot_delete_system_role() {
-        let mut role = Role::new("Super Admin".to_string(), "super_admin".to_string(), None).unwrap();
+        let mut role =
+            Role::new("Super Admin".to_string(), "super_admin".to_string(), None).unwrap();
         role.is_system = true;
-        assert_eq!(role.can_be_deleted(), Err(RoleDomainError::CannotDeleteSystemRole));
+        assert_eq!(
+            role.can_be_deleted(),
+            Err(RoleDomainError::CannotDeleteSystemRole)
+        );
     }
 }

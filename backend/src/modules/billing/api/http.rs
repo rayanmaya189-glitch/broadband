@@ -113,8 +113,17 @@ pub async fn create_invoice(
         "due_date": inv.due_date,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "invoice.generated", "invoice", inv.id, payload, None, None, Some(inv.branch_id),
-    ).await {
+        &state.db,
+        "invoice.generated",
+        "invoice",
+        inv.id,
+        payload,
+        None,
+        None,
+        Some(inv.branch_id),
+    )
+    .await
+    {
         tracing::error!(invoice_id = inv.id, error = %e, "Failed to publish invoice.generated event");
     }
 
@@ -162,8 +171,17 @@ pub async fn record_payment(
         "status": pay.status,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "payment.completed", "payment", pay.id, payload, None, None, Some(pay.branch_id),
-    ).await {
+        &state.db,
+        "payment.completed",
+        "payment",
+        pay.id,
+        payload,
+        None,
+        None,
+        Some(pay.branch_id),
+    )
+    .await
+    {
         tracing::error!(payment_id = pay.id, error = %e, "Failed to publish payment.completed event");
     }
 
@@ -229,7 +247,9 @@ pub async fn list_overdue_invoices(
             due_date: i.due_date.to_string(),
         })
         .collect();
-    Ok(Json(serde_json::json!({ "items": resp, "total": resp.len() })))
+    Ok(Json(
+        serde_json::json!({ "items": resp, "total": resp.len() }),
+    ))
 }
 
 /// POST /api/v1/billing/invoices/auto-generate
@@ -238,7 +258,8 @@ pub async fn auto_generate_invoices(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "billing.invoice.auto_generate").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "billing.invoice.auto_generate")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let count = BillingService::auto_generate_invoices(&state.db).await?;
     Ok(Json(serde_json::json!({
         "generated": count,

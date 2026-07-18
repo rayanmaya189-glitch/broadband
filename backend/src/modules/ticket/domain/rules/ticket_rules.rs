@@ -4,13 +4,17 @@ pub struct TicketRules;
 impl TicketRules {
     /// Valid ticket categories
     pub const VALID_CATEGORIES: &[&str] = &[
-        "connectivity", "installation", "billing", "hardware", "account", "other",
+        "connectivity",
+        "installation",
+        "billing",
+        "hardware",
+        "account",
+        "other",
     ];
 
     /// Valid ticket sources
-    pub const VALID_SOURCES: &[&str] = &[
-        "customer", "phone", "email", "whatsapp", "agent", "system",
-    ];
+    pub const VALID_SOURCES: &[&str] =
+        &["customer", "phone", "email", "whatsapp", "agent", "system"];
 
     /// Maximum satisfaction rating
     pub const MAX_SATISFACTION_RATING: i32 = 5;

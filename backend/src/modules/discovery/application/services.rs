@@ -2,7 +2,7 @@ use crate::modules::discovery::domain::entities::{
     DiscoveryResult, DiscoveryScan, DiscoveryScanActiveModel,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, PaginatorTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 
 pub struct DiscoveryService;
 
@@ -11,9 +11,18 @@ impl DiscoveryService {
         db: &DatabaseConnection,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::discovery::domain::entities::discovery_scan::Model>, u64), AppError>
-    {
-        { let q = DiscoveryScan::find(); let t = q.clone().count(db).await?; Ok((q.all(db).await?, t)) }
+    ) -> Result<
+        (
+            Vec<crate::modules::discovery::domain::entities::discovery_scan::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        {
+            let q = DiscoveryScan::find();
+            let t = q.clone().count(db).await?;
+            Ok((q.all(db).await?, t))
+        }
     }
 
     pub async fn create_scan(
@@ -39,9 +48,18 @@ impl DiscoveryService {
         db: &DatabaseConnection,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::discovery::domain::entities::discovery_result::Model>, u64), AppError>
-    {
-        { let q = DiscoveryResult::find(); let t = q.clone().count(db).await?; Ok((q.all(db).await?, t)) }
+    ) -> Result<
+        (
+            Vec<crate::modules::discovery::domain::entities::discovery_result::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        {
+            let q = DiscoveryResult::find();
+            let t = q.clone().count(db).await?;
+            Ok((q.all(db).await?, t))
+        }
     }
 
     pub async fn approve_result(
@@ -60,4 +78,3 @@ impl DiscoveryService {
         Ok(active.update(db).await?)
     }
 }
-

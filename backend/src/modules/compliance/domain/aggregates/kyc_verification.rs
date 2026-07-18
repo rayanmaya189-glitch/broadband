@@ -35,7 +35,11 @@ impl std::fmt::Display for ComplianceDomainError {
 impl std::error::Error for ComplianceDomainError {}
 
 impl KycVerification {
-    pub fn new(customer_id: i64, document_type: String, document_url: String) -> Result<Self, ComplianceDomainError> {
+    pub fn new(
+        customer_id: i64,
+        document_type: String,
+        document_url: String,
+    ) -> Result<Self, ComplianceDomainError> {
         let valid_types = ["aadhaar", "pan", "voter_id", "driving_license", "passport"];
         if !valid_types.contains(&document_type.as_str()) {
             return Err(ComplianceDomainError::InvalidDocumentType);
@@ -80,14 +84,23 @@ mod tests {
 
     #[test]
     fn test_new_kyc() {
-        let kyc = KycVerification::new(1, "aadhaar".to_string(), "https://example.com/doc.pdf".to_string());
+        let kyc = KycVerification::new(
+            1,
+            "aadhaar".to_string(),
+            "https://example.com/doc.pdf".to_string(),
+        );
         assert!(kyc.is_ok());
         assert_eq!(kyc.unwrap().status, KycStatus::Pending);
     }
 
     #[test]
     fn test_verify_kyc() {
-        let mut kyc = KycVerification::new(1, "pan".to_string(), "https://example.com/doc.pdf".to_string()).unwrap();
+        let mut kyc = KycVerification::new(
+            1,
+            "pan".to_string(),
+            "https://example.com/doc.pdf".to_string(),
+        )
+        .unwrap();
         kyc.verify(10).unwrap();
         assert!(kyc.is_verified());
     }

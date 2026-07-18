@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type AuditLogModel = crate::modules::audit::domain::entities::audit_log::Model;
 
@@ -21,8 +21,5 @@ pub trait AuditServiceTrait: Send + Sync {
         new_data: Option<serde_json::Value>,
     ) -> Result<AuditLogModel, AppError>;
 
-    async fn list_logs(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<AuditLogModel>, AppError>;
+    async fn list_logs(&self, db: &DatabaseConnection) -> Result<Vec<AuditLogModel>, AppError>;
 }

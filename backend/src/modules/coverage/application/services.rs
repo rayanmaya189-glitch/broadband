@@ -2,7 +2,10 @@ use crate::modules::coverage::domain::entities::{
     CoverageArea, CoverageAreaActiveModel, CoverageAreaColumn, CoveragePincode,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct CoverageService;
 
@@ -12,8 +15,13 @@ impl CoverageService {
         branch_id: Option<i64>,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::coverage::domain::entities::coverage_area::Model>, u64), AppError>
-    {
+    ) -> Result<
+        (
+            Vec<crate::modules::coverage::domain::entities::coverage_area::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let mut query = CoverageArea::find();
         if let Some(bid) = branch_id {
             query = query.filter(CoverageAreaColumn::BranchId.eq(bid));

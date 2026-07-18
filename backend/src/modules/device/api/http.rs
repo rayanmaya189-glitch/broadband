@@ -95,7 +95,9 @@ pub async fn register_device(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish device.registered event");
     }
 
@@ -129,7 +131,9 @@ pub async fn update_device_status(
         None,
         Some(user.user_id),
         user.branch_id,
-    ).await {
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish device.status.updated event");
     }
 

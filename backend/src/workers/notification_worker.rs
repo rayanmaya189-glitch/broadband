@@ -1,11 +1,14 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait, QueryOrder, QuerySelect};
-use tracing::{info, warn, error};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
+use tracing::{error, info, warn};
 
-use crate::modules::integrations::smtp::{LettreSmtpAdapter, EmailProvider};
+use crate::modules::integrations::push::FcmAdapter;
 use crate::modules::integrations::sms::msg91::Msg91Adapter;
 use crate::modules::integrations::sms::SmsProvider;
+use crate::modules::integrations::smtp::{EmailProvider, LettreSmtpAdapter};
 use crate::modules::integrations::whatsapp::WhatsAppAdapter;
-use crate::modules::integrations::push::FcmAdapter;
 
 /// Background worker for notification delivery:
 /// - Process queued notifications
@@ -87,7 +90,10 @@ impl NotificationWorker {
             return Ok(());
         }
 
-        info!(count = count, "Notification worker: processing notifications");
+        info!(
+            count = count,
+            "Notification worker: processing notifications"
+        );
 
         for notif in &queued {
             match self.send_notification(notif).await {
@@ -136,7 +142,10 @@ impl NotificationWorker {
             }
         }
 
-        info!(count = count, "Notification worker: processed notifications");
+        info!(
+            count = count,
+            "Notification worker: processed notifications"
+        );
         Ok(())
     }
 
@@ -154,7 +163,8 @@ impl NotificationWorker {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query retryable notifications: {}", e))?;
 
-        let retryable: Vec<_> = retryable.into_iter()
+        let retryable: Vec<_> = retryable
+            .into_iter()
             .filter(|n| n.retry_count < n.max_retries)
             .collect();
 
@@ -221,11 +231,14 @@ impl NotificationWorker {
                     "Sending email notification via SMTP"
                 );
                 // Wire actual SMTP adapter (lettre crate)
-                match self.send_email_via_smtp(
-                    &notif.recipient_address,
-                    notif.subject.as_deref().unwrap_or("AeroXe Notification"),
-                    &notif.body,
-                ).await {
+                match self
+                    .send_email_via_smtp(
+                        &notif.recipient_address,
+                        notif.subject.as_deref().unwrap_or("AeroXe Notification"),
+                        &notif.body,
+                    )
+                    .await
+                {
                     Ok(status) => {
                         info!(
                             notification_id = notif.id,
@@ -251,7 +264,10 @@ impl NotificationWorker {
                     "Sending SMS notification via MSG91"
                 );
                 // Wire actual MSG91 SMS adapter
-                match self.send_sms_via_msg91(&notif.recipient_address, &notif.body).await {
+                match self
+                    .send_sms_via_msg91(&notif.recipient_address, &notif.body)
+                    .await
+                {
                     Ok(request_id) => {
                         info!(
                             notification_id = notif.id,
@@ -276,10 +292,10 @@ impl NotificationWorker {
                     recipient = %notif.recipient_address,
                     "Sending WhatsApp notification via WhatsApp Business API"
                 );
-                match self.send_whatsapp_notification(
-                    &notif.recipient_address,
-                    &notif.body,
-                ).await {
+                match self
+                    .send_whatsapp_notification(&notif.recipient_address, &notif.body)
+                    .await
+                {
                     Ok(status) => {
                         info!(
                             notification_id = notif.id,
@@ -304,11 +320,14 @@ impl NotificationWorker {
                     recipient = %notif.recipient_address,
                     "Sending push notification via FCM"
                 );
-                match self.send_push_notification(
-                    &notif.recipient_address,
-                    notif.subject.as_deref().unwrap_or("AeroXe Notification"),
-                    &notif.body,
-                ).await {
+                match self
+                    .send_push_notification(
+                        &notif.recipient_address,
+                        notif.subject.as_deref().unwrap_or("AeroXe Notification"),
+                        &notif.body,
+                    )
+                    .await
+                {
                     Ok(status) => {
                         info!(
                             notification_id = notif.id,
@@ -336,12 +355,10 @@ impl NotificationWorker {
                 // In-app notifications are stored in DB, no external dispatch needed
                 Ok(())
             }
-            _ => {
-                Err(anyhow::anyhow!(
-                    "Unknown notification channel: {}",
-                    notif.channel
-                ))
-            }
+            _ => Err(anyhow::anyhow!(
+                "Unknown notification channel: {}",
+                notif.channel
+            )),
         }
     }
 
@@ -352,17 +369,24 @@ impl NotificationWorker {
         subject: &str,
         body: &str,
     ) -> anyhow::Result<crate::modules::integrations::smtp::EmailDeliveryStatus> {
-        let adapter = self.smtp_adapter.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("SMTP not configured (missing SMTP_USERNAME or SMTP_PASSWORD)"))?;
-        adapter.send_html_email(to, subject, body, None).await
+        let adapter = self.smtp_adapter.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("SMTP not configured (missing SMTP_USERNAME or SMTP_PASSWORD)")
+        })?;
+        adapter
+            .send_html_email(to, subject, body, None)
+            .await
             .map_err(|e| anyhow::anyhow!("SMTP error: {}", e))
     }
 
     /// Send SMS via cached MSG91 adapter
     async fn send_sms_via_msg91(&self, phone: &str, message: &str) -> anyhow::Result<String> {
-        let adapter = self.sms_adapter.as_ref()
+        let adapter = self
+            .sms_adapter
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("MSG91 not configured (missing MSG91_AUTH_KEY)"))?;
-        let request_id = adapter.send_sms(phone, message, None).await
+        let request_id = adapter
+            .send_sms(phone, message, None)
+            .await
             .map_err(|e| anyhow::anyhow!("MSG91 error: {}", e))?;
         Ok(request_id)
     }
@@ -373,9 +397,12 @@ impl NotificationWorker {
         phone: &str,
         message: &str,
     ) -> anyhow::Result<crate::modules::integrations::whatsapp::WhatsAppDeliveryStatus> {
-        let adapter = self.whatsapp_adapter.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("WhatsApp Business API not configured (missing WHATSAPP_ACCESS_TOKEN)"))?;
-        adapter.send_text_message(phone, message).await
+        let adapter = self.whatsapp_adapter.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("WhatsApp Business API not configured (missing WHATSAPP_ACCESS_TOKEN)")
+        })?;
+        adapter
+            .send_text_message(phone, message)
+            .await
             .map_err(|e| anyhow::anyhow!("WhatsApp error: {}", e))
     }
 
@@ -386,14 +413,17 @@ impl NotificationWorker {
         title: &str,
         body: &str,
     ) -> anyhow::Result<crate::modules::integrations::push::PushDeliveryStatus> {
-        let _adapter = self.push_adapter.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("FCM not configured (missing FCM_SERVICE_ACCOUNT_KEY)"))?;
+        let _adapter = self.push_adapter.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("FCM not configured (missing FCM_SERVICE_ACCOUNT_KEY)")
+        })?;
         // NOTE: FCM send_push requires &mut self for token caching;
         // Create a fresh adapter per call for simplicity
         let mut adapter_clone = crate::modules::integrations::push::FcmAdapter::new(
-            crate::modules::integrations::push::FcmConfig::from_env()
+            crate::modules::integrations::push::FcmConfig::from_env(),
         );
-        adapter_clone.send_push(device_token, title, body, None).await
+        adapter_clone
+            .send_push(device_token, title, body, None)
+            .await
             .map_err(|e| anyhow::anyhow!("FCM error: {}", e))
     }
 }

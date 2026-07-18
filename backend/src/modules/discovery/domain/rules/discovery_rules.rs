@@ -17,8 +17,13 @@ impl DiscoveryRules {
 
     pub fn vendor_from_enterprise_id(id: i32) -> &'static str {
         match id {
-            2011 => "Huawei", 14988 => "MikroTik", 4881 => "ZTE", 9 => "Cisco",
-            4370 => "TP-Link", 13014 => "Ubiquiti", _ => "Unknown",
+            2011 => "Huawei",
+            14988 => "MikroTik",
+            4881 => "ZTE",
+            9 => "Cisco",
+            4370 => "TP-Link",
+            13014 => "Ubiquiti",
+            _ => "Unknown",
         }
     }
 }

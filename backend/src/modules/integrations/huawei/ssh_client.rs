@@ -41,18 +41,19 @@ fn ssh_connect(
         .map_err(|e| format!("Failed to set write timeout: {}", e))?;
 
     // Create SSH session
-    let mut session = Session::new()
-        .map_err(|e| format!("Failed to create SSH session: {}", e))?;
+    let mut session = Session::new().map_err(|e| format!("Failed to create SSH session: {}", e))?;
 
     session.set_tcp_stream(tcp);
     session.set_timeout((timeout_secs * 1000) as u32);
 
     // Perform SSH handshake
-    session.handshake()
+    session
+        .handshake()
         .map_err(|e| format!("SSH handshake failed: {}", e))?;
 
     // Authenticate with password
-    session.userauth_password(username, password)
+    session
+        .userauth_password(username, password)
         .map_err(|e| format!("SSH authentication failed: {}", e))?;
 
     if !session.authenticated() {
@@ -68,14 +69,17 @@ fn ssh_connect(
 fn ssh_execute_command(session: &Session, command: &str) -> Result<String, String> {
     debug!(command = %command, "Executing SSH command");
 
-    let mut channel = session.channel_session()
+    let mut channel = session
+        .channel_session()
         .map_err(|e| format!("Failed to open channel: {}", e))?;
 
-    channel.exec(command)
+    channel
+        .exec(command)
         .map_err(|e| format!("Failed to exec command: {}", e))?;
 
     let mut output = String::new();
-    channel.read_to_string(&mut output)
+    channel
+        .read_to_string(&mut output)
         .map_err(|e| format!("Failed to read output: {}", e))?;
 
     let _ = channel.wait_close();
@@ -112,8 +116,7 @@ pub async fn execute_olt_command(
             .map_err(AppError::External)?;
 
         // Execute command
-        let output = ssh_execute_command(&session, &command)
-            .map_err(AppError::External)?;
+        let output = ssh_execute_command(&session, &command).map_err(AppError::External)?;
 
         // Session will be dropped and cleaned up automatically
 
@@ -150,18 +153,15 @@ pub async fn execute_olt_command_with_enable(
 
         // Enter enable mode
         debug!("Entering enable mode");
-        let enable_output = ssh_execute_command(&session, "enable")
-            .map_err(AppError::External)?;
+        let enable_output = ssh_execute_command(&session, "enable").map_err(AppError::External)?;
 
         if enable_output.contains("Password:") || enable_output.contains("password:") {
-            let _ = ssh_execute_command(&session, &enable_password)
-                .map_err(AppError::External)?;
+            let _ = ssh_execute_command(&session, &enable_password).map_err(AppError::External)?;
         }
         info!("Entered enable mode");
 
         // Execute the actual command
-        let output = ssh_execute_command(&session, &command)
-            .map_err(AppError::External)?;
+        let output = ssh_execute_command(&session, &command).map_err(AppError::External)?;
 
         // Session will be dropped and cleaned up automatically
 

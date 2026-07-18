@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type PaymentLinkModel = crate::modules::payment::domain::entities::payment_link::Model;
 pub type GatewayConfigModel = crate::modules::payment::domain::entities::gateway_config::Model;

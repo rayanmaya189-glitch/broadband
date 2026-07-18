@@ -32,7 +32,9 @@ impl std::fmt::Display for InstallationDomainError {
             Self::AlreadyCompleted => write!(f, "Installation is already completed"),
             Self::AlreadyCancelled => write!(f, "Installation is already cancelled"),
             Self::InvalidStatusTransition => write!(f, "Invalid installation status transition"),
-            Self::CannotCompleteWithoutSchedule => write!(f, "Cannot complete an unscheduled installation"),
+            Self::CannotCompleteWithoutSchedule => {
+                write!(f, "Cannot complete an unscheduled installation")
+            }
         }
     }
 }

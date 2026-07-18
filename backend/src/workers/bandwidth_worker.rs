@@ -1,5 +1,8 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait, QueryOrder, QuerySelect};
-use tracing::{info, warn, error};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
+use tracing::{error, info, warn};
 
 use crate::infrastructure::messaging::outbox;
 use crate::modules::integrations::{DeviceAdapterFactory, DeviceType};
@@ -96,7 +99,9 @@ impl BandwidthWorker {
                         None,
                         None,
                         None,
-                    ).await {
+                    )
+                    .await
+                    {
                         error!(
                             application_id = app.id,
                             error = %e,
@@ -202,20 +207,22 @@ impl BandwidthWorker {
                 DeviceType::Router
             };
 
-            if let Some(adapter) = DeviceAdapterFactory::create_for_device(
-                &device_type,
-                &device.management_ip,
-            ) {
+            if let Some(adapter) =
+                DeviceAdapterFactory::create_for_device(&device_type, &device.management_ip)
+            {
                 // Apply bandwidth using the adapter
                 let queue_name = format!("bw_{}", app.subscription_id);
                 let target = &device.management_ip;
 
-                adapter.apply_bandwidth(
-                    &queue_name,
-                    target,
-                    profile.download_kbps.max(0) as u32,
-                    profile.upload_kbps.max(0) as u32,
-                ).await.map_err(|e| anyhow::anyhow!("Adapter error: {}", e))?;
+                adapter
+                    .apply_bandwidth(
+                        &queue_name,
+                        target,
+                        profile.download_kbps.max(0) as u32,
+                        profile.upload_kbps.max(0) as u32,
+                    )
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Adapter error: {}", e))?;
 
                 info!(
                     application_id = app.id,
@@ -229,14 +236,19 @@ impl BandwidthWorker {
                     device_model_id = device.device_model_id,
                     "No adapter available for device model"
                 );
-                return Err(anyhow::anyhow!("No adapter for device model {}", device.device_model_id));
+                return Err(anyhow::anyhow!(
+                    "No adapter for device model {}",
+                    device.device_model_id
+                ));
             }
         } else {
             warn!(
                 application_id = app.id,
                 "No device specified for bandwidth application"
             );
-            return Err(anyhow::anyhow!("No device specified for bandwidth application"));
+            return Err(anyhow::anyhow!(
+                "No device specified for bandwidth application"
+            ));
         }
 
         Ok(())

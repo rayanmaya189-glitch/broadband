@@ -20,11 +20,20 @@ impl KycStatus {
         }
     }
     pub fn as_str(&self) -> &'static str {
-        match self { Self::Pending => "pending", Self::Submitted => "submitted", Self::Verified => "verified", Self::Rejected => "rejected" }
+        match self {
+            Self::Pending => "pending",
+            Self::Submitted => "submitted",
+            Self::Verified => "verified",
+            Self::Rejected => "rejected",
+        }
     }
-    pub fn is_verified(&self) -> bool { matches!(self, Self::Verified) }
+    pub fn is_verified(&self) -> bool {
+        matches!(self, Self::Verified)
+    }
 }
 
 impl fmt::Display for KycStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

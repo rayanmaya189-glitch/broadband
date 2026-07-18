@@ -29,13 +29,20 @@ impl TicketStatus {
     }
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Open => "open", Self::Assigned => "assigned", Self::InProgress => "in_progress",
-            Self::WaitingCustomer => "waiting_customer", Self::Escalated => "escalated",
-            Self::Resolved => "resolved", Self::Closed => "closed", Self::Reopened => "reopened",
+            Self::Open => "open",
+            Self::Assigned => "assigned",
+            Self::InProgress => "in_progress",
+            Self::WaitingCustomer => "waiting_customer",
+            Self::Escalated => "escalated",
+            Self::Resolved => "resolved",
+            Self::Closed => "closed",
+            Self::Reopened => "reopened",
         }
     }
 }
 
 impl fmt::Display for TicketStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

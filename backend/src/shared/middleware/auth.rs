@@ -8,8 +8,7 @@ use crate::shared::app_state::AppState;
 use crate::shared::utils::jwt_keys::StandardClaims;
 
 /// User context extracted from JWT token + Redis permissions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserContext {
     pub user_id: i64,
     pub email: String,
@@ -18,7 +17,6 @@ pub struct UserContext {
     pub is_company_wide: bool,
     pub permissions: Vec<String>,
 }
-
 
 #[axum::async_trait]
 impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
@@ -46,7 +44,9 @@ impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
             )
         })?;
 
-        let claims: StandardClaims = state.jwt_keys.verify(token)
+        let claims: StandardClaims = state
+            .jwt_keys
+            .verify(token)
             .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
 
         let user_id = claims.sub.parse::<i64>().unwrap_or(0);

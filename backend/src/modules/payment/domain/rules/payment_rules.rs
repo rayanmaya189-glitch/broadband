@@ -3,12 +3,10 @@ pub struct PaymentRules;
 
 impl PaymentRules {
     /// Minimum payment amount (₹1)
-    pub const MIN_PAYMENT_AMOUNT: rust_decimal::Decimal =
-        rust_decimal_macros::dec!(1.00);
+    pub const MIN_PAYMENT_AMOUNT: rust_decimal::Decimal = rust_decimal_macros::dec!(1.00);
 
     /// Maximum payment amount (₹10,00,000)
-    pub const MAX_PAYMENT_AMOUNT: rust_decimal::Decimal =
-        rust_decimal_macros::dec!(1000000.00);
+    pub const MAX_PAYMENT_AMOUNT: rust_decimal::Decimal = rust_decimal_macros::dec!(1000000.00);
 
     /// Payment link expiry duration (24 hours)
     pub const LINK_EXPIRY_HOURS: i64 = 24;
@@ -22,10 +20,7 @@ impl PaymentRules {
     }
 
     /// Check if payment method is allowed for the given gateway
-    pub fn is_method_allowed_for_gateway(
-        method: &str,
-        gateway: &str,
-    ) -> bool {
+    pub fn is_method_allowed_for_gateway(method: &str, gateway: &str) -> bool {
         match gateway {
             "razorpay" => matches!(method, "upi" | "card" | "netbanking" | "wallet"),
             "payu" => matches!(method, "upi" | "card" | "netbanking"),

@@ -1,8 +1,9 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
-pub type ReferralTrackingModel = crate::modules::referral::domain::entities::referral_tracking::Model;
+pub type ReferralTrackingModel =
+    crate::modules::referral::domain::entities::referral_tracking::Model;
 pub type CustomerWalletModel = crate::modules::referral::domain::entities::customer_wallet::Model;
 
 #[async_trait]

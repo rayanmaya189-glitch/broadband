@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, PaginatorTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
+};
 
 use crate::modules::monitoring::application::traits::{
     AlertRuleRepository, MetricRecordRepository, MonitoringAlertRepository,
 };
-use crate::modules::monitoring::domain::entities::metric_record;
 use crate::modules::monitoring::domain::entities::alert_rule;
+use crate::modules::monitoring::domain::entities::metric_record;
 use crate::modules::monitoring::domain::entities::monitoring_alert;
 use crate::modules::monitoring::domain::value_objects::{AlertSeverity, AlertStatus};
 use crate::shared::errors::AppError;
@@ -37,8 +40,9 @@ impl MetricRecordRepository for MetricRecordRepositoryImpl {
             ..Default::default()
         };
 
-        let result = active_model.insert(&self.db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to save metric record: {}", e)))?;
+        let result = active_model.insert(&self.db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to save metric record: {}", e))
+        })?;
 
         Ok(result.id)
     }
@@ -54,7 +58,9 @@ impl MetricRecordRepository for MetricRecordRepositoryImpl {
             .limit(limit as u64)
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query metric records: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query metric records: {}", e))
+            })?;
 
         Ok(records)
     }
@@ -72,7 +78,9 @@ impl MetricRecordRepository for MetricRecordRepositoryImpl {
             .limit(limit as u64)
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query metric records: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query metric records: {}", e))
+            })?;
 
         Ok(records)
     }
@@ -88,7 +96,9 @@ impl MetricRecordRepository for MetricRecordRepositoryImpl {
             .order_by_desc(metric_record::Column::RecordedAt)
             .one(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query metric record: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query metric record: {}", e))
+            })?;
 
         Ok(record)
     }
@@ -107,7 +117,9 @@ impl MetricRecordRepository for MetricRecordRepositoryImpl {
             .filter(metric_record::Column::RecordedAt.lte(end))
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query metric records: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query metric records: {}", e))
+            })?;
 
         if records.is_empty() {
             return Ok(None);
@@ -123,7 +135,9 @@ impl MetricRecordRepository for MetricRecordRepositoryImpl {
             .filter(metric_record::Column::RecordedAt.lt(cutoff))
             .exec(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to delete metric records: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to delete metric records: {}", e))
+            })?;
 
         Ok(result.rows_affected)
     }
@@ -159,7 +173,9 @@ impl AlertRuleRepository for AlertRuleRepositoryImpl {
             ..Default::default()
         };
 
-        let result = active_model.insert(&self.db).await
+        let result = active_model
+            .insert(&self.db)
+            .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to save alert rule: {}", e)))?;
 
         Ok(result.id)
@@ -170,7 +186,9 @@ impl AlertRuleRepository for AlertRuleRepositoryImpl {
             .filter(alert_rule::Column::IsActive.eq(true))
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query alert rules: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query alert rules: {}", e))
+            })?;
 
         Ok(rules)
     }
@@ -179,7 +197,9 @@ impl AlertRuleRepository for AlertRuleRepositoryImpl {
         let rule = alert_rule::Entity::find_by_id(id)
             .one(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query alert rule: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query alert rule: {}", e))
+            })?;
 
         Ok(rule)
     }
@@ -201,8 +221,9 @@ impl AlertRuleRepository for AlertRuleRepositoryImpl {
             ..Default::default()
         };
 
-        active_model.update(&self.db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update alert rule: {}", e)))?;
+        active_model.update(&self.db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to update alert rule: {}", e))
+        })?;
 
         Ok(())
     }
@@ -211,7 +232,9 @@ impl AlertRuleRepository for AlertRuleRepositoryImpl {
         alert_rule::Entity::delete_by_id(id)
             .exec(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to delete alert rule: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to delete alert rule: {}", e))
+            })?;
 
         Ok(())
     }
@@ -253,8 +276,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
             ..Default::default()
         };
 
-        let result = active_model.insert(&self.db).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to save monitoring alert: {}", e)))?;
+        let result = active_model.insert(&self.db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to save monitoring alert: {}", e))
+        })?;
 
         Ok(result.id)
     }
@@ -263,7 +287,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
         let alert = monitoring_alert::Entity::find_by_id(id)
             .one(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query monitoring alert: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query monitoring alert: {}", e))
+            })?;
 
         Ok(alert)
     }
@@ -277,7 +303,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
             .filter(monitoring_alert::Column::Status.is_in(vec!["active", "acknowledged"]))
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query monitoring alerts: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query monitoring alerts: {}", e))
+            })?;
 
         Ok(alerts)
     }
@@ -288,7 +316,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
             .order_by_desc(monitoring_alert::Column::CreatedAt)
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query monitoring alerts: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query monitoring alerts: {}", e))
+            })?;
 
         Ok(alerts)
     }
@@ -309,7 +339,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
             .order_by_desc(monitoring_alert::Column::CreatedAt)
             .all(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query monitoring alerts: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query monitoring alerts: {}", e))
+            })?;
 
         Ok(alerts)
     }
@@ -324,7 +356,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
         let alert = monitoring_alert::Entity::find_by_id(id)
             .one(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to query monitoring alert: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to query monitoring alert: {}", e))
+            })?;
 
         if let Some(alert) = alert {
             let mut active_model: monitoring_alert::ActiveModel = alert.into();
@@ -344,8 +378,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
                 _ => {}
             }
 
-            active_model.update(&self.db).await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update monitoring alert: {}", e)))?;
+            active_model.update(&self.db).await.map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to update monitoring alert: {}", e))
+            })?;
         }
 
         Ok(())
@@ -357,7 +392,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
             .filter(monitoring_alert::Column::Status.is_in(vec!["active", "acknowledged"]))
             .count(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to count monitoring alerts: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to count monitoring alerts: {}", e))
+            })?;
 
         Ok(count as i64)
     }
@@ -368,7 +405,9 @@ impl MonitoringAlertRepository for MonitoringAlertRepositoryImpl {
             .filter(monitoring_alert::Column::CreatedAt.lt(before))
             .exec(&self.db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to delete expired alerts: {}", e)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to delete expired alerts: {}", e))
+            })?;
 
         Ok(result.rows_affected)
     }

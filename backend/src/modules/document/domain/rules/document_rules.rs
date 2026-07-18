@@ -25,7 +25,8 @@ impl DocumentRules {
 
     /// Get max file size for MIME type
     pub fn max_file_size(mime_type: &str) -> i64 {
-        Self::MAX_FILE_SIZES.iter()
+        Self::MAX_FILE_SIZES
+            .iter()
             .find(|(t, _)| *t == mime_type)
             .map(|(_, s)| *s)
             .unwrap_or(5 * 1024 * 1024)
@@ -34,6 +35,12 @@ impl DocumentRules {
     /// Generate storage key
     pub fn generate_storage_key(entity_type: &str, entity_id: i64, filename: &str) -> String {
         let ext = filename.rsplit('.').next().unwrap_or("bin");
-        format!("{}/{}/{}/{}", entity_type, entity_id, chrono::Utc::now().format("%Y/%m/%d"), uuid::Uuid::new_v4().to_string() + "." + ext)
+        format!(
+            "{}/{}/{}/{}",
+            entity_type,
+            entity_id,
+            chrono::Utc::now().format("%Y/%m/%d"),
+            uuid::Uuid::new_v4().to_string() + "." + ext
+        )
     }
 }

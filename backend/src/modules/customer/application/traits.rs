@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type CustomerModel = crate::modules::customer::domain::entities::customer::Model;
 pub type AddressModel = crate::modules::customer::domain::entities::address::Model;
@@ -57,9 +57,5 @@ pub trait CustomerServiceTrait: Send + Sync {
         landmark: Option<String>,
     ) -> Result<AddressModel, AppError>;
 
-    async fn delete_customer(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError>;
+    async fn delete_customer(&self, db: &DatabaseConnection, id: i64) -> Result<(), AppError>;
 }

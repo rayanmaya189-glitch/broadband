@@ -34,8 +34,7 @@ pub struct RadiusConfig {
 impl Default for RadiusConfig {
     fn default() -> Self {
         Self {
-            server: std::env::var("RADIUS_SERVER")
-                .unwrap_or_else(|_| "127.0.0.1".to_string()),
+            server: std::env::var("RADIUS_SERVER").unwrap_or_else(|_| "127.0.0.1".to_string()),
             port: std::env::var("RADIUS_PORT")
                 .unwrap_or_else(|_| "1812".to_string())
                 .parse()
@@ -255,7 +254,8 @@ fn build_radius_packet(request: &RadiusRequest, secret: &str) -> Vec<u8> {
             RadiusAttribute::NasIpAddress(ip) => {
                 packet.push(4); // Type
                 packet.push(6); // Length
-                let addr: std::net::Ipv4Addr = ip.parse().unwrap_or(std::net::Ipv4Addr::UNSPECIFIED);
+                let addr: std::net::Ipv4Addr =
+                    ip.parse().unwrap_or(std::net::Ipv4Addr::UNSPECIFIED);
                 packet.extend_from_slice(&addr.octets());
             }
             RadiusAttribute::NasPort(port) => {
@@ -276,7 +276,8 @@ fn build_radius_packet(request: &RadiusRequest, secret: &str) -> Vec<u8> {
             RadiusAttribute::FramedIpAddress(ip) => {
                 packet.push(8); // Type
                 packet.push(6); // Length
-                let addr: std::net::Ipv4Addr = ip.parse().unwrap_or(std::net::Ipv4Addr::UNSPECIFIED);
+                let addr: std::net::Ipv4Addr =
+                    ip.parse().unwrap_or(std::net::Ipv4Addr::UNSPECIFIED);
                 packet.extend_from_slice(&addr.octets());
             }
             RadiusAttribute::FilterId(filter) => {
@@ -393,7 +394,10 @@ fn parse_radius_packet(data: &[u8]) -> Result<RadiusResponse, AppError> {
                 // Framed-IP-Address
                 if attr_data.len() == 4 {
                     let ip = std::net::Ipv4Addr::new(
-                        attr_data[0], attr_data[1], attr_data[2], attr_data[3],
+                        attr_data[0],
+                        attr_data[1],
+                        attr_data[2],
+                        attr_data[3],
                     );
                     attributes.push(RadiusAttribute::FramedIpAddress(ip.to_string()));
                 }
@@ -427,10 +431,8 @@ fn parse_radius_packet(data: &[u8]) -> Result<RadiusResponse, AppError> {
 #[async_trait]
 pub trait RadiusClient: Send + Sync {
     /// Authenticate a PPPoE user
-    async fn authenticate(
-        &self,
-        request: &PppoeAuthRequest,
-    ) -> Result<PppoeAuthResponse, AppError>;
+    async fn authenticate(&self, request: &PppoeAuthRequest)
+        -> Result<PppoeAuthResponse, AppError>;
 
     /// Send accounting start
     async fn accounting_start(&self, request: &AccountingRequest) -> Result<(), AppError>;
@@ -466,11 +468,7 @@ impl RadiusAdapter {
     }
 
     /// Send a RADIUS packet and receive response
-    async fn send_and_receive(
-        &self,
-        packet: &[u8],
-        port: u16,
-    ) -> Result<Vec<u8>, AppError> {
+    async fn send_and_receive(&self, packet: &[u8], port: u16) -> Result<Vec<u8>, AppError> {
         let addr: SocketAddr = format!("{}:{}", self.config.server, port)
             .parse()
             .map_err(|e| AppError::External(format!("Invalid RADIUS server address: {}", e)))?;
@@ -512,8 +510,9 @@ impl RadiusClient for RadiusAdapter {
             identifier,
             attributes: vec![
                 RadiusAttribute::UserName(request.username.clone()),
-                RadiusAttribute::UserPassword(request.password.clone()),            RadiusAttribute::NasIpAddress(request.nas_ip.clone()),
-            RadiusAttribute::NasPort(request.nas_port),
+                RadiusAttribute::UserPassword(request.password.clone()),
+                RadiusAttribute::NasIpAddress(request.nas_ip.clone()),
+                RadiusAttribute::NasPort(request.nas_port),
             ],
         };
 
@@ -577,7 +576,9 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
-        let response_data = self.send_and_receive(&packet, self.config.accounting_port).await?;
+        let response_data = self
+            .send_and_receive(&packet, self.config.accounting_port)
+            .await?;
         let response = parse_radius_packet(&response_data)?;
 
         if response.packet_type != RadiusPacketType::AccountingResponse {
@@ -626,7 +627,9 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
-        let response_data = self.send_and_receive(&packet, self.config.accounting_port).await?;
+        let response_data = self
+            .send_and_receive(&packet, self.config.accounting_port)
+            .await?;
         let response = parse_radius_packet(&response_data)?;
 
         if response.packet_type != RadiusPacketType::AccountingResponse {
@@ -672,7 +675,9 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
-        let response_data = self.send_and_receive(&packet, self.config.accounting_port).await?;
+        let response_data = self
+            .send_and_receive(&packet, self.config.accounting_port)
+            .await?;
         let response = parse_radius_packet(&response_data)?;
 
         if response.packet_type != RadiusPacketType::AccountingResponse {

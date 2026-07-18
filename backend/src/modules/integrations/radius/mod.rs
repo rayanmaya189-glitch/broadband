@@ -9,4 +9,4 @@
 
 pub mod adapter;
 
-pub use adapter::{RadiusAdapter, RadiusConfig, RadiusRequest, RadiusResponse, RadiusAttribute};
+pub use adapter::{RadiusAdapter, RadiusAttribute, RadiusConfig, RadiusRequest, RadiusResponse};

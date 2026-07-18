@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
-use tracing::{info, error};
+use tracing::{error, info};
 
 use crate::modules::monitoring::application::traits::{
     AlertRuleRepository, MetricRecordRepository, MonitoringAlertRepository, MonitoringService,
@@ -57,7 +57,12 @@ impl MonitoringService for MonitoringServiceImpl {
                 created_at: Utc::now(),
             };
             last_id = self.metric_repo.save(&record).await?;
-            info!(device_id, metric = "cpu_usage", value = cpu, "Recorded metric");
+            info!(
+                device_id,
+                metric = "cpu_usage",
+                value = cpu,
+                "Recorded metric"
+            );
         }
 
         if let Some(memory) = metrics.get("memory_usage").and_then(|v| v.as_f64()) {
@@ -73,7 +78,12 @@ impl MonitoringService for MonitoringServiceImpl {
                 created_at: Utc::now(),
             };
             last_id = self.metric_repo.save(&record).await?;
-            info!(device_id, metric = "memory_usage", value = memory, "Recorded metric");
+            info!(
+                device_id,
+                metric = "memory_usage",
+                value = memory,
+                "Recorded metric"
+            );
         }
 
         if let Some(temp) = metrics.get("temperature").and_then(|v| v.as_f64()) {
@@ -122,7 +132,9 @@ impl MonitoringService for MonitoringServiceImpl {
         }
 
         // Evaluate alert rules
-        let _alerts = self.evaluate_alert_rules(device_id, branch_id, &metrics).await?;
+        let _alerts = self
+            .evaluate_alert_rules(device_id, branch_id, &metrics)
+            .await?;
 
         Ok(last_id)
     }
@@ -134,7 +146,11 @@ impl MonitoringService for MonitoringServiceImpl {
         limit: i64,
     ) -> Result<Vec<metric_record::Model>, AppError> {
         match metric_name {
-            Some(name) => self.metric_repo.find_by_device_and_metric(device_id, name, limit).await,
+            Some(name) => {
+                self.metric_repo
+                    .find_by_device_and_metric(device_id, name, limit)
+                    .await
+            }
             None => self.metric_repo.find_by_device_id(device_id, limit).await,
         }
     }
@@ -170,7 +186,7 @@ impl MonitoringService for MonitoringServiceImpl {
                     if !has_existing {
                         let severity = AlertSeverity::from_str(&rule.severity)
                             .unwrap_or(AlertSeverity::Medium);
-                        
+
                         let alert_model = monitoring_alert::Model {
                             id: 0,
                             device_id,
@@ -224,12 +240,15 @@ impl MonitoringService for MonitoringServiceImpl {
                         if alert.metric_name.as_deref() == Some(&rule.metric_name)
                             && alert.alert_rule_id == Some(rule.id)
                         {
-                            let _ = self.alert_repo.update_status(
-                                alert.id,
-                                &AlertStatus::AutoResolved,
-                                None,
-                                Some("Metric returned to normal threshold".to_string()),
-                            ).await;
+                            let _ = self
+                                .alert_repo
+                                .update_status(
+                                    alert.id,
+                                    &AlertStatus::AutoResolved,
+                                    None,
+                                    Some("Metric returned to normal threshold".to_string()),
+                                )
+                                .await;
                             info!(device_id, metric = %rule.metric_name, "Auto-resolved alert");
                         }
                     }
@@ -275,17 +294,10 @@ impl MonitoringService for MonitoringServiceImpl {
         Ok(id)
     }
 
-    async fn acknowledge_alert(
-        &self,
-        alert_id: i64,
-        user_id: i64,
-    ) -> Result<(), AppError> {
-        self.alert_repo.update_status(
-            alert_id,
-            &AlertStatus::Acknowledged,
-            Some(user_id),
-            None,
-        ).await
+    async fn acknowledge_alert(&self, alert_id: i64, user_id: i64) -> Result<(), AppError> {
+        self.alert_repo
+            .update_status(alert_id, &AlertStatus::Acknowledged, Some(user_id), None)
+            .await
     }
 
     async fn resolve_alert(
@@ -294,12 +306,9 @@ impl MonitoringService for MonitoringServiceImpl {
         user_id: i64,
         notes: Option<String>,
     ) -> Result<(), AppError> {
-        self.alert_repo.update_status(
-            alert_id,
-            &AlertStatus::Resolved,
-            Some(user_id),
-            notes,
-        ).await
+        self.alert_repo
+            .update_status(alert_id, &AlertStatus::Resolved, Some(user_id), notes)
+            .await
     }
 
     async fn get_active_alerts(&self) -> Result<Vec<monitoring_alert::Model>, AppError> {
@@ -311,7 +320,10 @@ impl MonitoringService for MonitoringServiceImpl {
         branch_id: i64,
     ) -> Result<Vec<monitoring_alert::Model>, AppError> {
         let all_alerts = self.alert_repo.find_active().await?;
-        Ok(all_alerts.into_iter().filter(|a| a.branch_id == branch_id).collect())
+        Ok(all_alerts
+            .into_iter()
+            .filter(|a| a.branch_id == branch_id)
+            .collect())
     }
 
     async fn cleanup(&self) -> Result<(u64, u64), AppError> {
@@ -323,8 +335,7 @@ impl MonitoringService for MonitoringServiceImpl {
 
         info!(
             metrics_deleted,
-            alerts_deleted,
-            "Monitoring cleanup completed"
+            alerts_deleted, "Monitoring cleanup completed"
         );
 
         Ok((metrics_deleted, alerts_deleted))

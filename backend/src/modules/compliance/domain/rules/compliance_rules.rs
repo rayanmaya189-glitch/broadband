@@ -3,7 +3,8 @@ pub struct ComplianceRules;
 
 impl ComplianceRules {
     /// Valid KYC document types
-    pub const VALID_DOCUMENT_TYPES: &[&str] = &["aadhaar", "pan", "voter_id", "driving_license", "passport"];
+    pub const VALID_DOCUMENT_TYPES: &[&str] =
+        &["aadhaar", "pan", "voter_id", "driving_license", "passport"];
 
     /// KYC document retention period (7 years)
     pub const KYC_RETENTION_YEARS: i32 = 7;

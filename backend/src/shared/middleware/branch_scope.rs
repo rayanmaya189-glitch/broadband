@@ -1,7 +1,7 @@
-use axum::http::request::Parts;
-use axum::http::StatusCode;
 use axum::extract::FromRequestParts;
 use axum::extract::Request;
+use axum::http::request::Parts;
+use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 
@@ -36,8 +36,8 @@ pub struct BranchScope {
 impl BranchScope {
     /// Create a new BranchScope from a UserContext
     pub fn from_user_context(user: &UserContext) -> Self {
-        let is_company_wide = user.is_company_wide
-            || COMPANY_WIDE_ROLES.contains(&user.role.as_str());
+        let is_company_wide =
+            user.is_company_wide || COMPANY_WIDE_ROLES.contains(&user.role.as_str());
 
         let branch_ids = if is_company_wide {
             Vec::new() // Company-wide users don't need branch filtering
@@ -74,10 +74,7 @@ impl BranchScope {
 /// Extract UserContext from JWT in Authorization header (without Redis permission lookup).
 /// This is used by the branch scope middleware to populate extensions before handlers run.
 fn extract_user_context_from_headers(headers: &axum::http::HeaderMap) -> Option<UserContext> {
-    let auth_header = headers
-        .get("Authorization")?
-        .to_str()
-        .ok()?;
+    let auth_header = headers.get("Authorization")?.to_str().ok()?;
 
     let token = auth_header.strip_prefix("Bearer ")?;
 
@@ -134,10 +131,7 @@ where
 {
     type Rejection = StatusCode;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Extract from extensions (injected by branch_scope_middleware)
         // If not present, create a company-wide default
         Ok(parts

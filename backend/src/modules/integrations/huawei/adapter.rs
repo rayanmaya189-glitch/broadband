@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use crate::shared::errors::AppError;
 use super::ssh_client;
+use crate::shared::errors::AppError;
 
 // ============================================================================
 // Configuration
@@ -250,7 +250,8 @@ impl HuaweiOltSshAdapter {
                 enable_pw,
                 command,
                 self.config.ssh_timeout_secs,
-            ).await?
+            )
+            .await?
         } else {
             // Direct command execution
             ssh_client::execute_olt_command(
@@ -260,7 +261,8 @@ impl HuaweiOltSshAdapter {
                 &self.config.password,
                 command,
                 self.config.ssh_timeout_secs,
-            ).await?
+            )
+            .await?
         };
 
         Ok(CliResult {
@@ -283,7 +285,7 @@ impl HuaweiOltSshAdapter {
                 }
                 // Try to extract profile ID
                 let id = if let Some(pos) = line.find(':') {
-                    line[pos+1..].trim().parse().unwrap_or(0)
+                    line[pos + 1..].trim().parse().unwrap_or(0)
                 } else {
                     0
                 };
@@ -297,9 +299,20 @@ impl HuaweiOltSshAdapter {
                 });
             } else if let Some(ref mut profile) = current_profile {
                 if line.contains("Profile Name:") || line.contains("Name:") {
-                    profile.name = line.split_once(':').map(|x| x.1).unwrap_or("").trim().to_string();
+                    profile.name = line
+                        .split_once(':')
+                        .map(|x| x.1)
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
                 } else if line.contains("Type:") {
-                    let type_num = line.split_once(':').map(|x| x.1).unwrap_or("4").trim().parse().unwrap_or(4);
+                    let type_num = line
+                        .split_once(':')
+                        .map(|x| x.1)
+                        .unwrap_or("4")
+                        .trim()
+                        .parse()
+                        .unwrap_or(4);
                     profile.profile_type = match type_num {
                         1 => DbaProfileType::Type1,
                         2 => DbaProfileType::Type2,
@@ -308,7 +321,8 @@ impl HuaweiOltSshAdapter {
                     };
                 } else if line.contains("Max BW:") || line.contains("Max Bandwidth:") {
                     let bw_str = line.split_once(':').map(|x| x.1).unwrap_or("0").trim();
-                    profile.max_bandwidth_kbps = bw_str.replace("kbps", "").trim().parse().unwrap_or(0);
+                    profile.max_bandwidth_kbps =
+                        bw_str.replace("kbps", "").trim().parse().unwrap_or(0);
                 } else if line.contains("Assured BW:") {
                     let bw_str = line.split_once(':').map(|x| x.1).unwrap_or("0").trim();
                     profile.assured_bandwidth_kbps = bw_str.replace("kbps", "").trim().parse().ok();
@@ -334,7 +348,13 @@ impl HuaweiOltSshAdapter {
                 if let Some(ont) = current_ont.take() {
                     onts.push(ont);
                 }
-                let id = line.split_once(':').map(|x| x.1).unwrap_or("0").trim().parse().unwrap_or(0);
+                let id = line
+                    .split_once(':')
+                    .map(|x| x.1)
+                    .unwrap_or("0")
+                    .trim()
+                    .parse()
+                    .unwrap_or(0);
                 current_ont = Some(OntStatus {
                     frame,
                     slot,
@@ -398,7 +418,10 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
             }
             DbaProfileType::Type3 => {
                 if let Some(assured) = profile.assured_bandwidth_kbps {
-                    cmd = format!("{} assured {} max {}", cmd, assured, profile.max_bandwidth_kbps);
+                    cmd = format!(
+                        "{} assured {} max {}",
+                        cmd, assured, profile.max_bandwidth_kbps
+                    );
                 }
             }
             DbaProfileType::Type4 => {
@@ -495,15 +518,15 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
         pon: u32,
         ont_id: u32,
     ) -> Result<OntStatus, AppError> {
-        let cmd = format!(
-            "display ont-info {} {} {} {}",
-            frame, slot, pon, ont_id
-        );
+        let cmd = format!("display ont-info {} {} {} {}", frame, slot, pon, ont_id);
         let result = self.ssh_execute(&cmd).await?;
         let onts = self.parse_ont_status(&result.output, frame, slot, pon);
-        onts.into_iter()
-            .next()
-            .ok_or_else(|| AppError::NotFound(format!("ONT {}/{}/{}/{} not found", frame, slot, pon, ont_id)))
+        onts.into_iter().next().ok_or_else(|| {
+            AppError::NotFound(format!(
+                "ONT {}/{}/{}/{} not found",
+                frame, slot, pon, ont_id
+            ))
+        })
     }
 
     async fn list_onts_on_pon(
@@ -527,7 +550,9 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
         let result = self.ssh_execute(&cmd).await?;
 
         // Parse output for ONT count
-        let ont_count = result.output.lines()
+        let ont_count = result
+            .output
+            .lines()
             .filter(|l| l.contains("ONT") || l.contains("Total"))
             .count() as u32;
 
@@ -580,8 +605,8 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
         }
 
         info!(
-            frame, slot, pon, ont_id, dba_profile_id,
-            "Applied bandwidth profile to Huawei ONT"
+            frame,
+            slot, pon, ont_id, dba_profile_id, "Applied bandwidth profile to Huawei ONT"
         );
         Ok(())
     }

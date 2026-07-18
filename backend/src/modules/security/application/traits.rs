@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type RoleModel = crate::modules::security::domain::entities::role::Model;
 pub type PermissionModel = crate::modules::security::domain::entities::permission::Model;
@@ -9,10 +9,7 @@ pub type RolePermissionModel = crate::modules::security::domain::entities::role_
 
 #[async_trait]
 pub trait SecurityServiceTrait: Send + Sync {
-    async fn list_roles(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<RoleModel>, AppError>;
+    async fn list_roles(&self, db: &DatabaseConnection) -> Result<Vec<RoleModel>, AppError>;
 
     async fn create_role(
         &self,

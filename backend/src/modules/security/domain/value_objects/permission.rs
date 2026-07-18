@@ -11,7 +11,11 @@ pub struct Permission {
 
 impl Permission {
     pub fn new(name: String, module: String, action: String) -> Self {
-        Self { name, module, action }
+        Self {
+            name,
+            module,
+            action,
+        }
     }
 
     pub fn from_string(permission_str: &str) -> Self {

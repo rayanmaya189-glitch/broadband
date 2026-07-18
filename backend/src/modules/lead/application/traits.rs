@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type LeadModel = crate::modules::lead::domain::entities::lead::Model;
 pub type LeadActivityModel = crate::modules::lead::domain::entities::lead_activity::Model;

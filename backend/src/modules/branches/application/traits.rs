@@ -1,21 +1,14 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type BranchModel = crate::modules::branches::domain::entities::branch::Model;
 
 #[async_trait]
 pub trait BranchServiceTrait: Send + Sync {
-    async fn list_branches(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<BranchModel>, AppError>;
+    async fn list_branches(&self, db: &DatabaseConnection) -> Result<Vec<BranchModel>, AppError>;
 
-    async fn get_branch(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<BranchModel, AppError>;
+    async fn get_branch(&self, db: &DatabaseConnection, id: i64) -> Result<BranchModel, AppError>;
 
     async fn create_branch(
         &self,

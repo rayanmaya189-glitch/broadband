@@ -28,7 +28,9 @@ impl std::fmt::Display for CoverageDomainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CoverageAreaNotFound(id) => write!(f, "Coverage area {} not found", id),
-            Self::CapacityExceeded => write!(f, "Coverage area has reached maximum customer capacity"),
+            Self::CapacityExceeded => {
+                write!(f, "Coverage area has reached maximum customer capacity")
+            }
             Self::InvalidAreaType => write!(f, "Invalid area type"),
         }
     }
@@ -37,7 +39,11 @@ impl std::fmt::Display for CoverageDomainError {
 impl std::error::Error for CoverageDomainError {}
 
 impl CoverageArea {
-    pub fn new(branch_id: i64, name: String, area_type: String) -> Result<Self, CoverageDomainError> {
+    pub fn new(
+        branch_id: i64,
+        name: String,
+        area_type: String,
+    ) -> Result<Self, CoverageDomainError> {
         let valid_types = ["polygon", "circle", "pincode"];
         if !valid_types.contains(&area_type.as_str()) {
             return Err(CoverageDomainError::InvalidAreaType);
@@ -58,7 +64,9 @@ impl CoverageArea {
     }
 
     pub fn can_accept_customer(&self) -> bool {
-        if !self.is_active { return false; }
+        if !self.is_active {
+            return false;
+        }
         match self.max_customers {
             Some(max) => self.current_customers < max,
             None => true,
@@ -105,6 +113,9 @@ mod tests {
         area.add_customer().unwrap();
         area.add_customer().unwrap();
         assert!(!area.can_accept_customer());
-        assert_eq!(area.add_customer(), Err(CoverageDomainError::CapacityExceeded));
+        assert_eq!(
+            area.add_customer(),
+            Err(CoverageDomainError::CapacityExceeded)
+        );
     }
 }

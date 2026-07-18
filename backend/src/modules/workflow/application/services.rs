@@ -1,7 +1,9 @@
-use sea_orm::DatabaseConnection;
-use crate::shared::errors::AppError;
-use crate::modules::workflow::domain::approval::{ApprovalRequest as DomainApprovalRequest, ApprovalWorkflowType, ApprovalStatus};
+use crate::modules::workflow::domain::approval::{
+    ApprovalRequest as DomainApprovalRequest, ApprovalStatus, ApprovalWorkflowType,
+};
 use crate::modules::workflow::infrastructure::repository::ApprovalRepository;
+use crate::shared::errors::AppError;
+use sea_orm::DatabaseConnection;
 
 pub struct ApprovalService;
 
@@ -33,7 +35,8 @@ impl ApprovalService {
         db: &DatabaseConnection,
         id: i64,
     ) -> Result<DomainApprovalRequest, AppError> {
-        let model = ApprovalRepository::find_by_id(db, id).await?
+        let model = ApprovalRepository::find_by_id(db, id)
+            .await?
             .ok_or_else(|| AppError::NotFound("Approval request not found".to_string()))?;
 
         Ok(DomainApprovalRequest {
@@ -60,8 +63,9 @@ impl ApprovalService {
     ) -> Result<Vec<DomainApprovalRequest>, AppError> {
         let models = ApprovalRepository::find_pending(db).await?;
 
-        Ok(models.into_iter().map(|model| {
-            DomainApprovalRequest {
+        Ok(models
+            .into_iter()
+            .map(|model| DomainApprovalRequest {
                 id: model.id,
                 workflow_type: ApprovalWorkflowType::from_str(&model.workflow_type),
                 resource_type: model.resource_type,
@@ -76,8 +80,8 @@ impl ApprovalService {
                 requested_at: model.requested_at.with_timezone(&chrono::Utc),
                 reviewed_at: model.reviewed_at.map(|dt| dt.with_timezone(&chrono::Utc)),
                 expires_at: model.expires_at.map(|dt| dt.with_timezone(&chrono::Utc)),
-            }
-        }).collect())
+            })
+            .collect())
     }
 
     /// Approve a request
@@ -89,7 +93,9 @@ impl ApprovalService {
     ) -> Result<(), AppError> {
         let request = Self::get_request(db, id).await?;
         if !request.can_review() {
-            return Err(AppError::BadRequest("Request cannot be reviewed".to_string()));
+            return Err(AppError::BadRequest(
+                "Request cannot be reviewed".to_string(),
+            ));
         }
 
         ApprovalRepository::approve(db, id, reviewer_id, comment).await
@@ -104,10 +110,11 @@ impl ApprovalService {
     ) -> Result<(), AppError> {
         let request = Self::get_request(db, id).await?;
         if !request.can_review() {
-            return Err(AppError::BadRequest("Request cannot be reviewed".to_string()));
+            return Err(AppError::BadRequest(
+                "Request cannot be reviewed".to_string(),
+            ));
         }
 
         ApprovalRepository::reject(db, id, reviewer_id, comment).await
     }
 }
-

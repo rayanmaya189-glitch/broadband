@@ -44,7 +44,8 @@ pub async fn list_installations(
     } else {
         user.branch_id
     };
-    let (orders, total) = InstallationService::list_orders(&state.db, bid, p.page(), p.limit()).await?;
+    let (orders, total) =
+        InstallationService::list_orders(&state.db, bid, p.page(), p.limit()).await?;
     let items: Vec<InstallationResponse> = orders
         .into_iter()
         .map(|o| InstallationResponse {
@@ -54,7 +55,9 @@ pub async fn list_installations(
             scheduled_date: o.scheduled_date.map(|d| d.to_string()),
         })
         .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn create_installation(
@@ -71,10 +74,17 @@ pub async fn create_installation(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "installation.created", "installation_order", o.id,
-        serde_json::json!({"order_id": o.id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "installation.created",
+        "installation_order",
+        o.id,
+        serde_json::json!({"order_id": o.id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish installation.created event");
     }
     Ok((
@@ -94,7 +104,8 @@ pub async fn schedule_installation(
     Path(id): Path<i64>,
     Json(req): Json<ScheduleRequest>,
 ) -> Result<Json<InstallationResponse>, AppError> {
-    require_permission(&user, "installation.order.schedule").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "installation.order.schedule")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let date: chrono::NaiveDate = req
         .scheduled_date
         .parse()
@@ -108,10 +119,17 @@ pub async fn schedule_installation(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "installation.scheduled", "installation_order", o.id,
-        serde_json::json!({"order_id": o.id, "status": o.status}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "installation.scheduled",
+        "installation_order",
+        o.id,
+        serde_json::json!({"order_id": o.id, "status": o.status}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish installation.scheduled event");
     }
     Ok(Json(InstallationResponse {
@@ -127,13 +145,21 @@ pub async fn complete_installation(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<InstallationResponse>, AppError> {
-    require_permission(&user, "installation.order.complete").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "installation.order.complete")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let o = InstallationService::complete_order(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "installation.completed", "installation_order", o.id,
-        serde_json::json!({"order_id": o.id, "status": o.status}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "installation.completed",
+        "installation_order",
+        o.id,
+        serde_json::json!({"order_id": o.id, "status": o.status}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish installation.completed event");
     }
     Ok(Json(InstallationResponse {
@@ -152,10 +178,17 @@ pub async fn cancel_installation(
     require_permission(&user, "installation.order.cancel").map_err(|e| AppError::Forbidden(e.1))?;
     InstallationService::cancel_order(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "installation.cancelled", "installation_order", id,
-        serde_json::json!({"order_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "installation.cancelled",
+        "installation_order",
+        id,
+        serde_json::json!({"order_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish installation.cancelled event");
     }
     Ok(StatusCode::OK)

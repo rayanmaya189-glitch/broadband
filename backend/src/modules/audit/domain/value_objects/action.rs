@@ -33,14 +33,22 @@ impl AuditAction {
 
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Login => "login", Self::Logout => "logout", Self::Create => "create",
-            Self::Update => "update", Self::Delete => "delete", Self::View => "view",
-            Self::Export => "export", Self::Approve => "approve", Self::Reject => "reject",
+            Self::Login => "login",
+            Self::Logout => "logout",
+            Self::Create => "create",
+            Self::Update => "update",
+            Self::Delete => "delete",
+            Self::View => "view",
+            Self::Export => "export",
+            Self::Approve => "approve",
+            Self::Reject => "reject",
             Self::Custom(s) => s,
         }
     }
 }
 
 impl fmt::Display for AuditAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

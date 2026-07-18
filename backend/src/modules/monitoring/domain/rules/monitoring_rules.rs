@@ -49,11 +49,7 @@ pub fn health_status_from_score(score: i32) -> &'static str {
 use crate::modules::monitoring::domain::value_objects::AlertSeverity;
 
 /// Determine alert severity based on metric value and thresholds
-pub fn determine_severity(
-    metric_name: &str,
-    value: f64,
-) -> AlertSeverity {
-
+pub fn determine_severity(metric_name: &str, value: f64) -> AlertSeverity {
     match metric_name {
         "cpu_usage" => {
             if value >= CPU_CRITICAL_THRESHOLD {
@@ -144,10 +140,7 @@ mod tests {
             determine_severity("cpu_usage", 95.0),
             AlertSeverity::Critical
         );
-        assert_eq!(
-            determine_severity("cpu_usage", 75.0),
-            AlertSeverity::High
-        );
+        assert_eq!(determine_severity("cpu_usage", 75.0), AlertSeverity::High);
         assert_eq!(
             determine_severity("temperature", 65.0),
             AlertSeverity::Medium

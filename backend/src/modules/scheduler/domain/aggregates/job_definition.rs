@@ -1,4 +1,4 @@
-use crate::modules::scheduler::domain::value_objects::{JobType, JobStatus};
+use crate::modules::scheduler::domain::value_objects::{JobStatus, JobType};
 
 /// JobDefinition aggregate root - represents a scheduled job
 #[derive(Debug, Clone, PartialEq)]

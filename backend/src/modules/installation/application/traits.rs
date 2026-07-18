@@ -1,8 +1,9 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
-pub type InstallationOrderModel = crate::modules::installation::domain::entities::installation_order::Model;
+pub type InstallationOrderModel =
+    crate::modules::installation::domain::entities::installation_order::Model;
 
 #[async_trait]
 pub trait InstallationServiceTrait: Send + Sync {

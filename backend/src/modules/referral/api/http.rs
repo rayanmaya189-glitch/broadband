@@ -31,15 +31,18 @@ pub async fn list_referrals(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "referral.view").map_err(|e| AppError::Forbidden(e.1))?;
     let (refs, total) = ReferralService::list_referrals(&state.db, p.page(), p.limit()).await?;
-    let items: Vec<ReferralResponse> = refs.into_iter()
-            .map(|r| ReferralResponse {
-                id: r.id,
-                referral_code: r.referral_code,
-                status: r.status,
-                referee_phone: r.referee_phone,
-            })
-            .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+    let items: Vec<ReferralResponse> = refs
+        .into_iter()
+        .map(|r| ReferralResponse {
+            id: r.id,
+            referral_code: r.referral_code,
+            status: r.status,
+            referee_phone: r.referee_phone,
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn create_referral(

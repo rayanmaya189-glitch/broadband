@@ -1,4 +1,6 @@
-use crate::modules::discovery::domain::value_objects::{DiscoveryScanId, DiscoveryScanStatus, ScanType};
+use crate::modules::discovery::domain::value_objects::{
+    DiscoveryScanId, DiscoveryScanStatus, ScanType,
+};
 
 /// DiscoveryScan aggregate root - represents a network discovery scan configuration
 #[derive(Debug, Clone)]
@@ -62,7 +64,8 @@ impl DiscoveryScan {
 
     pub fn complete(&mut self) {
         self.status = DiscoveryScanStatus::Idle;
-        self.next_scan_at = Some(chrono::Utc::now() + chrono::Duration::seconds(self.scan_interval_seconds as i64));
+        self.next_scan_at =
+            Some(chrono::Utc::now() + chrono::Duration::seconds(self.scan_interval_seconds as i64));
     }
 
     pub fn is_due(&self) -> bool {

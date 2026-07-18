@@ -53,7 +53,6 @@ pub struct RateLimitInfo {
     pub retry_after: Option<i64>,
 }
 
-
 /// In-memory rate limiter store (shared across all requests via AppState)
 #[derive(Clone)]
 pub struct RateLimitStore {
@@ -113,10 +112,7 @@ impl Default for RateLimitStore {
 /// Middleware function for rate limiting.
 ///
 /// Uses the shared `RateLimitStore` from request extensions (injected via AppState).
-pub async fn rate_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // Extract client identifier (IP address or API key)
     let client_id = request
         .headers()
@@ -143,11 +139,7 @@ pub async fn rate_limit_middleware(
 
     // Get the shared store from request extensions (set by AppState injection in main.rs)
     // This MUST be injected by the rate_limit_layer in main.rs before this middleware runs.
-    let store = match request
-        .extensions()
-        .get::<Arc<RateLimitStore>>()
-        .cloned()
-    {
+    let store = match request.extensions().get::<Arc<RateLimitStore>>().cloned() {
         Some(store) => store,
         None => {
             tracing::error!("RateLimitStore not found in request extensions. Ensure rate_limit_layer is applied.");
@@ -170,7 +162,9 @@ pub async fn rate_limit_middleware(
     }
     if let Some(retry) = info.retry_after {
         if let Ok(val) = retry.to_string().parse() {
-            response.headers_mut().insert("x-ratelimit-retry-after", val);
+            response
+                .headers_mut()
+                .insert("x-ratelimit-retry-after", val);
         }
     }
 

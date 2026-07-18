@@ -1,11 +1,13 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, PaginatorTrait};
-use chrono::Utc;
-use crate::shared::errors::AppError;
 use crate::modules::compliance::domain::entities::{
-    kyc_verification, consent, data_retention_policy,
-    KycVerification, KycVerificationActiveModel,
-    Consent, ConsentActiveModel,
-    DataRetentionPolicy, DataRetentionPolicyActiveModel,
+    consent, data_retention_policy, kyc_verification, Consent, ConsentActiveModel,
+    DataRetentionPolicy, DataRetentionPolicyActiveModel, KycVerification,
+    KycVerificationActiveModel,
+};
+use crate::shared::errors::AppError;
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
 };
 
 /// Compliance service for KYC verification, GDPR consent, and data retention.
@@ -14,7 +16,9 @@ pub struct ComplianceService;
 impl ComplianceService {
     // ── KYC Verifications ──
 
-    pub async fn list_kyc_verifications(db: &DatabaseConnection) -> Result<Vec<kyc_verification::Model>, AppError> {
+    pub async fn list_kyc_verifications(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<kyc_verification::Model>, AppError> {
         Ok(KycVerification::find().all(db).await?)
     }
 
@@ -77,7 +81,10 @@ impl ComplianceService {
             .await?)
     }
 
-    pub async fn is_customer_kyc_verified(db: &DatabaseConnection, customer_id: i64) -> Result<bool, AppError> {
+    pub async fn is_customer_kyc_verified(
+        db: &DatabaseConnection,
+        customer_id: i64,
+    ) -> Result<bool, AppError> {
         let count = KycVerification::find()
             .filter(kyc_verification::Column::CustomerId.eq(customer_id))
             .filter(kyc_verification::Column::Status.eq("verified"))
@@ -89,7 +96,10 @@ impl ComplianceService {
 
     // ── Consent Management ──
 
-    pub async fn list_consents(db: &DatabaseConnection, customer_id: i64) -> Result<Vec<consent::Model>, AppError> {
+    pub async fn list_consents(
+        db: &DatabaseConnection,
+        customer_id: i64,
+    ) -> Result<Vec<consent::Model>, AppError> {
         Ok(Consent::find()
             .filter(consent::Column::CustomerId.eq(customer_id))
             .all(db)
@@ -141,7 +151,11 @@ impl ComplianceService {
         Ok(())
     }
 
-    pub async fn has_consent(db: &DatabaseConnection, customer_id: i64, consent_type: &str) -> Result<bool, AppError> {
+    pub async fn has_consent(
+        db: &DatabaseConnection,
+        customer_id: i64,
+        consent_type: &str,
+    ) -> Result<bool, AppError> {
         let consent = Consent::find()
             .filter(consent::Column::CustomerId.eq(customer_id))
             .filter(consent::Column::ConsentType.eq(consent_type))
@@ -153,7 +167,9 @@ impl ComplianceService {
 
     // ── Data Retention Policies ──
 
-    pub async fn list_retention_policies(db: &DatabaseConnection) -> Result<Vec<data_retention_policy::Model>, AppError> {
+    pub async fn list_retention_policies(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<data_retention_policy::Model>, AppError> {
         Ok(DataRetentionPolicy::find().all(db).await?)
     }
 
@@ -192,11 +208,16 @@ impl ComplianceService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Retention policy {} not found", id)))?;
         let mut active: data_retention_policy::ActiveModel = policy.into();
-        if let Some(days) = retention_days { active.retention_days = Set(days); }
-        if let Some(act) = action { active.action = Set(act); }
-        if let Some(a) = is_active { active.is_active = Set(a); }
+        if let Some(days) = retention_days {
+            active.retention_days = Set(days);
+        }
+        if let Some(act) = action {
+            active.action = Set(act);
+        }
+        if let Some(a) = is_active {
+            active.is_active = Set(a);
+        }
         active.updated_at = Set(Utc::now());
         Ok(active.update(db).await?)
     }
 }
-

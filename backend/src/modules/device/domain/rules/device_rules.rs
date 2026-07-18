@@ -21,7 +21,11 @@ impl DeviceRules {
     pub fn calculate_health_score(cpu: f64, memory: f64, uptime_hours: f64) -> i32 {
         let cpu_score = ((100.0 - cpu) / 100.0 * 40.0) as i32;
         let mem_score = ((100.0 - memory) / 100.0 * 30.0) as i32;
-        let uptime_bonus = if uptime_hours > 24.0 { 30 } else { (uptime_hours / 24.0 * 30.0) as i32 };
+        let uptime_bonus = if uptime_hours > 24.0 {
+            30
+        } else {
+            (uptime_hours / 24.0 * 30.0) as i32
+        };
         (cpu_score + mem_score + uptime_bonus).clamp(0, 100)
     }
 

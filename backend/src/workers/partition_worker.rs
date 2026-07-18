@@ -1,8 +1,8 @@
+use chrono::{Datelike, NaiveDate, Utc};
 /// Partition Management Jobs per §32 docs.
 /// Auto-creates monthly partitions for history, audit, notification, and events tables.
 /// Runs as a scheduled background job (via scheduler module).
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
-use chrono::{Utc, Datelike, NaiveDate};
 use tracing::{debug, info, warn};
 
 /// Tables that require monthly partitioning per §32 docs.
@@ -30,16 +30,34 @@ const PARTITIONED_TABLES: &[&str] = &[
 pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), anyhow::Error> {
     let now = Utc::now().date_naive();
     let next_month = NaiveDate::from_ymd_opt(
-        if now.month() == 12 { now.year() + 1 } else { now.year() },
-        if now.month() == 12 { 1 } else { now.month() + 1 },
+        if now.month() == 12 {
+            now.year() + 1
+        } else {
+            now.year()
+        },
+        if now.month() == 12 {
+            1
+        } else {
+            now.month() + 1
+        },
         1,
-    ).unwrap();
+    )
+    .unwrap();
 
     let next_next_month = NaiveDate::from_ymd_opt(
-        if next_month.month() == 12 { next_month.year() + 1 } else { next_month.year() },
-        if next_month.month() == 12 { 1 } else { next_month.month() + 1 },
+        if next_month.month() == 12 {
+            next_month.year() + 1
+        } else {
+            next_month.year()
+        },
+        if next_month.month() == 12 {
+            1
+        } else {
+            next_month.month() + 1
+        },
         1,
-    ).unwrap();
+    )
+    .unwrap();
 
     let partition_name_suffix = format!("{:04}_{:02}", next_month.year(), next_month.month());
     let partition_start = next_month.format("%Y-%m-01").to_string();
@@ -55,10 +73,10 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
             partition_name, table, partition_start, partition_end
         );
 
-        match db.execute(Statement::from_string(
-            db.get_database_backend(),
-            query,
-        )).await {
+        match db
+            .execute(Statement::from_string(db.get_database_backend(), query))
+            .await
+        {
             Ok(_) => {
                 info!(partition = %partition_name, "Created partition");
                 created += 1;
@@ -110,21 +128,31 @@ pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> 
     ];
 
     for (table_name, query) in cleanup_queries {
-        match db.execute(Statement::from_string(
-            db.get_database_backend(),
-            query.to_string(),
-        )).await {
+        match db
+            .execute(Statement::from_string(
+                db.get_database_backend(),
+                query.to_string(),
+            ))
+            .await
+        {
             Ok(result) => {
                 let affected = result.rows_affected();
                 if affected > 0 {
-                    info!(table = table_name, rows_deleted = affected, "Cleaned up table");
+                    info!(
+                        table = table_name,
+                        rows_deleted = affected,
+                        "Cleaned up table"
+                    );
                 }
                 total_deleted += affected;
             }
             Err(e) => {
                 let err_str = e.to_string();
                 if err_str.contains("does not exist") || err_str.contains("relation") {
-                    debug!(table = table_name, "Table does not exist yet, skipping cleanup");
+                    debug!(
+                        table = table_name,
+                        "Table does not exist yet, skipping cleanup"
+                    );
                 } else {
                     warn!(table = table_name, error = %e, "Failed to clean up table");
                 }
@@ -153,10 +181,10 @@ pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> 
             "DELETE FROM {} WHERE created_at < NOW() - INTERVAL '{} days'",
             table, retention_days
         );
-        if let Ok(result) = db.execute(Statement::from_string(
-            db.get_database_backend(),
-            query,
-        )).await {
+        if let Ok(result) = db
+            .execute(Statement::from_string(db.get_database_backend(), query))
+            .await
+        {
             let affected = result.rows_affected();
             if affected > 0 {
                 info!(table = table, rows_deleted = affected, "Cleaned up history");
@@ -169,4 +197,3 @@ pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> 
     info!(total_deleted = total_deleted, "Data cleanup completed");
     Ok(total_deleted)
 }
-

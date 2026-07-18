@@ -1,12 +1,10 @@
 use chrono::Utc;
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use crate::modules::scheduler::domain::entities::{
-    job_definition,
-    JobDefinition, JobDefinitionActiveModel,
-    JobExecutionActiveModel,
+    job_definition, JobDefinition, JobDefinitionActiveModel, JobExecutionActiveModel,
 };
 use crate::modules::scheduler::domain::value_objects::Schedule;
 
@@ -45,7 +43,10 @@ impl SchedulerWorker {
             return Ok(());
         }
 
-        tracing::info!(count = due_jobs.len(), "Scheduler: processing due jobs concurrently");
+        tracing::info!(
+            count = due_jobs.len(),
+            "Scheduler: processing due jobs concurrently"
+        );
 
         let mut join_set = JoinSet::new();
 
@@ -239,7 +240,8 @@ async fn execute_job(
                 None,
                 None,
                 None,
-            ).await?;
+            )
+            .await?;
             Ok(serde_json::json!({
                 "module": target_module,
                 "action": action,

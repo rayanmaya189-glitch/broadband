@@ -27,13 +27,19 @@ impl LeadSource {
     }
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::LandingPage => "landing_page", Self::WhatsApp => "whatsapp", Self::Referral => "referral",
-            Self::WalkIn => "walk_in", Self::ColdCall => "cold_call", Self::SocialMedia => "social_media",
+            Self::LandingPage => "landing_page",
+            Self::WhatsApp => "whatsapp",
+            Self::Referral => "referral",
+            Self::WalkIn => "walk_in",
+            Self::ColdCall => "cold_call",
+            Self::SocialMedia => "social_media",
             Self::FieldVisit => "field_visit",
         }
     }
 }
 
 impl fmt::Display for LeadSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

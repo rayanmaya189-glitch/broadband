@@ -7,7 +7,8 @@ use crate::shared::errors::AppError;
 /// Metric record type
 pub type MetricRecordModel = crate::modules::monitoring::domain::entities::metric_record::Model;
 pub type AlertRuleModel = crate::modules::monitoring::domain::entities::alert_rule::Model;
-pub type MonitoringAlertModel = crate::modules::monitoring::domain::entities::monitoring_alert::Model;
+pub type MonitoringAlertModel =
+    crate::modules::monitoring::domain::entities::monitoring_alert::Model;
 
 /// Repository trait for metric records
 #[async_trait]
@@ -148,11 +149,7 @@ pub trait MonitoringService: Send + Sync {
     ) -> Result<i64, AppError>;
 
     /// Acknowledge an alert
-    async fn acknowledge_alert(
-        &self,
-        alert_id: i64,
-        user_id: i64,
-    ) -> Result<(), AppError>;
+    async fn acknowledge_alert(&self, alert_id: i64, user_id: i64) -> Result<(), AppError>;
 
     /// Resolve an alert
     async fn resolve_alert(

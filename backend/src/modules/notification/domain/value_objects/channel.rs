@@ -23,12 +23,17 @@ impl NotificationChannel {
     }
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Email => "email", Self::Sms => "sms", Self::WhatsApp => "whatsapp",
-            Self::Push => "push", Self::InApp => "in_app",
+            Self::Email => "email",
+            Self::Sms => "sms",
+            Self::WhatsApp => "whatsapp",
+            Self::Push => "push",
+            Self::InApp => "in_app",
         }
     }
 }
 
 impl fmt::Display for NotificationChannel {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

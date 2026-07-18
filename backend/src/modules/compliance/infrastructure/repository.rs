@@ -1,6 +1,6 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
+use crate::modules::compliance::domain::entities::{Consent, DataRetentionPolicy, KycVerification};
 use crate::shared::errors::AppError;
-use crate::modules::compliance::domain::entities::{KycVerification, Consent, DataRetentionPolicy};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 /// Compliance repository for database queries.
 pub struct ComplianceRepository;
@@ -62,4 +62,6 @@ impl ComplianceRepository {
     }
 }
 
-use crate::modules::compliance::domain::entities::{kyc_verification, consent, data_retention_policy};
+use crate::modules::compliance::domain::entities::{
+    consent, data_retention_policy, kyc_verification,
+};

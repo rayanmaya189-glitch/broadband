@@ -40,7 +40,9 @@ impl std::fmt::Display for UserDomainError {
             Self::AlreadyVerified => write!(f, "Already verified"),
             Self::MaxLoginAttemptsExceeded => write!(f, "Maximum login attempts exceeded"),
             Self::UserNotFound(id) => write!(f, "User {} not found", id),
-            Self::TwoFactorAlreadyEnabled => write!(f, "Two-factor authentication is already enabled"),
+            Self::TwoFactorAlreadyEnabled => {
+                write!(f, "Two-factor authentication is already enabled")
+            }
         }
     }
 }
@@ -89,8 +91,7 @@ impl User {
         self.failed_login_attempts += 1;
         if self.failed_login_attempts >= 5 {
             self.status = UserStatus::Locked;
-            self.locked_until =
-                Some(chrono::Utc::now() + chrono::Duration::minutes(30));
+            self.locked_until = Some(chrono::Utc::now() + chrono::Duration::minutes(30));
         }
     }
 
@@ -107,7 +108,8 @@ impl User {
     }
 
     pub fn can_login(&self) -> bool {
-        self.status == UserStatus::Active && self.locked_until.map_or(true, |t| t < chrono::Utc::now())
+        self.status == UserStatus::Active
+            && self.locked_until.map_or(true, |t| t < chrono::Utc::now())
     }
 
     pub fn enable_two_factor(&mut self) -> Result<(), UserDomainError> {

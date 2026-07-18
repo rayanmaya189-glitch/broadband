@@ -27,7 +27,9 @@ impl std::fmt::Display for ReferralDomainError {
         match self {
             Self::ReferralNotFound(id) => write!(f, "Referral {} not found", id),
             Self::AlreadyRewarded => write!(f, "Referral already rewarded"),
-            Self::CannotRewardNonActivated => write!(f, "Cannot reward referral for non-activated customer"),
+            Self::CannotRewardNonActivated => {
+                write!(f, "Cannot reward referral for non-activated customer")
+            }
             Self::SelfReferral => write!(f, "Cannot refer yourself"),
         }
     }
@@ -36,7 +38,12 @@ impl std::fmt::Display for ReferralDomainError {
 impl std::error::Error for ReferralDomainError {}
 
 impl Referral {
-    pub fn new(referrer_id: i64, referee_name: String, referee_phone: String, referral_code: String) -> Self {
+    pub fn new(
+        referrer_id: i64,
+        referee_name: String,
+        referee_phone: String,
+        referral_code: String,
+    ) -> Self {
         Self {
             id: ReferralId::new(0),
             referrer_id,
@@ -77,13 +84,23 @@ mod tests {
 
     #[test]
     fn test_new_referral() {
-        let referral = Referral::new(1, "Rahul".to_string(), "+919876543210".to_string(), "REF-ABC".to_string());
+        let referral = Referral::new(
+            1,
+            "Rahul".to_string(),
+            "+919876543210".to_string(),
+            "REF-ABC".to_string(),
+        );
         assert_eq!(referral.status, ReferralStatus::Pending);
     }
 
     #[test]
     fn test_referral_lifecycle() {
-        let mut referral = Referral::new(1, "Rahul".to_string(), "+919876543210".to_string(), "REF-ABC".to_string());
+        let mut referral = Referral::new(
+            1,
+            "Rahul".to_string(),
+            "+919876543210".to_string(),
+            "REF-ABC".to_string(),
+        );
         referral.activate();
         assert!(referral.is_rewardable());
         referral.reward().unwrap();

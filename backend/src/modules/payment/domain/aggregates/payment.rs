@@ -90,7 +90,10 @@ mod tests {
     #[test]
     fn test_new_payment() {
         let payment = Payment::new(
-            "PAY-001".to_string(), 1, 1, 1,
+            "PAY-001".to_string(),
+            1,
+            1,
+            1,
             rust_decimal_macros::dec!(708.00),
             PaymentMethod::Upi,
         );
@@ -101,7 +104,10 @@ mod tests {
     #[test]
     fn test_invalid_amount() {
         let payment = Payment::new(
-            "PAY-001".to_string(), 1, 1, 1,
+            "PAY-001".to_string(),
+            1,
+            1,
+            1,
             rust_decimal_macros::dec!(0),
             PaymentMethod::Upi,
         );

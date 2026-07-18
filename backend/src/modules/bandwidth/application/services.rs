@@ -1,6 +1,6 @@
 use crate::modules::bandwidth::domain::entities::{BandwidthProfile, BandwidthProfileActiveModel};
 use crate::shared::errors::AppError;
-use sea_orm::{PaginatorTrait, ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 
 pub struct BandwidthService;
 
@@ -9,8 +9,13 @@ impl BandwidthService {
         db: &DatabaseConnection,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::bandwidth::domain::entities::bandwidth_profile::Model>, u64), AppError>
-    {
+    ) -> Result<
+        (
+            Vec<crate::modules::bandwidth::domain::entities::bandwidth_profile::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let q = BandwidthProfile::find();
         let t = q.clone().count(db).await?;
         Ok((q.all(db).await?, t))

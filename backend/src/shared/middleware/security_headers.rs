@@ -31,10 +31,7 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
     headers.insert("x-frame-options", "DENY".parse().unwrap());
 
     // XSS Protection (legacy but still useful for older browsers)
-    headers.insert(
-        "x-xss-protection",
-        "1; mode=block".parse().unwrap(),
-    );
+    headers.insert("x-xss-protection", "1; mode=block".parse().unwrap());
 
     // Content Security Policy - restrict resource loading
     headers.insert(
@@ -51,13 +48,17 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
     // Restrict browser features
     headers.insert(
         "permissions-policy",
-        "camera=(), microphone=(), geolocation=(), payment=()".parse().unwrap(),
+        "camera=(), microphone=(), geolocation=(), payment=()"
+            .parse()
+            .unwrap(),
     );
 
     // No caching for API responses (prevent sensitive data caching)
     headers.insert(
         "cache-control",
-        "no-store, no-cache, must-revalidate, private".parse().unwrap(),
+        "no-store, no-cache, must-revalidate, private"
+            .parse()
+            .unwrap(),
     );
 
     // Prevent search engines from indexing API responses
@@ -86,12 +87,7 @@ mod tests {
             .layer(axum::middleware::from_fn(security_headers_middleware));
 
         let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/test")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(Request::builder().uri("/test").body(Body::empty()).unwrap())
             .await
             .unwrap();
 
@@ -108,10 +104,7 @@ mod tests {
         assert!(headers.contains_key("cache-control"));
         assert!(headers.contains_key("x-robots-tag"));
 
-        assert_eq!(
-            headers.get("x-content-type-options").unwrap(),
-            "nosniff"
-        );
+        assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
         assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
     }
 }

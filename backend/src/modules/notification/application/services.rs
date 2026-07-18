@@ -3,7 +3,10 @@ use crate::modules::notification::domain::entities::{
     NotificationTemplateActiveModel,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
+};
 
 pub struct NotificationService;
 
@@ -13,7 +16,10 @@ impl NotificationService {
         _page: u64,
         _limit: u64,
     ) -> Result<
-        (Vec<crate::modules::notification::domain::entities::notification_template::Model>, u64),
+        (
+            Vec<crate::modules::notification::domain::entities::notification_template::Model>,
+            u64,
+        ),
         AppError,
     > {
         let q = NotificationTemplate::find();
@@ -75,8 +81,13 @@ impl NotificationService {
         db: &DatabaseConnection,
         page: u64,
         limit: u64,
-    ) -> Result<(Vec<crate::modules::notification::domain::entities::notification::Model>, u64), AppError>
-    {
+    ) -> Result<
+        (
+            Vec<crate::modules::notification::domain::entities::notification::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let q = Notification::find();
         let total = q.clone().count(db).await?;
         let items = q
@@ -88,9 +99,7 @@ impl NotificationService {
     }
 
     /// Retry failed notifications (status = 'failed' and retry_count < max_retries)
-    pub async fn retry_failed_notifications(
-        db: &DatabaseConnection,
-    ) -> Result<u64, AppError> {
+    pub async fn retry_failed_notifications(db: &DatabaseConnection) -> Result<u64, AppError> {
         let failed = Notification::find()
             .filter(NotificationColumn::Status.eq("failed"))
             .filter(NotificationColumn::RetryCount.lt(3))

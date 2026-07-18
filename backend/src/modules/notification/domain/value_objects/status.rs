@@ -23,8 +23,11 @@ impl NotificationStatus {
     }
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Queued => "queued", Self::Sent => "sent", Self::Delivered => "delivered",
-            Self::Failed => "failed", Self::Retrying => "retrying",
+            Self::Queued => "queued",
+            Self::Sent => "sent",
+            Self::Delivered => "delivered",
+            Self::Failed => "failed",
+            Self::Retrying => "retrying",
         }
     }
     pub fn is_terminal(&self) -> bool {
@@ -33,5 +36,7 @@ impl NotificationStatus {
 }
 
 impl fmt::Display for NotificationStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

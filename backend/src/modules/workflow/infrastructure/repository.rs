@@ -1,7 +1,7 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, ActiveModelTrait, Set};
-use crate::shared::errors::AppError;
 use crate::modules::workflow::domain::approval::ApprovalWorkflowType;
 use crate::modules::workflow::infrastructure::entities::approval_request;
+use crate::shared::errors::AppError;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
 pub struct ApprovalRepository;
 
@@ -45,7 +45,9 @@ impl ApprovalRepository {
         approval_request::Entity::find_by_id(id)
             .one(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find approval request: {}", e)))
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to find approval request: {}", e))
+            })
     }
 
     /// Find pending approval requests
@@ -56,7 +58,9 @@ impl ApprovalRepository {
             .filter(approval_request::Column::Status.eq("pending"))
             .all(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find pending requests: {}", e)))
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to find pending requests: {}", e))
+            })
     }
 
     /// Find pending requests for a specific workflow type
@@ -69,7 +73,9 @@ impl ApprovalRepository {
             .filter(approval_request::Column::WorkflowType.eq(workflow_type.to_string()))
             .all(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find pending requests: {}", e)))
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to find pending requests: {}", e))
+            })
     }
 
     /// Approve a request
@@ -97,9 +103,10 @@ impl ApprovalRepository {
         active.reviewed_at = Set(Some(now.into()));
         active.updated_at = Set(now.into());
 
-        active.update(db).await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Failed to approve request: {}", e))
-        })?;
+        active
+            .update(db)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to approve request: {}", e)))?;
 
         Ok(())
     }
@@ -129,9 +136,10 @@ impl ApprovalRepository {
         active.reviewed_at = Set(Some(now.into()));
         active.updated_at = Set(now.into());
 
-        active.update(db).await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Failed to reject request: {}", e))
-        })?;
+        active
+            .update(db)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to reject request: {}", e)))?;
 
         Ok(())
     }

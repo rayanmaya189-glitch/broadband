@@ -1,9 +1,10 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type NotificationModel = crate::modules::notification::domain::entities::notification::Model;
-pub type NotificationTemplateModel = crate::modules::notification::domain::entities::notification_template::Model;
+pub type NotificationTemplateModel =
+    crate::modules::notification::domain::entities::notification_template::Model;
 
 #[async_trait]
 pub trait NotificationServiceTrait: Send + Sync {

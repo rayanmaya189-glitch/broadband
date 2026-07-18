@@ -43,8 +43,7 @@ impl Default for MikrotikConfig {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap_or(true),
-            api_version: std::env::var("MIKROTIK_API_VERSION")
-                .unwrap_or_else(|_| "v7".to_string()),
+            api_version: std::env::var("MIKROTIK_API_VERSION").unwrap_or_else(|_| "v7".to_string()),
         }
     }
 }
@@ -186,7 +185,10 @@ impl MikrotikAdapter {
     fn auth_header(&self) -> String {
         use base64::Engine;
         let credentials = format!("{}:{}", self.config.username, self.config.password);
-        format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(credentials))
+        format!(
+            "Basic {}",
+            base64::engine::general_purpose::STANDARD.encode(credentials)
+        )
     }
 
     /// Make a GET request to the REST API
@@ -251,8 +253,9 @@ impl MikrotikAdapter {
         if text.is_empty() {
             Ok(serde_json::json!({}))
         } else {
-            serde_json::from_str(&text)
-                .map_err(|e| AppError::External(format!("Failed to parse MikroTik response: {}", e)))
+            serde_json::from_str(&text).map_err(|e| {
+                AppError::External(format!("Failed to parse MikroTik response: {}", e))
+            })
         }
     }
 
@@ -281,7 +284,6 @@ impl MikrotikAdapter {
 
         Ok(())
     }
-
 }
 
 #[async_trait]
@@ -298,19 +300,16 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
         // Add burst parameters if specified
         if let Some(burst_dl) = config.burst_download_kbps {
             if let Some(burst_ul) = config.burst_upload_kbps {
-                body["burst-limit"] =
-                    serde_json::json!(format!("{}/{}", burst_dl, burst_ul));
+                body["burst-limit"] = serde_json::json!(format!("{}/{}", burst_dl, burst_ul));
             }
         }
         if let Some(thresh_dl) = config.burst_threshold_download_kbps {
             if let Some(thresh_ul) = config.burst_threshold_upload_kbps {
-                body["burst-threshold"] =
-                    serde_json::json!(format!("{}/{}", thresh_dl, thresh_ul));
+                body["burst-threshold"] = serde_json::json!(format!("{}/{}", thresh_dl, thresh_ul));
             }
         }
         if let Some(burst_time) = config.burst_time_seconds {
-            body["burst-time"] =
-                serde_json::json!(format!("{}/{}", burst_time, burst_time));
+            body["burst-time"] = serde_json::json!(format!("{}/{}", burst_time, burst_time));
         }
         if let Some(priority) = config.priority {
             body["priority"] = serde_json::json!(priority);
@@ -381,11 +380,26 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
                 .unwrap_or_default(),
             version: resource["version"].as_str().unwrap_or("").to_string(),
             uptime: resource["uptime"].as_str().unwrap_or("").to_string(),
-            cpu_count: resource["cpu-count"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-            cpu_load_percent: resource["cpu-load"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-            total_memory_bytes: resource["total-memory"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-            free_memory_bytes: resource["free-memory"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-            disk_free_bytes: resource["disk-free"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
+            cpu_count: resource["cpu-count"]
+                .as_str()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0),
+            cpu_load_percent: resource["cpu-load"]
+                .as_str()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0),
+            total_memory_bytes: resource["total-memory"]
+                .as_str()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0),
+            free_memory_bytes: resource["free-memory"]
+                .as_str()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0),
+            disk_free_bytes: resource["disk-free"]
+                .as_str()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0),
             board_name: resource["board-name"].as_str().unwrap_or("").to_string(),
         })
     }
@@ -425,10 +439,22 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
                     user: s["user"].as_str().unwrap_or("").to_string(),
                     encoding: s["encoding"].as_str().unwrap_or("").to_string(),
                     uptime: s["uptime"].as_str().unwrap_or("").to_string(),
-                    bytes_in: s["bytes-in"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-                    bytes_out: s["bytes-out"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-                    rate_in: s["rate-in"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
-                    rate_out: s["rate-out"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
+                    bytes_in: s["bytes-in"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
+                    bytes_out: s["bytes-out"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
+                    rate_in: s["rate-in"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
+                    rate_out: s["rate-out"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
                 });
             }
         }

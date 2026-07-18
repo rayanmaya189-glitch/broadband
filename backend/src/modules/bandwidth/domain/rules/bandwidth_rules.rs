@@ -17,17 +17,14 @@ impl BandwidthRules {
 
     /// Check if speed values are valid
     pub fn is_valid_speed(download_kbps: i32, upload_kbps: i32) -> bool {
-        download_kbps > 0 && upload_kbps > 0
+        download_kbps > 0
+            && upload_kbps > 0
             && download_kbps <= Self::MAX_DOWNLOAD_KBPS
             && upload_kbps <= Self::MAX_UPLOAD_KBPS
     }
 
     /// Check if burst configuration is valid
-    pub fn is_valid_burst(
-        sustained_kbps: i32,
-        burst_kbps: i32,
-        duration_seconds: i32,
-    ) -> bool {
+    pub fn is_valid_burst(sustained_kbps: i32, burst_kbps: i32, duration_seconds: i32) -> bool {
         burst_kbps >= sustained_kbps
             && duration_seconds > 0
             && duration_seconds <= Self::MAX_BURST_DURATION

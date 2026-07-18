@@ -152,18 +152,13 @@ impl BillingService {
             query = query.filter(InvoiceColumn::BranchId.eq(bid));
         }
 
-        let items = query
-            .order_by_asc(InvoiceColumn::DueDate)
-            .all(db)
-            .await?;
+        let items = query.order_by_asc(InvoiceColumn::DueDate).all(db).await?;
         Ok(items)
     }
 
     /// Auto-generate invoices for subscriptions due for billing
     /// Returns the number of invoices generated
-    pub async fn auto_generate_invoices(
-        db: &DatabaseConnection,
-    ) -> Result<u64, AppError> {
+    pub async fn auto_generate_invoices(db: &DatabaseConnection) -> Result<u64, AppError> {
         use crate::modules::subscription::domain::entities::{Subscription, SubscriptionColumn};
 
         let today = chrono::Utc::now().date_naive();
@@ -201,7 +196,8 @@ impl BillingService {
                 .unwrap_or(sea_orm::prelude::Decimal::ZERO);
 
             let period_start = sub.next_billing_date.unwrap_or(today);
-            let period_end = period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
+            let period_end =
+                period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
 
             let now = chrono::Utc::now();
             let invoice_number = format!(
@@ -238,7 +234,11 @@ impl BillingService {
                 let _ = sub_active.update(db).await;
 
                 count += 1;
-                tracing::info!(invoice_id = invoice.id, subscription_id = invoice.subscription_id, "Auto-generated invoice");
+                tracing::info!(
+                    invoice_id = invoice.id,
+                    subscription_id = invoice.subscription_id,
+                    "Auto-generated invoice"
+                );
             }
         }
 

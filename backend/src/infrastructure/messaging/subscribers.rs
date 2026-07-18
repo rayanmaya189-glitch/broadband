@@ -115,7 +115,10 @@ async fn subscribe_customer_events(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("NATS subscribe failed: {}", e)))?;
 
-    info!(subject = "events.customer.>", "Subscribed to customer events");
+    info!(
+        subject = "events.customer.>",
+        "Subscribed to customer events"
+    );
 
     while let Some(msg) = sub.next().await {
         let subject = msg.subject.clone();
@@ -215,7 +218,8 @@ async fn handle_customer_event(
         }
         "customer.kyc.submitted" => {
             info!(event_id = %envelope.event_id, "KYC submitted - trigger verification workflow");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = handle_kyc_submitted(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to handle KYC submission");
                 }
@@ -223,7 +227,8 @@ async fn handle_customer_event(
         }
         "customer.kyc.verified" => {
             info!(event_id = %envelope.event_id, "KYC verified - activate customer account");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = handle_kyc_verified(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to handle KYC verification");
                 }
@@ -271,11 +276,14 @@ async fn create_customer_wallet(db: &DatabaseConnection, customer_id: i64) -> Re
 }
 
 /// Provision bandwidth profile for a customer's active subscription
-async fn provision_customer_bandwidth(db: &DatabaseConnection, customer_id: i64) -> Result<(), AppError> {
+async fn provision_customer_bandwidth(
+    db: &DatabaseConnection,
+    customer_id: i64,
+) -> Result<(), AppError> {
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
-    use crate::modules::subscription::domain::entities::subscription;
     use crate::modules::bandwidth::domain::entities::bandwidth_profile;
+    use crate::modules::subscription::domain::entities::subscription;
 
     // Find active subscription
     let sub = subscription::Entity::find()
@@ -298,27 +306,40 @@ async fn provision_customer_bandwidth(db: &DatabaseConnection, customer_id: i64)
 
     if let Some(_profile) = profile {
         // Record bandwidth application
-        let application = crate::modules::bandwidth::domain::entities::bandwidth_application::ActiveModel {
-            profile_id: Set(_profile.id),
-            subscription_id: Set(sub.id),
-            status: Set("applied".to_string()),
-            ..Default::default()
-        };
+        let application =
+            crate::modules::bandwidth::domain::entities::bandwidth_application::ActiveModel {
+                profile_id: Set(_profile.id),
+                subscription_id: Set(sub.id),
+                status: Set("applied".to_string()),
+                ..Default::default()
+            };
         application.insert(db).await?;
-        info!(customer_id, subscription_id = sub.id, profile_id = _profile.id, "Provisioned bandwidth profile");
+        info!(
+            customer_id,
+            subscription_id = sub.id,
+            profile_id = _profile.id,
+            "Provisioned bandwidth profile"
+        );
     } else {
-        warn!(customer_id, plan_id = sub.plan_id, "No bandwidth profile found for plan");
+        warn!(
+            customer_id,
+            plan_id = sub.plan_id,
+            "No bandwidth profile found for plan"
+        );
     }
 
     Ok(())
 }
 
 /// Revoke bandwidth by applying a throttle profile
-async fn revoke_customer_bandwidth(db: &DatabaseConnection, customer_id: i64) -> Result<(), AppError> {
+async fn revoke_customer_bandwidth(
+    db: &DatabaseConnection,
+    customer_id: i64,
+) -> Result<(), AppError> {
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
-    use crate::modules::subscription::domain::entities::subscription;
     use crate::modules::bandwidth::domain::entities::bandwidth_application;
+    use crate::modules::subscription::domain::entities::subscription;
 
     // Find active subscription
     let sub = subscription::Entity::find()
@@ -350,8 +371,8 @@ async fn revoke_customer_bandwidth(db: &DatabaseConnection, customer_id: i64) ->
 
 /// Handle KYC submission - update customer status to kyc_pending
 async fn handle_kyc_submitted(db: &DatabaseConnection, customer_id: i64) -> Result<(), AppError> {
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
     use crate::modules::customer::domain::entities::customer;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     if let Some(cust) = customer::Entity::find_by_id(customer_id).one(db).await? {
         if cust.status == "registered" {
@@ -367,9 +388,9 @@ async fn handle_kyc_submitted(db: &DatabaseConnection, customer_id: i64) -> Resu
 
 /// Handle KYC verification - activate customer if KYC is verified
 async fn handle_kyc_verified(db: &DatabaseConnection, customer_id: i64) -> Result<(), AppError> {
-    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
-    use crate::modules::customer::domain::entities::customer;
     use crate::modules::compliance::domain::entities::kyc_verification;
+    use crate::modules::customer::domain::entities::customer;
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
     // Check if customer has at least one verified KYC
     let verified_kyc_count = kyc_verification::Entity::find()
@@ -385,7 +406,10 @@ async fn handle_kyc_verified(db: &DatabaseConnection, customer_id: i64) -> Resul
                 active.status = Set("kyc_verified".to_string());
                 active.updated_at = Set(chrono::Utc::now());
                 active.update(db).await?;
-                info!(customer_id, "KYC verified - customer status updated to kyc_verified");
+                info!(
+                    customer_id,
+                    "KYC verified - customer status updated to kyc_verified"
+                );
             }
         }
     }
@@ -393,11 +417,14 @@ async fn handle_kyc_verified(db: &DatabaseConnection, customer_id: i64) -> Resul
 }
 
 /// Cleanup all resources for a terminated customer
-async fn cleanup_customer_resources(db: &DatabaseConnection, customer_id: i64) -> Result<(), AppError> {
+async fn cleanup_customer_resources(
+    db: &DatabaseConnection,
+    customer_id: i64,
+) -> Result<(), AppError> {
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
-    use crate::modules::subscription::domain::entities::subscription;
     use crate::modules::network::domain::entities::pppoe_session;
+    use crate::modules::subscription::domain::entities::subscription;
 
     // Terminate all active subscriptions
     let subs = subscription::Entity::find()
@@ -444,7 +471,10 @@ async fn subscribe_subscription_events(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("NATS subscribe failed: {}", e)))?;
 
-    info!(subject = "events.subscription.>", "Subscribed to subscription events");
+    info!(
+        subject = "events.subscription.>",
+        "Subscribed to subscription events"
+    );
 
     while let Some(msg) = sub.next().await {
         let subject = msg.subject.clone();
@@ -474,7 +504,8 @@ async fn handle_subscription_event(
     match envelope.event_type.as_str() {
         "subscription.created" => {
             info!(event_id = %envelope.event_id, "New subscription - provision bandwidth profile");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to provision bandwidth for new subscription");
                 }
@@ -482,7 +513,8 @@ async fn handle_subscription_event(
         }
         "subscription.suspended" => {
             info!(event_id = %envelope.event_id, "Subscription suspended - apply rate limit");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = revoke_customer_bandwidth(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to revoke bandwidth for suspended subscription");
                 }
@@ -490,7 +522,8 @@ async fn handle_subscription_event(
         }
         "subscription.reactivated" => {
             info!(event_id = %envelope.event_id, "Subscription reactivated - restore bandwidth");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to restore bandwidth for reactivated subscription");
                 }
@@ -498,7 +531,8 @@ async fn handle_subscription_event(
         }
         "subscription.cancelled" => {
             info!(event_id = %envelope.event_id, "Subscription cancelled - cleanup resources");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = cleanup_customer_resources(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to cleanup resources for cancelled subscription");
                 }
@@ -506,7 +540,8 @@ async fn handle_subscription_event(
         }
         "subscription.upgraded" | "subscription.downgraded" => {
             info!(event_id = %envelope.event_id, event_type = %envelope.event_type, "Plan changed - re-provision bandwidth");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to re-provision bandwidth after plan change");
                 }
@@ -538,7 +573,10 @@ async fn subscribe_billing_events(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("NATS subscribe failed: {}", e)))?;
 
-    info!(subject = "events.invoice.> + events.payment.>", "Subscribed to billing events");
+    info!(
+        subject = "events.invoice.> + events.payment.>",
+        "Subscribed to billing events"
+    );
 
     loop {
         tokio::select! {
@@ -576,7 +614,10 @@ async fn handle_invoice_event(
             // Create notification for the customer
             if let (Some(customer_id), Some(invoice_number), Some(total)) = (
                 envelope.payload.get("customer_id").and_then(|v| v.as_i64()),
-                envelope.payload.get("invoice_number").and_then(|v| v.as_str()),
+                envelope
+                    .payload
+                    .get("invoice_number")
+                    .and_then(|v| v.as_str()),
                 envelope.payload.get("total_amount"),
             ) {
                 if let Err(e) = create_notification(
@@ -595,7 +636,10 @@ async fn handle_invoice_event(
             info!(event_id = %envelope.event_id, "Invoice overdue - trigger payment reminder");
             if let (Some(customer_id), Some(invoice_number)) = (
                 envelope.payload.get("customer_id").and_then(|v| v.as_i64()),
-                envelope.payload.get("invoice_number").and_then(|v| v.as_str()),
+                envelope
+                    .payload
+                    .get("invoice_number")
+                    .and_then(|v| v.as_str()),
             ) {
                 if let Err(e) = create_notification(
                     db, customer_id, "sms",
@@ -630,25 +674,42 @@ async fn handle_payment_event(
                 }
             }
             // Send payment confirmation notification
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let amount = envelope.payload.get("amount").map(|v| v.to_string()).unwrap_or_default();
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
+                let amount = envelope
+                    .payload
+                    .get("amount")
+                    .map(|v| v.to_string())
+                    .unwrap_or_default();
                 if let Err(e) = create_notification(
-                    db, customer_id, "email",
+                    db,
+                    customer_id,
+                    "email",
                     "Payment Confirmation",
-                    &format!("Your payment of ₹{} has been received successfully.", amount),
-                ).await {
+                    &format!(
+                        "Your payment of ₹{} has been received successfully.",
+                        amount
+                    ),
+                )
+                .await
+                {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create payment confirmation notification");
                 }
             }
         }
         "payment.failed" => {
             info!(event_id = %envelope.event_id, "Payment failed - notify customer");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
                 if let Err(e) = create_notification(
-                    db, customer_id, "email",
+                    db,
+                    customer_id,
+                    "email",
                     "Payment Failed",
                     "Your payment could not be processed. Please try again or contact support.",
-                ).await {
+                )
+                .await
+                {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create payment failure notification");
                 }
             }
@@ -658,13 +719,22 @@ async fn handle_payment_event(
         }
         "refund.processed" => {
             info!(event_id = %envelope.event_id, "Refund processed - update accounting");
-            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
-                let amount = envelope.payload.get("amount").map(|v| v.to_string()).unwrap_or_default();
+            if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+            {
+                let amount = envelope
+                    .payload
+                    .get("amount")
+                    .map(|v| v.to_string())
+                    .unwrap_or_default();
                 if let Err(e) = create_notification(
-                    db, customer_id, "email",
+                    db,
+                    customer_id,
+                    "email",
                     "Refund Processed",
                     &format!("Your refund of ₹{} has been processed.", amount),
-                ).await {
+                )
+                .await
+                {
                     error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to create refund notification");
                 }
             }
@@ -678,8 +748,8 @@ async fn handle_payment_event(
 
 /// Mark an invoice as paid in the database
 async fn mark_invoice_paid(db: &DatabaseConnection, invoice_id: i64) -> Result<(), AppError> {
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
     use crate::modules::billing::domain::entities::invoice;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     if let Some(inv) = invoice::Entity::find_by_id(invoice_id).one(db).await? {
         if inv.status != "paid" {
@@ -702,8 +772,8 @@ async fn create_notification(
     subject: &str,
     body: &str,
 ) -> Result<(), AppError> {
-    use sea_orm::{ActiveModelTrait, Set};
     use crate::modules::notification::domain::entities::notification;
+    use sea_orm::{ActiveModelTrait, Set};
 
     let notif = notification::ActiveModel {
         channel: Set(channel.to_string()),
@@ -799,7 +869,10 @@ async fn subscribe_network_events(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("NATS subscribe failed: {}", e)))?;
 
-    info!(subject = "events.vlan.> + events.pppoe.>", "Subscribed to network events");
+    info!(
+        subject = "events.vlan.> + events.pppoe.>",
+        "Subscribed to network events"
+    );
 
     loop {
         tokio::select! {
@@ -872,7 +945,10 @@ async fn subscribe_installation_events(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("NATS subscribe failed: {}", e)))?;
 
-    info!(subject = "events.installation.>", "Subscribed to installation events");
+    info!(
+        subject = "events.installation.>",
+        "Subscribed to installation events"
+    );
 
     while let Some(msg) = sub.next().await {
         let payload = msg.payload.clone();

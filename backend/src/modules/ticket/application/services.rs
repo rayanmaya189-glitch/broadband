@@ -3,7 +3,10 @@ use crate::modules::ticket::domain::entities::{
     Ticket, TicketActiveModel, TicketColumn, TicketComment, TicketCommentActiveModel,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, PaginatorTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 
 pub struct TicketService;
 
@@ -13,12 +16,21 @@ impl TicketService {
         branch_id: Option<i64>,
         _page: u64,
         _limit: u64,
-    ) -> Result<(Vec<crate::modules::ticket::domain::entities::ticket::Model>, u64), AppError> {
+    ) -> Result<
+        (
+            Vec<crate::modules::ticket::domain::entities::ticket::Model>,
+            u64,
+        ),
+        AppError,
+    > {
         let mut query = Ticket::find();
         if let Some(bid) = branch_id {
             query = query.filter(TicketColumn::BranchId.eq(bid));
         }
-        { let total = query.clone().count(db).await?; Ok((query.all(db).await?, total)) }
+        {
+            let total = query.clone().count(db).await?;
+            Ok((query.all(db).await?, total))
+        }
     }
 
     pub async fn get_ticket(
@@ -125,5 +137,3 @@ impl TicketService {
             .await?)
     }
 }
-
-

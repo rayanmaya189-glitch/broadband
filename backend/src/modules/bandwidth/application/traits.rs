@@ -1,9 +1,11 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
-pub type BandwidthProfileModel = crate::modules::bandwidth::domain::entities::bandwidth_profile::Model;
-pub type BandwidthApplicationModel = crate::modules::bandwidth::domain::entities::bandwidth_application::Model;
+pub type BandwidthProfileModel =
+    crate::modules::bandwidth::domain::entities::bandwidth_profile::Model;
+pub type BandwidthApplicationModel =
+    crate::modules::bandwidth::domain::entities::bandwidth_application::Model;
 
 #[async_trait]
 pub trait BandwidthServiceTrait: Send + Sync {
@@ -34,9 +36,5 @@ pub trait BandwidthServiceTrait: Send + Sync {
         upload_mbps: Option<i32>,
     ) -> Result<BandwidthProfileModel, AppError>;
 
-    async fn delete_profile(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError>;
+    async fn delete_profile(&self, db: &DatabaseConnection, id: i64) -> Result<(), AppError>;
 }

@@ -1,11 +1,13 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, QueryOrder, PaginatorTrait};
-use chrono::Utc;
-use crate::shared::errors::AppError;
 use crate::modules::accounting::domain::entities::{
-    chart_of_accounts, journal_entry, journal_entry_line,
-    ChartOfAccounts, ChartOfAccountsActiveModel,
-    JournalEntry, JournalEntryActiveModel,
-    JournalEntryLine, JournalEntryLineActiveModel,
+    chart_of_accounts, journal_entry, journal_entry_line, ChartOfAccounts,
+    ChartOfAccountsActiveModel, JournalEntry, JournalEntryActiveModel, JournalEntryLine,
+    JournalEntryLineActiveModel,
+};
+use crate::shared::errors::AppError;
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 
 /// Minimum date for balance sheet queries (epoch)
@@ -18,14 +20,19 @@ pub struct AccountingService;
 impl AccountingService {
     // ── Chart of Accounts ──
 
-    pub async fn list_accounts(db: &DatabaseConnection) -> Result<Vec<chart_of_accounts::Model>, AppError> {
+    pub async fn list_accounts(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<chart_of_accounts::Model>, AppError> {
         Ok(ChartOfAccounts::find()
             .order_by_asc(chart_of_accounts::Column::Code)
             .all(db)
             .await?)
     }
 
-    pub async fn get_account(db: &DatabaseConnection, id: i64) -> Result<chart_of_accounts::Model, AppError> {
+    pub async fn get_account(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<chart_of_accounts::Model, AppError> {
         ChartOfAccounts::find_by_id(id)
             .one(db)
             .await?
@@ -76,9 +83,15 @@ impl AccountingService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Account {} not found", id)))?;
         let mut active: ChartOfAccountsActiveModel = existing.into();
-        if let Some(n) = name { active.name = Set(n); }
-        if let Some(d) = description { active.description = Set(Some(d)); }
-        if let Some(a) = is_active { active.is_active = Set(a); }
+        if let Some(n) = name {
+            active.name = Set(n);
+        }
+        if let Some(d) = description {
+            active.description = Set(Some(d));
+        }
+        if let Some(a) = is_active {
+            active.is_active = Set(a);
+        }
         active.updated_at = Set(Utc::now());
         Ok(active.update(db).await?)
     }
@@ -99,7 +112,10 @@ impl AccountingService {
             .await?)
     }
 
-    pub async fn get_journal_entry(db: &DatabaseConnection, id: i64) -> Result<journal_entry::Model, AppError> {
+    pub async fn get_journal_entry(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<journal_entry::Model, AppError> {
         JournalEntry::find_by_id(id)
             .one(db)
             .await?
@@ -126,7 +142,9 @@ impl AccountingService {
         created_by: Option<i64>,
     ) -> Result<journal_entry::Model, AppError> {
         if lines.is_empty() {
-            return Err(AppError::Validation("Journal entry must have at least one line".into()));
+            return Err(AppError::Validation(
+                "Journal entry must have at least one line".into(),
+            ));
         }
 
         // Validate debits == credits
@@ -144,11 +162,21 @@ impl AccountingService {
 
         // Validate each line has either debit or credit (not both, not neither)
         for (i, line) in lines.iter().enumerate() {
-            if line.debit < sea_orm::prelude::Decimal::ZERO || line.credit < sea_orm::prelude::Decimal::ZERO {
-                return Err(AppError::Validation(format!("Line {}: amounts must be non-negative", i + 1)));
+            if line.debit < sea_orm::prelude::Decimal::ZERO
+                || line.credit < sea_orm::prelude::Decimal::ZERO
+            {
+                return Err(AppError::Validation(format!(
+                    "Line {}: amounts must be non-negative",
+                    i + 1
+                )));
             }
-            if line.debit == sea_orm::prelude::Decimal::ZERO && line.credit == sea_orm::prelude::Decimal::ZERO {
-                return Err(AppError::Validation(format!("Line {}: must have either debit or credit amount", i + 1)));
+            if line.debit == sea_orm::prelude::Decimal::ZERO
+                && line.credit == sea_orm::prelude::Decimal::ZERO
+            {
+                return Err(AppError::Validation(format!(
+                    "Line {}: must have either debit or credit amount",
+                    i + 1
+                )));
             }
         }
 
@@ -205,7 +233,9 @@ impl AccountingService {
             return Err(AppError::Conflict("Journal entry is already posted".into()));
         }
         if existing.status == "voided" {
-            return Err(AppError::Conflict("Cannot post a voided journal entry".into()));
+            return Err(AppError::Conflict(
+                "Cannot post a voided journal entry".into(),
+            ));
         }
         if existing.total_debit != existing.total_credit {
             return Err(AppError::Validation("Cannot post unbalanced entry".into()));
@@ -236,7 +266,9 @@ impl AccountingService {
             return Err(AppError::Conflict("Journal entry is already voided".into()));
         }
         if existing.status == "posted" {
-            return Err(AppError::Conflict("Cannot void a posted journal entry".into()));
+            return Err(AppError::Conflict(
+                "Cannot void a posted journal entry".into(),
+            ));
         }
 
         let now = Utc::now();
@@ -424,7 +456,11 @@ impl AccountingService {
         let period_start = chrono::NaiveDate::from_ymd_opt(period_year, period_month, 1)
             .ok_or_else(|| AppError::Validation("Invalid date".into()))?;
 
-        let (next_month, next_year) = if period_month == 12 { (1, period_year + 1) } else { (period_month + 1, period_year) };
+        let (next_month, next_year) = if period_month == 12 {
+            (1, period_year + 1)
+        } else {
+            (period_month + 1, period_year)
+        };
         let period_end = chrono::NaiveDate::from_ymd_opt(next_year, next_month, 1)
             .ok_or_else(|| AppError::Validation("Invalid date".into()))?
             - chrono::Duration::days(1);
@@ -432,8 +468,14 @@ impl AccountingService {
         // Query invoices in period to compute GST
         let invoices = crate::modules::billing::domain::entities::Invoice::find()
             .filter(crate::modules::billing::domain::entities::invoice::Column::Status.eq("paid"))
-            .filter(crate::modules::billing::domain::entities::invoice::Column::BillingPeriodStart.gte(period_start))
-            .filter(crate::modules::billing::domain::entities::invoice::Column::BillingPeriodEnd.lte(period_end))
+            .filter(
+                crate::modules::billing::domain::entities::invoice::Column::BillingPeriodStart
+                    .gte(period_start),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::invoice::Column::BillingPeriodEnd
+                    .lte(period_end),
+            )
             .all(db)
             .await?;
 

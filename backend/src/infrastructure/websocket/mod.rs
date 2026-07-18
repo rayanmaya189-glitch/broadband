@@ -149,12 +149,10 @@ pub async fn ws_handler(
     })?;
 
     // Verify JWT token
-    let claims: StandardClaims = state.jwt_keys.verify(&token).map_err(|e| {
-        (
-            StatusCode::UNAUTHORIZED,
-            format!("Invalid token: {}", e),
-        )
-    })?;
+    let claims: StandardClaims = state
+        .jwt_keys
+        .verify(&token)
+        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
 
     let user_id = claims.sub.parse::<i64>().map_err(|_| {
         (
@@ -173,8 +171,7 @@ pub async fn ws_handler(
         permissions: Vec::new(), // WS connections get role-based channel access, not granular permissions
     };
 
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user))
-    )
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user)))
 }
 
 /// Handle individual WebSocket connection
@@ -250,12 +247,9 @@ async fn handle_socket(
 }
 
 /// Handle messages from WebSocket clients
-async fn handle_client_message(
-    user: &UserContext,
-    text: String,
-) -> Result<(), String> {
-    let msg: WsMessage = serde_json::from_str(&text)
-        .map_err(|e| format!("Invalid message format: {}", e))?;
+async fn handle_client_message(user: &UserContext, text: String) -> Result<(), String> {
+    let msg: WsMessage =
+        serde_json::from_str(&text).map_err(|e| format!("Invalid message format: {}", e))?;
 
     match msg.msg_type.as_str() {
         "ping" => {
@@ -281,8 +275,8 @@ pub async fn broadcast_to_channel(
     channel: &str,
     message: &WsMessage,
 ) -> Result<(), String> {
-    let payload = serde_json::to_string(message)
-        .map_err(|e| format!("Serialization error: {}", e))?;
+    let payload =
+        serde_json::to_string(message).map_err(|e| format!("Serialization error: {}", e))?;
 
     let mut conn = redis.clone();
     let _: () = redis::cmd("PUBLISH")
@@ -402,9 +396,15 @@ mod tests {
 
     #[test]
     fn test_ws_channel_to_redis_channel() {
-        assert_eq!(WsChannel::CustomerUpdates(42).to_redis_channel(), "ws:customer:42");
+        assert_eq!(
+            WsChannel::CustomerUpdates(42).to_redis_channel(),
+            "ws:customer:42"
+        );
         assert_eq!(WsChannel::BranchAlerts(5).to_redis_channel(), "ws:branch:5");
         assert_eq!(WsChannel::NocAlerts.to_redis_channel(), "ws:noc:alerts");
-        assert_eq!(WsChannel::AdminMetrics.to_redis_channel(), "ws:admin:metrics");
+        assert_eq!(
+            WsChannel::AdminMetrics.to_redis_channel(),
+            "ws:admin:metrics"
+        );
     }
 }

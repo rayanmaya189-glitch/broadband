@@ -106,10 +106,17 @@ pub async fn create_branch(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "branch.created", "branch", branch.id,
-        serde_json::json!({"branch_id": branch.id, "name": branch.name}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "branch.created",
+        "branch",
+        branch.id,
+        serde_json::json!({"branch_id": branch.id, "name": branch.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish branch.created event");
     }
     Ok((StatusCode::CREATED, Json(BranchResponse::from(branch))))
@@ -146,10 +153,17 @@ pub async fn update_branch(
     )
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "branch.updated", "branch", branch.id,
-        serde_json::json!({"branch_id": branch.id, "name": branch.name}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "branch.updated",
+        "branch",
+        branch.id,
+        serde_json::json!({"branch_id": branch.id, "name": branch.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish branch.updated event");
     }
     Ok(Json(BranchResponse::from(branch)))
@@ -164,10 +178,17 @@ pub async fn delete_branch(
     require_permission(&user, "branch.delete").map_err(|e| AppError::Forbidden(e.1))?;
     BranchService::deactivate_branch(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "branch.deleted", "branch", id,
-        serde_json::json!({"branch_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "branch.deleted",
+        "branch",
+        id,
+        serde_json::json!({"branch_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish branch.deleted event");
     }
     Ok(StatusCode::NO_CONTENT)

@@ -10,4 +10,4 @@
 
 pub mod adapter;
 
-pub use adapter::{MikrotikAdapter, MikrotikConfig, QueueConfig, DeviceStatus};
+pub use adapter::{DeviceStatus, MikrotikAdapter, MikrotikConfig, QueueConfig};
