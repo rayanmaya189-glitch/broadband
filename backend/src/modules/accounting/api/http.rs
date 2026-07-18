@@ -317,10 +317,8 @@ pub async fn generate_trial_balance(
         .period_end
         .parse()
         .map_err(|_| AppError::Validation("Invalid period_end".into()))?;
-    let rows = AccountingService::generate_trial_balance(&state.db, start, end).await?;
-    Ok(Json(
-        serde_json::json!({ "period_start": start, "period_end": end, "rows": rows }),
-    ))
+    let tb = AccountingService::generate_trial_balance(&state.db, start, end).await?;
+    Ok(Json(serde_json::to_value(&tb).unwrap_or_default()))
 }
 
 /// GET /api/v1/accounting/statements/profit-loss

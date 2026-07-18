@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AeroXe Backend Security Audit Script
 # Runs cargo audit, clippy, and security checks
-set -euo pipefail
+set -uo pipefail
 
 echo "🔒 AeroXe Backend Security Audit"
 echo "================================"
@@ -58,8 +58,10 @@ fi
 echo ""
 echo "🐛 Checking for debug statements..."
 DEBUG_FOUND=0
-if grep -rn "eprintln\!\|println\!\|dbg\!\|debug\!" --include="*.rs" src/ 2>/dev/null | grep -v "test" | grep -v "#\[cfg(test)\]"; then
+DEBUG_OUTPUT=$(grep -rn "eprintln\!\|println\!\|dbg\!\|debug\!" --include="*.rs" src/ 2>/dev/null | grep -v "test" | grep -v "#\[cfg(test)\]" || true)
+if [ -n "$DEBUG_OUTPUT" ]; then
     echo "⚠️  Debug statements found in production code"
+    echo "$DEBUG_OUTPUT"
     DEBUG_FOUND=1
 else
     echo "✅ No debug statements in production code"
@@ -68,16 +70,29 @@ fi
 # 5. Format check
 echo ""
 echo "📝 Checking formatting..."
-cargo fmt --check
+if ! cargo fmt --check; then
+    echo "❌ Code formatting issues found"
+    exit 1
+fi
 
 # 6. License audit
 echo ""
 echo "📄 Checking dependencies..."
 if command -v cargo-deny &> /dev/null; then
-    cargo deny check
+    if ! cargo deny check; then
+        echo "❌ Dependency issues found"
+        exit 1
+    fi
 else
     echo "ℹ️  cargo-deny not installed (optional)"
 fi
 
+# Exit with error if any checks failed
+if [ $SECRETS_FOUND -ne 0 ] || [ $DEBUG_FOUND -ne 0 ]; then
+    echo ""
+    echo "❌ Security audit failed — issues detected"
+    exit 1
+fi
+
 echo ""
-echo "🏁 Security audit complete"
+echo "✅ Security audit passed — no issues found"

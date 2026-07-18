@@ -36,15 +36,15 @@ pub struct PolicyCondition {
     pub value: String,
 }
 
-/// Operators for condition evaluation
+/// Operators for condition evaluation.
+/// All variants are exhaustive — add new operators here and update
+/// `evaluate_condition` accordingly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConditionOperator {
     Equals,
     NotEquals,
     In,
     NotIn,
-    GreaterThan,
-    LessThan,
     Contains,
     StartsWith,
     EndsWith,
@@ -217,7 +217,6 @@ impl AbacPolicyEngine {
                             ConditionOperator::Contains => val.contains(&condition.value),
                             ConditionOperator::StartsWith => val.starts_with(&condition.value),
                             ConditionOperator::EndsWith => val.ends_with(&condition.value),
-                            _ => false,
                         };
                     }
                     None => return false,
@@ -235,12 +234,6 @@ impl AbacPolicyEngine {
             ConditionOperator::NotEquals => val != condition.value,
             ConditionOperator::In => condition.value.split(',').any(|v| v.trim() == val),
             ConditionOperator::NotIn => !condition.value.split(',').any(|v| v.trim() == val),
-            ConditionOperator::GreaterThan => {
-                val.parse::<f64>().unwrap_or(0.0) > condition.value.parse::<f64>().unwrap_or(0.0)
-            }
-            ConditionOperator::LessThan => {
-                val.parse::<f64>().unwrap_or(0.0) < condition.value.parse::<f64>().unwrap_or(0.0)
-            }
             ConditionOperator::Contains => val.contains(&condition.value),
             ConditionOperator::StartsWith => val.starts_with(&condition.value),
             ConditionOperator::EndsWith => val.ends_with(&condition.value),
@@ -251,13 +244,14 @@ impl AbacPolicyEngine {
     pub fn with_default_policies() -> Self {
         let mut engine = Self::new();
 
-        // Deny: Support agents can only change bandwidth for customers in their region
+        // Deny: Support agents cannot modify bandwidth directly (must go through NOC)
+        // This prevents accidental bandwidth changes by support staff.
         engine.add_policy(AbacPolicy {
             id: "abac-001".to_string(),
-            name: "region-scoped-bandwidth".to_string(),
-            description: "Support agents can only modify bandwidth for customers in their region"
+            name: "support-bandwidth-restriction".to_string(),
+            description: "Support agents and NOC engineers cannot directly modify bandwidth — must use escalation workflow"
                 .to_string(),
-            effect: PolicyEffect::Allow,
+            effect: PolicyEffect::Deny,
             conditions: vec![
                 PolicyCondition {
                     attribute: "user.role".to_string(),

@@ -47,6 +47,9 @@ pub struct Settings {
     pub app_name: String,
     pub app_env: String,
     pub cors_origins: Vec<String>,
+
+    // Security
+    pub jwt_key_rotation_days: i64,
 }
 
 impl Settings {
@@ -109,6 +112,11 @@ impl Settings {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
+
+            jwt_key_rotation_days: env::var("JWT_KEY_ROTATION_DAYS")
+                .unwrap_or_else(|_| "90".to_string())
+                .parse()
+                .unwrap_or(90),
         })
     }
 }

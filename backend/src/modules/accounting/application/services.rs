@@ -3,6 +3,7 @@ use crate::modules::accounting::domain::entities::{
     ChartOfAccountsActiveModel, JournalEntry, JournalEntryActiveModel, JournalEntryLine,
     JournalEntryLineActiveModel,
 };
+use crate::modules::accounting::domain::aggregates::trial_balance::{TrialBalance, TrialBalanceEntry};
 use crate::shared::errors::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -284,14 +285,14 @@ impl AccountingService {
         db: &DatabaseConnection,
         period_start: chrono::NaiveDate,
         period_end: chrono::NaiveDate,
-    ) -> Result<Vec<TrialBalanceRow>, AppError> {
+    ) -> Result<TrialBalance, AppError> {
         let accounts = ChartOfAccounts::find()
             .filter(chart_of_accounts::Column::IsActive.eq(true))
             .order_by_asc(chart_of_accounts::Column::Code)
             .all(db)
             .await?;
 
-        let mut results = Vec::new();
+        let mut entries = Vec::new();
 
         for account in accounts {
             // Query journal entry lines for this account in posted entries within the period
@@ -328,9 +329,8 @@ impl AccountingService {
                 opening + total_credit - total_debit
             };
 
-            results.push(TrialBalanceRow {
-                account_id: account.id,
-                account_code: account.code,
+            entries.push(TrialBalanceEntry {
+                account_code: account.code.parse().unwrap_or(0),
                 account_name: account.name,
                 account_type: account.account_type,
                 opening_balance: opening,
@@ -340,7 +340,8 @@ impl AccountingService {
             });
         }
 
-        Ok(results)
+        // Build the TrialBalance aggregate (id=0 since not persisted)
+        Ok(TrialBalance::new(0, period_start, period_end, entries))
     }
 
     // ── Financial Statements ──
@@ -357,22 +358,22 @@ impl AccountingService {
         let mut revenue_lines = Vec::new();
         let mut expense_lines = Vec::new();
 
-        for row in &trial_balance {
-            match row.account_type.as_str() {
+        for entry in &trial_balance.entries {
+            match entry.account_type.as_str() {
                 "revenue" => {
-                    total_revenue += row.closing_balance.abs();
+                    total_revenue += entry.closing_balance.abs();
                     revenue_lines.push(StatementLine {
-                        account_code: row.account_code.clone(),
-                        account_name: row.account_name.clone(),
-                        amount: row.closing_balance.abs(),
+                        account_code: entry.account_code.to_string(),
+                        account_name: entry.account_name.clone(),
+                        amount: entry.closing_balance.abs(),
                     });
                 }
                 "expense" => {
-                    total_expense += row.closing_balance.abs();
+                    total_expense += entry.closing_balance.abs();
                     expense_lines.push(StatementLine {
-                        account_code: row.account_code.clone(),
-                        account_name: row.account_name.clone(),
-                        amount: row.closing_balance.abs(),
+                        account_code: entry.account_code.to_string(),
+                        account_name: entry.account_name.clone(),
+                        amount: entry.closing_balance.abs(),
                     });
                 }
                 _ => {}
@@ -404,30 +405,30 @@ impl AccountingService {
         let mut liability_lines = Vec::new();
         let mut equity_lines = Vec::new();
 
-        for row in &trial_balance {
-            match row.account_type.as_str() {
+        for entry in &trial_balance.entries {
+            match entry.account_type.as_str() {
                 "asset" => {
-                    total_assets += row.closing_balance.abs();
+                    total_assets += entry.closing_balance.abs();
                     asset_lines.push(StatementLine {
-                        account_code: row.account_code.clone(),
-                        account_name: row.account_name.clone(),
-                        amount: row.closing_balance.abs(),
+                        account_code: entry.account_code.to_string(),
+                        account_name: entry.account_name.clone(),
+                        amount: entry.closing_balance.abs(),
                     });
                 }
                 "liability" => {
-                    total_liabilities += row.closing_balance.abs();
+                    total_liabilities += entry.closing_balance.abs();
                     liability_lines.push(StatementLine {
-                        account_code: row.account_code.clone(),
-                        account_name: row.account_name.clone(),
-                        amount: row.closing_balance.abs(),
+                        account_code: entry.account_code.to_string(),
+                        account_name: entry.account_name.clone(),
+                        amount: entry.closing_balance.abs(),
                     });
                 }
                 "equity" => {
-                    total_equity += row.closing_balance.abs();
+                    total_equity += entry.closing_balance.abs();
                     equity_lines.push(StatementLine {
-                        account_code: row.account_code.clone(),
-                        account_name: row.account_name.clone(),
-                        amount: row.closing_balance.abs(),
+                        account_code: entry.account_code.to_string(),
+                        account_name: entry.account_name.clone(),
+                        amount: entry.closing_balance.abs(),
                     });
                 }
                 _ => {}

@@ -103,6 +103,13 @@ async fn main() -> anyhow::Result<()> {
     app_state = app_state.with_metrics(metrics.clone());
     let state = Arc::new(app_state);
 
+    // Start JWT key rotation background worker (checks daily)
+    state.jwt_rotation_manager.clone().start_background_rotation();
+    tracing::info!(
+        rotation_days = state.settings.jwt_key_rotation_days,
+        "JWT key rotation worker started"
+    );
+
     // Build CORS layer - production lockdown
     // In production, restrict origins to configured list; in development, allow any
     let cors = if settings.app_env == "production" {

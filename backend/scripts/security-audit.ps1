@@ -44,14 +44,27 @@ $debugMatches = Get-ChildItem -Path src -Recurse -Include *.rs | Select-String -
 
 if ($debugMatches) {
     Write-Host "⚠️  Debug statements found in production code" -ForegroundColor Yellow
+    $debugFound = $true
 } else {
     Write-Host "✅ No debug statements in production code" -ForegroundColor Green
+    $debugFound = $false
 }
 
 # 5. Format check
 Write-Host ""
 Write-Host "📝 Checking formatting..." -ForegroundColor Yellow
 cargo fmt --check
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Code formatting issues found" -ForegroundColor Red
+    exit 1
+}
+
+# Exit with error if any checks failed
+if ($secretsFound -or $debugFound) {
+    Write-Host ""
+    Write-Host "❌ Security audit failed — issues detected" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host ""
-Write-Host "🏁 Security audit complete" -ForegroundColor Cyan
+Write-Host "✅ Security audit passed — no issues found" -ForegroundColor Green

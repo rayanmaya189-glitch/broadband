@@ -5,7 +5,7 @@ use crate::infrastructure::messaging::EventPublisher;
 use crate::infrastructure::metrics::SharedMetrics;
 use crate::infrastructure::storage::StorageService;
 use crate::shared::middleware::rate_limit::RateLimitStore;
-use crate::shared::utils::jwt_keys::JwtKeyPair;
+use crate::shared::utils::jwt_keys::{JwtKeyPair, JwtKeyRotationManager};
 
 /// Shared application state available to all handlers.
 pub struct AppState {
@@ -17,6 +17,7 @@ pub struct AppState {
     pub storage: Option<StorageService>,
     pub rate_limit_store: Arc<RateLimitStore>,
     pub jwt_keys: Arc<JwtKeyPair>,
+    pub jwt_rotation_manager: Arc<JwtKeyRotationManager>,
     pub metrics: Option<SharedMetrics>,
 }
 
@@ -27,6 +28,10 @@ impl AppState {
         settings: Settings,
         jwt_keys: JwtKeyPair,
     ) -> Self {
+        let rotation_manager = JwtKeyRotationManager::new(
+            jwt_keys.clone(),
+            settings.jwt_key_rotation_days,
+        );
         Self {
             db,
             redis,
@@ -36,6 +41,7 @@ impl AppState {
             storage: None,
             rate_limit_store: Arc::new(RateLimitStore::new()),
             jwt_keys: Arc::new(jwt_keys),
+            jwt_rotation_manager: Arc::new(rotation_manager),
             metrics: None,
         }
     }
