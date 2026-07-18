@@ -274,8 +274,13 @@ fn next_cron_run(
 
         // Check day (standard cron: AND when both non-wildcard, OR otherwise)
         let dom_match = dom_is_wildcard || days_of_month.contains(&candidate.day());
-        let dow_match =
-            dow_is_wildcard || days_of_week.contains(&candidate.weekday().number_from_sunday());
+        // Cron convention: 0=Sun,1=Mon,...,6=Sat. number_from_monday() gives 1=Mon,...,7=Sun.
+        // Convert: cron 0 (Sun) → 7, cron 1-6 stay same.
+        let candidate_dow = {
+            let n = candidate.weekday().number_from_monday();
+            if n == 7 { 0 } else { n }
+        };
+        let dow_match = dow_is_wildcard || days_of_week.contains(&candidate_dow);
         let day_matches = if !dom_is_wildcard && !dow_is_wildcard {
             dom_match && dow_match
         } else if !dom_is_wildcard {

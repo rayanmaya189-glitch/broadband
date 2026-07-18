@@ -62,7 +62,7 @@ anyhow = "1"
 validator = { version = "0.18", features = ["derive"] }
 
 # Redis
-redis = { version = "0.25", features = ["tokio-comp", "connection-manager", "json", "aio"] }
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager", "aio"] }
 
 # NATS
 async-nats = "0.35"

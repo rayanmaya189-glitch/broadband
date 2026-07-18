@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use tokio::net::TcpListener;
+use tokio::signal;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -156,15 +157,19 @@ async fn main() -> anyhow::Result<()> {
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
             10 * 1024 * 1024,
         ))
-        // 2. Security headers (adds headers to every response)
+        // 2. SSRF protection (blocks private IPs in request bodies)
+        .layer(axum::middleware::from_fn(
+            aeroxe_backend::shared::middleware::ssrf::ssrf_protection_middleware,
+        ))
+        // 3. Security headers (adds headers to every response)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::security_headers::security_headers_middleware,
         ))
-        // 3. Audit middleware (captures timing, logs after response)
+        // 4. Audit middleware (captures timing, logs after response)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::audit::audit_middleware,
         ))
-        // 4. Rate limiting (with injected store)
+        // 5. Rate limiting (with injected store)
         .layer(axum::middleware::from_fn({
             let store = rate_limit_store.clone();
             move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
@@ -177,14 +182,18 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }))
-        // 5. Branch scope (extracts JWT, sets BranchScope in extensions)
+        // 6. Branch scope (extracts JWT, sets BranchScope in extensions)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::branch_scope::branch_scope_middleware,
         ))
         .layer(TraceLayer::new_for_http())
-        // 6. CORS (outermost for preflight handling)
+        // 7. CORS (outermost for preflight handling)
         .layer(cors)
         .with_state(state.clone());
+
+    // --- Graceful shutdown setup ---
+    // Create a shutdown signal broadcast channel
+    let (shutdown_tx, _) = tokio::sync::broadcast::channel::<()>(1);
 
     // Start outbox worker and NATS subscribers (if NATS is available)
     if let Some(nats_client) = state.nats.clone() {
@@ -197,28 +206,39 @@ async fn main() -> anyhow::Result<()> {
             std::sync::Arc::new(outbox_db),
             outbox_publisher,
         );
+        let mut outbox_rx = shutdown_tx.subscribe();
         tokio::spawn(async move {
-            outbox_worker.run().await;
+            tokio::select! {
+                _ = outbox_worker.run() => {},
+                _ = outbox_rx.recv() => {
+                    tracing::info!("Outbox worker shutting down");
+                }
+            }
         });
         tracing::info!("Outbox worker started");
 
         // Start NATS event subscribers for cross-module communication
         let sub_db = Arc::new(state.db.clone());
+        let mut sub_rx = shutdown_tx.subscribe();
+        let nats_clone = nats_client.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
-                    nats_client,
-                    sub_db,
-                )
-                .await
-            {
-                tracing::error!(error = %e, "NATS subscribers failed");
+            tokio::select! {
+                result = aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
+                    nats_clone, sub_db,
+                ) => {
+                    if let Err(e) = result {
+                        tracing::error!(error = %e, "NATS subscribers failed");
+                    }
+                }
+                _ = sub_rx.recv() => {
+                    tracing::info!("NATS subscribers shutting down");
+                }
             }
         });
         tracing::info!("NATS event subscribers started");
     }
 
-    // Start background workers
+    // Start background workers with graceful shutdown
     {
         let worker_db = state.db.clone();
 
@@ -226,12 +246,20 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let worker = aeroxe_backend::workers::billing_worker::BillingWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
                 loop {
-                    interval.tick().await;
-                    if let Err(e) = worker.run_cycle().await {
-                        tracing::error!(error = %e, "Billing worker cycle failed");
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = worker.run_cycle().await {
+                                tracing::error!(error = %e, "Billing worker cycle failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Billing worker shutting down");
+                            break;
+                        }
                     }
                 }
             });
@@ -242,12 +270,20 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let worker = aeroxe_backend::workers::notification_worker::NotificationWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
                 loop {
-                    interval.tick().await;
-                    if let Err(e) = worker.run_cycle().await {
-                        tracing::error!(error = %e, "Notification worker cycle failed");
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = worker.run_cycle().await {
+                                tracing::error!(error = %e, "Notification worker cycle failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Notification worker shutting down");
+                            break;
+                        }
                     }
                 }
             });
@@ -258,12 +294,20 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let worker = aeroxe_backend::workers::device_sync_worker::DeviceSyncWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
                 loop {
-                    interval.tick().await;
-                    if let Err(e) = worker.run_cycle().await {
-                        tracing::error!(error = %e, "Device sync worker cycle failed");
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = worker.run_cycle().await {
+                                tracing::error!(error = %e, "Device sync worker cycle failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Device sync worker shutting down");
+                            break;
+                        }
                     }
                 }
             });
@@ -274,12 +318,20 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let worker = aeroxe_backend::workers::bandwidth_worker::BandwidthWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
                 loop {
-                    interval.tick().await;
-                    if let Err(e) = worker.run_cycle().await {
-                        tracing::error!(error = %e, "Bandwidth worker cycle failed");
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = worker.run_cycle().await {
+                                tracing::error!(error = %e, "Bandwidth worker cycle failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Bandwidth worker shutting down");
+                            break;
+                        }
                     }
                 }
             });
@@ -290,12 +342,20 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let worker = aeroxe_backend::workers::scheduler_worker::SchedulerWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
                 loop {
-                    interval.tick().await;
-                    if let Err(e) = worker.run_cycle().await {
-                        tracing::error!(error = %e, "Scheduler worker cycle failed");
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = worker.run_cycle().await {
+                                tracing::error!(error = %e, "Scheduler worker cycle failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Scheduler worker shutting down");
+                            break;
+                        }
                     }
                 }
             });
@@ -305,17 +365,25 @@ async fn main() -> anyhow::Result<()> {
         // Outbox cleanup worker - runs every hour
         {
             let db = worker_db.clone();
+            let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
                 loop {
-                    interval.tick().await;
-                    if let Err(e) =
-                        aeroxe_backend::infrastructure::messaging::outbox::cleanup_published_events(
-                            &db, 24,
-                        )
-                        .await
-                    {
-                        tracing::error!(error = %e, "Outbox cleanup failed");
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) =
+                                aeroxe_backend::infrastructure::messaging::outbox::cleanup_published_events(
+                                    &db, 24,
+                                )
+                                .await
+                            {
+                                tracing::error!(error = %e, "Outbox cleanup failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Outbox cleanup worker shutting down");
+                            break;
+                        }
                     }
                 }
             });
@@ -323,10 +391,53 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Start server
+    // Start server with graceful shutdown
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Server ready to accept connections on {}", addr);
-    axum::serve(listener, app).await?;
 
+    // Spawn the server in a separate task so we can handle shutdown signals
+    let server_handle = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .expect("Server failed");
+    });
+
+    // Wait for the server task to complete (due to shutdown signal)
+    server_handle.await?;
+
+    // Broadcast shutdown to all workers
+    let _ = shutdown_tx.send(());
+
+    tracing::info!("AeroXe Backend shutdown complete");
     Ok(())
+}
+
+/// Wait for a shutdown signal (SIGINT on Unix, Ctrl+C on all platforms)
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received SIGINT (Ctrl+C), initiating graceful shutdown");
+        }
+        _ = terminate => {
+            tracing::info!("Received SIGTERM, initiating graceful shutdown");
+        }
+    }
 }

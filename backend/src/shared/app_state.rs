@@ -34,12 +34,12 @@ impl AppState {
         );
         Self {
             db,
-            redis,
+            redis: redis.clone(),
             nats: None,
             event_publisher: None,
             settings,
             storage: None,
-            rate_limit_store: Arc::new(RateLimitStore::new()),
+            rate_limit_store: Arc::new(RateLimitStore::new(redis)),
             jwt_keys: Arc::new(jwt_keys),
             jwt_rotation_manager: Arc::new(rotation_manager),
             metrics: None,

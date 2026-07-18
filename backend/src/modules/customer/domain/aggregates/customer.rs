@@ -55,6 +55,15 @@ impl std::fmt::Display for CustomerDomainError {
 
 impl std::error::Error for CustomerDomainError {}
 
+/// Domain event emitted when a customer is suspended.
+/// This event is used by Billing, Network, and Notification modules to react.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CustomerSuspendedEvent {
+    pub customer_id: i64,
+    pub reason: Option<String>,
+    pub suspended_at: chrono::DateTime<chrono::Utc>,
+}
+
 impl Customer {
     /// Create a new customer (factory method)
     pub fn new(
@@ -100,14 +109,18 @@ impl Customer {
         Ok(())
     }
 
-    /// Suspend customer
-    pub fn suspend(&mut self) -> Result<(), CustomerDomainError> {
+    /// Suspend customer.
+    /// Returns a domain event that should be published by the application layer.
+    pub fn suspend(&mut self) -> Result<CustomerSuspendedEvent, CustomerDomainError> {
         if self.status == CustomerStatus::Suspended {
             return Err(CustomerDomainError::AlreadySuspended);
         }
         self.status = CustomerStatus::Suspended;
-        // TODO: Emit customer.suspended.v1 event
-        Ok(())
+        Ok(CustomerSuspendedEvent {
+            customer_id: self.id.value(),
+            reason: Some("Manual suspension".to_string()),
+            suspended_at: chrono::Utc::now(),
+        })
     }
 
     /// Check if customer can be deleted
@@ -133,6 +146,7 @@ impl Customer {
         self.status == CustomerStatus::Pending
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -194,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn test_suspend_active_customer() {
+    fn test_suspend_emits_domain_event() {
         let mut customer = Customer::new(
             "CUST-001".to_string(),
             1,
@@ -208,9 +222,12 @@ mod tests {
         .unwrap();
 
         customer.activate(true).unwrap();
-        let result = customer.suspend();
-        assert!(result.is_ok());
+        let event = customer.suspend();
+        assert!(event.is_ok());
+        let event = event.unwrap();
+        assert_eq!(event.customer_id, 0); // ID set by DB
         assert_eq!(customer.status, CustomerStatus::Suspended);
+        assert!(event.reason.is_some());
     }
 
     #[test]
@@ -267,5 +284,28 @@ mod tests {
 
         let result = customer.can_delete(false);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_customer_domain_event_has_timestamp() {
+        let mut customer = Customer::new(
+            "CUST-001".to_string(),
+            1,
+            "John Doe".to_string(),
+            None,
+            "+919876543210".to_string(),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        customer.activate(true).unwrap();
+        let before = chrono::Utc::now();
+        let event = customer.suspend().unwrap();
+        let after = chrono::Utc::now();
+
+        assert!(event.suspended_at >= before);
+        assert!(event.suspended_at <= after);
     }
 }

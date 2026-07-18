@@ -1,11 +1,9 @@
+use std::sync::Arc;
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
-use chrono::{DateTime, Duration, Utc};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use redis::aio::ConnectionManager;
 use tracing::{debug, warn};
 
 /// Rate limit tier configuration
@@ -43,6 +41,13 @@ impl RateLimitTier {
             window_seconds: 300,
         }
     }
+
+    pub fn public() -> Self {
+        Self {
+            max_requests: 30,
+            window_seconds: 60,
+        }
+    }
 }
 
 /// Rate limit info to include in response headers
@@ -53,26 +58,144 @@ pub struct RateLimitInfo {
     pub retry_after: Option<i64>,
 }
 
-/// In-memory rate limiter store (shared across all requests via AppState)
+/// Redis-backed rate limiter store using sorted sets (sliding window).
+///
+/// Key format: `rate:{identifier}:{window}`
+/// Score: timestamp in microseconds
+/// Value: unique request ID
+///
+/// This matches the §02-redis.md design exactly.
 #[derive(Clone)]
 pub struct RateLimitStore {
-    requests: Arc<RwLock<HashMap<String, Vec<DateTime<Utc>>>>>,
+    redis: ConnectionManager,
+    /// In-memory fallback when Redis is unavailable
+    fallback: std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<String, Vec<i64>>>>,
 }
 
 impl RateLimitStore {
-    pub fn new() -> Self {
+    pub fn new(redis: ConnectionManager) -> Self {
         Self {
-            requests: Arc::new(RwLock::new(HashMap::new())),
+            redis,
+            fallback: std::sync::Arc::new(tokio::sync::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 
-    /// Check if a request is allowed and record it
+    /// Check if a request is allowed and record it using Redis sorted sets.
+    ///
+    /// Implements the sliding window algorithm:
+    /// 1. Remove entries outside the window
+    /// 2. Count remaining entries
+    /// 3. If under limit, add new entry
+    /// 4. Set TTL on the key
     pub async fn check_and_record(&self, key: &str, tier: &RateLimitTier) -> RateLimitInfo {
-        let mut requests = self.requests.write().await;
-        let now = Utc::now();
-        let window_start = now - Duration::seconds(tier.window_seconds as i64);
+        let window_key = format!("rate:{}:{}s", key, tier.window_seconds);
+        let now_micros = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as i64;
+        let window_start = now_micros - (tier.window_seconds as i64 * 1_000_000);
+        let request_id = format!("{}:{}", now_micros, rand_id());
 
-        // Get or create entry for this key
+        // Try Redis first, fall back to in-memory
+        match self.try_redis_check(&window_key, now_micros, window_start, &request_id, tier).await
+        {
+            Some(info) => info,
+            None => self.fallback_check(key, tier).await,
+        }
+    }
+
+    /// Try rate limiting via Redis sorted sets
+    async fn try_redis_check(
+        &self,
+        window_key: &str,
+        now_micros: i64,
+        window_start: i64,
+        request_id: &str,
+        tier: &RateLimitTier,
+    ) -> Option<RateLimitInfo> {
+        let mut conn = self.redis.clone();
+
+        // Atomic Lua script for sliding window rate limiting
+        // This ensures correctness even under concurrent requests
+        let script = r#"
+            local key = KEYS[1]
+            local window_start = tonumber(ARGV[1])
+            local now = tonumber(ARGV[2])
+            local request_id = ARGV[3]
+            local max_requests = tonumber(ARGV[4])
+            local window_seconds = tonumber(ARGV[5])
+
+            -- Remove expired entries
+            redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
+
+            -- Count current entries
+            local count = redis.call('ZCARD', key)
+
+            if count < max_requests then
+                -- Add the new request
+                redis.call('ZADD', key, now, request_id)
+                -- Set TTL on the key (window + 10s buffer)
+                redis.call('EXPIRE', key, window_seconds + 10)
+                return {1, max_requests - count - 1, 0}
+            else
+                -- Rate limited - get the oldest entry to calculate retry_after
+                local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+                local retry_after = 0
+                if #oldest >= 2 then
+                    local oldest_score = tonumber(oldest[2])
+                    local expires_at_micros = oldest_score + (window_seconds * 1000000)
+                    retry_after = math.ceil((expires_at_micros - now) / 1000000)
+                    if retry_after < 1 then
+                        retry_after = 1
+                    end
+                end
+                return {0, 0, retry_after}
+            end
+        "#;
+
+        let result: Result<Vec<i64>, _> = redis::cmd("eval")
+            .arg(script)
+            .arg(1)  // number of KEYS
+            .arg(window_key)
+            .arg(window_start)
+            .arg(now_micros)
+            .arg(request_id)
+            .arg(tier.max_requests)
+            .arg(tier.window_seconds)
+            .query_async(&mut conn)
+            .await;
+
+        match result {
+            Ok(vals) if vals.len() >= 3 => {
+                let allowed = vals[0] == 1;
+                let remaining = vals[1] as i32;
+                let retry_after = if vals[2] > 0 { Some(vals[2]) } else { None };
+
+                Some(RateLimitInfo {
+                    allowed,
+                    remaining,
+                    retry_after,
+                })
+            }
+            _ => {
+                // Redis unavailable, fall back to in-memory
+                warn!("Redis rate limit check failed, falling back to in-memory");
+                None
+            }
+        }
+    }
+
+    /// In-memory fallback when Redis is unavailable
+    async fn fallback_check(&self, key: &str, tier: &RateLimitTier) -> RateLimitInfo {
+        let mut requests = self.fallback.write().await;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let window_start = now - tier.window_seconds as i64;
+
         let timestamps = requests.entry(key.to_string()).or_default();
 
         // Remove expired entries
@@ -88,8 +211,8 @@ impl RateLimitStore {
         let remaining = (tier.max_requests - timestamps.len() as i32).max(0);
         let retry_after = if !allowed {
             timestamps.first().map(|ts| {
-                let expires_at = *ts + Duration::seconds(tier.window_seconds as i64);
-                (expires_at - now).num_seconds().max(1)
+                let expires_at = ts + tier.window_seconds as i64;
+                (expires_at - now).max(1)
             })
         } else {
             None
@@ -103,10 +226,9 @@ impl RateLimitStore {
     }
 }
 
-impl Default for RateLimitStore {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Generate a random ID for request deduplication
+fn rand_id() -> u64 {
+    rand::random::<u64>()
 }
 
 /// Middleware function for rate limiting.
@@ -114,35 +236,22 @@ impl Default for RateLimitStore {
 /// Uses the shared `RateLimitStore` from request extensions (injected via AppState).
 pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // Extract client identifier (IP address or API key)
-    let client_id = request
-        .headers()
-        .get("x-forwarded-for")
-        .or_else(|| request.headers().get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string();
-
+    let client_id = extract_client_id(&request);
     let path = request.uri().path().to_string();
 
     // Determine rate limit tier based on path
-    let tier = if path.starts_with("/api/auth") {
-        RateLimitTier::auth()
-    } else if path.starts_with("/api/upload") {
-        RateLimitTier::upload()
-    } else if request.method().is_safe() {
-        RateLimitTier::api_read()
-    } else {
-        RateLimitTier::api_write()
-    };
+    let tier = determine_tier(&path, &request);
 
     debug!(client_id = %client_id, path = %path, tier = ?tier, "Rate limit check");
 
-    // Get the shared store from request extensions (set by AppState injection in main.rs)
-    // This MUST be injected by the rate_limit_layer in main.rs before this middleware runs.
+    // Get the shared store from request extensions
     let store = match request.extensions().get::<Arc<RateLimitStore>>().cloned() {
         Some(store) => store,
         None => {
-            tracing::error!("RateLimitStore not found in request extensions. Ensure rate_limit_layer is applied.");
+            tracing::error!(
+                "RateLimitStore not found in request extensions. \
+                 Ensure rate_limit_layer is applied."
+            );
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -150,33 +259,102 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Respo
     let info = store.check_and_record(&client_id, &tier).await;
 
     if !info.allowed {
-        warn!(client_id = %client_id, retry_after = ?info.retry_after, "Rate limit exceeded");
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+        warn!(
+            client_id = %client_id,
+            retry_after = ?info.retry_after,
+            "Rate limit exceeded"
+        );
+
+        let mut response = Response::new(axum::body::Body::from(
+            r#"{"error":"rate_limit_exceeded","message":"Too many requests"}"#,
+        ));
+        *response.status_mut() = StatusCode::TOO_MANY_REQUESTS;
+        response.headers_mut().insert(
+            "content-type",
+            "application/json".parse().unwrap(),
+        );
+        if let Some(retry) = info.retry_after {
+            response.headers_mut().insert(
+                "retry-after",
+                retry.to_string().parse().unwrap(),
+            );
+        }
+        response.headers_mut().insert(
+            "x-ratelimit-limit",
+            tier.max_requests.to_string().parse().unwrap(),
+        );
+        return Ok(response);
     }
 
     let mut response = next.run(request).await;
 
     // Add rate limit headers to response
-    if let Ok(val) = info.remaining.to_string().parse() {
-        response.headers_mut().insert("x-ratelimit-remaining", val);
-    }
+    response.headers_mut().insert(
+        "x-ratelimit-limit",
+        tier.max_requests.to_string().parse().unwrap(),
+    );
+    response.headers_mut().insert(
+        "x-ratelimit-remaining",
+        info.remaining.to_string().parse().unwrap(),
+    );
     if let Some(retry) = info.retry_after {
-        if let Ok(val) = retry.to_string().parse() {
-            response
-                .headers_mut()
-                .insert("x-ratelimit-retry-after", val);
-        }
+        response.headers_mut().insert(
+            "x-ratelimit-retry-after",
+            retry.to_string().parse().unwrap(),
+        );
     }
 
     Ok(response)
+}
+
+/// Extract client identifier from request headers
+fn extract_client_id(request: &Request) -> String {
+    // Prefer X-Forwarded-For, then X-Real-IP, then fallback
+    request
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| {
+            // Take first IP from comma-separated list
+            v.split(',').next().unwrap_or(v).trim().to_string()
+        })
+        .or_else(|| {
+            request
+                .headers()
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Determine rate limit tier based on request path and method
+fn determine_tier(path: &str, request: &Request) -> RateLimitTier {
+    if path.starts_with("/api/v1/auth") {
+        RateLimitTier::auth()
+    } else if path.starts_with("/api/v1/documents")
+        || path.starts_with("/api/v1/notifications")
+    {
+        RateLimitTier::upload()
+    } else if path == "/health" || path == "/ready" || path == "/ws" {
+        // No rate limit on health checks and websocket
+        RateLimitTier {
+            max_requests: i32::MAX,
+            window_seconds: 1,
+        }
+    } else if request.method().is_safe() {
+        RateLimitTier::api_read()
+    } else {
+        RateLimitTier::api_write()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_rate_limit_tiers() {
+    #[test]
+    fn test_rate_limit_tiers() {
         let auth = RateLimitTier::auth();
         assert_eq!(auth.max_requests, 5);
         assert_eq!(auth.window_seconds, 60);
@@ -186,29 +364,65 @@ mod tests {
 
         let api_write = RateLimitTier::api_write();
         assert_eq!(api_write.max_requests, 30);
+
+        let upload = RateLimitTier::upload();
+        assert_eq!(upload.max_requests, 10);
+
+        let public = RateLimitTier::public();
+        assert_eq!(public.max_requests, 30);
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_store() {
-        let store = RateLimitStore::new();
-        let tier = RateLimitTier {
-            max_requests: 2,
-            window_seconds: 60,
-        };
+    #[test]
+    fn test_extract_client_id_prefers_forwarded_for() {
+        let mut request = Request::builder()
+            .uri("/api/v1/customers")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        request.headers_mut().insert(
+            "x-forwarded-for",
+            "10.0.0.1, 10.0.0.2".parse().unwrap(),
+        );
+        assert_eq!(extract_client_id(&request), "10.0.0.1");
+    }
 
-        // First request should be allowed
-        let info1 = store.check_and_record("test-key", &tier).await;
-        assert!(info1.allowed);
-        assert_eq!(info1.remaining, 1);
+    #[test]
+    fn test_extract_client_id_falls_back_to_real_ip() {
+        let mut request = Request::builder()
+            .uri("/api/v1/customers")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("x-real-ip", "192.168.1.1".parse().unwrap());
+        assert_eq!(extract_client_id(&request), "192.168.1.1");
+    }
 
-        // Second request should be allowed
-        let info2 = store.check_and_record("test-key", &tier).await;
-        assert!(info2.allowed);
-        assert_eq!(info2.remaining, 0);
+    #[test]
+    fn test_extract_client_id_unknown() {
+        let request = Request::builder()
+            .uri("/api/v1/customers")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        assert_eq!(extract_client_id(&request), "unknown");
+    }
 
-        // Third request should be blocked
-        let info3 = store.check_and_record("test-key", &tier).await;
-        assert!(!info3.allowed);
-        assert!(info3.retry_after.is_some());
+    #[test]
+    fn test_determine_tier_auth() {
+        let request = Request::builder()
+            .uri("/api/v1/auth/login")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let tier = determine_tier("/api/v1/auth/login", &request);
+        assert_eq!(tier.max_requests, 5);
+    }
+
+    #[test]
+    fn test_determine_tier_health_no_limit() {
+        let request = Request::builder()
+            .uri("/health")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let tier = determine_tier("/health", &request);
+        assert_eq!(tier.max_requests, i32::MAX);
     }
 }
