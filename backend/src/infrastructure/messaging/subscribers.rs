@@ -10,14 +10,18 @@
 //! - Subscribers consume from NATS and trigger module-specific handlers.
 //! - All handlers are idempotent (safe to replay).
 //!
-//! # TODO (per §24 Events docs):
-//! - subscriber handlers currently log events only
-//! - implement actual cross-module side effects:
-//!   - customer.activated → provision bandwidth, VLAN assignment
-//!   - subscription.cancelled → terminate PPPoE session, release bandwidth
-//!   - payment.completed → mark invoice paid, create journal entry
-//!   - installation.completed → activate customer subscription
-//!   - device.status.changed → broadcast to WebSocket NOC dashboard
+//! # Implemented cross-module side effects:
+//!   - customer.created → create customer wallet for referral rewards
+//!   - customer.activated → provision bandwidth profile
+//!   - customer.suspended/reactivated → revoke/restore bandwidth
+//!   - customer.terminated → cleanup resources (subscriptions, PPPoE)
+//!   - customer.kyc.submitted/verified → update customer status
+//!   - subscription.created/suspended/reactivated/cancelled → bandwidth + cleanup
+//!   - invoice.generated/overdue → notifications
+//!   - payment.completed → mark invoice paid + confirm notification
+//!   - payment.failed → notify customer
+//!   - refund.processed → notify customer
+//!   - installation.completed → activate customer + subscription + bandwidth + welcome
 
 use async_nats::Client;
 use futures::StreamExt;
@@ -413,6 +417,128 @@ async fn handle_kyc_verified(db: &DatabaseConnection, customer_id: i64) -> Resul
             }
         }
     }
+    Ok(())
+}
+
+/// Handle installation completion: activate customer, provision bandwidth, send welcome notification.
+///
+/// Core mutations (customer status + subscription activation) are wrapped in a
+/// database transaction to guarantee atomicity. Side-effects (bandwidth
+/// provisioning, notifications, event publishing) happen *after* the commit
+/// and are best-effort – failures are logged but do not roll back the
+/// activation.
+async fn handle_installation_completed(
+    db: &DatabaseConnection,
+    customer_id: i64,
+) -> Result<(), AppError> {
+    use crate::modules::customer::domain::entities::customer;
+    use crate::modules::subscription::domain::entities::subscription;
+    use sea_orm::{
+        ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set,
+        TransactionTrait,
+    };
+
+    // ── 1. Core mutations inside a transaction ───────────────────────────
+    let (customer_email, customer_phone, activated_subscription_ids) = {
+        let txn = db.begin().await?;
+
+        // Update customer status to 'active'
+        let mut customer_email: Option<String> = None;
+        let mut customer_phone: Option<String> = None;
+        if let Some(cust) = customer::Entity::find_by_id(customer_id)
+            .one(&txn)
+            .await?
+        {
+            // Read fields before consuming the model
+            customer_email = cust.email.clone().filter(|s| !s.is_empty());
+            customer_phone = Some(cust.phone.clone()).filter(|s| !s.is_empty());
+            if cust.status == "installation_in_progress" || cust.status == "installation_scheduled"
+            {
+                let mut active: customer::ActiveModel = cust.into();
+                active.status = Set("active".to_string());
+                active.updated_at = Set(chrono::Utc::now());
+                active.update(&txn).await?;
+                info!(customer_id, "Activated customer after installation");
+            }
+        }
+
+        // Activate any non-active subscriptions belonging to this customer
+        let subs = subscription::Entity::find()
+            .filter(subscription::Column::CustomerId.eq(customer_id))
+            .filter(subscription::Column::Status.is_in(vec!["pending", "suspended"]))
+            .all(&txn)
+            .await?;
+
+        let mut activated_ids: Vec<i64> = Vec::new();
+        for sub in subs {
+            let mut active: subscription::ActiveModel = sub.clone().into();
+            active.status = Set("active".to_string());
+            active.start_date = Set(chrono::Utc::now().date_naive());
+            active.updated_at = Set(chrono::Utc::now());
+            active.update(&txn).await?;
+            activated_ids.push(sub.id);
+            info!(customer_id, subscription_id = sub.id, "Activated subscription after installation");
+        }
+
+        txn.commit().await?;
+        (customer_email, customer_phone, activated_ids)
+    };
+
+    // ── 2. Bandwidth provisioning (best-effort, per subscription) ────────
+    // Provision bandwidth once for the customer (handles all active subscriptions)
+    if !activated_subscription_ids.is_empty() {
+        if let Err(e) = provision_customer_bandwidth(db, customer_id).await {
+            error!(
+                customer_id,
+                error = %e,
+                "Failed to provision bandwidth after installation"
+            );
+        }
+    }
+
+    // ── 3. Welcome notification ─────────────────────────────────────────
+    let address = customer_email
+        .as_deref()
+        .or(customer_phone.as_deref())
+        .unwrap_or("");
+    if !address.is_empty() {
+        let channel = if customer_email.is_some() { "email" } else { "sms" };
+        if let Err(e) = create_notification(
+            db,
+            customer_id,
+            channel,
+            "Welcome to AeroXe Broadband!",
+            "Your installation is complete and your internet connection is now active. Enjoy your browsing!",
+        ).await {
+            error!(customer_id, error = %e, "Failed to send welcome notification");
+        }
+    } else {
+        warn!(customer_id, "No email or phone found – cannot send welcome notification");
+    }
+
+    // ── 4. Publish customer.activated event (outbox pattern) ─────────────
+    let event_payload = serde_json::json!({
+        "customer_id": customer_id,
+        "source": "installation_completed",
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        db,
+        "customer.activated",
+        "customer",
+        customer_id,
+        event_payload,
+        None,
+        None,
+        None,
+    ).await {
+        error!(
+            customer_id,
+            error = %e,
+            "Failed to publish customer.activated event"
+        );
+    }
+
+    info!(customer_id, "Installation completion handled successfully");
     Ok(())
 }
 
@@ -938,7 +1064,7 @@ async fn subscribe_ticket_events(
 
 async fn subscribe_installation_events(
     client: Client,
-    _db: Arc<DatabaseConnection>,
+    db: Arc<DatabaseConnection>,
 ) -> Result<(), AppError> {
     let mut sub = client
         .subscribe("events.installation.>".to_string())
@@ -959,7 +1085,11 @@ async fn subscribe_installation_events(
                 }
                 "installation.completed" => {
                     info!(event_id = %envelope.event_id, "Installation completed - activate subscription");
-                    // TODO: Auto-activate customer subscription after installation
+                    if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+                        if let Err(e) = handle_installation_completed(&db, customer_id).await {
+                            error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to handle installation completion");
+                        }
+                    }
                 }
                 _ => {
                     debug!(event_type = %envelope.event_type, "Unhandled installation event");
