@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::modules::scheduler::application::services::SchedulerService;
+use crate::modules::scheduler::infrastructure::repository::SchedulerRepository;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
@@ -45,7 +46,8 @@ pub async fn list_jobs(
     _user: UserContext,
     Query(_p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let jobs = SchedulerService::list_job_definitions(&state.db).await?;
+    let repo = SchedulerRepository::new(&state.db);
+    let jobs = SchedulerService::list_job_definitions(&repo, &state.db).await?;
     Ok(Json(
         serde_json::json!({ "items": jobs, "total": jobs.len() }),
     ))
@@ -57,7 +59,8 @@ pub async fn get_job(
     _user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let job = SchedulerService::get_job_definition(&state.db, id).await?;
+    let repo = SchedulerRepository::new(&state.db);
+    let job = SchedulerService::get_job_definition(&repo, &state.db, id).await?;
     Ok(Json(serde_json::to_value(job).unwrap_or_default()))
 }
 
@@ -68,7 +71,9 @@ pub async fn create_job(
     Json(req): Json<CreateJobRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
     require_permission(&user, "scheduler.job.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let repo = SchedulerRepository::new(&state.db);
     let job = SchedulerService::create_job_definition(
+        &repo,
         &state.db,
         req.name,
         req.description,
@@ -94,7 +99,9 @@ pub async fn update_job(
     Json(req): Json<UpdateJobRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "scheduler.job.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let repo = SchedulerRepository::new(&state.db);
     let job = SchedulerService::update_job_definition(
+        &repo,
         &state.db,
         id,
         req.schedule,
@@ -113,7 +120,8 @@ pub async fn delete_job(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "scheduler.job.delete").map_err(|e| AppError::Forbidden(e.1))?;
-    SchedulerService::delete_job_definition(&state.db, id).await?;
+    let repo = SchedulerRepository::new(&state.db);
+    SchedulerService::delete_job_definition(&repo, &state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -124,8 +132,10 @@ pub async fn trigger_job(
     Path(id): Path<i64>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
     require_permission(&user, "scheduler.job.trigger").map_err(|e| AppError::Forbidden(e.1))?;
-    let job = SchedulerService::get_job_definition(&state.db, id).await?;
+    let repo = SchedulerRepository::new(&state.db);
+    let job = SchedulerService::get_job_definition(&repo, &state.db, id).await?;
     let execution = SchedulerService::start_execution(
+        &repo,
         &state.db,
         job.id,
         serde_json::json!({ "triggered_by": user.user_id }),
@@ -143,7 +153,8 @@ pub async fn list_executions(
     _user: UserContext,
     Query(q): Query<ExecutionsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let jobs = SchedulerService::list_executions(&state.db, q.job_id).await?;
+    let repo = SchedulerRepository::new(&state.db);
+    let jobs = SchedulerService::list_executions(&repo, &state.db, q.job_id).await?;
     Ok(Json(
         serde_json::json!({ "items": jobs, "total": jobs.len() }),
     ))
@@ -154,6 +165,7 @@ pub async fn scheduler_stats(
     State(state): State<Arc<AppState>>,
     _user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let stats = SchedulerService::get_scheduler_stats(&state.db).await?;
+    let repo = SchedulerRepository::new(&state.db);
+    let stats = SchedulerService::get_scheduler_stats(&repo, &state.db).await?;
     Ok(Json(stats))
 }
