@@ -1,16 +1,25 @@
 version: '3.8'
+
 services:
+  # ── Backend API ───────────────────────────────────────────────────────────
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://aeroxe:secret@postgres:5432/aeroxe
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
-      JWT_SECRET: aeroxe-dev-jwt-secret-change-in-production
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: aeroxe-documents
+      MINIO_REGION: us-east-1
       SERVER_ADDR: "0.0.0.0:8000"
       APP_ENV: development
+      RUST_LOG: aeroxe_backend=debug,tower_http=debug
     depends_on:
       postgres:
         condition: service_healthy
@@ -18,8 +27,13 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+      minio:
+        condition: service_started
     restart: unless-stopped
+    networks:
+      - aeroxe-net
 
+  # ── Database ──────────────────────────────────────────────────────────────
   postgres:
     image: postgis/postgis:16-3.4
     environment:
@@ -28,17 +42,21 @@ services:
       POSTGRES_PASSWORD: secret
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./migrations/sql:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aeroxe"]
+      test: ["CMD-SHELL", "pg_isready -U aeroxe -d aeroxe"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - aeroxe-net
 
+  # ── Cache ─────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redisdata:/data
     ports:
@@ -48,16 +66,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - aeroxe-net
 
+  # ── Message Bus ───────────────────────────────────────────────────────────
   nats:
     image: nats:2.10-alpine
-    command: --jetstream --store_dir /data
+    command: --jetstream --store_dir /data --http_port 8222
     volumes:
       - natsdata:/data
     ports:
       - "4222:4222"
       - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - aeroxe-net
 
+  # ── Object Storage ────────────────────────────────────────────────────────
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
@@ -69,9 +98,36 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - aeroxe-net
+
+  # ── Database Migration Runner ─────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgresql://aeroxe:secret@postgres:5432/aeroxe
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aeroxe-net
+    # Run once and exit
+    restart: "no"
 
 volumes:
   pgdata:
   redisdata:
   natsdata:
   miniodata:
+
+networks:
+  aeroxe-net:
+    driver: bridge
