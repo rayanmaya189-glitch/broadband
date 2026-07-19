@@ -10,7 +10,7 @@ const BLOCKED_HOSTNAMES: &[&str] = &[
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
-    "169.254.169.254",  // AWS/GCP/Azure metadata
+    "169.254.169.254", // AWS/GCP/Azure metadata
     "metadata.google.internal",
     "metadata.azure.com",
     "[::1]",
@@ -29,7 +29,10 @@ pub async fn ssrf_protection_middleware(
     let path = request.uri().path().to_string();
 
     // Only check write methods with potential URL payloads
-    if !matches!(method, axum::http::Method::POST | axum::http::Method::PUT | axum::http::Method::PATCH) {
+    if !matches!(
+        method,
+        axum::http::Method::POST | axum::http::Method::PUT | axum::http::Method::PATCH
+    ) {
         return Ok(next.run(request).await);
     }
 
@@ -81,7 +84,9 @@ pub async fn ssrf_protection_middleware(
 fn check_for_ssrf_urls(input: &str) -> Option<String> {
     // Look for URLs in the input
     for word in input.split_whitespace() {
-        let cleaned = word.trim_matches(|c: char| c == '"' || c == '\'' || c == ',' || c == ')' || c == '(' || c == ']' || c == '[');
+        let cleaned = word.trim_matches(|c: char| {
+            c == '"' || c == '\'' || c == ',' || c == ')' || c == '(' || c == ']' || c == '['
+        });
 
         // Check hostname-based blocks
         if let Some(url_host) = extract_hostname(cleaned) {
@@ -106,10 +111,10 @@ fn check_for_ssrf_urls(input: &str) -> Option<String> {
 /// Extract hostname from a URL string
 fn extract_hostname(url: &str) -> Option<String> {
     // Handle various URL formats
-    let without_protocol = if url.starts_with("http://") {
-        &url[7..]
-    } else if url.starts_with("https://") {
-        &url[8..]
+    let without_protocol = if let Some(stripped) = url.strip_prefix("http://") {
+        stripped
+    } else if let Some(stripped) = url.strip_prefix("https://") {
+        stripped
     } else {
         url
     };
@@ -123,10 +128,7 @@ fn extract_hostname(url: &str) -> Option<String> {
     };
 
     // Get hostname (before first /, :)
-    let host = without_userinfo
-        .split(|c: char| c == '/' || c == ':')
-        .next()?
-        .trim();
+    let host = without_userinfo.split(['/', ':']).next()?.trim();
 
     if host.is_empty() || host.len() > 253 {
         return None;
@@ -143,7 +145,7 @@ fn is_private_ip(ip: IpAddr) -> bool {
                 || v4.is_link_local()
                 || v4.is_private()
                 || v4.is_unspecified()
-                || v4.octets() == [169, 254, 169, 254]  // Cloud metadata
+                || v4.octets() == [169, 254, 169, 254] // Cloud metadata
         }
         IpAddr::V6(v6) => {
             v6.is_loopback()
@@ -184,12 +186,17 @@ mod tests {
     #[test]
     fn test_check_for_ssrf_urls() {
         // Blocked
-        assert!(check_for_ssrf_urls(r#"{"url": "http://169.254.169.254/latest/meta-data/"}"#).is_some());
+        assert!(
+            check_for_ssrf_urls(r#"{"url": "http://169.254.169.254/latest/meta-data/"}"#).is_some()
+        );
         assert!(check_for_ssrf_urls(r#"{"callback": "http://192.168.1.1/admin"}"#).is_some());
         assert!(check_for_ssrf_urls(r#"{"host": "http://127.0.0.1:8080"}"#).is_some());
         assert!(check_for_ssrf_urls(r#"{"host": "http://10.0.0.1/admin"}"#).is_some());
         assert!(check_for_ssrf_urls(r#"{"host": "http://localhost/admin"}"#).is_some());
-        assert!(check_for_ssrf_urls(r#"{"host": "http://metadata.google.internal/computeMetadata"}"#).is_some());
+        assert!(check_for_ssrf_urls(
+            r#"{"host": "http://metadata.google.internal/computeMetadata"}"#
+        )
+        .is_some());
 
         // Allowed
         assert!(check_for_ssrf_urls(r#"{"url": "https://example.com"}"#).is_none());
@@ -199,9 +206,21 @@ mod tests {
 
     #[test]
     fn test_extract_hostname() {
-        assert_eq!(extract_hostname("http://example.com/path"), Some("example.com".to_string()));
-        assert_eq!(extract_hostname("https://192.168.1.1:8080/api"), Some("192.168.1.1".to_string()));
-        assert_eq!(extract_hostname("http://user:pass@evil.com"), Some("evil.com".to_string()));
-        assert_eq!(extract_hostname("just-a-hostname"), Some("just-a-hostname".to_string()));
+        assert_eq!(
+            extract_hostname("http://example.com/path"),
+            Some("example.com".to_string())
+        );
+        assert_eq!(
+            extract_hostname("https://192.168.1.1:8080/api"),
+            Some("192.168.1.1".to_string())
+        );
+        assert_eq!(
+            extract_hostname("http://user:pass@evil.com"),
+            Some("evil.com".to_string())
+        );
+        assert_eq!(
+            extract_hostname("just-a-hostname"),
+            Some("just-a-hostname".to_string())
+        );
     }
 }

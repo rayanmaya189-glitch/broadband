@@ -92,9 +92,10 @@ impl AbacPolicyEngine {
         // 1. Check RBAC permissions with wildcard matching
         //    Permission format: "module.resource.action" (e.g. "device.router.view")
         //    We check if any user permission matches the requested resource+action.
-        let has_rbac_permission = context.user_permissions.iter().any(|perm| {
-            self.permission_matches(perm, &context.resource_type, &context.action)
-        });
+        let has_rbac_permission = context
+            .user_permissions
+            .iter()
+            .any(|perm| self.permission_matches(perm, &context.resource_type, &context.action));
 
         if has_rbac_permission {
             // Check if any ABAC deny policy overrides this RBAC permission
@@ -113,22 +114,19 @@ impl AbacPolicyEngine {
 
         // 2. Evaluate ABAC policies in priority order (deny first)
         for policy in &self.policies {
-            if policy.effect == PolicyEffect::Deny {
-                if self.evaluate_conditions(&policy.conditions, context) {
-                    return AccessDecision::Deny(format!(
-                        "Access denied by policy: {}",
-                        policy.name
-                    ));
-                }
+            if policy.effect == PolicyEffect::Deny
+                && self.evaluate_conditions(&policy.conditions, context)
+            {
+                return AccessDecision::Deny(format!("Access denied by policy: {}", policy.name));
             }
         }
 
         // 3. Check allow policies
         for policy in &self.policies {
-            if policy.effect == PolicyEffect::Allow {
-                if self.evaluate_conditions(&policy.conditions, context) {
-                    return AccessDecision::Allow;
-                }
+            if policy.effect == PolicyEffect::Allow
+                && self.evaluate_conditions(&policy.conditions, context)
+            {
+                return AccessDecision::Allow;
             }
         }
 

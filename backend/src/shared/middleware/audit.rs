@@ -44,9 +44,9 @@ pub async fn audit_middleware(request: Request, next: Next) -> Response {
     // Determine audit result
     let result = if status.is_success() {
         "granted"
-    } else if status == axum::http::StatusCode::FORBIDDEN {
-        "denied"
-    } else if status == axum::http::StatusCode::UNAUTHORIZED {
+    } else if status == axum::http::StatusCode::FORBIDDEN
+        || status == axum::http::StatusCode::UNAUTHORIZED
+    {
         "denied"
     } else {
         "success"

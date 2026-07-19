@@ -105,7 +105,10 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(app_state);
 
     // Start JWT key rotation background worker (checks daily)
-    state.jwt_rotation_manager.clone().start_background_rotation();
+    state
+        .jwt_rotation_manager
+        .clone()
+        .start_background_rotation();
     tracing::info!(
         rotation_days = state.settings.jwt_key_rotation_days,
         "JWT key rotation worker started"
@@ -153,6 +156,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .nest("/api/v1", aeroxe_backend::routes::v1_routes())
         .merge(aeroxe_backend::routes::health_routes())
+        .merge(aeroxe_backend::infrastructure::openapi::swagger_routes())
         // 1. Request body size limit (10 MB default)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
             10 * 1024 * 1024,

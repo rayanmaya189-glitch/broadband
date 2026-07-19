@@ -1,9 +1,11 @@
+use crate::modules::accounting::domain::aggregates::trial_balance::{
+    TrialBalance, TrialBalanceEntry,
+};
 use crate::modules::accounting::domain::entities::{
     chart_of_accounts, journal_entry, journal_entry_line, ChartOfAccounts,
     ChartOfAccountsActiveModel, JournalEntry, JournalEntryActiveModel, JournalEntryLine,
     JournalEntryLineActiveModel,
 };
-use crate::modules::accounting::domain::aggregates::trial_balance::{TrialBalance, TrialBalanceEntry};
 use crate::shared::errors::AppError;
 use chrono::Utc;
 use sea_orm::{

@@ -36,7 +36,12 @@ impl TrialBalance {
     /// * `period_start` - Start of the accounting period
     /// * `period_end` - End of the accounting period
     /// * `entries` - Account balance entries
-    pub fn new(id: i64, period_start: NaiveDate, period_end: NaiveDate, entries: Vec<TrialBalanceEntry>) -> Self {
+    pub fn new(
+        id: i64,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+        entries: Vec<TrialBalanceEntry>,
+    ) -> Self {
         // Sum directly from total_debit and total_credit fields on entries,
         // NOT from closing_balance (which is already net: debit - credit).
         let total_debit: Decimal = entries.iter().map(|e| e.total_debit).sum();
@@ -68,7 +73,8 @@ impl TrialBalance {
 
     /// Get entries filtered by account type
     pub fn entries_by_type(&self, account_type: &str) -> Vec<&TrialBalanceEntry> {
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|e| e.account_type == account_type)
             .collect()
     }
@@ -77,15 +83,15 @@ impl TrialBalance {
 /// Errors for trial balance
 #[derive(Debug, Clone, Error)]
 pub enum TrialBalanceError {
-    #[error("Trial balance is unbalanced: debit={debit}, credit={credit}, difference={difference}")]
+    #[error(
+        "Trial balance is unbalanced: debit={debit}, credit={credit}, difference={difference}"
+    )]
     Unbalanced {
         debit: Decimal,
         credit: Decimal,
         difference: Decimal,
     },
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -95,14 +101,22 @@ mod tests {
     fn test_balanced_trial_balance() {
         let entries = vec![
             TrialBalanceEntry {
-                account_code: 1000, account_name: "Cash".to_string(), account_type: "asset".to_string(),
-                opening_balance: Decimal::ZERO, total_debit: rust_decimal_macros::dec!(1000),
-                total_credit: Decimal::ZERO, closing_balance: rust_decimal_macros::dec!(1000),
+                account_code: 1000,
+                account_name: "Cash".to_string(),
+                account_type: "asset".to_string(),
+                opening_balance: Decimal::ZERO,
+                total_debit: rust_decimal_macros::dec!(1000),
+                total_credit: Decimal::ZERO,
+                closing_balance: rust_decimal_macros::dec!(1000),
             },
             TrialBalanceEntry {
-                account_code: 4000, account_name: "Revenue".to_string(), account_type: "revenue".to_string(),
-                opening_balance: Decimal::ZERO, total_debit: Decimal::ZERO,
-                total_credit: rust_decimal_macros::dec!(1000), closing_balance: rust_decimal_macros::dec!(-1000),
+                account_code: 4000,
+                account_name: "Revenue".to_string(),
+                account_type: "revenue".to_string(),
+                opening_balance: Decimal::ZERO,
+                total_debit: Decimal::ZERO,
+                total_credit: rust_decimal_macros::dec!(1000),
+                closing_balance: rust_decimal_macros::dec!(-1000),
             },
         ];
         let tb = TrialBalance::new(
@@ -119,14 +133,22 @@ mod tests {
     fn test_unbalanced_trial_balance() {
         let entries = vec![
             TrialBalanceEntry {
-                account_code: 1000, account_name: "Cash".to_string(), account_type: "asset".to_string(),
-                opening_balance: Decimal::ZERO, total_debit: rust_decimal_macros::dec!(1000),
-                total_credit: Decimal::ZERO, closing_balance: rust_decimal_macros::dec!(1000),
+                account_code: 1000,
+                account_name: "Cash".to_string(),
+                account_type: "asset".to_string(),
+                opening_balance: Decimal::ZERO,
+                total_debit: rust_decimal_macros::dec!(1000),
+                total_credit: Decimal::ZERO,
+                closing_balance: rust_decimal_macros::dec!(1000),
             },
             TrialBalanceEntry {
-                account_code: 4000, account_name: "Revenue".to_string(), account_type: "revenue".to_string(),
-                opening_balance: Decimal::ZERO, total_debit: Decimal::ZERO,
-                total_credit: rust_decimal_macros::dec!(500), closing_balance: rust_decimal_macros::dec!(-500),
+                account_code: 4000,
+                account_name: "Revenue".to_string(),
+                account_type: "revenue".to_string(),
+                opening_balance: Decimal::ZERO,
+                total_debit: Decimal::ZERO,
+                total_credit: rust_decimal_macros::dec!(500),
+                closing_balance: rust_decimal_macros::dec!(-500),
             },
         ];
         let tb = TrialBalance::new(

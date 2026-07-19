@@ -28,10 +28,8 @@ impl AppState {
         settings: Settings,
         jwt_keys: JwtKeyPair,
     ) -> Self {
-        let rotation_manager = JwtKeyRotationManager::new(
-            jwt_keys.clone(),
-            settings.jwt_key_rotation_days,
-        );
+        let rotation_manager =
+            JwtKeyRotationManager::new(jwt_keys.clone(), settings.jwt_key_rotation_days);
         Self {
             db,
             redis: redis.clone(),

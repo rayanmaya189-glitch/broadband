@@ -109,6 +109,10 @@ ssh2 = "0.9"
 # Regex for parsing CLI output
 regex = "1"
 
+# OpenAPI documentation
+utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "8", features = ["axum"] }
+
 [[bin]]
 name = "aeroxe-backend"
 path = "src/main.rs"

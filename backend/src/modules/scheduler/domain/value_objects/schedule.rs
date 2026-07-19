@@ -278,7 +278,11 @@ fn next_cron_run(
         // Convert: cron 0 (Sun) → 7, cron 1-6 stay same.
         let candidate_dow = {
             let n = candidate.weekday().number_from_monday();
-            if n == 7 { 0 } else { n }
+            if n == 7 {
+                0
+            } else {
+                n
+            }
         };
         let dow_match = dow_is_wildcard || days_of_week.contains(&candidate_dow);
         let day_matches = if !dom_is_wildcard && !dow_is_wildcard {

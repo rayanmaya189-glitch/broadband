@@ -3,7 +3,7 @@ use sea_orm::{
     QueryOrder, QuerySelect, Set,
 };
 use serde_json::Value;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::shared::errors::AppError;
 
@@ -15,6 +15,9 @@ use crate::infrastructure::messaging::outbox_entity::{
 /// Events are stored within the same DB transaction as business logic,
 /// then a background worker polls and publishes to NATS.
 pub use outbox_entity::Model as OutboxEvent;
+
+/// Maximum retries before moving to dead-letter queue
+const MAX_RETRIES: i32 = 5;
 
 /// Insert an event into the outbox table within the current transaction.
 pub async fn insert_outbox_event(
@@ -85,6 +88,101 @@ pub async fn mark_event_published(db: &DatabaseConnection, event_id: &str) -> Re
         })?;
 
     debug!(event_id = %event_id, rows_affected = result.rows_affected, "Marked event as published");
+    Ok(())
+}
+
+/// Record a failed publish attempt. If max retries exceeded, move to dead-letter queue.
+pub async fn record_publish_failure(
+    db: &DatabaseConnection,
+    event_id: &str,
+    error: &str,
+) -> Result<(), AppError> {
+    let event = OutboxEventEntity::find()
+        .filter(outbox_entity::Column::EventId.eq(event_id))
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find outbox event: {}", e)))?
+        .ok_or_else(|| AppError::NotFound(format!("Outbox event {} not found", event_id)))?;
+
+    let retry_count = event.retry_count + 1;
+
+    if retry_count >= MAX_RETRIES {
+        // Move to dead-letter queue
+        warn!(
+            event_id = %event_id,
+            event_type = %event.event_type,
+            retry_count = retry_count,
+            "Event moved to dead-letter queue after max retries"
+        );
+
+        let mut active: outbox_entity::ActiveModel = event.into();
+        active.retry_count = Set(retry_count);
+        active.last_error = Set(Some(error.to_string()));
+        active.dead_letter = Set(true);
+        active.dead_letter_at = Set(Some(chrono::Utc::now()));
+        active.updated_at = Set(chrono::Utc::now());
+        active.update(db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to update outbox event: {}", e))
+        })?;
+    } else {
+        // Increment retry count
+        let mut active: outbox_entity::ActiveModel = event.into();
+        active.retry_count = Set(retry_count);
+        active.last_error = Set(Some(error.to_string()));
+        active.updated_at = Set(chrono::Utc::now());
+        active.update(db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to update outbox event: {}", e))
+        })?;
+    }
+
+    Ok(())
+}
+
+/// Fetch events from the dead-letter queue for manual inspection/replay.
+pub async fn fetch_dead_letter_events(
+    db: &DatabaseConnection,
+    limit: u64,
+) -> Result<Vec<OutboxEventModel>, AppError> {
+    let events = OutboxEventEntity::find()
+        .filter(outbox_entity::Column::DeadLetter.eq(true))
+        .order_by_desc(outbox_entity::Column::DeadLetterAt)
+        .limit(limit)
+        .all(db)
+        .await
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to fetch dead-letter events: {}", e))
+        })?;
+
+    Ok(events)
+}
+
+/// Replay a dead-letter event (reset retry count and re-queue for publishing).
+pub async fn replay_dead_letter_event(
+    db: &DatabaseConnection,
+    event_id: &str,
+) -> Result<(), AppError> {
+    let event = OutboxEventEntity::find()
+        .filter(outbox_entity::Column::EventId.eq(event_id))
+        .filter(outbox_entity::Column::DeadLetter.eq(true))
+        .one(db)
+        .await
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to find dead-letter event: {}", e))
+        })?
+        .ok_or_else(|| AppError::NotFound(format!("Dead-letter event {} not found", event_id)))?;
+
+    let mut active: outbox_entity::ActiveModel = event.into();
+    active.retry_count = Set(0);
+    active.dead_letter = Set(false);
+    active.dead_letter_at = Set(None);
+    active.last_error = Set(None);
+    active.published = Set(false);
+    active.updated_at = Set(chrono::Utc::now());
+    active.update(db).await.map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("Failed to replay dead-letter event: {}", e))
+    })?;
+
+    debug!(event_id = %event_id, "Replayed dead-letter event");
     Ok(())
 }
 

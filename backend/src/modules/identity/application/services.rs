@@ -540,6 +540,13 @@ impl IdentityService {
         };
         session.insert(db).await?;
 
+        // Login anomaly detection — IP tracking handled at HTTP handler level
+        // See shared::utils::login_anomaly for the detection logic
+        debug!(
+            user_id = updated_user.id,
+            "Login successful, anomaly detection delegated to HTTP handler"
+        );
+
         Ok((access_token, refresh_token, updated_user))
     }
 

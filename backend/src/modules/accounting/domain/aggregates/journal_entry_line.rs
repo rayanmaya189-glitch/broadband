@@ -28,15 +28,15 @@ pub enum JournalEntryLineError {
     #[error("Amount must be positive")]
     InvalidAmount,
     /// Journal entry lines are not balanced (total debit != total credit)
-    #[error("Journal entry is unbalanced: debit={debit}, credit={credit}, difference={difference}")]
+    #[error(
+        "Journal entry is unbalanced: debit={debit}, credit={credit}, difference={difference}"
+    )]
     Unbalanced {
         debit: rust_decimal::Decimal,
         credit: rust_decimal::Decimal,
         difference: rust_decimal::Decimal,
     },
 }
-
-
 
 impl JournalEntryLine {
     /// Create a debit line
@@ -136,9 +136,14 @@ mod tests {
     #[test]
     fn test_debit_line() {
         let line = JournalEntryLine::debit(
-            1, 1000, "Cash".to_string(), AccountType::Asset,
-            rust_decimal_macros::dec!(1000), Some("Payment received".to_string()),
-        ).unwrap();
+            1,
+            1000,
+            "Cash".to_string(),
+            AccountType::Asset,
+            rust_decimal_macros::dec!(1000),
+            Some("Payment received".to_string()),
+        )
+        .unwrap();
         assert!(line.is_debit());
         assert!(!line.is_credit());
         assert_eq!(line.amount(), rust_decimal_macros::dec!(1000));
@@ -147,9 +152,14 @@ mod tests {
     #[test]
     fn test_credit_line() {
         let line = JournalEntryLine::credit(
-            2, 4000, "Revenue".to_string(), AccountType::Revenue,
-            rust_decimal_macros::dec!(1000), Some("Service revenue".to_string()),
-        ).unwrap();
+            2,
+            4000,
+            "Revenue".to_string(),
+            AccountType::Revenue,
+            rust_decimal_macros::dec!(1000),
+            Some("Service revenue".to_string()),
+        )
+        .unwrap();
         assert!(!line.is_debit());
         assert!(line.is_credit());
         assert_eq!(line.amount(), rust_decimal_macros::dec!(1000));
@@ -158,8 +168,12 @@ mod tests {
     #[test]
     fn test_invalid_amount_zero() {
         let result = JournalEntryLine::debit(
-            1, 1000, "Cash".to_string(), AccountType::Asset,
-            rust_decimal_macros::dec!(0), None,
+            1,
+            1000,
+            "Cash".to_string(),
+            AccountType::Asset,
+            rust_decimal_macros::dec!(0),
+            None,
         );
         assert_eq!(result, Err(JournalEntryLineError::InvalidAmount));
     }
@@ -167,8 +181,12 @@ mod tests {
     #[test]
     fn test_invalid_amount_negative() {
         let result = JournalEntryLine::credit(
-            1, 1000, "Cash".to_string(), AccountType::Asset,
-            rust_decimal_macros::dec!(-100), None,
+            1,
+            1000,
+            "Cash".to_string(),
+            AccountType::Asset,
+            rust_decimal_macros::dec!(-100),
+            None,
         );
         assert_eq!(result, Err(JournalEntryLineError::InvalidAmount));
     }
@@ -176,8 +194,24 @@ mod tests {
     #[test]
     fn test_validate_lines_balanced() {
         let lines = vec![
-            JournalEntryLine::debit(1, 1000, "Cash".to_string(), AccountType::Asset, rust_decimal_macros::dec!(1000), None).unwrap(),
-            JournalEntryLine::credit(2, 4000, "Revenue".to_string(), AccountType::Revenue, rust_decimal_macros::dec!(1000), None).unwrap(),
+            JournalEntryLine::debit(
+                1,
+                1000,
+                "Cash".to_string(),
+                AccountType::Asset,
+                rust_decimal_macros::dec!(1000),
+                None,
+            )
+            .unwrap(),
+            JournalEntryLine::credit(
+                2,
+                4000,
+                "Revenue".to_string(),
+                AccountType::Revenue,
+                rust_decimal_macros::dec!(1000),
+                None,
+            )
+            .unwrap(),
         ];
         assert!(validate_lines_balanced(&lines).is_ok());
     }
@@ -185,8 +219,24 @@ mod tests {
     #[test]
     fn test_validate_lines_unbalanced() {
         let lines = vec![
-            JournalEntryLine::debit(1, 1000, "Cash".to_string(), AccountType::Asset, rust_decimal_macros::dec!(1000), None).unwrap(),
-            JournalEntryLine::credit(2, 4000, "Revenue".to_string(), AccountType::Revenue, rust_decimal_macros::dec!(500), None).unwrap(),
+            JournalEntryLine::debit(
+                1,
+                1000,
+                "Cash".to_string(),
+                AccountType::Asset,
+                rust_decimal_macros::dec!(1000),
+                None,
+            )
+            .unwrap(),
+            JournalEntryLine::credit(
+                2,
+                4000,
+                "Revenue".to_string(),
+                AccountType::Revenue,
+                rust_decimal_macros::dec!(500),
+                None,
+            )
+            .unwrap(),
         ];
         assert!(validate_lines_balanced(&lines).is_err());
     }

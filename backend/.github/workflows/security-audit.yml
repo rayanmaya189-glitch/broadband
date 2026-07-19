@@ -1,0 +1,35 @@
+name: Weekly Security Audit
+
+on:
+  schedule:
+    - cron: '23 3 * * 1'  # Every Monday at 3:23 AM UTC
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        working-directory: backend
+        run: cargo audit
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo deny (advisories + licenses + bans)
+        working-directory: backend
+        run: |
+          cargo deny check advisories
+          cargo deny check licenses
+          cargo deny check bans
+
+      - name: Check for unmaintained dependencies
+        working-directory: backend
+        run: cargo audit --unmaintained warn

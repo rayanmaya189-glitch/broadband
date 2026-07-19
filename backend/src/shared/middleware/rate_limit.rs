@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 use redis::aio::ConnectionManager;
+use std::sync::Arc;
 use tracing::{debug, warn};
 
 /// Rate limit tier configuration
@@ -45,6 +45,34 @@ impl RateLimitTier {
     pub fn public() -> Self {
         Self {
             max_requests: 30,
+            window_seconds: 60,
+        }
+    }
+
+    pub fn admin_read() -> Self {
+        Self {
+            max_requests: 200,
+            window_seconds: 60,
+        }
+    }
+
+    pub fn admin_write() -> Self {
+        Self {
+            max_requests: 100,
+            window_seconds: 60,
+        }
+    }
+
+    pub fn customer_read() -> Self {
+        Self {
+            max_requests: 50,
+            window_seconds: 60,
+        }
+    }
+
+    pub fn customer_write() -> Self {
+        Self {
+            max_requests: 20,
             window_seconds: 60,
         }
     }
@@ -99,7 +127,9 @@ impl RateLimitStore {
         let request_id = format!("{}:{}", now_micros, rand_id());
 
         // Try Redis first, fall back to in-memory
-        match self.try_redis_check(&window_key, now_micros, window_start, &request_id, tier).await
+        match self
+            .try_redis_check(&window_key, now_micros, window_start, &request_id, tier)
+            .await
         {
             Some(info) => info,
             None => self.fallback_check(key, tier).await,
@@ -157,7 +187,7 @@ impl RateLimitStore {
 
         let result: Result<Vec<i64>, _> = redis::cmd("eval")
             .arg(script)
-            .arg(1)  // number of KEYS
+            .arg(1) // number of KEYS
             .arg(window_key)
             .arg(window_start)
             .arg(now_micros)
@@ -269,15 +299,13 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Respo
             r#"{"error":"rate_limit_exceeded","message":"Too many requests"}"#,
         ));
         *response.status_mut() = StatusCode::TOO_MANY_REQUESTS;
-        response.headers_mut().insert(
-            "content-type",
-            "application/json".parse().unwrap(),
-        );
+        response
+            .headers_mut()
+            .insert("content-type", "application/json".parse().unwrap());
         if let Some(retry) = info.retry_after {
-            response.headers_mut().insert(
-                "retry-after",
-                retry.to_string().parse().unwrap(),
-            );
+            response
+                .headers_mut()
+                .insert("retry-after", retry.to_string().parse().unwrap());
         }
         response.headers_mut().insert(
             "x-ratelimit-limit",
@@ -328,24 +356,65 @@ fn extract_client_id(request: &Request) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-/// Determine rate limit tier based on request path and method
+/// Determine rate limit tier based on request path, method, and user role.
 fn determine_tier(path: &str, request: &Request) -> RateLimitTier {
-    if path.starts_with("/api/v1/auth") {
-        RateLimitTier::auth()
-    } else if path.starts_with("/api/v1/documents")
-        || path.starts_with("/api/v1/notifications")
-    {
-        RateLimitTier::upload()
-    } else if path == "/health" || path == "/ready" || path == "/ws" {
-        // No rate limit on health checks and websocket
-        RateLimitTier {
+    // Health checks and websocket: no rate limit
+    if path == "/health" || path == "/ready" || path == "/ws" {
+        return RateLimitTier {
             max_requests: i32::MAX,
             window_seconds: 1,
+        };
+    }
+
+    // Auth endpoints: strict limit regardless of role
+    if path.starts_with("/api/v1/auth") {
+        return RateLimitTier::auth();
+    }
+
+    // Upload endpoints: strict limit
+    if path.starts_with("/api/v1/documents") || path.starts_with("/api/v1/notifications") {
+        return RateLimitTier::upload();
+    }
+
+    // Extract user role from request extensions for role-based limiting
+    let role = request
+        .extensions()
+        .get::<crate::shared::middleware::auth::UserContext>()
+        .map(|u| u.role.as_str());
+
+    match role {
+        // Admin/staff roles get higher limits
+        Some("super_admin" | "admin" | "finance_manager" | "billing_operator") => {
+            if request.method().is_safe() {
+                RateLimitTier::admin_read()
+            } else {
+                RateLimitTier::admin_write()
+            }
         }
-    } else if request.method().is_safe() {
-        RateLimitTier::api_read()
-    } else {
-        RateLimitTier::api_write()
+        // Customer role gets lower limits
+        Some("customer") => {
+            if request.method().is_safe() {
+                RateLimitTier::customer_read()
+            } else {
+                RateLimitTier::customer_write()
+            }
+        }
+        // Field technician, support agent, etc: standard limits
+        Some(_) => {
+            if request.method().is_safe() {
+                RateLimitTier::api_read()
+            } else {
+                RateLimitTier::api_write()
+            }
+        }
+        // Unauthenticated: standard public limits
+        None => {
+            if request.method().is_safe() {
+                RateLimitTier::api_read()
+            } else {
+                RateLimitTier::api_write()
+            }
+        }
     }
 }
 
@@ -370,6 +439,18 @@ mod tests {
 
         let public = RateLimitTier::public();
         assert_eq!(public.max_requests, 30);
+
+        let admin_read = RateLimitTier::admin_read();
+        assert_eq!(admin_read.max_requests, 200);
+
+        let admin_write = RateLimitTier::admin_write();
+        assert_eq!(admin_write.max_requests, 100);
+
+        let customer_read = RateLimitTier::customer_read();
+        assert_eq!(customer_read.max_requests, 50);
+
+        let customer_write = RateLimitTier::customer_write();
+        assert_eq!(customer_write.max_requests, 20);
     }
 
     #[test]
@@ -378,10 +459,9 @@ mod tests {
             .uri("/api/v1/customers")
             .body(axum::body::Body::empty())
             .unwrap();
-        request.headers_mut().insert(
-            "x-forwarded-for",
-            "10.0.0.1, 10.0.0.2".parse().unwrap(),
-        );
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", "10.0.0.1, 10.0.0.2".parse().unwrap());
         assert_eq!(extract_client_id(&request), "10.0.0.1");
     }
 

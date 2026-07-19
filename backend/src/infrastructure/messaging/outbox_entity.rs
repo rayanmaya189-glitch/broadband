@@ -16,7 +16,12 @@ pub struct Model {
     pub caused_by_user_id: Option<i64>,
     pub caused_by_branch_id: Option<i64>,
     pub published: bool,
+    pub retry_count: i32,
+    pub last_error: Option<String>,
+    pub dead_letter: bool,
+    pub dead_letter_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

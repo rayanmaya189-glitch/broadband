@@ -44,7 +44,7 @@ impl Vlan {
         name: String,
         vlan_type: VlanType,
     ) -> Result<Self, VlanDomainError> {
-        if vlan_id < 1 || vlan_id > 4094 {
+        if !(1..=4094).contains(&vlan_id) {
             return Err(VlanDomainError::InvalidVlanId);
         }
         Ok(Self {

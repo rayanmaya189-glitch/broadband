@@ -433,10 +433,7 @@ async fn handle_installation_completed(
 ) -> Result<(), AppError> {
     use crate::modules::customer::domain::entities::customer;
     use crate::modules::subscription::domain::entities::subscription;
-    use sea_orm::{
-        ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set,
-        TransactionTrait,
-    };
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 
     // ── 1. Core mutations inside a transaction ───────────────────────────
     let (customer_email, customer_phone, activated_subscription_ids) = {
@@ -445,10 +442,7 @@ async fn handle_installation_completed(
         // Update customer status to 'active'
         let mut customer_email: Option<String> = None;
         let mut customer_phone: Option<String> = None;
-        if let Some(cust) = customer::Entity::find_by_id(customer_id)
-            .one(&txn)
-            .await?
-        {
+        if let Some(cust) = customer::Entity::find_by_id(customer_id).one(&txn).await? {
             // Read fields before consuming the model
             customer_email = cust.email.clone().filter(|s| !s.is_empty());
             customer_phone = Some(cust.phone.clone()).filter(|s| !s.is_empty());
@@ -477,7 +471,11 @@ async fn handle_installation_completed(
             active.updated_at = Set(chrono::Utc::now());
             active.update(&txn).await?;
             activated_ids.push(sub.id);
-            info!(customer_id, subscription_id = sub.id, "Activated subscription after installation");
+            info!(
+                customer_id,
+                subscription_id = sub.id,
+                "Activated subscription after installation"
+            );
         }
 
         txn.commit().await?;
@@ -502,7 +500,11 @@ async fn handle_installation_completed(
         .or(customer_phone.as_deref())
         .unwrap_or("");
     if !address.is_empty() {
-        let channel = if customer_email.is_some() { "email" } else { "sms" };
+        let channel = if customer_email.is_some() {
+            "email"
+        } else {
+            "sms"
+        };
         if let Err(e) = create_notification(
             db,
             customer_id,
@@ -513,7 +515,10 @@ async fn handle_installation_completed(
             error!(customer_id, error = %e, "Failed to send welcome notification");
         }
     } else {
-        warn!(customer_id, "No email or phone found – cannot send welcome notification");
+        warn!(
+            customer_id,
+            "No email or phone found – cannot send welcome notification"
+        );
     }
 
     // ── 4. Publish customer.activated event (outbox pattern) ─────────────
@@ -530,7 +535,9 @@ async fn handle_installation_completed(
         None,
         None,
         None,
-    ).await {
+    )
+    .await
+    {
         error!(
             customer_id,
             error = %e,
@@ -1085,7 +1092,9 @@ async fn subscribe_installation_events(
                 }
                 "installation.completed" => {
                     info!(event_id = %envelope.event_id, "Installation completed - activate subscription");
-                    if let Some(customer_id) = envelope.payload.get("customer_id").and_then(|v| v.as_i64()) {
+                    if let Some(customer_id) =
+                        envelope.payload.get("customer_id").and_then(|v| v.as_i64())
+                    {
                         if let Err(e) = handle_installation_completed(&db, customer_id).await {
                             error!(event_id = %envelope.event_id, customer_id, error = %e, "Failed to handle installation completion");
                         }

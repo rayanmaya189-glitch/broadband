@@ -1,5 +1,7 @@
 use axum::routing::get;
 use axum::Router;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::shared::app_state::SharedState;
 
@@ -8,6 +10,10 @@ pub fn health_routes() -> Router<SharedState> {
         .route("/health", get(health_check))
         .route("/ready", get(readiness_check))
         .route("/ws", get(crate::infrastructure::websocket::ws_handler))
+        .merge(
+            SwaggerUi::new("/swagger-ui")
+                .url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()),
+        )
 }
 
 async fn health_check() -> axum::Json<serde_json::Value> {
@@ -388,7 +394,15 @@ fn notification_routes() -> Router<SharedState> {
 }
 
 fn audit_routes() -> Router<SharedState> {
+    use crate::modules::audit::api::http as audit_http;
     Router::new()
+        .route("/logs", axum::routing::get(audit_http::search_audit_logs))
+        .route("/logs/:id", axum::routing::get(audit_http::get_audit_log))
+        .route(
+            "/user/:user_id",
+            axum::routing::get(audit_http::get_user_activity),
+        )
+        .route("/export", axum::routing::get(audit_http::export_audit_logs))
 }
 
 fn lead_routes() -> Router<SharedState> {

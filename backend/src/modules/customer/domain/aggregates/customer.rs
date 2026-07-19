@@ -147,7 +147,6 @@ impl Customer {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

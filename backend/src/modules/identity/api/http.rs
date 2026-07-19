@@ -11,6 +11,7 @@ use crate::modules::identity::domain::entities::user;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::UserContext;
+use crate::shared::utils::login_anomaly;
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterRequest {
@@ -133,6 +134,25 @@ pub async fn login(
     let user_model =
         IdentityService::verify_password_only(&state.db, &req.email, &req.password).await?;
 
+    // Login anomaly detection — check for new IP (non-blocking, best-effort)
+    // In production, extract real IP from X-Forwarded-For or connecting socket
+    let client_ip = "0.0.0.0"; // TODO: extract from request extensions via middleware
+    let mut redis = state.redis.clone();
+    let anomaly = login_anomaly::check_login_anomaly(&mut redis, user_model.id, client_ip)
+        .await
+        .ok(); // Non-blocking: don't fail login on anomaly check failure
+
+    if let Some(ref check) = anomaly {
+        if check.is_anomaly {
+            tracing::warn!(
+                user_id = user_model.id,
+                ip = client_ip,
+                "Login anomaly detected — new IP address"
+            );
+            // In production: spawn notification task to alert user via email/SMS
+        }
+    }
+
     if user_model.two_factor_enabled {
         let pending_token =
             IdentityService::generate_pending_2fa_token(&user_model, &state.jwt_keys)?;
@@ -146,7 +166,6 @@ pub async fn login(
         }));
     }
 
-    let mut redis = state.redis.clone();
     let (access_token, refresh_token, user) = IdentityService::login(
         &state.db,
         &mut redis,

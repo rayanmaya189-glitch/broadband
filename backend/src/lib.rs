@@ -7,6 +7,7 @@
 #![allow(clippy::should_implement_trait)]
 
 pub mod config;
+pub mod docs;
 pub mod infrastructure;
 pub mod migration;
 pub mod modules;

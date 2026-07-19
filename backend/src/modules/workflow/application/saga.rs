@@ -3,7 +3,9 @@ use crate::modules::workflow::domain::entities::{
 };
 use crate::shared::errors::AppError;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+};
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
@@ -233,7 +235,7 @@ impl SagaCoordinator {
 
             // Execute with retries
             let result = self
-                .execute_step_with_retry(db, &handler, step, &last_output)
+                .execute_step_with_retry(db, handler, step, &last_output)
                 .await;
 
             match result {
@@ -255,10 +257,7 @@ impl SagaCoordinator {
                     inst.current_step = Set(step.step_order + 1);
                     inst.updated_at = Set(Utc::now());
                     inst.update(db).await.map_err(|e| {
-                        AppError::Internal(anyhow::anyhow!(
-                            "Failed to update current_step: {}",
-                            e
-                        ))
+                        AppError::Internal(anyhow::anyhow!("Failed to update current_step: {}", e))
                     })?;
 
                     info!(
@@ -290,10 +289,8 @@ impl SagaCoordinator {
                     // Mark workflow as failed
                     let mut inst: WorkflowInstanceActiveModel = instance.clone().into();
                     inst.status = Set("failed".to_string());
-                    inst.error_message = Set(Some(format!(
-                        "Step '{}' failed: {}",
-                        step.step_name, e
-                    )));
+                    inst.error_message =
+                        Set(Some(format!("Step '{}' failed: {}", step.step_name, e)));
                     inst.completed_at = Set(Some(Utc::now()));
                     inst.updated_at = Set(Utc::now());
                     inst.update(db).await.ok();
@@ -318,10 +315,7 @@ impl SagaCoordinator {
             AppError::Internal(anyhow::anyhow!("Failed to mark workflow completed: {}", e))
         })?;
 
-        info!(
-            workflow_id = instance.id,
-            "Workflow completed successfully"
-        );
+        info!(workflow_id = instance.id, "Workflow completed successfully");
 
         Ok(last_output.unwrap_or(serde_json::json!(null)))
     }
@@ -465,10 +459,7 @@ impl SagaCoordinator {
         // Update workflow status to 'compensated'
         if let Some(id) = instance_id {
             // Fetch the real instance and update its status
-            if let Ok(Some(inst_model)) = workflow_instance::Entity::find_by_id(id)
-                .one(db)
-                .await
-            {
+            if let Ok(Some(inst_model)) = workflow_instance::Entity::find_by_id(id).one(db).await {
                 let mut inst: WorkflowInstanceActiveModel = inst_model.into();
                 inst.status = Set("compensated".to_string());
                 inst.updated_at = Set(Utc::now());
@@ -511,9 +502,9 @@ impl SagaCoordinator {
         inst.status = Set("cancelled".to_string());
         inst.completed_at = Set(Some(Utc::now()));
         inst.updated_at = Set(Utc::now());
-        inst.update(db).await.map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Failed to cancel workflow: {}", e))
-        })?;
+        inst.update(db)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to cancel workflow: {}", e)))?;
 
         info!(workflow_id = instance_id, "Workflow cancelled");
         Ok(())
