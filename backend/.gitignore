@@ -1,0 +1,41 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Environment files (CRITICAL - never commit secrets)
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+
+# Test artifacts
+test-results/
+
+# Build artifacts
+*.d
+*.pdb
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+
+# Documentation artifacts
+docs/generated/
