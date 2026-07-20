@@ -1,8 +1,12 @@
 use crate::modules::device::domain::entities::{
-    DevicePort, NetworkDevice, NetworkDeviceActiveModel, NetworkDeviceColumn,
+    DeviceLog, DeviceMetric, DevicePort, DevicePortActiveModel, DevicePortColumn, NetworkDevice,
+    NetworkDeviceActiveModel, NetworkDeviceColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
+};
 
 pub struct DeviceService;
 
@@ -66,17 +70,79 @@ impl DeviceService {
         Ok(active.update(db).await?)
     }
 
+    pub async fn restart_device(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::device::domain::entities::network_device::Model, AppError> {
+        let device = Self::get_device(db, id).await?;
+        let mut active = <crate::modules::device::domain::entities::network_device::Entity as sea_orm::EntityTrait>::ActiveModel::from(device);
+        active.status = Set("maintenance".to_string());
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
     pub async fn list_ports(
         db: &DatabaseConnection,
         device_id: i64,
     ) -> Result<Vec<crate::modules::device::domain::entities::device_port::Model>, AppError> {
         let ports = DevicePort::find()
-            .filter(
-                crate::modules::device::domain::entities::device_port::Column::DeviceId
-                    .eq(device_id),
-            )
+            .filter(DevicePortColumn::DeviceId.eq(device_id))
             .all(db)
             .await?;
         Ok(ports)
+    }
+
+    pub async fn update_port_status(
+        db: &DatabaseConnection,
+        port_id: i64,
+        status: &str,
+    ) -> Result<crate::modules::device::domain::entities::device_port::Model, AppError> {
+        let port = DevicePort::find_by_id(port_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Port {} not found", port_id)))?;
+        let mut active: DevicePortActiveModel = port.into();
+        active.status = Set(status.to_string());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn list_logs(
+        db: &DatabaseConnection,
+        device_id: i64,
+        page: u64,
+        limit: u64,
+    ) -> Result<
+        (
+            Vec<crate::modules::device::domain::entities::device_log::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        let query = DeviceLog::find()
+            .filter(crate::modules::device::domain::entities::device_log::Column::DeviceId.eq(device_id))
+            .order_by_desc(crate::modules::device::domain::entities::device_log::Column::CreatedAt);
+        let total = query.clone().count(db).await?;
+        let items = query.paginate(db, limit).fetch_page(page).await?;
+        Ok((items, total))
+    }
+
+    pub async fn list_metrics(
+        db: &DatabaseConnection,
+        device_id: i64,
+        page: u64,
+        limit: u64,
+    ) -> Result<
+        (
+            Vec<crate::modules::device::domain::entities::device_metric::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        let query = DeviceMetric::find()
+            .filter(crate::modules::device::domain::entities::device_metric::Column::DeviceId.eq(device_id))
+            .order_by_desc(crate::modules::device::domain::entities::device_metric::Column::RecordedAt);
+        let total = query.clone().count(db).await?;
+        let items = query.paginate(db, limit).fetch_page(page).await?;
+        Ok((items, total))
     }
 }

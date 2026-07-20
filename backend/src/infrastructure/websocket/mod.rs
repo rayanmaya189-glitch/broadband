@@ -177,7 +177,7 @@ pub async fn ws_handler(
 /// Handle individual WebSocket connection
 async fn handle_socket(
     socket: axum::extract::ws::WebSocket,
-    _state: SharedState,
+    state: SharedState,
     user: UserContext,
 ) {
     let (mut sender, mut receiver) = socket.split();
@@ -208,15 +208,95 @@ async fn handle_socket(
             .await;
     }
 
-    // Handle incoming WebSocket messages (client -> server)
+    // Subscribe to Redis Pub/Sub channels and forward messages to the WebSocket client
+    let redis_client = match redis::Client::open(state.settings.redis_url.as_str()) {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(user_id = user_id, error = %e, "Failed to create Redis client for pub/sub");
+            return;
+        }
+    };
+
+    // `get_async_connection` is deprecated in favor of `get_multiplexed_async_connection`,
+    // but `into_pubsub()` is only available on the non-multiplexed `Connection` type.
+    #[allow(deprecated)]
+    let conn = match redis_client.get_async_connection().await {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(user_id = user_id, error = %e, "Failed to get async Redis connection for pub/sub");
+            return;
+        }
+    };
+
+    let mut pubsub = conn.into_pubsub();
+
+    for channel in &channel_names {
+        if let Err(e) = pubsub.subscribe(channel).await {
+            warn!(
+                user_id = user_id,
+                channel = %channel,
+                error = %e,
+                "Failed to subscribe to Redis channel"
+            );
+        } else {
+            debug!(user_id = user_id, channel = %channel, "Subscribed to Redis channel");
+        }
+    }
+
+    // Spawn a task that reads Redis Pub/Sub messages and forwards them to the WebSocket client.
+    // Uses an mpsc channel because `SplitSink` is not `Clone`/`Send` across tasks.
+    let (ws_forward_tx, mut ws_forward_rx) = tokio::sync::mpsc::channel::<String>(64);
+
+    tokio::spawn(async move {
+        let mut rx = pubsub.into_on_message();
+        while let Some(msg) = rx.next().await {
+            let payload: String = match msg.get_payload::<String>() {
+                Ok(p) => p,
+                Err(e) => {
+                    debug!(error = %e, "Failed to decode Redis pub/sub payload, skipping");
+                    continue;
+                }
+            };
+
+            let channel_name = msg.get_channel_name();
+            let data: serde_json::Value = serde_json::from_str(&payload)
+                .unwrap_or_else(|_| serde_json::json!({"raw": payload}));
+
+            let ws_msg = serde_json::json!({
+                "type": "message",
+                "channel": channel_name,
+                "data": data,
+            });
+
+            if ws_forward_tx.send(ws_msg.to_string()).await.is_err() {
+                debug!("WebSocket receiver dropped, stopping Redis forward task");
+                break;
+            }
+        }
+    });
+
+    // Handle incoming WebSocket messages (client -> server), forward Redis messages, and heartbeat
     let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(30));
     loop {
         tokio::select! {
             _ = heartbeat.tick() => {
-                // Send periodic ping to detect stale connections
                 if sender.send(axum::extract::ws::Message::Ping(vec![].into())).await.is_err() {
                     warn!(user_id = user_id, "WebSocket heartbeat ping failed, closing");
                     break;
+                }
+            }
+            ws_text = ws_forward_rx.recv() => {
+                match ws_text {
+                    Some(text) => {
+                        if sender.send(axum::extract::ws::Message::Text(text)).await.is_err() {
+                            warn!(user_id = user_id, "Failed to send Redis message to WebSocket, closing");
+                            break;
+                        }
+                    }
+                    None => {
+                        debug!(user_id = user_id, "Redis forward channel closed");
+                        break;
+                    }
                 }
             }
             msg = receiver.next() => {
@@ -351,6 +431,24 @@ pub async fn broadcast_customer_update(
     };
 
     broadcast_to_channel(redis, &channel, &msg).await
+}
+
+/// Health check for the WebSocket infrastructure.
+/// Returns Redis connectivity status so monitoring can verify the real-time pipeline is alive.
+pub async fn ws_health(
+    State(state): State<SharedState>,
+) -> axum::response::Json<serde_json::Value> {
+    let mut conn = state.redis.clone();
+    let redis_ok = redis::cmd("PING")
+        .query_async::<_, String>(&mut conn)
+        .await
+        .is_ok();
+
+    axum::response::Json(serde_json::json!({
+        "status": if redis_ok { "ok" } else { "degraded" },
+        "websocket": "available",
+        "redis_connected": redis_ok,
+    }))
 }
 
 #[cfg(test)]

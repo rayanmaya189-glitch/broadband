@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
@@ -429,4 +429,103 @@ pub async fn disable_2fa(
     active.update(&state.db).await?;
 
     Ok(Json(serde_json::json!({ "status": "2fa_disabled" })))
+}
+
+// ──────────────────────────────────────────────
+// Auth — Logout, Password, Sessions
+// ──────────────────────────────────────────────
+
+/// POST /api/v1/auth/logout — Invalidate all refresh tokens for this user.
+pub async fn logout_all(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut redis = state.redis.clone();
+    IdentityService::logout_all(&mut redis, user.user_id).await?;
+    Ok(Json(serde_json::json!({ "status": "logged_out" })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+/// POST /api/v1/auth/change-password
+pub async fn change_password(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Json(req): Json<ChangePasswordRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    IdentityService::change_password(
+        &state.db,
+        user.user_id,
+        &req.current_password,
+        &req.new_password,
+    )
+    .await?;
+    Ok(Json(serde_json::json!({ "status": "password_changed" })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetRequest {
+    pub email: String,
+}
+
+/// POST /api/v1/auth/password-reset — Send reset token (best-effort).
+pub async fn request_password_reset(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PasswordResetRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut redis = state.redis.clone();
+    IdentityService::request_password_reset(&state.db, &mut redis, &req.email).await?;
+    Ok(Json(serde_json::json!({
+        "message": "If the email exists, a reset link has been sent."
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetConfirmRequest {
+    pub token: String,
+    pub new_password: String,
+}
+
+/// POST /api/v1/auth/password-reset/confirm
+pub async fn confirm_password_reset(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PasswordResetConfirmRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut redis = state.redis.clone();
+    IdentityService::confirm_password_reset(&state.db, &mut redis, &req.token, &req.new_password).await?;
+    Ok(Json(serde_json::json!({ "status": "password_reset" })))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionResponse {
+    pub session_id: String,
+    pub user_agent: Option<String>,
+    pub ip_address: Option<String>,
+    pub created_at: String,
+    pub last_active_at: String,
+}
+
+/// GET /api/v1/auth/sessions
+pub async fn list_sessions(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<Vec<SessionResponse>>, AppError> {
+    let mut redis = state.redis.clone();
+    let sessions = IdentityService::list_sessions(&mut redis, user.user_id).await?;
+    Ok(Json(sessions))
+}
+
+/// DELETE /api/v1/auth/sessions/:session_id
+pub async fn revoke_session(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(session_id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut redis = state.redis.clone();
+    IdentityService::revoke_session(&mut redis, user.user_id, &session_id).await?;
+    Ok(Json(serde_json::json!({ "status": "session_revoked" })))
 }

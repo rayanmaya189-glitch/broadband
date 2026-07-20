@@ -290,3 +290,13 @@ pub async fn downgrade_subscription(
 
     Ok(Json(to_response(sub)))
 }
+
+/// GET /api/v1/subscriptions/:id
+pub async fn get_subscription(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<SubscriptionResponse>, AppError> {
+    let sub = SubscriptionService::get_subscription(&state.db, id).await?;
+    Ok(Json(to_response(sub)))
+}

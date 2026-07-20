@@ -138,4 +138,50 @@ impl CustomerService {
         active.update(db).await?;
         Ok(())
     }
+
+    pub async fn update_customer(
+        db: &DatabaseConnection,
+        id: i64,
+        name: Option<String>,
+        email: Option<String>,
+        phone: Option<String>,
+        alternate_phone: Option<String>,
+    ) -> Result<crate::modules::customer::domain::entities::customer::Model, AppError> {
+        let customer = Self::get_customer(db, id).await?;
+        let mut active: CustomerActiveModel = customer.into();
+        if let Some(n) = name {
+            active.name = Set(n);
+        }
+        if let Some(e) = email {
+            active.email = Set(Some(e));
+        }
+        if let Some(p) = phone {
+            active.phone = Set(p);
+        }
+        if let Some(a) = alternate_phone {
+            active.alternate_phone = Set(Some(a));
+        }
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn search_customers(
+        db: &DatabaseConnection,
+        query: Option<String>,
+        status: Option<String>,
+    ) -> Result<Vec<crate::modules::customer::domain::entities::customer::Model>, AppError> {
+        let mut q = Customer::find().filter(CustomerColumn::DeletedAt.is_null());
+        if let Some(s) = status {
+            q = q.filter(CustomerColumn::Status.eq(s));
+        }
+        if let Some(search) = query {
+            q = q.filter(
+                CustomerColumn::Name
+                    .contains(&search)
+                    .or(CustomerColumn::Phone.contains(&search))
+                    .or(CustomerColumn::CustomerCode.contains(&search)),
+            );
+        }
+        Ok(q.all(db).await?)
+    }
 }

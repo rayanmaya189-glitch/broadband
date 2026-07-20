@@ -176,10 +176,11 @@ pub async fn record_manual_payment(
 /// POST /api/v1/payments/:id/retry
 pub async fn retry_payment(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<RetryPaymentRequest>,
 ) -> Result<Json<PaymentLinkResponse>, AppError> {
+    require_permission(&user, "payment.retry").map_err(|e| AppError::Forbidden(e.1))?;
     use sea_orm::EntityTrait;
     let link = crate::modules::payment::domain::entities::payment_link::Entity::find_by_id(id)
         .one(&state.db)

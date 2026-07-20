@@ -135,6 +135,191 @@ pub struct UpdateStatusRequest {
     pub status: String,
 }
 
+pub async fn get_lead(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<LeadResponse>, AppError> {
+    require_permission(&user, "lead.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let l = LeadService::get_lead(&state.db, id).await?;
+    Ok(Json(LeadResponse {
+        id: l.id,
+        name: l.name,
+        phone: l.phone,
+        status: l.status,
+        source: l.source,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateLeadRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub phone: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+pub async fn update_lead(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateLeadRequest>,
+) -> Result<Json<LeadResponse>, AppError> {
+    require_permission(&user, "lead.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let l = LeadService::update_lead(
+        &state.db,
+        id,
+        req.name,
+        req.phone,
+        req.email,
+        req.source,
+        req.notes,
+    )
+    .await?;
+    Ok(Json(LeadResponse {
+        id: l.id,
+        name: l.name,
+        phone: l.phone,
+        status: l.status,
+        source: l.source,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignLeadRequest {
+    pub assigned_to: i64,
+}
+
+pub async fn assign_lead(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<AssignLeadRequest>,
+) -> Result<Json<LeadResponse>, AppError> {
+    require_permission(&user, "lead.assign").map_err(|e| AppError::Forbidden(e.1))?;
+    let l = LeadService::assign_lead(&state.db, id, req.assigned_to).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "lead.assigned",
+        "lead",
+        id,
+        serde_json::json!({"lead_id": id, "assigned_to": req.assigned_to}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(lead_id = id, error = %e, "Failed to publish lead.assigned event");
+    }
+    Ok(Json(LeadResponse {
+        id: l.id,
+        name: l.name,
+        phone: l.phone,
+        status: l.status,
+        source: l.source,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LogActivityRequest {
+    pub activity_type: String,
+    pub description: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ActivityResponse {
+    pub id: i64,
+    pub lead_id: i64,
+    pub activity_type: String,
+    pub description: String,
+    pub performed_by: i64,
+    pub created_at: String,
+}
+
+pub async fn log_activity(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<LogActivityRequest>,
+) -> Result<(StatusCode, Json<ActivityResponse>), AppError> {
+    require_permission(&user, "lead.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let act = LeadService::log_activity(
+        &state.db,
+        id,
+        req.activity_type,
+        req.description,
+        user.user_id,
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(ActivityResponse {
+            id: act.id,
+            lead_id: act.lead_id,
+            activity_type: act.activity_type,
+            description: act.description,
+            performed_by: act.performed_by,
+            created_at: act.created_at.to_rfc3339(),
+        }),
+    ))
+}
+
+pub async fn list_activities(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<ActivityResponse>>, AppError> {
+    require_permission(&user, "lead.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let acts = LeadService::get_activities(&state.db, id).await?;
+    let items: Vec<ActivityResponse> = acts
+        .into_iter()
+        .map(|a| ActivityResponse {
+            id: a.id,
+            lead_id: a.lead_id,
+            activity_type: a.activity_type,
+            description: a.description,
+            performed_by: a.performed_by,
+            created_at: a.created_at.to_rfc3339(),
+        })
+        .collect();
+    Ok(Json(items))
+}
+
+pub async fn get_pipeline(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "lead.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let bid = if user.is_company_wide {
+        None
+    } else {
+        user.branch_id
+    };
+    let pipeline = LeadService::get_pipeline(&state.db, bid).await?;
+    Ok(Json(pipeline))
+}
+
+pub async fn get_stats(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "lead.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let bid = if user.is_company_wide {
+        None
+    } else {
+        user.branch_id
+    };
+    let stats = LeadService::get_stats(&state.db, bid).await?;
+    Ok(Json(stats))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ConvertLeadRequest {
     #[serde(default)]

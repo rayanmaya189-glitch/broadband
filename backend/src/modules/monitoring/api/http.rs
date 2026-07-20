@@ -1,6 +1,7 @@
 use crate::modules::monitoring::domain::entities::{metric_record, monitoring_alert};
 use crate::shared::app_state::SharedState;
 use crate::shared::errors::AppError;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -217,8 +218,11 @@ pub async fn get_alert_stats(
 /// POST /api/v1/monitoring/alerts
 pub async fn create_alert(
     State(state): State<SharedState>,
+    user: UserContext,
     Json(request): Json<CreateAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_permission(&user, "monitoring.alert.create")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let now = chrono::Utc::now();
     let active = monitoring_alert::ActiveModel {
         device_id: Set(request.device_id),
@@ -246,9 +250,12 @@ pub async fn create_alert(
 /// POST /api/v1/monitoring/alerts/:id/acknowledge
 pub async fn acknowledge_alert(
     State(state): State<SharedState>,
+    user: UserContext,
     Path(alert_id): Path<i64>,
     Json(request): Json<AcknowledgeAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_permission(&user, "monitoring.alert.acknowledge")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let alert = monitoring_alert::Entity::find_by_id(alert_id)
         .one(&state.db)
         .await?
@@ -265,9 +272,12 @@ pub async fn acknowledge_alert(
 /// POST /api/v1/monitoring/alerts/:id/resolve
 pub async fn resolve_alert(
     State(state): State<SharedState>,
+    user: UserContext,
     Path(alert_id): Path<i64>,
     Json(request): Json<ResolveAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_permission(&user, "monitoring.alert.resolve")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let alert = monitoring_alert::Entity::find_by_id(alert_id)
         .one(&state.db)
         .await?

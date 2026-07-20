@@ -1,4 +1,4 @@
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -179,4 +179,132 @@ pub async fn retry_failed_notifications(
         "retried": count,
         "message": format!("{} notification(s) queued for retry", count),
     })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTemplateRequest {
+    pub subject: Option<String>,
+    pub body: Option<String>,
+    pub channel: Option<String>,
+}
+
+pub async fn update_template(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateTemplateRequest>,
+) -> Result<Json<TemplateResponse>, AppError> {
+    require_permission(&user, "notification.template.update")
+        .map_err(|e| AppError::Forbidden(e.1))?;
+    let t = NotificationService::update_template(&state.db, id, req.subject, req.body, req.channel)
+        .await?;
+    Ok(Json(TemplateResponse {
+        id: t.id,
+        name: t.name,
+        channel: t.channel,
+        is_active: t.is_active,
+    }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChannelResponse {
+    pub id: i64,
+    pub name: String,
+    pub channel_type: String,
+    pub is_active: bool,
+    pub config: Option<serde_json::Value>,
+}
+
+pub async fn list_channels(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let channels = NotificationService::list_channels(&state.db).await?;
+    let items: Vec<ChannelResponse> = channels
+        .into_iter()
+        .map(|c| ChannelResponse {
+            id: c.id,
+            name: c.name,
+            channel_type: c.channel_type,
+            is_active: c.is_active,
+            config: c.config,
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateChannelRequest {
+    pub is_active: Option<bool>,
+    pub config: Option<serde_json::Value>,
+}
+
+pub async fn update_channel(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateChannelRequest>,
+) -> Result<Json<ChannelResponse>, AppError> {
+    require_permission(&user, "notification.channel.update")
+        .map_err(|e| AppError::Forbidden(e.1))?;
+    let ch =
+        NotificationService::update_channel(&state.db, id, req.is_active, req.config).await?;
+    Ok(Json(ChannelResponse {
+        id: ch.id,
+        name: ch.name,
+        channel_type: ch.channel_type,
+        is_active: ch.is_active,
+        config: ch.config,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeliveryHistoryParams {
+    pub page: Option<u64>,
+    pub limit: Option<u64>,
+    pub status: Option<String>,
+    pub channel: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeliveryHistoryResponse {
+    pub id: i64,
+    pub notification_id: i64,
+    pub channel: String,
+    pub status: String,
+    pub attempts: i32,
+    pub last_error: Option<String>,
+    pub sent_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+pub async fn list_delivery_history(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Query(params): Query<DeliveryHistoryParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let page = params.page.unwrap_or(1);
+    let limit = params.limit.unwrap_or(20);
+    let (items, total) = NotificationService::list_delivery_history(
+        &state.db,
+        page,
+        limit,
+        params.status,
+        params.channel,
+    )
+    .await?;
+    let resp: Vec<DeliveryHistoryResponse> = items
+        .into_iter()
+        .map(|h| DeliveryHistoryResponse {
+            id: h.id,
+            notification_id: h.notification_id,
+            channel: h.channel,
+            status: h.status,
+            attempts: h.attempts,
+            last_error: h.last_error,
+            sent_at: h.sent_at,
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({ "items": resp, "total": total, "page": page, "limit": limit }),
+    ))
 }

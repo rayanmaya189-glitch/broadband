@@ -58,6 +58,40 @@ impl DocumentService {
         Ok(doc.insert(db).await?)
     }
 
+    pub async fn get_document(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::document::domain::entities::document_file::Model, AppError> {
+        DocumentFile::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Document {} not found", id)))
+    }
+
+    pub async fn list_entity_documents(
+        db: &DatabaseConnection,
+        entity_type: &str,
+        entity_id: i64,
+        page: u64,
+        limit: u64,
+    ) -> Result<
+        (
+            Vec<crate::modules::document::domain::entities::document_file::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        let query = DocumentFile::find()
+            .filter(DocumentFileColumn::EntityType.eq(entity_type))
+            .filter(DocumentFileColumn::EntityId.eq(entity_id));
+        let total = query.clone().count(db).await?;
+        let docs = query
+            .paginate(db, limit)
+            .fetch_page(page.saturating_sub(1))
+            .await?;
+        Ok((docs, total))
+    }
+
     pub async fn delete_document(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
         let doc = DocumentFile::find_by_id(id)
             .one(db)

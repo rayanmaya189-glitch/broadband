@@ -106,6 +106,51 @@ impl TicketService {
         Ok(active.update(db).await?)
     }
 
+    pub async fn escalate_ticket(
+        db: &DatabaseConnection,
+        id: i64,
+        escalated_to: i64,
+        reason: Option<String>,
+    ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
+        let ticket = Self::get_ticket(db, id).await?;
+        let mut active: TicketActiveModel = ticket.into();
+        active.assigned_to = Set(Some(escalated_to));
+        active.status = Set("escalated".to_string());
+        active.priority = Set("critical".to_string());
+        active.resolution_notes = Set(reason);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn close_ticket(
+        db: &DatabaseConnection,
+        id: i64,
+        closure_notes: Option<String>,
+    ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
+        let ticket = Self::get_ticket(db, id).await?;
+        let mut active: TicketActiveModel = ticket.into();
+        active.status = Set("closed".to_string());
+        active.closed_at = Set(Some(chrono::Utc::now()));
+        active.resolution_notes = Set(closure_notes);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn reopen_ticket(
+        db: &DatabaseConnection,
+        id: i64,
+        reopen_reason: Option<String>,
+    ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
+        let ticket = Self::get_ticket(db, id).await?;
+        let mut active: TicketActiveModel = ticket.into();
+        active.status = Set("open".to_string());
+        active.closed_at = Set(None);
+        active.resolved_at = Set(None);
+        active.resolution_notes = Set(reopen_reason);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
     pub async fn add_comment(
         db: &DatabaseConnection,
         ticket_id: i64,
@@ -135,5 +180,97 @@ impl TicketService {
             .filter(TicketCommentColumn::TicketId.eq(ticket_id))
             .all(db)
             .await?)
+    }
+
+    pub async fn update_ticket(
+        db: &DatabaseConnection,
+        id: i64,
+        subject: String,
+        priority: String,
+        category: String,
+    ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
+        let ticket = Self::get_ticket(db, id).await?;
+        let mut active: TicketActiveModel = ticket.into();
+        active.subject = Set(subject);
+        active.priority = Set(priority);
+        active.category = Set(category);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn rate_satisfaction(
+        db: &DatabaseConnection,
+        id: i64,
+        rating: i32,
+        feedback: Option<String>,
+    ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
+        let ticket = Self::get_ticket(db, id).await?;
+        let mut active: TicketActiveModel = ticket.into();
+        active.satisfaction_rating = Set(Some(rating));
+        active.satisfaction_feedback = Set(feedback);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn list_my_assignments(
+        db: &DatabaseConnection,
+        user_id: i64,
+        _page: u64,
+        _limit: u64,
+    ) -> Result<
+        (
+            Vec<crate::modules::ticket::domain::entities::ticket::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        let query = Ticket::find().filter(TicketColumn::AssignedTo.eq(user_id));
+        let total = query.clone().count(db).await?;
+        Ok((query.all(db).await?, total))
+    }
+
+    pub async fn get_dashboard_metrics(
+        db: &DatabaseConnection,
+        branch_id: Option<i64>,
+    ) -> Result<serde_json::Value, AppError> {
+        let mut base = Ticket::find();
+        if let Some(bid) = branch_id {
+            base = base.filter(TicketColumn::BranchId.eq(bid));
+        }
+        let total = base.clone().count(db).await?;
+        let open = base
+            .clone()
+            .filter(TicketColumn::Status.eq("open"))
+            .count(db)
+            .await?;
+        let assigned = base
+            .clone()
+            .filter(TicketColumn::Status.eq("assigned"))
+            .count(db)
+            .await?;
+        let escalated = base
+            .clone()
+            .filter(TicketColumn::Status.eq("escalated"))
+            .count(db)
+            .await?;
+        let resolved = base
+            .clone()
+            .filter(TicketColumn::Status.eq("resolved"))
+            .count(db)
+            .await?;
+        let closed = base
+            .clone()
+            .filter(TicketColumn::Status.eq("closed"))
+            .count(db)
+            .await?;
+
+        Ok(serde_json::json!({
+            "total": total,
+            "open": open,
+            "assigned": assigned,
+            "escalated": escalated,
+            "resolved": resolved,
+            "closed": closed,
+        }))
     }
 }

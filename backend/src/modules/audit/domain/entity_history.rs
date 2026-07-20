@@ -74,6 +74,34 @@ pub struct PaginatedResult<T> {
     pub total_pages: i64,
 }
 
+/// A field-level change between two versions.
+#[derive(Debug, Serialize)]
+pub struct FieldChange {
+    pub field: String,
+    pub old_value: Value,
+    pub new_value: Value,
+}
+
+/// Diff between two versions of an entity.
+#[derive(Debug, Serialize)]
+pub struct HistoryDiff {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub version_a: Value,
+    pub version_b: Value,
+    pub changes: Vec<FieldChange>,
+}
+
+/// Full export of entity history.
+#[derive(Debug, Serialize)]
+pub struct HistoryExport {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub exported_at: String,
+    pub count: usize,
+    pub entries: Vec<HistoryEntry>,
+}
+
 /// Rollback result after restoring an entity to a previous state.
 #[derive(Debug, Serialize)]
 pub struct RollbackResult {
@@ -227,6 +255,89 @@ impl EntityHistoryService {
                 created_at: row.try_get("", "created_at").ok()?,
             })
         }))
+    }
+
+    /// Compare two versions of an entity, returning a field-level diff.
+    pub async fn compare_history(
+        db: &DatabaseConnection,
+        entity_type: &str,
+        entity_id: &str,
+        version_a: &str,
+        version_b: &str,
+    ) -> Result<HistoryDiff, AppError> {
+        validate_entity_type(entity_type)?;
+
+        let entry_a = Self::get_entry(db, entity_type, version_a)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Version A '{}' not found", version_a)))?;
+        let entry_b = Self::get_entry(db, entity_type, version_b)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Version B '{}' not found", version_b)))?;
+
+        if entry_a.entity_id != entity_id || entry_b.entity_id != entity_id {
+            return Err(AppError::BadRequest(
+                "History entries do not belong to the specified entity".into(),
+            ));
+        }
+
+        let data_a = entry_a.new_data.unwrap_or_else(|| Value::Object(Default::default()));
+        let data_b = entry_b.new_data.unwrap_or_else(|| Value::Object(Default::default()));
+
+        let mut changes = Vec::new();
+        if let (Some(obj_a), Some(obj_b)) = (data_a.as_object(), data_b.as_object()) {
+            let mut all_keys: Vec<&String> = obj_a.keys().chain(obj_b.keys()).collect();
+            all_keys.sort();
+            all_keys.dedup();
+            for key in all_keys {
+                let val_a = obj_a.get(key).cloned().unwrap_or(Value::Null);
+                let val_b = obj_b.get(key).cloned().unwrap_or(Value::Null);
+                if val_a != val_b {
+                    changes.push(FieldChange {
+                        field: key.clone(),
+                        old_value: val_a,
+                        new_value: val_b,
+                    });
+                }
+            }
+        }
+
+        Ok(HistoryDiff {
+            entity_type: entity_type.to_string(),
+            entity_id: entity_id.to_string(),
+            version_a: data_a,
+            version_b: data_b,
+            changes,
+        })
+    }
+
+    /// Export full history for an entity.
+    pub async fn export_history(
+        db: &DatabaseConnection,
+        entity_type: &str,
+        entity_id: &str,
+    ) -> Result<HistoryExport, AppError> {
+        validate_entity_type(entity_type)?;
+
+        let result = Self::search_history(
+            db,
+            entity_type,
+            Some(entity_id.to_string()),
+            None,
+            None,
+            None,
+            None,
+            1,
+            10000,
+        )
+        .await?;
+
+        Ok(HistoryExport {
+            entity_type: entity_type.to_string(),
+            entity_id: entity_id.to_string(),
+            exported_at: Utc::now().to_rfc3339(),
+            count: result.total as usize,
+            entries: result.items,
+        })
     }
 
     /// Rollback an entity to a previous state from history.

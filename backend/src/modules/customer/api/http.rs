@@ -100,9 +100,10 @@ pub async fn list_customers(
 /// POST /api/v1/customers
 pub async fn create_customer(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Json(req): Json<CreateCustomerRequest>,
 ) -> Result<(StatusCode, Json<CustomerResponse>), AppError> {
+    require_permission(&user, "customer.account.create").map_err(|e| AppError::Forbidden(e.1))?;
     let customer = CustomerService::create_customer(
         &state.db,
         req.branch_id,
@@ -174,10 +175,11 @@ pub async fn get_customer(
 /// PUT /api/v1/customers/:id/status
 pub async fn update_customer_status(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<CustomerResponse>, AppError> {
+    require_permission(&user, "customer.account.update_status").map_err(|e| AppError::Forbidden(e.1))?;
     let old_status = CustomerService::get_customer(&state.db, id)
         .await
         .map(|c| c.status)
@@ -250,10 +252,11 @@ pub async fn list_addresses(
 /// POST /api/v1/customers/:id/addresses
 pub async fn add_address(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Json(req): Json<AddAddressRequest>,
 ) -> Result<(StatusCode, Json<AddressResponse>), AppError> {
+    require_permission(&user, "customer.address.create").map_err(|e| AppError::Forbidden(e.1))?;
     let addr = CustomerService::add_address(
         &state.db,
         id,
@@ -285,9 +288,83 @@ pub async fn add_address(
 /// DELETE /api/v1/customers/:id
 pub async fn delete_customer(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "customer.account.delete").map_err(|e| AppError::Forbidden(e.1))?;
     CustomerService::delete_customer(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCustomerRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub phone: Option<String>,
+    #[serde(default)]
+    pub alternate_phone: Option<String>,
+}
+
+/// PUT /api/v1/customers/:id
+pub async fn update_customer(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateCustomerRequest>,
+) -> Result<Json<CustomerResponse>, AppError> {
+    require_permission(&user, "customer.account.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let customer = CustomerService::update_customer(
+        &state.db,
+        id,
+        req.name,
+        req.email,
+        req.phone,
+        req.alternate_phone,
+    )
+    .await?;
+    Ok(Json(CustomerResponse {
+        id: customer.id,
+        customer_code: customer.customer_code,
+        branch_id: customer.branch_id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        status: customer.status,
+        created_at: customer.created_at.to_rfc3339(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchCustomerQuery {
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+/// GET /api/v1/customers/search
+pub async fn search_customers(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Query(params): Query<SearchCustomerQuery>,
+) -> Result<Json<Vec<CustomerResponse>>, AppError> {
+    let customers =
+        CustomerService::search_customers(&state.db, params.q, params.status).await?;
+    let resp: Vec<CustomerResponse> = customers
+        .into_iter()
+        .map(|c| CustomerResponse {
+            id: c.id,
+            customer_code: c.customer_code,
+            branch_id: c.branch_id,
+            name: c.name,
+            email: c.email,
+            phone: c.phone,
+            status: c.status,
+            created_at: c.created_at.to_rfc3339(),
+        })
+        .collect();
+    Ok(Json(resp))
 }

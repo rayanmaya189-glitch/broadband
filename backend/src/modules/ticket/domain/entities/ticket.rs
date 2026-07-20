@@ -25,6 +25,7 @@ pub struct Model {
     pub resolved_at: Option<chrono::DateTime<chrono::Utc>>,
     pub closed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub satisfaction_rating: Option<i32>,
+    pub satisfaction_feedback: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

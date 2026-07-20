@@ -216,6 +216,7 @@ pub async fn grant_consent(
     user: UserContext,
     Json(req): Json<GrantConsentRequest>,
 ) -> Result<(StatusCode, Json<ConsentResponse>), AppError> {
+    require_permission(&user, "compliance.consent.grant").map_err(|e| AppError::Forbidden(e.1))?;
     let consent_type = req.consent_type.clone();
     let c = ComplianceService::grant_consent(
         &state.db,
@@ -251,6 +252,7 @@ pub async fn revoke_consent(
     user: UserContext,
     Json(req): Json<RevokeConsentRequest>,
 ) -> Result<StatusCode, AppError> {
+    require_permission(&user, "compliance.consent.revoke").map_err(|e| AppError::Forbidden(e.1))?;
     let consent_type = req.consent_type.clone();
     ComplianceService::revoke_consent(&state.db, req.customer_id, req.consent_type).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(

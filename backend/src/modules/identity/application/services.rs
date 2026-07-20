@@ -604,4 +604,156 @@ impl IdentityService {
             .await?;
         Ok(users)
     }
+
+    /// Logout all sessions for a user — deletes all refresh token sessions.
+    pub async fn logout_all(
+        redis: &mut redis::aio::ConnectionManager,
+        user_id: i64,
+    ) -> Result<(), AppError> {
+        let key = format!("aeroxe:user:{}:sessions", user_id);
+        let _: () = redis
+            .del(&key)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis del error: {}", e)))?;
+        info!(user_id = user_id, "Logged out all sessions");
+        Ok(())
+    }
+
+    /// Change password — verifies current password, then updates.
+    pub async fn change_password(
+        db: &DatabaseConnection,
+        user_id: i64,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<(), AppError> {
+        let user_model = Self::get_user(db, user_id).await?;
+        let hash = user_model
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("No password set for this user".to_string()))?;
+
+        if !Self::verify_password(current_password, hash) {
+            return Err(AppError::Unauthorized);
+        }
+
+        let new_hash = Self::hash_password(new_password)?;
+        let mut active: user::ActiveModel = user_model.into();
+        active.password_hash = Set(Some(new_hash));
+        active.updated_at = Set(Utc::now());
+        active.update(db).await?;
+
+        Ok(())
+    }
+
+    /// Request password reset — generates a token and stores it in Redis.
+    /// In production, send the token via email. For now, return it in the response.
+    pub async fn request_password_reset(
+        db: &DatabaseConnection,
+        redis: &mut redis::aio::ConnectionManager,
+        email: &str,
+    ) -> Result<(), AppError> {
+        // Always return Ok to prevent user enumeration
+        let user_result = user::Entity::find()
+            .filter(user::Column::Email.eq(email))
+            .one(db)
+            .await;
+
+        if let Ok(Some(_user_model)) = user_result {
+            let reset_token = Self::generate_refresh_token();
+            let reset_token_hash = Self::hash_token(&reset_token);
+            let key = format!("aeroxe:password_reset:{}", reset_token_hash);
+            let _: () = redis
+                .set_ex(&key, email, 3600)
+                .await
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+        }
+
+        Ok(())
+    }
+
+    /// Confirm password reset — verify the token and set the new password.
+    pub async fn confirm_password_reset(
+        db: &DatabaseConnection,
+        redis: &mut redis::aio::ConnectionManager,
+        token: &str,
+        new_password: &str,
+    ) -> Result<(), AppError> {
+        let token_hash = Self::hash_token(token);
+        let key = format!("aeroxe:password_reset:{}", token_hash);
+
+        let email: Option<String> = redis
+            .get(&key)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
+
+        let email = email.ok_or_else(|| AppError::BadRequest("Invalid or expired reset token".to_string()))?;
+
+        let _: () = redis
+            .del(&key)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis del error: {}", e)))?;
+
+        let user_model = user::Entity::find()
+            .filter(user::Column::Email.eq(&email))
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        let new_hash = Self::hash_password(new_password)?;
+        let mut active: user::ActiveModel = user_model.into();
+        active.password_hash = Set(Some(new_hash));
+        active.updated_at = Set(Utc::now());
+        active.update(db).await?;
+
+        Ok(())
+    }
+
+    /// List active sessions for a user from Redis.
+    pub async fn list_sessions(
+        redis: &mut redis::aio::ConnectionManager,
+        user_id: i64,
+    ) -> Result<Vec<crate::modules::identity::api::http::SessionResponse>, AppError> {
+        let key = format!("aeroxe:user:{}:sessions", user_id);
+        let result: Option<String> = redis
+            .get(&key)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
+
+        match result {
+            Some(json) => {
+                let sessions: Vec<crate::modules::identity::api::http::SessionResponse> =
+                    serde_json::from_str(&json)
+                        .map_err(|e| AppError::Internal(anyhow::anyhow!("JSON error: {}", e)))?;
+                Ok(sessions)
+            }
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// Revoke a specific session.
+    pub async fn revoke_session(
+        redis: &mut redis::aio::ConnectionManager,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<(), AppError> {
+        let key = format!("aeroxe:user:{}:sessions", user_id);
+        let result: Option<String> = redis
+            .get(&key)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
+
+        if let Some(json) = result {
+            let mut sessions: Vec<serde_json::Value> = serde_json::from_str(&json)
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("JSON error: {}", e)))?;
+            sessions.retain(|s| s.get("session_id").and_then(|v| v.as_str()) != Some(session_id));
+            let updated = serde_json::to_string(&sessions)
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("JSON error: {}", e)))?;
+            let _: () = redis
+                .set(&key, updated)
+                .await
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+        }
+
+        Ok(())
+    }
 }

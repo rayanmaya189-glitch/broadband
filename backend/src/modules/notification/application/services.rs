@@ -1,6 +1,7 @@
 use crate::modules::notification::domain::entities::{
-    Notification, NotificationActiveModel, NotificationColumn, NotificationTemplate,
-    NotificationTemplateActiveModel,
+    DeliveryHistory, DeliveryHistoryColumn, Notification, NotificationActiveModel,
+    NotificationColumn,     NotificationChannel, NotificationChannelActiveModel,
+    NotificationTemplate, NotificationTemplateActiveModel,
 };
 use crate::shared::errors::AppError;
 use sea_orm::{
@@ -92,6 +93,88 @@ impl NotificationService {
         let total = q.clone().count(db).await?;
         let items = q
             .order_by_desc(NotificationColumn::CreatedAt)
+            .paginate(db, limit)
+            .fetch_page(page.saturating_sub(1))
+            .await?;
+        Ok((items, total))
+    }
+
+    pub async fn update_template(
+        db: &DatabaseConnection,
+        id: i64,
+        subject: Option<String>,
+        body: Option<String>,
+        channel: Option<String>,
+    ) -> Result<crate::modules::notification::domain::entities::notification_template::Model, AppError> {
+        let tmpl = NotificationTemplate::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Notification template not found".into()))?;
+        let mut active: NotificationTemplateActiveModel = tmpl.into();
+        if let Some(s) = subject {
+            active.subject_template = Set(Some(s));
+        }
+        if let Some(b) = body {
+            active.body_template = Set(b);
+        }
+        if let Some(c) = channel {
+            active.channel = Set(c);
+        }
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn list_channels(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<crate::modules::notification::domain::entities::notification_channel::Model>, AppError>
+    {
+        Ok(NotificationChannel::find().all(db).await?)
+    }
+
+    pub async fn update_channel(
+        db: &DatabaseConnection,
+        id: i64,
+        is_active: Option<bool>,
+        config: Option<serde_json::Value>,
+    ) -> Result<crate::modules::notification::domain::entities::notification_channel::Model, AppError> {
+        let ch = NotificationChannel::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Notification channel not found".into()))?;
+        let mut active: NotificationChannelActiveModel = ch.into();
+        if let Some(a) = is_active {
+            active.is_active = Set(a);
+        }
+        if let Some(c) = config {
+            active.config = Set(Some(c));
+        }
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn list_delivery_history(
+        db: &DatabaseConnection,
+        page: u64,
+        limit: u64,
+        status: Option<String>,
+        channel: Option<String>,
+    ) -> Result<
+        (
+            Vec<crate::modules::notification::domain::entities::delivery_history::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        let mut q = DeliveryHistory::find();
+        if let Some(s) = status {
+            q = q.filter(DeliveryHistoryColumn::Status.eq(s));
+        }
+        if let Some(c) = channel {
+            q = q.filter(DeliveryHistoryColumn::Channel.eq(c));
+        }
+        let total = q.clone().count(db).await?;
+        let items = q
+            .order_by_desc(DeliveryHistoryColumn::CreatedAt)
             .paginate(db, limit)
             .fetch_page(page.saturating_sub(1))
             .await?;

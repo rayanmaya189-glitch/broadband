@@ -47,6 +47,12 @@ pub struct PresignUploadResponse {
     pub expires_in_secs: u64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct DownloadUrlResponse {
+    pub url: String,
+    pub expires_at: String,
+}
+
 pub async fn list_documents(
     State(state): State<Arc<AppState>>,
     _user: UserContext,
@@ -150,6 +156,76 @@ pub async fn presign_upload(
             storage_bucket: bucket.unwrap_or("aeroxe-documents").to_string(),
             expires_in_secs: 3600,
         }),
+    ))
+}
+
+pub async fn get_document(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<DocumentResponse>, AppError> {
+    require_permission(&user, "document.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let d = DocumentService::get_document(&state.db, id).await?;
+    Ok(Json(DocumentResponse {
+        id: d.id,
+        filename: d.filename,
+        mime_type: d.mime_type,
+        file_size: d.file_size,
+        status: d.status,
+    }))
+}
+
+pub async fn get_download_url(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<DownloadUrlResponse>, AppError> {
+    require_permission(&user, "document.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let d = DocumentService::get_document(&state.db, id).await?;
+    let storage = state
+        .storage
+        .as_ref()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Storage service not configured")))?;
+
+    let url = storage
+        .presign_download(Some(&d.storage_bucket), &d.storage_key, 3600)
+        .await?;
+    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1))
+        .to_rfc3339();
+
+    Ok(Json(DownloadUrlResponse {
+        url,
+        expires_at,
+    }))
+}
+
+pub async fn list_entity_documents(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path((entity_type, entity_id)): Path<(String, i64)>,
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "document.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let (docs, total) = DocumentService::list_entity_documents(
+        &state.db,
+        &entity_type,
+        entity_id,
+        p.page(),
+        p.limit(),
+    )
+    .await?;
+    let items: Vec<DocumentResponse> = docs
+        .into_iter()
+        .map(|d| DocumentResponse {
+            id: d.id,
+            filename: d.filename,
+            mime_type: d.mime_type,
+            file_size: d.file_size,
+            status: d.status,
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
     ))
 }
 
