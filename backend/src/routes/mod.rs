@@ -187,6 +187,13 @@ fn branch_routes() -> Router<SharedState> {
         )
         .route("/hierarchy", axum::routing::get(http::get_branch_hierarchy))
         .route(
+            "/:id/working-hours",
+            axum::routing::get(http::get_working_hours).put(http::update_working_hours),
+        )
+        .route("/:id/stats", axum::routing::get(http::get_branch_stats))
+        .route("/:id/users", axum::routing::post(http::assign_branch_user))
+        .route("/:id/users/:uid", axum::routing::delete(http::remove_branch_user))
+        .route(
             "/:id",
             axum::routing::get(http::get_branch)
                 .put(http::update_branch)
@@ -231,7 +238,18 @@ fn admin_plan_routes() -> Router<SharedState> {
         .route("/", axum::routing::post(http::create_plan))
         .route("/:id/pricing", axum::routing::put(http::update_pricing))
         .route("/:id/approve", axum::routing::post(http::approve_plan))
-        .route("/:id", axum::routing::delete(http::deactivate_plan))
+        .route("/:id/publish", axum::routing::post(http::publish_plan))
+        .route("/:id/unpublish", axum::routing::post(http::unpublish_plan))
+        .route("/:id/clone", axum::routing::post(http::clone_plan))
+        .route(
+            "/:id/speed-profile",
+            axum::routing::get(http::get_speed_profile).post(http::set_speed_profile),
+        )
+        .route("/:id/history", axum::routing::get(http::get_plan_history))
+        .route(
+            "/:id",
+            axum::routing::put(http::update_plan).delete(http::deactivate_plan),
+        )
 }
 
 fn subscription_routes() -> Router<SharedState> {
@@ -241,7 +259,18 @@ fn subscription_routes() -> Router<SharedState> {
             "/",
             axum::routing::get(http::list_subscriptions).post(http::create_subscription),
         )
-        .route("/:id", axum::routing::get(http::get_subscription))
+        .route(
+            "/:id",
+            axum::routing::get(http::get_subscription).put(http::update_subscription),
+        )
+        .route(
+            "/:id/renew",
+            axum::routing::post(http::renew_subscription),
+        )
+        .route(
+            "/:id/history",
+            axum::routing::get(http::get_subscription_history),
+        )
         .route(
             "/:id/cancel",
             axum::routing::post(http::cancel_subscription),
@@ -423,10 +452,37 @@ fn network_routes() -> Router<SharedState> {
             "/vlans",
             axum::routing::get(http::list_vlans).post(http::create_vlan),
         )
-        .route("/vlans/:id", axum::routing::delete(http::delete_vlan))
+        .route(
+            "/vlans/:id",
+            axum::routing::put(http::update_vlan).delete(http::delete_vlan),
+        )
         .route(
             "/ip-pools",
             axum::routing::get(http::list_ip_pools).post(http::create_ip_pool),
+        )
+        .route(
+            "/ip-pools/:id",
+            axum::routing::put(http::update_ip_pool),
+        )
+        .route(
+            "/ip-pools/:id/addresses",
+            axum::routing::get(http::list_pool_addresses),
+        )
+        .route(
+            "/ip-pools/:id/allocate",
+            axum::routing::post(http::allocate_ip),
+        )
+        .route(
+            "/ip-pools/:id/release",
+            axum::routing::post(http::release_ip),
+        )
+        .route(
+            "/dhcp/leases",
+            axum::routing::get(http::list_dhcp_leases),
+        )
+        .route(
+            "/sessions",
+            axum::routing::get(http::list_customer_sessions),
         )
         .route(
             "/pppoe/sessions",
@@ -501,7 +557,23 @@ fn bandwidth_routes() -> Router<SharedState> {
         )
         .route(
             "/profiles/:id",
-            axum::routing::put(http::update_profile).delete(http::delete_profile),
+            axum::routing::get(http::get_profile).put(http::update_profile).delete(http::delete_profile),
+        )
+        .route(
+            "/profiles/:id/apply",
+            axum::routing::post(http::apply_profile_to_all),
+        )
+        .route(
+            "/apply/:subscription_id",
+            axum::routing::post(http::apply_to_subscription),
+        )
+        .route(
+            "/applications",
+            axum::routing::get(http::list_bandwidth_applications),
+        )
+        .route(
+            "/usage/:subscription_id",
+            axum::routing::get(http::get_bandwidth_usage),
         )
         .route(
             "/policies",
@@ -539,9 +611,16 @@ fn notification_routes() -> Router<SharedState> {
             "/templates",
             axum::routing::get(http::list_templates).post(http::create_template),
         )
-        .route("/templates/:id", axum::routing::put(http::update_template))
+        .route(
+            "/templates/:id",
+            axum::routing::put(http::update_template).delete(http::delete_template),
+        )
         .route("/send", axum::routing::post(http::send_notification))
         .route("/list", axum::routing::get(http::list_notifications))
+        .route(
+            "/:id/retry",
+            axum::routing::post(http::retry_notification),
+        )
         .route("/channels", axum::routing::get(http::list_channels))
         .route(
             "/channels/:id",
@@ -672,8 +751,24 @@ fn installation_routes() -> Router<SharedState> {
             axum::routing::get(http::list_installations).post(http::create_installation),
         )
         .route(
+            "/my-assignments",
+            axum::routing::get(http::list_my_installation_assignments),
+        )
+        .route(
+            "/:id",
+            axum::routing::get(http::get_installation),
+        )
+        .route(
             "/:id/schedule",
             axum::routing::post(http::schedule_installation),
+        )
+        .route(
+            "/:id/reschedule",
+            axum::routing::post(http::reschedule_installation),
+        )
+        .route(
+            "/:id/start",
+            axum::routing::post(http::start_installation),
         )
         .route(
             "/:id/complete",
@@ -682,6 +777,10 @@ fn installation_routes() -> Router<SharedState> {
         .route(
             "/:id/cancel",
             axum::routing::post(http::cancel_installation),
+        )
+        .route(
+            "/:id/photos",
+            axum::routing::post(http::add_installation_photo),
         )
         .route(
             "/:id/equipment",

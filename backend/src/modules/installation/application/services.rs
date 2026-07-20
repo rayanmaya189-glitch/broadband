@@ -159,4 +159,91 @@ impl InstallationService {
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
     }
+
+    pub async fn get_order(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::installation::domain::entities::installation_order::Model, AppError>
+    {
+        InstallationOrder::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Installation {} not found", id)))
+    }
+
+    pub async fn reschedule_order(
+        db: &DatabaseConnection,
+        id: i64,
+        new_date: chrono::NaiveDate,
+        new_time_slot: Option<String>,
+    ) -> Result<crate::modules::installation::domain::entities::installation_order::Model, AppError>
+    {
+        let order = InstallationOrder::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Installation {} not found", id)))?;
+        let mut active = <crate::modules::installation::domain::entities::installation_order::Entity as sea_orm::EntityTrait>::ActiveModel::from(order);
+        active.scheduled_date = Set(Some(new_date));
+        active.scheduled_time_slot = Set(new_time_slot);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn start_order(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::installation::domain::entities::installation_order::Model, AppError>
+    {
+        let order = InstallationOrder::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Installation {} not found", id)))?;
+        let mut active = <crate::modules::installation::domain::entities::installation_order::Entity as sea_orm::EntityTrait>::ActiveModel::from(order);
+        active.status = Set("in_progress".to_string());
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn add_photo(
+        db: &DatabaseConnection,
+        order_id: i64,
+        storage_key: String,
+        storage_bucket: String,
+        photo_type: String,
+        uploaded_by: Option<i64>,
+        notes: Option<String>,
+    ) -> Result<crate::modules::installation::domain::entities::installation_photo::Model, AppError>
+    {
+        use crate::modules::installation::domain::entities::installation_photo;
+        let item = installation_photo::ActiveModel {
+            installation_order_id: Set(order_id),
+            storage_key: Set(storage_key),
+            storage_bucket: Set(storage_bucket),
+            photo_type: Set(photo_type),
+            uploaded_by: Set(uploaded_by),
+            notes: Set(notes),
+            created_at: Set(chrono::Utc::now()),
+            ..Default::default()
+        };
+        Ok(item.insert(db).await?)
+    }
+
+    pub async fn list_my_assignments(
+        db: &DatabaseConnection,
+        technician_id: i64,
+        _page: u64,
+        _limit: u64,
+    ) -> Result<
+        (
+            Vec<crate::modules::installation::domain::entities::installation_order::Model>,
+            u64,
+        ),
+        AppError,
+    > {
+        use crate::modules::installation::domain::entities::installation_order::Column;
+        let query = InstallationOrder::find()
+            .filter(Column::AssignedTechnicianId.eq(technician_id));
+        let t = query.clone().count(db).await?;
+        Ok((query.all(db).await?, t))
+    }
 }

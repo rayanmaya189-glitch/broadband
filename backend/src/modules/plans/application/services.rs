@@ -2,6 +2,9 @@ use crate::modules::plans::domain::entities::{
     Plan, PlanActiveModel, PlanColumn, PlanPricing, PlanPricingActiveModel, PlanPricingColumn,
     SpeedProfile, SpeedProfileActiveModel, SpeedProfileColumn,
 };
+use crate::modules::bandwidth::domain::entities::{
+    BandwidthProfile, BandwidthProfileActiveModel, BandwidthProfileColumn,
+};
 use crate::shared::errors::AppError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
@@ -169,5 +172,152 @@ impl PlanService {
         active.updated_at = Set(chrono::Utc::now());
         active.update(db).await?;
         Ok(())
+    }
+
+    pub async fn update_plan(
+        db: &DatabaseConnection,
+        id: i64,
+        name: String,
+        description: Option<String>,
+        is_active: bool,
+    ) -> Result<crate::modules::plans::domain::entities::plan::Model, AppError> {
+        let plan = Plan::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Plan {} not found", id)))?;
+        let mut active: PlanActiveModel = plan.into();
+        active.name = Set(name);
+        active.description = Set(description);
+        active.is_active = Set(is_active);
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn publish_plan(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::plans::domain::entities::plan::Model, AppError> {
+        let plan = Plan::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Plan {} not found", id)))?;
+        let mut active: PlanActiveModel = plan.into();
+        active.review_status = Set(Some("published".to_string()));
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn unpublish_plan(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::plans::domain::entities::plan::Model, AppError> {
+        let plan = Plan::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Plan {} not found", id)))?;
+        let mut active: PlanActiveModel = plan.into();
+        active.review_status = Set(Some("draft".to_string()));
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn clone_plan(
+        db: &DatabaseConnection,
+        id: i64,
+        new_name: String,
+    ) -> Result<crate::modules::plans::domain::entities::plan::Model, AppError> {
+        let (plan, pricing) = Self::get_plan_with_pricing(db, id).await?;
+
+        let now = chrono::Utc::now();
+        let new_plan = PlanActiveModel {
+            slug: Set(format!("{}-clone", plan.slug)),
+            name: Set(new_name),
+            description: Set(plan.description.clone()),
+            speed_label: Set(plan.speed_label.clone()),
+            download_mbps: Set(plan.download_mbps),
+            upload_mbps: Set(plan.upload_mbps),
+            burst_mbps: Set(plan.burst_mbps),
+            is_business: Set(plan.is_business),
+            is_active: Set(true),
+            review_status: Set(Some("draft".to_string())),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        let cloned = new_plan.insert(db).await?;
+
+        for p in pricing {
+            let new_pricing = PlanPricingActiveModel {
+                plan_id: Set(cloned.id),
+                billing_period_months: Set(p.billing_period_months),
+                price: Set(p.price),
+                savings: Set(p.savings),
+                is_active: Set(true),
+                created_at: Set(chrono::Utc::now()),
+                ..Default::default()
+            };
+            new_pricing.insert(db).await?;
+        }
+
+        Ok(cloned)
+    }
+
+    pub async fn get_speed_profile(
+        db: &DatabaseConnection,
+        plan_id: i64,
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_profile::Model, AppError>
+    {
+        let profile = BandwidthProfile::find()
+            .filter(BandwidthProfileColumn::PlanId.eq(plan_id))
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("No speed profile linked to plan {}", plan_id))
+            })?;
+        Ok(profile)
+    }
+
+    pub async fn set_speed_profile(
+        db: &DatabaseConnection,
+        plan_id: i64,
+        bandwidth_profile_id: i64,
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_profile::Model, AppError>
+    {
+        let profile = BandwidthProfile::find_by_id(bandwidth_profile_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "Bandwidth profile {} not found",
+                    bandwidth_profile_id
+                ))
+            })?;
+        let mut active: BandwidthProfileActiveModel = profile.into();
+        active.plan_id = Set(Some(plan_id));
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn get_plan_history(
+        db: &DatabaseConnection,
+        plan_id: i64,
+    ) -> Result<
+        crate::modules::audit::domain::entity_history::PaginatedResult<
+            crate::modules::audit::domain::entity_history::HistoryEntry,
+        >,
+        AppError,
+    > {
+        crate::modules::audit::domain::entity_history::EntityHistoryService::search_history(
+            db,
+            "plans",
+            Some(plan_id.to_string()),
+            None,
+            None,
+            None,
+            None,
+            1,
+            100,
+        )
+        .await
     }
 }

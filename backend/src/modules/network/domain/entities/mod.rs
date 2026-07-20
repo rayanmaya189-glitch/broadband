@@ -1,7 +1,12 @@
+pub mod dhcp_lease;
 pub mod ip_pool;
 pub mod mac_binding;
 pub mod pppoe_session;
 pub mod vlan;
+
+pub use dhcp_lease::ActiveModel as DhcpLeaseActiveModel;
+pub use dhcp_lease::Column as DhcpLeaseColumn;
+pub use dhcp_lease::Entity as DhcpLease;
 
 pub use vlan::ActiveModel as VlanActiveModel;
 pub use vlan::Column as VlanColumn;

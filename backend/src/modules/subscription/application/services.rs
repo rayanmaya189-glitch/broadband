@@ -184,4 +184,45 @@ impl SubscriptionService {
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
     }
+
+    pub async fn update_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+        billing_period_months: Option<i32>,
+        auto_renew: Option<bool>,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        let sub = Self::get_subscription(db, id).await?;
+        let mut active: SubscriptionActiveModel = sub.into();
+        if let Some(period) = billing_period_months {
+            active.billing_period_months = Set(period);
+        }
+        if let Some(renew) = auto_renew {
+            active.auto_renew = Set(renew);
+        }
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn renew_subscription(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        let sub = Self::get_subscription(db, id).await?;
+
+        if sub.status == "cancelled" {
+            return Err(AppError::Validation(
+                "Cannot renew a cancelled subscription; use reactivate instead".into(),
+            ));
+        }
+
+        let now = chrono::Utc::now();
+        let next_billing =
+            now.date_naive() + chrono::Duration::days((sub.billing_period_months as i64) * 30);
+
+        let mut active: SubscriptionActiveModel = sub.into();
+        active.status = Set("active".to_string());
+        active.next_billing_date = Set(Some(next_billing));
+        active.updated_at = Set(now);
+        Ok(active.update(db).await?)
+    }
 }

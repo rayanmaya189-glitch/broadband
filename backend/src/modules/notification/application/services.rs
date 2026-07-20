@@ -205,4 +205,45 @@ impl NotificationService {
         }
         Ok(retried)
     }
+
+    pub async fn delete_template(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<(), AppError> {
+        let tmpl = NotificationTemplate::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Notification template not found".into()))?;
+        let active: NotificationTemplateActiveModel = tmpl.into();
+        active.delete(db).await?;
+        Ok(())
+    }
+
+    pub async fn retry_notification(
+        db: &DatabaseConnection,
+        id: i64,
+    ) -> Result<crate::modules::notification::domain::entities::notification::Model, AppError> {
+        let notif = Notification::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Notification not found".into()))?;
+
+        if notif.status != "failed" {
+            return Err(AppError::Validation(format!(
+                "Cannot retry notification in '{}' status; must be 'failed'",
+                notif.status
+            )));
+        }
+
+        let mut active: NotificationActiveModel = notif.into();
+        let current_retry = match &active.retry_count {
+            sea_orm::Set(v) => *v,
+            sea_orm::NotSet => 0,
+            sea_orm::Unchanged(v) => *v,
+        };
+        active.status = Set("queued".to_string());
+        active.retry_count = Set(current_retry + 1);
+        active.last_error = Set(None);
+        Ok(active.update(db).await?)
+    }
 }

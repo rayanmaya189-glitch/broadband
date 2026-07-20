@@ -1,7 +1,8 @@
-use crate::modules::branches::domain::entities::branch;
+use crate::modules::branches::domain::entities::{branch, branch_user, branch_working_hours};
 use crate::shared::errors::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 
 pub struct BranchService;
@@ -142,5 +143,120 @@ impl BranchService {
             "total_branches": hierarchy.iter().map(|r| r["branch_count"].as_u64().unwrap_or(0)).sum::<u64>(),
             "regions": hierarchy,
         }))
+    }
+
+    // ─── Working Hours ──────────────────────────────────────────────────
+
+    pub async fn get_working_hours(
+        db: &DatabaseConnection,
+        branch_id: i64,
+    ) -> Result<Vec<branch_working_hours::Model>, AppError> {
+        Self::get_branch(db, branch_id).await?;
+        let hours = branch_working_hours::Entity::find()
+            .filter(branch_working_hours::Column::BranchId.eq(branch_id))
+            .order_by_asc(branch_working_hours::Column::DayOfWeek)
+            .all(db)
+            .await?;
+        Ok(hours)
+    }
+
+    pub async fn update_working_hours(
+        db: &DatabaseConnection,
+        branch_id: i64,
+        hours: Vec<(i32, String, String, bool)>,
+    ) -> Result<Vec<branch_working_hours::Model>, AppError> {
+        Self::get_branch(db, branch_id).await?;
+        let now = chrono::Utc::now();
+        let mut results = Vec::new();
+        for (day_of_week, open_time, close_time, is_closed) in hours {
+            let existing = branch_working_hours::Entity::find()
+                .filter(branch_working_hours::Column::BranchId.eq(branch_id))
+                .filter(branch_working_hours::Column::DayOfWeek.eq(day_of_week))
+                .one(db)
+                .await?;
+            match existing {
+                Some(m) => {
+                    let mut active: branch_working_hours::ActiveModel = m.into();
+                    active.open_time = Set(open_time);
+                    active.close_time = Set(close_time);
+                    active.is_closed = Set(is_closed);
+                    active.updated_at = Set(now);
+                    results.push(active.update(db).await?);
+                }
+                None => {
+                    let active = branch_working_hours::ActiveModel {
+                        branch_id: Set(branch_id),
+                        day_of_week: Set(day_of_week),
+                        open_time: Set(open_time),
+                        close_time: Set(close_time),
+                        is_closed: Set(is_closed),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    results.push(active.insert(db).await?);
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    // ─── Branch Stats ───────────────────────────────────────────────────
+
+    pub async fn get_branch_stats(
+        db: &DatabaseConnection,
+        branch_id: i64,
+    ) -> Result<serde_json::Value, AppError> {
+        Self::get_branch(db, branch_id).await?;
+
+        let customer_count = branch_user::Entity::find()
+            .filter(branch_user::Column::BranchId.eq(branch_id))
+            .count(db)
+            .await? as u64;
+
+        let hours = Self::get_working_hours(db, branch_id).await?;
+
+        Ok(serde_json::json!({
+            "branch_id": branch_id,
+            "assigned_users": customer_count,
+            "working_hours_count": hours.len(),
+        }))
+    }
+
+    // ─── Branch Users ───────────────────────────────────────────────────
+
+    pub async fn assign_user(
+        db: &DatabaseConnection,
+        branch_id: i64,
+        user_id: i64,
+        role: String,
+    ) -> Result<branch_user::Model, AppError> {
+        Self::get_branch(db, branch_id).await?;
+        let now = chrono::Utc::now();
+        let active = branch_user::ActiveModel {
+            branch_id: Set(branch_id),
+            user_id: Set(user_id),
+            role: Set(role),
+            assigned_at: Set(now),
+            created_at: Set(now),
+            ..Default::default()
+        };
+        let result = active.insert(db).await?;
+        Ok(result)
+    }
+
+    pub async fn remove_user(
+        db: &DatabaseConnection,
+        branch_id: i64,
+        user_id: i64,
+    ) -> Result<(), AppError> {
+        let record = branch_user::Entity::find()
+            .filter(branch_user::Column::BranchId.eq(branch_id))
+            .filter(branch_user::Column::UserId.eq(user_id))
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("User {} not assigned to branch {}", user_id, branch_id)))?;
+        record.delete(db).await?;
+        Ok(())
     }
 }

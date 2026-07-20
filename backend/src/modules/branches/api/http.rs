@@ -203,3 +203,128 @@ pub async fn delete_branch(
     }
     Ok(StatusCode::NO_CONTENT)
 }
+
+// ─── Working Hours ──────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct WorkingHoursResponse {
+    pub id: i64,
+    pub branch_id: i64,
+    pub day_of_week: i32,
+    pub open_time: String,
+    pub close_time: String,
+    pub is_closed: bool,
+}
+
+impl From<crate::modules::branches::domain::entities::branch_working_hours::Model>
+    for WorkingHoursResponse
+{
+    fn from(h: crate::modules::branches::domain::entities::branch_working_hours::Model) -> Self {
+        Self {
+            id: h.id,
+            branch_id: h.branch_id,
+            day_of_week: h.day_of_week,
+            open_time: h.open_time,
+            close_time: h.close_time,
+            is_closed: h.is_closed,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WorkingHoursEntry {
+    pub day_of_week: i32,
+    pub open_time: String,
+    pub close_time: String,
+    pub is_closed: bool,
+}
+
+/// GET /api/v1/branches/:id/working-hours
+pub async fn get_working_hours(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<WorkingHoursResponse>>, AppError> {
+    require_permission(&user, "branch.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let hours = BranchService::get_working_hours(&state.db, id).await?;
+    Ok(Json(hours.into_iter().map(WorkingHoursResponse::from).collect()))
+}
+
+/// PUT /api/v1/branches/:id/working-hours
+pub async fn update_working_hours(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(entries): Json<Vec<WorkingHoursEntry>>,
+) -> Result<Json<Vec<WorkingHoursResponse>>, AppError> {
+    require_permission(&user, "branch.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let tuples: Vec<(i32, String, String, bool)> = entries
+        .into_iter()
+        .map(|e| (e.day_of_week, e.open_time, e.close_time, e.is_closed))
+        .collect();
+    let hours = BranchService::update_working_hours(&state.db, id, tuples).await?;
+    Ok(Json(hours.into_iter().map(WorkingHoursResponse::from).collect()))
+}
+
+// ─── Branch Stats ───────────────────────────────────────────────────────
+
+/// GET /api/v1/branches/:id/stats
+pub async fn get_branch_stats(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "branch.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let stats = BranchService::get_branch_stats(&state.db, id).await?;
+    Ok(Json(stats))
+}
+
+// ─── Branch Users ───────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct BranchUserResponse {
+    pub id: i64,
+    pub branch_id: i64,
+    pub user_id: i64,
+    pub role: String,
+}
+
+impl From<crate::modules::branches::domain::entities::branch_user::Model> for BranchUserResponse {
+    fn from(u: crate::modules::branches::domain::entities::branch_user::Model) -> Self {
+        Self {
+            id: u.id,
+            branch_id: u.branch_id,
+            user_id: u.user_id,
+            role: u.role,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignBranchUserRequest {
+    pub user_id: i64,
+    pub role: String,
+}
+
+/// POST /api/v1/branches/:id/users
+pub async fn assign_branch_user(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<AssignBranchUserRequest>,
+) -> Result<(StatusCode, Json<BranchUserResponse>), AppError> {
+    require_permission(&user, "branch.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let bu = BranchService::assign_user(&state.db, id, req.user_id, req.role).await?;
+    Ok((StatusCode::CREATED, Json(BranchUserResponse::from(bu))))
+}
+
+/// DELETE /api/v1/branches/:id/users/:uid
+pub async fn remove_branch_user(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path((id, uid)): Path<(i64, i64)>,
+) -> Result<StatusCode, AppError> {
+    require_permission(&user, "branch.update").map_err(|e| AppError::Forbidden(e.1))?;
+    BranchService::remove_user(&state.db, id, uid).await?;
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -258,6 +258,50 @@ pub async fn update_channel(
     }))
 }
 
+/// DELETE /api/v1/notifications/templates/:id
+pub async fn delete_template(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, AppError> {
+    require_permission(&user, "notification.template.delete")
+        .map_err(|e| AppError::Forbidden(e.1))?;
+    NotificationService::delete_template(&state.db, id).await?;
+
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "notification.template.deleted",
+        "notification_template",
+        id,
+        serde_json::json!({"template_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(error = %e, "Failed to publish notification.template.deleted event");
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /api/v1/notifications/:id/retry
+pub async fn retry_notification(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<NotificationResponse>, AppError> {
+    require_permission(&user, "notification.retry").map_err(|e| AppError::Forbidden(e.1))?;
+    let n = NotificationService::retry_notification(&state.db, id).await?;
+    Ok(Json(NotificationResponse {
+        id: n.id,
+        channel: n.channel,
+        status: n.status,
+        recipient_address: n.recipient_address,
+    }))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct DeliveryHistoryParams {
     pub page: Option<u64>,

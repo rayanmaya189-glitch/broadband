@@ -86,6 +86,40 @@ pub struct CreateMacBindingRequest {
     pub assigned_ip: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateVlanRequest {
+    pub name: String,
+    pub vlan_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateIpPoolRequest {
+    pub name: String,
+    pub gateway: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AllocateIpRequest {
+    pub customer_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReleaseIpRequest {
+    pub customer_id: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DhcpLeaseResponse {
+    pub id: i64,
+    pub branch_id: i64,
+    pub ip_address: String,
+    pub mac_address: String,
+    pub hostname: Option<String>,
+    pub lease_start: chrono::DateTime<chrono::Utc>,
+    pub lease_end: Option<chrono::DateTime<chrono::Utc>>,
+    pub status: String,
+}
+
 // --- VLANs ---
 pub async fn list_vlans(
     State(state): State<Arc<AppState>>,
@@ -408,6 +442,168 @@ pub async fn create_mac_binding(
             is_active: binding.is_active,
         }),
     ))
+}
+
+// --- Update VLAN ---
+pub async fn update_vlan(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateVlanRequest>,
+) -> Result<Json<VlanResponse>, AppError> {
+    require_permission(&user, "network.vlan.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let vlan = NetworkService::update_vlan(&state.db, id, req.name, req.vlan_type).await?;
+    Ok(Json(VlanResponse {
+        id: vlan.id,
+        branch_id: vlan.branch_id,
+        vlan_id: vlan.vlan_id,
+        name: vlan.name,
+        vlan_type: vlan.vlan_type,
+        is_active: vlan.is_active,
+    }))
+}
+
+// --- Update IP Pool ---
+pub async fn update_ip_pool(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateIpPoolRequest>,
+) -> Result<Json<IpPoolResponse>, AppError> {
+    require_permission(&user, "network.ippool.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let pool = NetworkService::update_ip_pool(&state.db, id, req.name, req.gateway).await?;
+    Ok(Json(IpPoolResponse {
+        id: pool.id,
+        name: pool.name,
+        cidr: pool.cidr,
+        gateway: pool.gateway,
+        allocated_count: pool.allocated_count,
+        total_count: pool.total_count,
+        status: pool.status,
+    }))
+}
+
+// --- List Pool Addresses ---
+pub async fn list_pool_addresses(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "network.ippool.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let info = NetworkService::list_pool_addresses(&state.db, id).await?;
+    Ok(Json(info))
+}
+
+// --- Allocate IP ---
+pub async fn allocate_ip(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<AllocateIpRequest>,
+) -> Result<Json<IpPoolResponse>, AppError> {
+    require_permission(&user, "network.ippool.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let pool = NetworkService::allocate_ip(&state.db, id, req.customer_id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "network.ippool.ip_allocated",
+        "ip_pool",
+        pool.id,
+        serde_json::json!({"pool_id": pool.id, "customer_id": req.customer_id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(error = %e, "Failed to publish network.ippool.ip_allocated event");
+    }
+    Ok(Json(IpPoolResponse {
+        id: pool.id,
+        name: pool.name,
+        cidr: pool.cidr,
+        gateway: pool.gateway,
+        allocated_count: pool.allocated_count,
+        total_count: pool.total_count,
+        status: pool.status,
+    }))
+}
+
+// --- Release IP ---
+pub async fn release_ip(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<ReleaseIpRequest>,
+) -> Result<Json<IpPoolResponse>, AppError> {
+    require_permission(&user, "network.ippool.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let pool = NetworkService::release_ip(&state.db, id, req.customer_id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "network.ippool.ip_released",
+        "ip_pool",
+        pool.id,
+        serde_json::json!({"pool_id": pool.id, "customer_id": req.customer_id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(error = %e, "Failed to publish network.ippool.ip_released event");
+    }
+    Ok(Json(IpPoolResponse {
+        id: pool.id,
+        name: pool.name,
+        cidr: pool.cidr,
+        gateway: pool.gateway,
+        allocated_count: pool.allocated_count,
+        total_count: pool.total_count,
+        status: pool.status,
+    }))
+}
+
+// --- DHCP Leases ---
+pub async fn list_dhcp_leases(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<Vec<DhcpLeaseResponse>>, AppError> {
+    require_permission(&user, "network.vlan.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let bid = if user.is_company_wide {
+        None
+    } else {
+        user.branch_id
+    };
+    let leases = NetworkService::list_dhcp_leases(&state.db, bid).await?;
+    Ok(Json(
+        leases
+            .into_iter()
+            .map(|l| DhcpLeaseResponse {
+                id: l.id,
+                branch_id: l.branch_id,
+                ip_address: l.ip_address,
+                mac_address: l.mac_address,
+                hostname: l.hostname,
+                lease_start: l.lease_start,
+                lease_end: l.lease_end,
+                status: l.status,
+            })
+            .collect(),
+    ))
+}
+
+// --- Customer Network Sessions ---
+pub async fn list_customer_sessions(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "network.pppoe.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let bid = if user.is_company_wide {
+        None
+    } else {
+        user.branch_id
+    };
+    let sessions = NetworkService::list_customer_sessions(&state.db, bid).await?;
+    Ok(Json(sessions))
 }
 
 /// GET /api/v1/network/topology

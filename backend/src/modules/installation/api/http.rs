@@ -300,3 +300,150 @@ pub async fn update_equipment_status(
         notes: item.notes,
     }))
 }
+
+// ─── Get Single Installation ───────────────────────────────────────────
+
+/// GET /api/v1/installations/:id
+pub async fn get_installation(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<InstallationResponse>, AppError> {
+    require_permission(&user, "installation.order.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let o = InstallationService::get_order(&state.db, id).await?;
+    Ok(Json(InstallationResponse {
+        id: o.id,
+        customer_id: o.customer_id,
+        status: o.status,
+        scheduled_date: o.scheduled_date.map(|d| d.to_string()),
+    }))
+}
+
+// ─── Reschedule ────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RescheduleRequest {
+    pub new_date: String,
+    #[serde(default)]
+    pub new_time_slot: Option<String>,
+}
+
+/// POST /api/v1/installations/:id/reschedule
+pub async fn reschedule_installation(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<RescheduleRequest>,
+) -> Result<Json<InstallationResponse>, AppError> {
+    require_permission(&user, "installation.order.schedule")
+        .map_err(|e| AppError::Forbidden(e.1))?;
+    let date: chrono::NaiveDate = req
+        .new_date
+        .parse()
+        .map_err(|_| AppError::Validation("Invalid date".into()))?;
+    let o = InstallationService::reschedule_order(&state.db, id, date, req.new_time_slot).await?;
+    Ok(Json(InstallationResponse {
+        id: o.id,
+        customer_id: o.customer_id,
+        status: o.status,
+        scheduled_date: o.scheduled_date.map(|d| d.to_string()),
+    }))
+}
+
+// ─── Start Installation ────────────────────────────────────────────────
+
+/// POST /api/v1/installations/:id/start
+pub async fn start_installation(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<InstallationResponse>, AppError> {
+    require_permission(&user, "installation.order.complete")
+        .map_err(|e| AppError::Forbidden(e.1))?;
+    let o = InstallationService::start_order(&state.db, id).await?;
+    Ok(Json(InstallationResponse {
+        id: o.id,
+        customer_id: o.customer_id,
+        status: o.status,
+        scheduled_date: o.scheduled_date.map(|d| d.to_string()),
+    }))
+}
+
+// ─── Add Photo ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct PhotoResponse {
+    pub id: i64,
+    pub installation_order_id: i64,
+    pub storage_key: String,
+    pub storage_bucket: String,
+    pub photo_type: String,
+    pub uploaded_by: Option<i64>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddPhotoRequest {
+    pub storage_key: String,
+    pub storage_bucket: String,
+    pub photo_type: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// POST /api/v1/installations/:id/photos
+pub async fn add_installation_photo(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<AddPhotoRequest>,
+) -> Result<(StatusCode, Json<PhotoResponse>), AppError> {
+    require_permission(&user, "installation.order.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let photo = InstallationService::add_photo(
+        &state.db,
+        id,
+        req.storage_key,
+        req.storage_bucket,
+        req.photo_type,
+        Some(user.user_id),
+        req.notes,
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(PhotoResponse {
+            id: photo.id,
+            installation_order_id: photo.installation_order_id,
+            storage_key: photo.storage_key,
+            storage_bucket: photo.storage_bucket,
+            photo_type: photo.photo_type,
+            uploaded_by: photo.uploaded_by,
+            notes: photo.notes,
+        }),
+    ))
+}
+
+// ─── My Assignments ────────────────────────────────────────────────────
+
+/// GET /api/v1/installations/my-assignments
+pub async fn list_my_installation_assignments(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let (orders, total) =
+        InstallationService::list_my_assignments(&state.db, user.user_id, p.page(), p.limit())
+            .await?;
+    let items: Vec<InstallationResponse> = orders
+        .into_iter()
+        .map(|o| InstallationResponse {
+            id: o.id,
+            customer_id: o.customer_id,
+            status: o.status,
+            scheduled_date: o.scheduled_date.map(|d| d.to_string()),
+        })
+        .collect();
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
+}

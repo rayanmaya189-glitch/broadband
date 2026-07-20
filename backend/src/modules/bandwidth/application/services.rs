@@ -1,6 +1,11 @@
-use crate::modules::bandwidth::domain::entities::{BandwidthProfile, BandwidthProfileActiveModel};
+use crate::modules::bandwidth::domain::entities::{
+    BandwidthProfile, BandwidthProfileActiveModel,
+};
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
+};
 
 pub struct BandwidthService;
 
@@ -155,5 +160,99 @@ impl BandwidthService {
         active.updated_at = Set(chrono::Utc::now());
         active.update(db).await?;
         Ok(())
+    }
+
+    // ─── Apply Profile ──────────────────────────────────────────────────
+
+    pub async fn apply_profile(
+        db: &DatabaseConnection,
+        profile_id: i64,
+    ) -> Result<u64, AppError> {
+        Self::get_profile(db, profile_id).await?;
+        let applications = crate::modules::bandwidth::domain::entities::BandwidthApplication::find()
+            .filter(
+                crate::modules::bandwidth::domain::entities::bandwidth_application::Column::ProfileId
+                    .eq(profile_id),
+            )
+            .all(db)
+            .await?;
+        let now = chrono::Utc::now();
+        let mut updated = 0u64;
+        for app in applications {
+            let mut active: crate::modules::bandwidth::domain::entities::bandwidth_application::ActiveModel = app.into();
+            active.status = Set("applied".to_string());
+            active.applied_at = Set(Some(now));
+            active.update(db).await?;
+            updated += 1;
+        }
+        Ok(updated)
+    }
+
+    pub async fn apply_to_subscription(
+        db: &DatabaseConnection,
+        subscription_id: i64,
+        profile_id: i64,
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_application::Model, AppError>
+    {
+        Self::get_profile(db, profile_id).await?;
+        let now = chrono::Utc::now();
+        let active = crate::modules::bandwidth::domain::entities::bandwidth_application::ActiveModel
+        {
+            profile_id: Set(profile_id),
+            subscription_id: Set(subscription_id),
+            status: Set("applied".to_string()),
+            applied_at: Set(Some(now)),
+            retry_count: Set(0),
+            created_at: Set(now),
+            ..Default::default()
+        };
+        let result = active.insert(db).await?;
+        Ok(result)
+    }
+
+    // ─── Applications ───────────────────────────────────────────────────
+
+    pub async fn list_applications(
+        db: &DatabaseConnection,
+    ) -> Result<
+        Vec<crate::modules::bandwidth::domain::entities::bandwidth_application::Model>,
+        AppError,
+    > {
+        let items = crate::modules::bandwidth::domain::entities::BandwidthApplication::find()
+            .order_by_desc(
+                crate::modules::bandwidth::domain::entities::bandwidth_application::Column::CreatedAt,
+            )
+            .all(db)
+            .await?;
+        Ok(items)
+    }
+
+    // ─── Usage ──────────────────────────────────────────────────────────
+
+    pub async fn get_usage(
+        db: &DatabaseConnection,
+        subscription_id: i64,
+    ) -> Result<serde_json::Value, AppError> {
+        let apps = crate::modules::bandwidth::domain::entities::BandwidthApplication::find()
+            .filter(
+                crate::modules::bandwidth::domain::entities::bandwidth_application::Column::SubscriptionId
+                    .eq(subscription_id),
+            )
+            .order_by_desc(
+                crate::modules::bandwidth::domain::entities::bandwidth_application::Column::CreatedAt,
+            )
+            .all(db)
+            .await?;
+
+        Ok(serde_json::json!({
+            "subscription_id": subscription_id,
+            "applications": apps.into_iter().map(|a| serde_json::json!({
+                "id": a.id,
+                "profile_id": a.profile_id,
+                "status": a.status,
+                "applied_at": a.applied_at,
+                "created_at": a.created_at,
+            })).collect::<Vec<_>>(),
+        }))
     }
 }

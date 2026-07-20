@@ -300,3 +300,108 @@ pub async fn get_subscription(
     let sub = SubscriptionService::get_subscription(&state.db, id).await?;
     Ok(Json(to_response(sub)))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSubscriptionRequest {
+    pub billing_period_months: Option<i32>,
+    pub auto_renew: Option<bool>,
+}
+
+/// PUT /api/v1/subscriptions/:id
+pub async fn update_subscription(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateSubscriptionRequest>,
+) -> Result<Json<SubscriptionResponse>, AppError> {
+    require_permission(&user, "subscription.manage").map_err(|e| AppError::Forbidden(e.1))?;
+    let sub = SubscriptionService::update_subscription(
+        &state.db,
+        id,
+        req.billing_period_months,
+        req.auto_renew,
+    )
+    .await?;
+    Ok(Json(to_response(sub)))
+}
+
+/// POST /api/v1/subscriptions/:id/renew
+pub async fn renew_subscription(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<SubscriptionResponse>, AppError> {
+    require_permission(&user, "subscription.manage").map_err(|e| AppError::Forbidden(e.1))?;
+    let sub = SubscriptionService::renew_subscription(&state.db, id).await?;
+
+    let payload = serde_json::json!({
+        "subscription_id": sub.id,
+        "customer_id": sub.customer_id,
+        "action": "renewed",
+        "next_billing_date": sub.next_billing_date,
+    });
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "subscription.renewed",
+        "subscription",
+        sub.id,
+        payload,
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.renewed event");
+    }
+
+    Ok(Json(to_response(sub)))
+}
+
+/// GET /api/v1/subscriptions/:id/history
+pub async fn get_subscription_history(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use crate::modules::audit::domain::entity_history::EntityHistoryService;
+
+    let result = EntityHistoryService::search_history(
+        &state.db,
+        "subscriptions",
+        Some(id.to_string()),
+        None,
+        None,
+        None,
+        None,
+        1,
+        100,
+    )
+    .await?;
+
+    let items: Vec<serde_json::Value> = result
+        .items
+        .into_iter()
+        .map(|h| {
+            serde_json::json!({
+                "id": h.id,
+                "entity_id": h.entity_id,
+                "action": h.action,
+                "old_data": h.old_data,
+                "new_data": h.new_data,
+                "changed_fields": h.changed_fields,
+                "user_id": h.user_id,
+                "user_name": h.user_name,
+                "user_email": h.user_email,
+                "created_at": h.created_at.to_rfc3339(),
+            })
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({
+        "entity_type": "subscriptions",
+        "entity_id": id.to_string(),
+        "total": result.total,
+        "items": items,
+    })))
+}

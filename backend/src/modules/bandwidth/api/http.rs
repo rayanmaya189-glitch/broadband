@@ -268,3 +268,102 @@ pub async fn delete_policy(
     BandwidthService::delete_policy(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+// ─── Get Single Profile ─────────────────────────────────────────────────
+
+/// GET /api/v1/bandwidth/profiles/:id
+pub async fn get_profile(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<BandwidthProfileResponse>, AppError> {
+    let p = BandwidthService::get_profile(&state.db, id).await?;
+    Ok(Json(BandwidthProfileResponse {
+        id: p.id,
+        name: p.name,
+        download_kbps: p.download_kbps,
+        upload_kbps: p.upload_kbps,
+        is_active: p.is_active,
+    }))
+}
+
+// ─── Apply Profile to All ──────────────────────────────────────────────
+
+/// POST /api/v1/bandwidth/profiles/:id/apply
+pub async fn apply_profile_to_all(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "bandwidth.profile.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let count = BandwidthService::apply_profile(&state.db, id).await?;
+    Ok(Json(serde_json::json!({
+        "profile_id": id,
+        "updated_count": count,
+    })))
+}
+
+// ─── Apply Profile to Subscription ─────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyProfileRequest {
+    pub profile_id: i64,
+}
+
+/// POST /api/v1/bandwidth/apply/:subscription_id
+pub async fn apply_to_subscription(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(subscription_id): Path<i64>,
+    Json(req): Json<ApplyProfileRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
+    require_permission(&user, "bandwidth.profile.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let app = BandwidthService::apply_to_subscription(&state.db, subscription_id, req.profile_id)
+        .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "id": app.id,
+            "subscription_id": app.subscription_id,
+            "profile_id": app.profile_id,
+            "status": app.status,
+        })),
+    ))
+}
+
+// ─── List Bandwidth Applications ───────────────────────────────────────
+
+/// GET /api/v1/bandwidth/applications
+pub async fn list_bandwidth_applications(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let apps = BandwidthService::list_applications(&state.db).await?;
+    Ok(Json(
+        apps.into_iter()
+            .map(|a| {
+                serde_json::json!({
+                    "id": a.id,
+                    "profile_id": a.profile_id,
+                    "subscription_id": a.subscription_id,
+                    "status": a.status,
+                    "applied_at": a.applied_at,
+                    "retry_count": a.retry_count,
+                    "created_at": a.created_at,
+                })
+            })
+            .collect(),
+    ))
+}
+
+// ─── Bandwidth Usage ───────────────────────────────────────────────────
+
+/// GET /api/v1/bandwidth/usage/:subscription_id
+pub async fn get_bandwidth_usage(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(subscription_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let usage = BandwidthService::get_usage(&state.db, subscription_id).await?;
+    Ok(Json(usage))
+}
