@@ -591,3 +591,85 @@ pub async fn get_tax_config(
     let config = BillingService::get_tax_config(&state.db).await?;
     Ok(Json(config))
 }
+
+// ─── Invoice Line Items ─────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct LineItemResponse {
+    pub id: i64,
+    pub invoice_id: i64,
+    pub description: String,
+    pub quantity: String,
+    pub unit_price: String,
+    pub amount: String,
+    pub tax_rate: String,
+    pub tax_amount: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddLineItemRequest {
+    pub description: String,
+    pub quantity: String,
+    pub unit_price: String,
+    #[serde(default)]
+    pub tax_rate: Option<String>,
+}
+
+/// GET /api/v1/billing/invoices/:id/items
+pub async fn list_invoice_items(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<LineItemResponse>>, AppError> {
+    let items = BillingService::list_line_items(&state.db, id).await?;
+    Ok(Json(
+        items.into_iter().map(|i| LineItemResponse {
+            id: i.id,
+            invoice_id: i.invoice_id,
+            description: i.description,
+            quantity: i.quantity.to_string(),
+            unit_price: i.unit_price.to_string(),
+            amount: i.amount.to_string(),
+            tax_rate: i.tax_rate.to_string(),
+            tax_amount: i.tax_amount.to_string(),
+        }).collect(),
+    ))
+}
+
+/// POST /api/v1/billing/invoices/:id/items
+pub async fn add_invoice_item(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<AddLineItemRequest>,
+) -> Result<(StatusCode, Json<LineItemResponse>), AppError> {
+    require_permission(&user, "billing.invoice.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let qty: sea_orm::prelude::Decimal = req.quantity.parse().map_err(|_| AppError::Validation("Invalid quantity".into()))?;
+    let price: sea_orm::prelude::Decimal = req.unit_price.parse().map_err(|_| AppError::Validation("Invalid unit_price".into()))?;
+    let tax_rate: sea_orm::prelude::Decimal = req.tax_rate.unwrap_or_else(|| "0".to_string()).parse().map_err(|_| AppError::Validation("Invalid tax_rate".into()))?;
+    let item = BillingService::add_line_item(&state.db, id, req.description, qty, price, tax_rate).await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(LineItemResponse {
+            id: item.id,
+            invoice_id: item.invoice_id,
+            description: item.description,
+            quantity: item.quantity.to_string(),
+            unit_price: item.unit_price.to_string(),
+            amount: item.amount.to_string(),
+            tax_rate: item.tax_rate.to_string(),
+            tax_amount: item.tax_amount.to_string(),
+        }),
+    ))
+}
+
+/// DELETE /api/v1/billing/invoices/:id/items/:item_id
+pub async fn remove_invoice_item(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path((id, item_id)): Path<(i64, i64)>,
+) -> Result<StatusCode, AppError> {
+    require_permission(&user, "billing.invoice.create").map_err(|e| AppError::Forbidden(e.1))?;
+    BillingService::remove_line_item(&state.db, id, item_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}

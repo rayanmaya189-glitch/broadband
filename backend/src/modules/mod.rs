@@ -1,4 +1,5 @@
 pub mod accounting;
+pub mod admin;
 pub mod audit;
 pub mod bandwidth;
 pub mod billing;

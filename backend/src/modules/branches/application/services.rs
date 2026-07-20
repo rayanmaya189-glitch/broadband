@@ -103,4 +103,44 @@ impl BranchService {
         active.update(db).await?;
         Ok(())
     }
+
+    pub async fn get_hierarchy(db: &DatabaseConnection) -> Result<serde_json::Value, AppError> {
+        let branches = branch::Entity::find()
+            .filter(branch::Column::IsActive.eq(true))
+            .order_by_asc(branch::Column::State)
+            .order_by_asc(branch::Column::Name)
+            .all(db)
+            .await?;
+
+        // Group by state to form hierarchy regions
+        let mut regions: std::collections::HashMap<String, Vec<serde_json::Value>> = std::collections::HashMap::new();
+        for b in branches {
+            let node = serde_json::json!({
+                "id": b.id,
+                "name": b.name,
+                "slug": b.slug,
+                "code": b.code,
+                "city": b.city,
+                "state": b.state,
+            });
+            regions.entry(b.state).or_default().push(node);
+        }
+
+        let hierarchy: Vec<serde_json::Value> = regions
+            .into_iter()
+            .map(|(state, branches)| {
+                serde_json::json!({
+                    "region": state,
+                    "branch_count": branches.len(),
+                    "branches": branches,
+                })
+            })
+            .collect();
+
+        Ok(serde_json::json!({
+            "total_regions": hierarchy.len(),
+            "total_branches": hierarchy.iter().map(|r| r["branch_count"].as_u64().unwrap_or(0)).sum::<u64>(),
+            "regions": hierarchy,
+        }))
+    }
 }

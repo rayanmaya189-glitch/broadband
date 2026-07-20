@@ -448,6 +448,59 @@ impl AccountingService {
         })
     }
 
+    // ── Reconciliation ──
+
+    pub async fn reconcile_account(
+        db: &DatabaseConnection,
+        account_id: i64,
+        period_start: chrono::NaiveDate,
+        period_end: chrono::NaiveDate,
+    ) -> Result<ReconciliationResult, AppError> {
+        let account = Self::get_account(db, account_id).await?;
+
+        let posted_entries: Vec<i64> = JournalEntry::find()
+            .filter(journal_entry::Column::Status.eq("posted"))
+            .filter(journal_entry::Column::EntryDate.gte(period_start))
+            .filter(journal_entry::Column::EntryDate.lte(period_end))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|e| e.id)
+            .collect();
+
+        let lines = if posted_entries.is_empty() {
+            Vec::new()
+        } else {
+            JournalEntryLine::find()
+                .filter(journal_entry_line::Column::AccountId.eq(account_id))
+                .filter(journal_entry_line::Column::JournalEntryId.is_in(posted_entries))
+                .all(db)
+                .await?
+        };
+
+        let total_debit: sea_orm::prelude::Decimal = lines.iter().map(|l| l.debit).sum();
+        let total_credit: sea_orm::prelude::Decimal = lines.iter().map(|l| l.credit).sum();
+        let is_debit_type = matches!(account.account_type.as_str(), "asset" | "expense");
+        let balance = if is_debit_type {
+            total_debit - total_credit
+        } else {
+            total_credit - total_debit
+        };
+
+        Ok(ReconciliationResult {
+            account_id,
+            account_code: account.code,
+            account_name: account.name,
+            account_type: account.account_type,
+            period_start,
+            period_end,
+            total_debit,
+            total_credit,
+            balance,
+            entry_count: lines.len() as i64,
+        })
+    }
+
     // ── GST Returns ──
 
     pub async fn generate_gst_return(
@@ -550,6 +603,20 @@ pub struct BalanceSheet {
     pub total_assets: sea_orm::prelude::Decimal,
     pub total_liabilities: sea_orm::prelude::Decimal,
     pub total_equity: sea_orm::prelude::Decimal,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ReconciliationResult {
+    pub account_id: i64,
+    pub account_code: String,
+    pub account_name: String,
+    pub account_type: String,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+    pub total_debit: sea_orm::prelude::Decimal,
+    pub total_credit: sea_orm::prelude::Decimal,
+    pub balance: sea_orm::prelude::Decimal,
+    pub entry_count: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

@@ -193,3 +193,110 @@ pub async fn cancel_installation(
     }
     Ok(StatusCode::OK)
 }
+
+// ─── Equipment Tracking ────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct EquipmentResponse {
+    pub id: i64,
+    pub installation_order_id: i64,
+    pub equipment_type: String,
+    pub model_name: Option<String>,
+    pub serial_number: Option<String>,
+    pub quantity: i32,
+    pub status: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddEquipmentRequest {
+    pub equipment_type: String,
+    #[serde(default)]
+    pub model_name: Option<String>,
+    #[serde(default)]
+    pub serial_number: Option<String>,
+    #[serde(default)]
+    pub quantity: Option<i32>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateEquipmentStatusRequest {
+    pub status: String,
+}
+
+/// GET /api/v1/installations/:id/equipment
+pub async fn list_equipment(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<EquipmentResponse>>, AppError> {
+    require_permission(&user, "installation.order.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let items = InstallationService::list_equipment(&state.db, id).await?;
+    Ok(Json(items.into_iter().map(|e| EquipmentResponse {
+        id: e.id,
+        installation_order_id: e.installation_order_id,
+        equipment_type: e.equipment_type,
+        model_name: e.model_name,
+        serial_number: e.serial_number,
+        quantity: e.quantity,
+        status: e.status,
+        notes: e.notes,
+    }).collect()))
+}
+
+/// POST /api/v1/installations/:id/equipment
+pub async fn add_equipment(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(id): Path<i64>,
+    Json(req): Json<AddEquipmentRequest>,
+) -> Result<(StatusCode, Json<EquipmentResponse>), AppError> {
+    require_permission(&user, "installation.order.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let item = InstallationService::add_equipment(
+        &state.db,
+        id,
+        req.equipment_type,
+        req.model_name,
+        req.serial_number,
+        req.quantity.unwrap_or(1),
+        req.notes,
+    )
+    .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(EquipmentResponse {
+            id: item.id,
+            installation_order_id: item.installation_order_id,
+            equipment_type: item.equipment_type,
+            model_name: item.model_name,
+            serial_number: item.serial_number,
+            quantity: item.quantity,
+            status: item.status,
+            notes: item.notes,
+        }),
+    ))
+}
+
+/// PUT /api/v1/installations/equipment/:equipment_id/status
+pub async fn update_equipment_status(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Path(equipment_id): Path<i64>,
+    Json(req): Json<UpdateEquipmentStatusRequest>,
+) -> Result<Json<EquipmentResponse>, AppError> {
+    require_permission(&user, "installation.order.update").map_err(|e| AppError::Forbidden(e.1))?;
+    let item = InstallationService::update_equipment_status(&state.db, equipment_id, &req.status)
+        .await?;
+    Ok(Json(EquipmentResponse {
+        id: item.id,
+        installation_order_id: item.installation_order_id,
+        equipment_type: item.equipment_type,
+        model_name: item.model_name,
+        serial_number: item.serial_number,
+        quantity: item.quantity,
+        status: item.status,
+        notes: item.notes,
+    }))
+}

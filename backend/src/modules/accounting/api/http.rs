@@ -374,3 +374,22 @@ pub async fn gst_return(
     .await?;
     Ok(Json(serde_json::to_value(data).unwrap_or_default()))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ReconciliationQuery {
+    pub period_start: String,
+    pub period_end: String,
+}
+
+/// GET /api/v1/accounting/reconciliation/:account_id
+pub async fn reconcile_account(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(account_id): Path<i64>,
+    Query(q): Query<ReconciliationQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let start: chrono::NaiveDate = q.period_start.parse().map_err(|_| AppError::Validation("Invalid period_start".into()))?;
+    let end: chrono::NaiveDate = q.period_end.parse().map_err(|_| AppError::Validation("Invalid period_end".into()))?;
+    let result = AccountingService::reconcile_account(&state.db, account_id, start, end).await?;
+    Ok(Json(serde_json::to_value(result).unwrap_or_default()))
+}

@@ -85,6 +85,7 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/payments", payment_routes())
         .nest("/approvals", approval_routes())
         .nest("/monitoring", monitoring_routes())
+        .nest("/admin", admin_routes())
         .route(
             "/metrics",
             axum::routing::get(crate::infrastructure::metrics_handler::metrics_handler),
@@ -184,6 +185,7 @@ fn branch_routes() -> Router<SharedState> {
             "/",
             axum::routing::get(http::list_branches).post(http::create_branch),
         )
+        .route("/hierarchy", axum::routing::get(http::get_branch_hierarchy))
         .route(
             "/:id",
             axum::routing::get(http::get_branch)
@@ -200,6 +202,10 @@ fn customer_routes() -> Router<SharedState> {
             axum::routing::get(http::list_customers).post(http::create_customer),
         )
         .route("/search", axum::routing::get(http::search_customers))
+        .route(
+            "/:id/history",
+            axum::routing::get(http::get_customer_history),
+        )
         .route("/:id", axum::routing::get(http::get_customer).put(http::update_customer))
         .route(
             "/:id/status",
@@ -313,6 +319,14 @@ fn billing_routes() -> Router<SharedState> {
             "/tax/config",
             axum::routing::get(http::get_tax_config),
         )
+        .route(
+            "/invoices/:id/items",
+            axum::routing::get(http::list_invoice_items).post(http::add_invoice_item),
+        )
+        .route(
+            "/invoices/:id/items/:item_id",
+            axum::routing::delete(http::remove_invoice_item),
+        )
 }
 
 fn rbac_routes() -> Router<SharedState> {
@@ -377,6 +391,10 @@ fn accounting_routes() -> Router<SharedState> {
             axum::routing::get(http::balance_sheet),
         )
         .route("/gst/:type", axum::routing::get(http::gst_return))
+        .route(
+            "/reconciliation/:account_id",
+            axum::routing::get(http::reconcile_account),
+        )
 }
 
 fn scheduler_routes() -> Router<SharedState> {
@@ -400,6 +418,7 @@ fn scheduler_routes() -> Router<SharedState> {
 fn network_routes() -> Router<SharedState> {
     use crate::modules::network::api::http;
     Router::new()
+        .route("/topology", axum::routing::get(http::get_topology))
         .route(
             "/vlans",
             axum::routing::get(http::list_vlans).post(http::create_vlan),
@@ -483,6 +502,14 @@ fn bandwidth_routes() -> Router<SharedState> {
         .route(
             "/profiles/:id",
             axum::routing::put(http::update_profile).delete(http::delete_profile),
+        )
+        .route(
+            "/policies",
+            axum::routing::get(http::list_policies).post(http::create_policy),
+        )
+        .route(
+            "/policies/:id",
+            axum::routing::put(http::update_policy).delete(http::delete_policy),
         )
 }
 
@@ -656,6 +683,14 @@ fn installation_routes() -> Router<SharedState> {
             "/:id/cancel",
             axum::routing::post(http::cancel_installation),
         )
+        .route(
+            "/:id/equipment",
+            axum::routing::get(http::list_equipment).post(http::add_equipment),
+        )
+        .route(
+            "/equipment/:equipment_id/status",
+            axum::routing::put(http::update_equipment_status),
+        )
 }
 
 fn payment_routes() -> Router<SharedState> {
@@ -712,4 +747,10 @@ fn approval_routes() -> Router<SharedState> {
         .route("/:id", axum::routing::get(http::get_approval_request))
         .route("/:id/approve", axum::routing::post(http::approve_request))
         .route("/:id/reject", axum::routing::post(http::reject_request))
+}
+
+fn admin_routes() -> Router<SharedState> {
+    use crate::modules::admin::api::http as admin_http;
+    Router::new()
+        .route("/seed", axum::routing::post(admin_http::seed_data))
 }

@@ -176,4 +176,56 @@ impl NetworkService {
         };
         Ok(binding.insert(db).await?)
     }
+
+    pub async fn get_topology(db: &DatabaseConnection, branch_id: Option<i64>) -> Result<serde_json::Value, AppError> {
+        let vlans = Self::list_vlans(db, branch_id).await?;
+        let pools = Self::list_ip_pools(db, branch_id).await?;
+        let sessions = Self::list_pppoe_sessions(db, branch_id).await?;
+        let bindings = Self::list_mac_bindings(db, branch_id).await?;
+
+        Ok(serde_json::json!({
+            "vlans": {
+                "count": vlans.len(),
+                "items": vlans.iter().map(|v| serde_json::json!({
+                    "id": v.id,
+                    "vlan_id": v.vlan_id,
+                    "name": v.name,
+                    "type": v.vlan_type,
+                    "is_active": v.is_active,
+                })).collect::<Vec<_>>(),
+            },
+            "ip_pools": {
+                "count": pools.len(),
+                "items": pools.iter().map(|p| serde_json::json!({
+                    "id": p.id,
+                    "name": p.name,
+                    "cidr": p.cidr,
+                    "gateway": p.gateway,
+                    "allocated": p.allocated_count,
+                    "total": p.total_count,
+                    "status": p.status,
+                })).collect::<Vec<_>>(),
+            },
+            "pppoe_sessions": {
+                "count": sessions.len(),
+                "active": sessions.iter().filter(|s| s.status == "active").count(),
+                "items": sessions.iter().map(|s| serde_json::json!({
+                    "id": s.id,
+                    "username": s.username,
+                    "assigned_ip": s.assigned_ip,
+                    "status": s.status,
+                })).collect::<Vec<_>>(),
+            },
+            "mac_bindings": {
+                "count": bindings.len(),
+                "active": bindings.iter().filter(|b| b.is_active).count(),
+                "items": bindings.iter().map(|b| serde_json::json!({
+                    "id": b.id,
+                    "mac_address": b.mac_address,
+                    "assigned_ip": b.assigned_ip,
+                    "is_active": b.is_active,
+                })).collect::<Vec<_>>(),
+            },
+        }))
+    }
 }

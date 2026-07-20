@@ -368,3 +368,51 @@ pub async fn search_customers(
         .collect();
     Ok(Json(resp))
 }
+
+/// GET /api/v1/customers/:id/history
+pub async fn get_customer_history(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use crate::modules::audit::domain::entity_history::EntityHistoryService;
+
+    let result = EntityHistoryService::search_history(
+        &state.db,
+        "customers",
+        Some(id.to_string()),
+        None,
+        None,
+        None,
+        None,
+        1,
+        100,
+    )
+    .await?;
+
+    let items: Vec<serde_json::Value> = result
+        .items
+        .into_iter()
+        .map(|h| {
+            serde_json::json!({
+                "id": h.id,
+                "entity_id": h.entity_id,
+                "action": h.action,
+                "old_data": h.old_data,
+                "new_data": h.new_data,
+                "changed_fields": h.changed_fields,
+                "user_id": h.user_id,
+                "user_name": h.user_name,
+                "user_email": h.user_email,
+                "created_at": h.created_at.to_rfc3339(),
+            })
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({
+        "entity_type": "customers",
+        "entity_id": id.to_string(),
+        "total": result.total,
+        "items": items,
+    })))
+}

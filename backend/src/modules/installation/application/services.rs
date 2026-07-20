@@ -102,4 +102,61 @@ impl InstallationService {
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
     }
+
+    // ─── Equipment ────────────────────────────────────────────────────
+
+    pub async fn list_equipment(
+        db: &DatabaseConnection,
+        order_id: i64,
+    ) -> Result<Vec<crate::modules::installation::domain::entities::installation_equipment::Model>, AppError> {
+        use crate::modules::installation::domain::entities::InstallationEquipment;
+        use crate::modules::installation::domain::entities::installation_equipment::Column;
+        let items = InstallationEquipment::find()
+            .filter(Column::InstallationOrderId.eq(order_id))
+            .all(db)
+            .await?;
+        Ok(items)
+    }
+
+    pub async fn add_equipment(
+        db: &DatabaseConnection,
+        order_id: i64,
+        equipment_type: String,
+        model_name: Option<String>,
+        serial_number: Option<String>,
+        quantity: i32,
+        notes: Option<String>,
+    ) -> Result<crate::modules::installation::domain::entities::installation_equipment::Model, AppError> {
+        use crate::modules::installation::domain::entities::installation_equipment;
+        let now = chrono::Utc::now();
+        let item = installation_equipment::ActiveModel {
+            installation_order_id: Set(order_id),
+            equipment_type: Set(equipment_type),
+            model_name: Set(model_name),
+            serial_number: Set(serial_number),
+            quantity: Set(quantity),
+            status: Set("assigned".to_string()),
+            notes: Set(notes),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        Ok(item.insert(db).await?)
+    }
+
+    pub async fn update_equipment_status(
+        db: &DatabaseConnection,
+        equipment_id: i64,
+        status: &str,
+    ) -> Result<crate::modules::installation::domain::entities::installation_equipment::Model, AppError> {
+        use crate::modules::installation::domain::entities::{InstallationEquipment, installation_equipment};
+        let item = InstallationEquipment::find_by_id(equipment_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Equipment {} not found", equipment_id)))?;
+        let mut active: installation_equipment::ActiveModel = item.into();
+        active.status = Set(status.to_string());
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
 }

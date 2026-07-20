@@ -1,6 +1,7 @@
 use crate::modules::billing::domain::entities::{
     Discount, DiscountActiveModel, DiscountColumn, Invoice, InvoiceActiveModel, InvoiceColumn,
-    Payment, PaymentActiveModel, PaymentColumn, Refund, RefundActiveModel,
+    InvoiceLineItem, InvoiceLineItemActiveModel, InvoiceLineItemColumn, Payment, PaymentActiveModel,
+    PaymentColumn, Refund, RefundActiveModel,
 };
 use crate::shared::errors::AppError;
 use sea_orm::{
@@ -429,5 +430,84 @@ impl BillingService {
             sac_code: "998421".to_string(),
             tax_name: "GST on Internet Services".to_string(),
         })
+    }
+
+    // ─── Line Items ───────────────────────────────────────────────────────
+
+    pub async fn list_line_items(
+        db: &DatabaseConnection,
+        invoice_id: i64,
+    ) -> Result<Vec<crate::modules::billing::domain::entities::invoice_line_item::Model>, AppError> {
+        let items = InvoiceLineItem::find()
+            .filter(InvoiceLineItemColumn::InvoiceId.eq(invoice_id))
+            .all(db)
+            .await?;
+        Ok(items)
+    }
+
+    pub async fn add_line_item(
+        db: &DatabaseConnection,
+        invoice_id: i64,
+        description: String,
+        quantity: sea_orm::prelude::Decimal,
+        unit_price: sea_orm::prelude::Decimal,
+        tax_rate: sea_orm::prelude::Decimal,
+    ) -> Result<crate::modules::billing::domain::entities::invoice_line_item::Model, AppError> {
+        let amount = quantity * unit_price;
+        let tax_amount = amount * tax_rate / sea_orm::prelude::Decimal::from(100);
+        let now = chrono::Utc::now();
+        let item = InvoiceLineItemActiveModel {
+            invoice_id: Set(invoice_id),
+            description: Set(description),
+            quantity: Set(quantity),
+            unit_price: Set(unit_price),
+            amount: Set(amount),
+            tax_rate: Set(tax_rate),
+            tax_amount: Set(tax_amount),
+            created_at: Set(now),
+            ..Default::default()
+        };
+        let saved = item.insert(db).await?;
+        Self::recalculate_invoice_totals(db, invoice_id).await?;
+        Ok(saved)
+    }
+
+    pub async fn remove_line_item(
+        db: &DatabaseConnection,
+        invoice_id: i64,
+        item_id: i64,
+    ) -> Result<(), AppError> {
+        let item = InvoiceLineItem::find_by_id(item_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Line item {} not found", item_id)))?;
+        if item.invoice_id != invoice_id {
+            return Err(AppError::Validation("Line item does not belong to this invoice".into()));
+        }
+        InvoiceLineItem::delete_by_id(item_id).exec(db).await?;
+        Self::recalculate_invoice_totals(db, invoice_id).await?;
+        Ok(())
+    }
+
+    async fn recalculate_invoice_totals(
+        db: &DatabaseConnection,
+        invoice_id: i64,
+    ) -> Result<(), AppError> {
+        let items = InvoiceLineItem::find()
+            .filter(InvoiceLineItemColumn::InvoiceId.eq(invoice_id))
+            .all(db)
+            .await?;
+        let subtotal: sea_orm::prelude::Decimal = items.iter().map(|i| i.amount).sum();
+        let tax_total: sea_orm::prelude::Decimal = items.iter().map(|i| i.tax_amount).sum();
+        let total = subtotal + tax_total;
+        if let Some(inv) = Invoice::find_by_id(invoice_id).one(db).await? {
+            let mut active: InvoiceActiveModel = inv.into();
+            active.subtotal = Set(subtotal);
+            active.tax_amount = Set(tax_total);
+            active.total_amount = Set(total);
+            active.updated_at = Set(chrono::Utc::now());
+            active.update(db).await?;
+        }
+        Ok(())
     }
 }

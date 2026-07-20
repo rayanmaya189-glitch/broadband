@@ -14,6 +14,7 @@ pub use invoice::Column as InvoiceColumn;
 pub use invoice::Entity as Invoice;
 
 pub use invoice_line_item::ActiveModel as InvoiceLineItemActiveModel;
+pub use invoice_line_item::Column as InvoiceLineItemColumn;
 pub use invoice_line_item::Entity as InvoiceLineItem;
 
 pub use payment::ActiveModel as PaymentActiveModel;

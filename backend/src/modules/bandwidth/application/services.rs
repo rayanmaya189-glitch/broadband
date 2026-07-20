@@ -1,6 +1,6 @@
 use crate::modules::bandwidth::domain::entities::{BandwidthProfile, BandwidthProfileActiveModel};
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, Set};
 
 pub struct BandwidthService;
 
@@ -79,6 +79,78 @@ impl BandwidthService {
     pub async fn delete_profile(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
         let profile = Self::get_profile(db, id).await?;
         let mut active = <crate::modules::bandwidth::domain::entities::bandwidth_profile::Entity as sea_orm::EntityTrait>::ActiveModel::from(profile);
+        active.is_active = Set(false);
+        active.updated_at = Set(chrono::Utc::now());
+        active.update(db).await?;
+        Ok(())
+    }
+
+    // ─── Policies ─────────────────────────────────────────────────────
+
+    pub async fn list_policies(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model>, AppError> {
+        use crate::modules::bandwidth::domain::entities::BandwidthPolicy;
+        use crate::modules::bandwidth::domain::entities::bandwidth_policy::Column;
+        let items = BandwidthPolicy::find()
+            .order_by_desc(Column::Priority)
+            .all(db)
+            .await?;
+        Ok(items)
+    }
+
+    pub async fn create_policy(
+        db: &DatabaseConnection,
+        name: String,
+        policy_type: String,
+        config: serde_json::Value,
+        priority: i32,
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model, AppError> {
+        use crate::modules::bandwidth::domain::entities::BandwidthPolicyActiveModel;
+        let now = chrono::Utc::now();
+        let policy = BandwidthPolicyActiveModel {
+            name: Set(name),
+            policy_type: Set(policy_type),
+            config: Set(config),
+            priority: Set(priority),
+            is_active: Set(true),
+            review_status: Set(Some("pending".to_string())),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        Ok(policy.insert(db).await?)
+    }
+
+    pub async fn update_policy(
+        db: &DatabaseConnection,
+        id: i64,
+        name: Option<String>,
+        config: Option<serde_json::Value>,
+        priority: Option<i32>,
+        is_active: Option<bool>,
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model, AppError> {
+        use crate::modules::bandwidth::domain::entities::{BandwidthPolicy, bandwidth_policy};
+        let existing = BandwidthPolicy::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Policy {} not found", id)))?;
+        let mut active: bandwidth_policy::ActiveModel = existing.into();
+        if let Some(n) = name { active.name = Set(n); }
+        if let Some(c) = config { active.config = Set(c); }
+        if let Some(p) = priority { active.priority = Set(p); }
+        if let Some(a) = is_active { active.is_active = Set(a); }
+        active.updated_at = Set(chrono::Utc::now());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn delete_policy(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
+        use crate::modules::bandwidth::domain::entities::{BandwidthPolicy, bandwidth_policy};
+        let existing = BandwidthPolicy::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Policy {} not found", id)))?;
+        let mut active: bandwidth_policy::ActiveModel = existing.into();
         active.is_active = Set(false);
         active.updated_at = Set(chrono::Utc::now());
         active.update(db).await?;

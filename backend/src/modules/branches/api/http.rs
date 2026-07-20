@@ -169,6 +169,16 @@ pub async fn update_branch(
     Ok(Json(BranchResponse::from(branch)))
 }
 
+/// GET /api/v1/branches/hierarchy
+pub async fn get_branch_hierarchy(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "branch.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let hierarchy = BranchService::get_hierarchy(&state.db).await?;
+    Ok(Json(hierarchy))
+}
+
 /// DELETE /api/v1/branches/:id
 pub async fn delete_branch(
     State(state): State<Arc<AppState>>,
