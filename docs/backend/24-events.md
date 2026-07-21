@@ -205,21 +205,161 @@ impl EventPublisher {
 }
 ```
 
-## 8. Outbox Pattern
+## 8. Outbox Pattern (Transactional Outbox)
 
-Ensures reliable event publishing:
+Ensures reliable event publishing with at-least-once delivery guarantee.
+
+### 8.1 Core Flow
 
 ```
 1. Start database transaction
 2. Perform business logic (insert/update entity)
-3. Insert event into events table (same transaction)
+3. Insert event into outbox_events table (same transaction)
 4. Commit transaction
-5. Background worker polls for unpublished events
-6. Publish to NATS
+5. OutboxWorker polls for unpublished events
+6. Publish to NATS JetStream
 7. Mark event as published
+8. Cleanup published events after retention period
 ```
 
-This guarantees at-least-once delivery. Subscribers must be idempotent.
+This guarantees **atomicity** — the event is only published if the business transaction commits. No lost events.
+
+### 8.2 Outbox Worker
+
+Spawned in `main.rs` at startup. Runs continuously:
+
+```rust
+// In main.rs
+let outbox_worker = OutboxWorker::new(
+    Arc::new(outbox_db),
+    outbox_publisher,
+);
+// Spawned with graceful shutdown
+tokio::select! {
+    _ = outbox_worker.run() => {},
+    _ = shutdown_rx.recv() => { /* graceful shutdown */ }
+}
+```
+
+Worker polls `outbox_events` table every N seconds for unpublished events, publishes to NATS, marks as published.
+
+### 8.3 Dead-Letter Queue (DLQ)
+
+When event publishing fails after max retries, the event moves to the dead-letter queue:
+
+```rust
+// In outbox.rs
+const MAX_RETRIES: i32 = 5;
+
+pub async fn record_publish_failure(db: &DbPool, event_id: Uuid) -> Result<()> {
+    let event = find_event(db, &event_id).await?;
+
+    if event.retry_count >= MAX_RETRIES {
+        // Move to dead-letter queue
+        let mut active = event.into_active_model();
+        active.dead_letter = Set(true);
+        active.dead_letter_at = Set(Some(Utc::now()));
+        active.update(db).await?;
+        return Ok(());
+    }
+
+    // Increment retry count
+    let mut active = event.into_active_model();
+    active.retry_count = Set(event.retry_count + 1);
+    active.update(db).await?;
+}
+```
+
+### 8.4 Dead-Letter Event Management
+
+Separate `dead_letter_events` table for failed events:
+
+```sql
+CREATE TABLE dead_letter_events (
+    id BIGSERIAL PRIMARY KEY,
+    event_id UUID NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    aggregate_type VARCHAR(50) NOT NULL,
+    aggregate_id BIGINT NOT NULL,
+    payload JSONB NOT NULL,
+    error_message TEXT,
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 5,
+    status VARCHAR(20) DEFAULT 'failed'
+        CHECK (status IN ('failed', 'replayed', 'discarded')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_retry_at TIMESTAMPTZ
+);
+```
+
+**Management operations:**
+| Operation | Function | Purpose |
+|-----------|----------|---------|
+| List failed | `list_dead_letters()` | View all DLQ events with error messages |
+| Replay | `replay_dead_letter(id)` | Reset retry count, re-queue for publishing |
+| Discard | `discard_dead_letter(id)` | Mark as discarded, no retry |
+| Cleanup | `cleanup_dead_letters(days)` | Delete old replayed/discarded events |
+
+### 8.5 Outbox Schema
+
+```sql
+CREATE TABLE outbox_events (
+    id BIGSERIAL PRIMARY KEY,
+    event_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    event_type VARCHAR(100) NOT NULL,
+    aggregate_type VARCHAR(50) NOT NULL,
+    aggregate_id BIGINT NOT NULL,
+    payload JSONB NOT NULL,
+    published BOOLEAN DEFAULT FALSE,
+    published_at TIMESTAMPTZ,
+    retry_count INTEGER DEFAULT 0,
+    dead_letter BOOLEAN DEFAULT FALSE,
+    dead_letter_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 8.6 Event Lifecycle
+
+```
+INSERT (in transaction)
+    ↓
+UNPUBLISHED (outbox worker polls)
+    ↓
+PUBLISHING (worker sends to NATS)
+    ↓ ┌─── SUCCESS ──→ PUBLISHED → CLEANUP (after retention)
+    │
+    └─── FAILURE ──→ RETRY (retry_count++)
+                        ↓
+                    MAX_RETRIES EXCEEDED
+                        ↓
+                    DEAD-LETTER QUEUE
+                        ↓ ┌─── REPLAY ──→ UNPUBLISHED (retry from scratch)
+                        │
+                        └─── DISCARD ──→ Final state
+```
+
+### 8.7 Idempotency Requirement
+
+Subscribers **MUST** be idempotent. The outbox guarantees at-least-once delivery — events may be delivered more than once during retries or replays.
+
+```rust
+// Subscriber idempotency pattern
+async fn handle_event(&self, event: &Event) -> Result<()> {
+    // Check if already processed
+    if self.is_already_processed(&event.event_id).await? {
+        return Ok(()); // Skip duplicate
+    }
+
+    // Process event
+    self.process(event).await?;
+
+    // Mark as processed
+    self.mark_processed(&event.event_id).await?;
+
+    Ok(())
+}
+```
 
 ## 9. Subscriber Configuration
 
