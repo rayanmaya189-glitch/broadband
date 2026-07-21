@@ -215,7 +215,7 @@ export const SITE_CONFIG: SiteConfig = {
       "Ensures seamless execution across installations and service delivery, optimizing processes for speed, reliability, and customer satisfaction.",
   },
   {
-    name: "Azaz Shah",
+    name: "Azaz Ali",
     photo: "",
     designation: "Founder & Network",
     about:

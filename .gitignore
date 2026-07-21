@@ -29,7 +29,7 @@ yarn-error.log*
 pids/
 *.pid
 *.seed
-
+.momocode/
 # Misc
 .cache/
 .tmp/
