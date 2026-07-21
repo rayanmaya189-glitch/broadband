@@ -134,11 +134,13 @@ Resubscribe to channels
 
 ## 8. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/ws` | WebSocket | WebSocket upgrade endpoint |
-| GET | `/api/v1/realtime/health` | Yes | WebSocket health check |
-| GET | `/api/v1/realtime/channels` | Yes | List available channels |
+| `POST` | `/ws` | WebSocket | WebSocket upgrade endpoint |
+| `POST` | `/api/v1/realtime/health` | Yes | WebSocket health check |
+| `POST` | `/api/v1/realtime/channels/list` | Yes | List available channels |
 
 ## 9. Security
 

@@ -50,20 +50,22 @@ CREATE TABLE inventory_movements (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/inventory` | inventory.view | List inventory items |
-| POST | `/api/v1/inventory` | inventory.receive | Add item to inventory |
-| GET | `/api/v1/inventory/:id` | inventory.view | Get item details |
-| PUT | `/api/v1/inventory/:id` | inventory.view | Update item |
-| POST | `/api/v1/inventory/:id/assign` | inventory.assign | Assign to technician |
-| POST | `/api/v1/inventory/:id/install` | inventory.assign | Mark as installed |
-| POST | `/api/v1/inventory/:id/return` | inventory.assign | Return item |
-| POST | `/api/v1/inventory/:id/transfer` | inventory.transfer | Transfer between branches |
-| POST | `/api/v1/inventory/:id/scrap` | inventory.scrapp | Scrap item |
-| GET | `/api/v1/inventory/:id/movements` | inventory.view | Movement history |
-| GET | `/api/v1/inventory/reports` | inventory.report | Inventory reports |
-| GET | `/api/v1/inventory/alerts` | inventory.view | Low stock / warranty alerts |
+| POST | `/api/v1/inventory/list` | inventory.view | List inventory items |
+| POST | `/api/v1/inventory/create` | inventory.receive | Add item to inventory |
+| POST | `/api/v1/inventory/get` | inventory.view | Get item details |
+| PATCH | `/api/v1/inventory/update` | inventory.view | Update item |
+| POST | `/api/v1/inventory/assign` | inventory.assign | Assign to technician |
+| POST | `/api/v1/inventory/install` | inventory.assign | Mark as installed |
+| POST | `/api/v1/inventory/return` | inventory.assign | Return item |
+| POST | `/api/v1/inventory/transfer` | inventory.transfer | Transfer between branches |
+| POST | `/api/v1/inventory/scrap` | inventory.scrapp | Scrap item |
+| POST | `/api/v1/inventory/movements/list` | inventory.view | Movement history |
+| POST | `/api/v1/inventory/reports/list` | inventory.report | Inventory reports |
+| POST | `/api/v1/inventory/alerts/list` | inventory.view | Low stock / warranty alerts |
 
 ## 4. Inventory Lifecycle
 

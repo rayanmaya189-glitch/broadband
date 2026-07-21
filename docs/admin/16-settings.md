@@ -118,12 +118,18 @@ System-wide configuration — billing settings, notification channels, tax confi
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/settings` | GET/PUT | Get/update general settings |
-| `/api/v1/admin/settings/billing` | GET/PUT | Billing settings |
-| `/api/v1/admin/settings/notifications` | GET/PUT | Notification settings |
-| `/api/v1/admin/settings/security` | GET/PUT | Security settings |
+| `/api/v1/admin/settings/get` | POST | Get general settings |
+| `/api/v1/admin/settings/update` | PATCH | Update general settings |
+| `/api/v1/admin/settings/billing/get` | POST | Get billing settings |
+| `/api/v1/admin/settings/billing/update` | PATCH | Update billing settings |
+| `/api/v1/admin/settings/notifications/get` | POST | Get notification settings |
+| `/api/v1/admin/settings/notifications/update` | PATCH | Update notification settings |
+| `/api/v1/admin/settings/security/get` | POST | Get security settings |
+| `/api/v1/admin/settings/security/update` | PATCH | Update security settings |
 | `/api/v1/admin/settings/test-email` | POST | Send test email |
 | `/api/v1/admin/settings/test-sms` | POST | Send test SMS |
 

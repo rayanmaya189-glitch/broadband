@@ -130,17 +130,19 @@ pub fn calculate_retry_delay(retry_count: u32) -> Duration {
 
 ## 7. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/notifications` | notification.send | List notifications |
-| POST | `/api/v1/notifications/send` | notification.send | Send notification |
-| GET | `/api/v1/notifications/templates` | notification.template.manage | List templates |
-| POST | `/api/v1/notifications/templates` | notification.template.manage | Create template |
-| PUT | `/api/v1/notifications/templates/:id` | notification.template.manage | Update template |
-| GET | `/api/v1/notifications/channels` | notification.channel.view | List channels |
-| PUT | `/api/v1/notifications/channels/:id` | notification.channel.configure | Configure channel |
-| GET | `/api/v1/notifications/history` | notification.send | Delivery history |
-| POST | `/api/v1/notifications/:id/retry` | notification.send | Retry failed notification |
+| `POST` | `/api/v1/notifications/list` | notification.send | List notifications |
+| `POST` | `/api/v1/notifications/send` | notification.send | Send notification |
+| `POST` | `/api/v1/notifications/templates/list` | notification.template.manage | List templates |
+| `POST` | `/api/v1/notifications/templates/create` | notification.template.manage | Create template |
+| `PATCH` | `/api/v1/notifications/templates/update` | notification.template.manage | Update template |
+| `POST` | `/api/v1/notifications/channels/list` | notification.channel.view | List channels |
+| `PATCH` | `/api/v1/notifications/channels/update` | notification.channel.configure | Configure channel |
+| `POST` | `/api/v1/notifications/history/list` | notification.send | Delivery history |
+| `POST` | `/api/v1/notifications/retry` | notification.send | Retry failed notification |
 
 ## 8. Template Variables by Event
 

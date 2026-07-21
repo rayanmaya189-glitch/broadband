@@ -129,22 +129,26 @@ From the detail page, action buttons change based on current status:
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/customers` | GET | List customers (paginated, filtered) |
-| `/api/v1/customers` | POST | Create customer |
-| `/api/v1/customers/:id` | GET | Get customer details |
-| `/api/v1/customers/:id` | PUT | Update customer |
-| `/api/v1/customers/:id/status` | PUT | Change status |
-| `/api/v1/customers/:id/profile` | GET/PUT | Get/update profile |
-| `/api/v1/customers/:id/kyc/submit` | POST | Submit KYC documents |
-| `/api/v1/customers/:id/kyc/verify` | POST | Verify KYC |
-| `/api/v1/customers/:id/kyc/reject` | POST | Reject KYC |
-| `/api/v1/customers/:id/addresses` | GET/POST | List/add addresses |
-| `/api/v1/customers/:id/history` | GET | Change history |
-| `/api/v1/customers/:id/subscriptions` | GET | List subscriptions |
-| `/api/v1/customers/:id/tickets` | GET | List tickets |
-| `/api/v1/customers/export` | GET | Export to CSV |
+| `/api/v1/customers/list` | POST | List customers (paginated, filtered) |
+| `/api/v1/customers/create` | POST | Create customer |
+| `/api/v1/customers/get` | POST | Get customer details |
+| `/api/v1/customers/update` | PATCH | Update customer |
+| `/api/v1/customers/status/update` | PATCH | Change status |
+| `/api/v1/customers/profile/list` | POST | Get profile |
+| `/api/v1/customers/profile/update` | PATCH | Update profile |
+| `/api/v1/customers/kyc/submit` | POST | Submit KYC documents |
+| `/api/v1/customers/kyc/verify` | POST | Verify KYC |
+| `/api/v1/customers/kyc/reject` | POST | Reject KYC |
+| `/api/v1/customers/addresses/list` | POST | List addresses |
+| `/api/v1/customers/addresses/create` | POST | Add address |
+| `/api/v1/customers/history/list` | POST | Change history |
+| `/api/v1/customers/subscriptions/list` | POST | List subscriptions |
+| `/api/v1/customers/tickets/list` | POST | List tickets |
+| `/api/v1/customers/export` | POST | Export to CSV |
 
 ## 6. KYC Verification Flow
 

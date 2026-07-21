@@ -140,23 +140,25 @@ CREATE TABLE firmware_updates (
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/devices` | noc_engineer+ | List devices |
-| POST | `/api/v1/devices` | network_admin+ | Register device |
-| GET | `/api/v1/devices/:id` | noc_engineer+ | Get device details |
-| PUT | `/api/v1/devices/:id` | network_admin+ | Update device |
-| POST | `/api/v1/devices/:id/restart` | noc_engineer+ | Restart device |
-| POST | `/api/v1/devices/:id/shutdown` | network_admin+ | Shutdown device |
-| PUT | `/api/v1/devices/:id/configure` | network_admin+ | Configure device |
-| GET | `/api/v1/devices/:id/ports` | noc_engineer+ | List ports |
-| PUT | `/api/v1/devices/:id/ports/:pid` | noc_engineer+ | Enable/disable port |
-| GET | `/api/v1/devices/:id/logs` | noc_engineer+ | Get device logs |
-| GET | `/api/v1/devices/:id/metrics` | noc_engineer+ | Get device metrics |
-| POST | `/api/v1/devices/:id/firmware/update` | network_admin+ | Update firmware |
-| GET | `/api/v1/devices/:id/firmware` | noc_engineer+ | Firmware status |
-| GET | `/api/v1/devices/models` | network_admin+ | List device models |
-| POST | `/api/v1/devices/models` | network_admin+ | Register device model |
+| POST | `/api/v1/devices/list` | noc_engineer+ | List devices |
+| POST | `/api/v1/devices/create` | network_admin+ | Register device |
+| POST | `/api/v1/devices/get` | noc_engineer+ | Get device details |
+| PATCH | `/api/v1/devices/update` | network_admin+ | Update device |
+| POST | `/api/v1/devices/restart` | noc_engineer+ | Restart device |
+| POST | `/api/v1/devices/shutdown` | network_admin+ | Shutdown device |
+| PATCH | `/api/v1/devices/configure` | network_admin+ | Configure device |
+| POST | `/api/v1/devices/ports/list` | noc_engineer+ | List ports |
+| PATCH | `/api/v1/devices/ports/update` | noc_engineer+ | Enable/disable port |
+| POST | `/api/v1/devices/logs/list` | noc_engineer+ | Get device logs |
+| POST | `/api/v1/devices/metrics/list` | noc_engineer+ | Get device metrics |
+| POST | `/api/v1/devices/firmware/update` | network_admin+ | Update firmware |
+| POST | `/api/v1/devices/firmware/get` | noc_engineer+ | Firmware status |
+| POST | `/api/v1/devices/models/list` | network_admin+ | List device models |
+| POST | `/api/v1/devices/models/create` | network_admin+ | Register device model |
 
 ## 6. Device Control Permissions
 

@@ -35,18 +35,20 @@ CREATE TABLE installation_orders (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/installations` | field_technician+ | List installation orders |
-| POST | `/api/v1/installations` | sales_agent+ | Create installation order |
-| GET | `/api/v1/installations/:id` | field_technician+ | Get installation details |
-| PUT | `/api/v1/installations/:id/schedule` | customer_support+ | Schedule installation |
-| PUT | `/api/v1/installations/:id/reschedule` | field_technician+ | Reschedule |
-| PUT | `/api/v1/installations/:id/start` | field_technician | Start installation |
-| PUT | `/api/v1/installations/:id/complete` | field_technician | Complete installation |
-| PUT | `/api/v1/installations/:id/cancel` | customer_support+ | Cancel installation |
-| POST | `/api/v1/installations/:id/photos` | field_technician | Upload installation photos |
-| GET | `/api/v1/installations/my-assignments` | field_technician | Get my assignments |
+| POST | `/api/v1/installations/list` | field_technician+ | List installation orders |
+| POST | `/api/v1/installations/create` | sales_agent+ | Create installation order |
+| POST | `/api/v1/installations/get` | field_technician+ | Get installation details |
+| PATCH | `/api/v1/installations/schedule` | customer_support+ | Schedule installation |
+| PATCH | `/api/v1/installations/reschedule` | field_technician+ | Reschedule |
+| PATCH | `/api/v1/installations/start` | field_technician | Start installation |
+| PATCH | `/api/v1/installations/complete` | field_technician | Complete installation |
+| PATCH | `/api/v1/installations/cancel` | customer_support+ | Cancel installation |
+| POST | `/api/v1/installations/photos` | field_technician | Upload installation photos |
+| POST | `/api/v1/installations/my-assignments/list` | field_technician | Get my assignments |
 
 ## 4. Installation State Machine
 

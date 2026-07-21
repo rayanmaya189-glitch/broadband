@@ -159,28 +159,30 @@ CREATE TABLE discounts_history (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/billing/invoices` | billing_ops | List invoices |
-| POST | `/api/v1/billing/invoices` | billing_operator+ | Create invoice |
-| GET | `/api/v1/billing/invoices/:id` | billing_ops | Get invoice |
-| PUT | `/api/v1/billing/invoices/:id` | billing_operator+ | Update invoice |
-| POST | `/api/v1/billing/invoices/:id/send` | billing_operator+ | Send invoice to customer |
-| POST | `/api/v1/billing/invoices/:id/void` | finance_manager+ | Void invoice |
-| GET | `/api/v1/billing/invoices/:id/pdf` | billing_ops | Generate invoice PDF |
-| GET | `/api/v1/billing/payments` | billing_ops | List payments |
-| POST | `/api/v1/billing/payments` | billing_operator+ | Record payment |
-| GET | `/api/v1/billing/payments/:id` | billing_ops | Get payment details |
-| POST | `/api/v1/billing/refunds` | billing_operator+ | Request refund |
-| PUT | `/api/v1/billing/refunds/:id/approve` | finance_manager+ | Approve refund |
-| PUT | `/api/v1/billing/refunds/:id/reject` | finance_manager+ | Reject refund |
-| GET | `/api/v1/billing/discounts` | billing_ops | List discounts |
-| POST | `/api/v1/billing/discounts` | finance_manager+ | Create discount |
-| PUT | `/api/v1/billing/discounts/:id` | finance_manager+ | Update discount |
-| GET | `/api/v1/billing/dunning/config` | finance_manager+ | Get dunning config |
-| PUT | `/api/v1/billing/dunning/config` | finance_manager+ | Update dunning config |
-| GET | `/api/v1/billing/tax/config` | finance_manager+ | Get tax config |
-| PUT | `/api/v1/billing/tax/config` | finance_manager+ | Update tax config |
+| POST | `/api/v1/billing/invoices/list` | billing_ops | List invoices |
+| POST | `/api/v1/billing/invoices/create` | billing_operator+ | Create invoice |
+| POST | `/api/v1/billing/invoices/get` | billing_ops | Get invoice |
+| PATCH | `/api/v1/billing/invoices/update` | billing_operator+ | Update invoice |
+| POST | `/api/v1/billing/invoices/send` | billing_operator+ | Send invoice to customer |
+| POST | `/api/v1/billing/invoices/void` | finance_manager+ | Void invoice |
+| POST | `/api/v1/billing/invoices/pdf` | billing_ops | Generate invoice PDF |
+| POST | `/api/v1/billing/payments/list` | billing_ops | List payments |
+| POST | `/api/v1/billing/payments/create` | billing_operator+ | Record payment |
+| POST | `/api/v1/billing/payments/get` | billing_ops | Get payment details |
+| POST | `/api/v1/billing/refunds/create` | billing_operator+ | Request refund |
+| PATCH | `/api/v1/billing/refunds/approve` | finance_manager+ | Approve refund |
+| PATCH | `/api/v1/billing/refunds/reject` | finance_manager+ | Reject refund |
+| POST | `/api/v1/billing/discounts/list` | billing_ops | List discounts |
+| POST | `/api/v1/billing/discounts/create` | finance_manager+ | Create discount |
+| PATCH | `/api/v1/billing/discounts/update` | finance_manager+ | Update discount |
+| POST | `/api/v1/billing/dunning/config/get` | finance_manager+ | Get dunning config |
+| PATCH | `/api/v1/billing/dunning/config/update` | finance_manager+ | Update dunning config |
+| POST | `/api/v1/billing/tax/config/get` | finance_manager+ | Get tax config |
+| PATCH | `/api/v1/billing/tax/config/update` | finance_manager+ | Update tax config |
 
 ## 4. Invoice Generation Flow
 

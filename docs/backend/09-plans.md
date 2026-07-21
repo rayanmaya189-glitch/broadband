@@ -103,20 +103,22 @@ CREATE TABLE plan_service_packages (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/plans` | No (public) | List active plans |
-| GET | `/api/v1/plans/:id` | No (public) | Get plan details |
-| POST | `/api/v1/admin/plans` | finance_manager+ | Create plan |
-| PUT | `/api/v1/admin/plans/:id` | finance_manager+ | Update plan |
-| DELETE | `/api/v1/admin/plans/:id` | finance_manager+ | Soft-delete plan |
-| POST | `/api/v1/admin/plans/:id/publish` | finance_manager+ | Publish plan |
-| POST | `/api/v1/admin/plans/:id/unpublish` | finance_manager+ | Unpublish plan |
-| POST | `/api/v1/admin/plans/:id/clone` | finance_manager+ | Clone plan |
-| PUT | `/api/v1/admin/plans/:id/pricing` | finance_manager+ | Update pricing |
-| GET | `/api/v1/admin/plans/:id/speed-profile` | network_admin+ | Get speed profile |
-| POST | `/api/v1/admin/plans/:id/speed-profile` | network_admin+ | Create/update speed profile |
-| GET | `/api/v1/admin/plans/:id/history` | finance_manager+ | View change history |
+| POST | `/api/v1/plans/list` | No (public) | List active plans |
+| POST | `/api/v1/plans/get` | No (public) | Get plan details |
+| POST | `/api/v1/admin/plans/create` | finance_manager+ | Create plan |
+| PATCH | `/api/v1/admin/plans/update` | finance_manager+ | Update plan |
+| DELETE | `/api/v1/admin/plans/delete` | finance_manager+ | Soft-delete plan |
+| POST | `/api/v1/admin/plans/publish` | finance_manager+ | Publish plan |
+| POST | `/api/v1/admin/plans/unpublish` | finance_manager+ | Unpublish plan |
+| POST | `/api/v1/admin/plans/clone` | finance_manager+ | Clone plan |
+| PATCH | `/api/v1/admin/plans/pricing` | finance_manager+ | Update pricing |
+| POST | `/api/v1/admin/plans/speed-profile/list` | network_admin+ | Get speed profile |
+| POST | `/api/v1/admin/plans/speed-profile` | network_admin+ | Create/update speed profile |
+| POST | `/api/v1/admin/plans/history/list` | finance_manager+ | View change history |
 
 ## 4. Plan Data (Seed)
 

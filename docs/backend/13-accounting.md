@@ -154,20 +154,22 @@ Dr. Marketing Expense (5300)      ₹100.00
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/accounting/accounts` | finance_manager+ | Chart of accounts |
-| POST | `/api/v1/accounting/accounts` | finance_manager+ | Create account |
-| GET | `/api/v1/accounting/journal` | finance_manager+ | List journal entries |
-| POST | `/api/v1/accounting/journal` | billing_operator+ | Create journal entry |
-| POST | `/api/v1/accounting/journal/:id/post` | finance_manager+ | Post entry |
-| POST | `/api/v1/accounting/journal/:id/void` | finance_manager+ | Void entry |
-| GET | `/api/v1/accounting/trial-balance` | finance_manager+ | Generate trial balance |
-| GET | `/api/v1/accounting/statements/profit-loss` | finance_manager+ | P&L statement |
-| GET | `/api/v1/accounting/statements/balance-sheet` | finance_manager+ | Balance sheet |
-| GET | `/api/v1/accounting/statements/cash-flow` | finance_manager+ | Cash flow statement |
-| GET | `/api/v1/accounting/gst/:type` | finance_manager+ | GST return data |
-| GET | `/api/v1/accounting/reports/revenue` | finance_manager+ | Revenue report |
+| POST | `/api/v1/accounting/accounts/list` | finance_manager+ | Chart of accounts |
+| POST | `/api/v1/accounting/accounts/create` | finance_manager+ | Create account |
+| POST | `/api/v1/accounting/journal/list` | finance_manager+ | List journal entries |
+| POST | `/api/v1/accounting/journal/create` | billing_operator+ | Create journal entry |
+| POST | `/api/v1/accounting/journal/post` | finance_manager+ | Post entry |
+| POST | `/api/v1/accounting/journal/void` | finance_manager+ | Void entry |
+| POST | `/api/v1/accounting/trial-balance` | finance_manager+ | Generate trial balance |
+| POST | `/api/v1/accounting/statements/profit-loss` | finance_manager+ | P&L statement |
+| POST | `/api/v1/accounting/statements/balance-sheet` | finance_manager+ | Balance sheet |
+| POST | `/api/v1/accounting/statements/cash-flow` | finance_manager+ | Cash flow statement |
+| POST | `/api/v1/accounting/gst/type` | finance_manager+ | GST return data |
+| POST | `/api/v1/accounting/reports/revenue` | finance_manager+ | Revenue report |
 
 ## 6. GST Filing Data
 

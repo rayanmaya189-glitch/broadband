@@ -69,18 +69,20 @@ Reactivate:
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/subscriptions` | GET | List subscriptions |
-| `/api/v1/subscriptions` | POST | Create subscription |
-| `/api/v1/subscriptions/:id` | GET | Get subscription details |
-| `/api/v1/subscriptions/:id` | PUT | Update subscription |
-| `/api/v1/subscriptions/:id/upgrade` | POST | Upgrade plan |
-| `/api/v1/subscriptions/:id/downgrade` | POST | Downgrade plan |
-| `/api/v1/subscriptions/:id/suspend` | POST | Suspend subscription |
-| `/api/v1/subscriptions/:id/reactivate` | POST | Reactivate subscription |
-| `/api/v1/subscriptions/:id/cancel` | POST | Cancel subscription |
-| `/api/v1/subscriptions/:id/history` | GET | Change history |
+| `/api/v1/subscriptions/list` | POST | List subscriptions |
+| `/api/v1/subscriptions/create` | POST | Create subscription |
+| `/api/v1/subscriptions/get` | POST | Get subscription details |
+| `/api/v1/subscriptions/update` | PATCH | Update subscription |
+| `/api/v1/subscriptions/upgrade` | POST | Upgrade plan |
+| `/api/v1/subscriptions/downgrade` | POST | Downgrade plan |
+| `/api/v1/subscriptions/suspend` | POST | Suspend subscription |
+| `/api/v1/subscriptions/reactivate` | POST | Reactivate subscription |
+| `/api/v1/subscriptions/cancel` | POST | Cancel subscription |
+| `/api/v1/subscriptions/history/list` | POST | Change history |
 
 ## 5. RBAC
 

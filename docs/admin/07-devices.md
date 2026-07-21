@@ -97,22 +97,24 @@ Firmware Updates:
 
 ## 7. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/devices` | GET | List devices |
-| `/api/v1/devices` | POST | Register device |
-| `/api/v1/devices/:id` | GET | Get device details |
-| `/api/v1/devices/:id` | PUT | Update device |
-| `/api/v1/devices/:id/restart` | POST | Restart device |
-| `/api/v1/devices/:id/shutdown` | POST | Shutdown device |
-| `/api/v1/devices/:id/configure` | PUT | Configure device |
-| `/api/v1/devices/:id/ports` | GET | List ports |
-| `/api/v1/devices/:id/ports/:pid` | PUT | Enable/disable port |
-| `/api/v1/devices/:id/logs` | GET | Get device logs |
-| `/api/v1/devices/:id/metrics` | GET | Get device metrics |
-| `/api/v1/devices/:id/firmware/update` | POST | Update firmware |
-| `/api/v1/devices/models` | GET | List device models |
-| `/api/v1/devices/models` | POST | Register device model |
+| `/api/v1/devices/list` | POST | List devices |
+| `/api/v1/devices/create` | POST | Register device |
+| `/api/v1/devices/get` | POST | Get device details |
+| `/api/v1/devices/update` | PATCH | Update device |
+| `/api/v1/devices/restart` | POST | Restart device |
+| `/api/v1/devices/shutdown` | POST | Shutdown device |
+| `/api/v1/devices/configure` | PATCH | Configure device |
+| `/api/v1/devices/ports/list` | POST | List ports |
+| `/api/v1/devices/ports/update` | PATCH | Enable/disable port |
+| `/api/v1/devices/logs/list` | POST | Get device logs |
+| `/api/v1/devices/metrics/list` | POST | Get device metrics |
+| `/api/v1/devices/firmware/update` | POST | Update firmware |
+| `/api/v1/devices/models/list` | POST | List device models |
+| `/api/v1/devices/models/create` | POST | Register device model |
 
 ## 8. RBAC
 

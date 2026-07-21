@@ -97,11 +97,13 @@ Accept-Version: v1
 X-API-Version: v1
 ```
 
-Or via path (preferred):
+Or via path (preferred, Protobuf-first):
 ```
-GET /api/v1/customers
-GET /api/v2/customers
+POST /api/v1/customers/list
+POST /api/v2/customers/list
 ```
+
+> All endpoints are Protobuf-encoded POST/PATCH/DELETE. See `API-CONVENTIONS.md`.
 
 ### Migration Guide Template
 
@@ -111,12 +113,12 @@ When releasing a new version:
 # API v2 Migration Guide
 
 ## Breaking Changes
-1. `GET /api/v1/customers/:id` → Response field `phone` renamed to `phone_number`
+1. `POST /api/v1/customers/get` → Response field `phone` renamed to `phone_number`
 2. `POST /api/v1/auth/otp/verify` → Response structure changed
 
 ## Migration Steps
 1. Update base URL: `/api/v1/` → `/api/v2/`
-2. Update response parsing for affected fields
+2. Update protobuf definitions and recompile
 3. Test with staging environment
 
 ## Timeline

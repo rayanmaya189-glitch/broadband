@@ -76,16 +76,20 @@ CRUD for scan configurations — target subnets, intervals, SNMP communities.
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/discovery/scans` | GET/POST | List/create scan configs |
-| `/api/v1/discovery/scans/:id` | PUT/DELETE | Update/delete scan |
-| `/api/v1/discovery/scans/:id/start` | POST | Start scan |
-| `/api/v1/discovery/scans/:id/stop` | POST | Stop scan |
-| `/api/v1/discovery/results` | GET | List discovered devices |
-| `/api/v1/discovery/results/:id/approve` | POST | Approve & register |
-| `/api/v1/discovery/results/:id/reject` | POST | Reject device |
-| `/api/v1/discovery/dashboard` | GET | Dashboard summary |
+| `/api/v1/discovery/scans/list` | POST | List scan configs |
+| `/api/v1/discovery/scans/create` | POST | Create scan config |
+| `/api/v1/discovery/scans/update` | PATCH | Update scan |
+| `/api/v1/discovery/scans/delete` | DELETE | Delete scan |
+| `/api/v1/discovery/scans/start` | POST | Start scan |
+| `/api/v1/discovery/scans/stop` | POST | Stop scan |
+| `/api/v1/discovery/results/list` | POST | List discovered devices |
+| `/api/v1/discovery/results/approve` | POST | Approve & register |
+| `/api/v1/discovery/results/reject` | POST | Reject device |
+| `/api/v1/discovery/dashboard` | POST | Dashboard summary |
 
 ## 5. WebSocket Channel
 

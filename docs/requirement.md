@@ -4266,10 +4266,10 @@ WebSocket connections are authenticated via:
 | Database | PostgreSQL | 16+ |
 | Cache | Redis | 7+ |
 | Message Broker | NATS | 2.10+ |
-| ORM | SQLx (async, compile-time checked) | 0.7+ |
-| Auth | JWT (jsonwebtoken crate) | latest |
-| Serialization | serde + serde_json | latest |
-| Validation | validator | latest |
+| ORM | SeaORM (per context) | 1.1+ |
+| API Encoding | Protocol Buffers (prost + tonic) | 0.12+ |
+| Serialization | serde + prost | latest |
+| Validation | validator + prost-validate | latest |
 | Tracing | tracing + tracing-subscriber | latest |
 | Error Handling | thiserror + anyhow | latest |
 | Config | config + dotenvy | latest |
@@ -5077,13 +5077,15 @@ audit.action.logged
 - Customer churn rate
 - Quick actions: Register customer, Generate invoice, View alerts
 
+> **API Convention (v4.0):** All APIs are Protobuf-encoded POST/PATCH/DELETE. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md` for full conventions.
+
 **API Requirements:**
-- `GET /api/v1/dashboard/stats`
-- `GET /api/v1/dashboard/revenue-trend`
-- `GET /api/v1/dashboard/customer-trend`
-- `GET /api/v1/dashboard/device-summary`
-- `GET /api/v1/dashboard/bandwidth-utilization`
-- `GET /api/v1/dashboard/activity-feed`
+- `POST /api/v1/dashboard/stats`
+- `POST /api/v1/dashboard/revenue-trend`
+- `POST /api/v1/dashboard/customer-trend`
+- `POST /api/v1/dashboard/device-summary`
+- `POST /api/v1/dashboard/bandwidth-utilization`
+- `POST /api/v1/dashboard/activity-feed`
 
 **Permissions Required:** `dashboard.view`
 
@@ -5108,18 +5110,18 @@ audit.action.logged
 - Customer communication log
 
 **API Requirements:**
-- `GET /api/v1/customers` (list with pagination)
-- `GET /api/v1/customers/:id`
-- `POST /api/v1/customers`
-- `PATCH /api/v1/customers/:id`
-- `DELETE /api/v1/customers/:id`
-- `POST /api/v1/customers/:id/suspend`
-- `POST /api/v1/customers/:id/reactivate`
-- `POST /api/v1/customers/:id/terminate`
-- `GET /api/v1/customers/:id/subscriptions`
-- `GET /api/v1/customers/:id/invoices`
-- `GET /api/v1/customers/:id/installations`
-- `GET /api/v1/customers/:id/tickets`
+- `POST /api/v1/customers/list`
+- `POST /api/v1/customers/get`
+- `POST /api/v1/customers/create`
+- `PATCH /api/v1/customers/update`
+- `DELETE /api/v1/customers/delete`
+- `POST /api/v1/customers/suspend`
+- `POST /api/v1/customers/reactivate`
+- `POST /api/v1/customers/terminate`
+- `POST /api/v1/customers/subscriptions/list`
+- `POST /api/v1/customers/invoices/list`
+- `POST /api/v1/customers/installations/list`
+- `POST /api/v1/customers/tickets/list`
 
 **Permissions Required:** `customer.account.view`, `customer.account.update`, `customer.account.disable`
 
@@ -5140,13 +5142,13 @@ audit.action.logged
 - View real-time usage
 
 **API Requirements:**
-- `GET /api/v1/subscriptions`
-- `GET /api/v1/subscriptions/:id`
-- `POST /api/v1/subscriptions/:id/upgrade`
-- `POST /api/v1/subscriptions/:id/downgrade`
-- `POST /api/v1/subscriptions/:id/cancel`
-- `GET /api/v1/subscriptions/:id/pppoe-session`
-- `GET /api/v1/subscriptions/:id/bandwidth-usage`
+- `POST /api/v1/subscriptions/list`
+- `POST /api/v1/subscriptions/get`
+- `POST /api/v1/subscriptions/upgrade`
+- `POST /api/v1/subscriptions/downgrade`
+- `POST /api/v1/subscriptions/cancel`
+- `POST /api/v1/subscriptions/pppoe-session/list`
+- `POST /api/v1/subscriptions/bandwidth-usage/list`
 
 **Permissions Required:** `customer.subscription.view`, `customer.subscription.upgrade`, `customer.subscription.suspend`
 
@@ -5167,16 +5169,16 @@ audit.action.logged
 - View plan revenue
 
 **API Requirements:**
-- `GET /api/v1/plans`
-- `GET /api/v1/plans/:id`
-- `POST /api/v1/plans`
-- `PATCH /api/v1/plans/:id`
-- `DELETE /api/v1/plans/:id`
-- `POST /api/v1/plans/:id/publish`
-- `POST /api/v1/plans/:id/unpublish`
-- `POST /api/v1/plans/:id/clone`
-- `GET /api/v1/plans/:id/subscribers`
-- `GET /api/v1/plans/:id/revenue`
+- `POST /api/v1/plans/list`
+- `POST /api/v1/plans/get`
+- `POST /api/v1/plans/create`
+- `PATCH /api/v1/plans/update`
+- `DELETE /api/v1/plans/delete`
+- `POST /api/v1/plans/publish`
+- `POST /api/v1/plans/unpublish`
+- `POST /api/v1/plans/clone`
+- `POST /api/v1/plans/subscribers/list`
+- `POST /api/v1/plans/revenue/list`
 
 **Permissions Required:** `plan.view`, `plan.create`, `plan.update`, `plan.delete`, `plan.publish`
 
@@ -5196,12 +5198,12 @@ audit.action.logged
 - Rate limiting configuration
 
 **API Requirements:**
-- `GET /api/v1/bandwidth/profiles`
-- `POST /api/v1/bandwidth/profiles`
-- `PATCH /api/v1/bandwidth/profiles/:id`
-- `DELETE /api/v1/bandwidth/profiles/:id`
-- `POST /api/v1/bandwidth/profiles/:id/apply`
-- `GET /api/v1/bandwidth/utilization`
+- `POST /api/v1/bandwidth/profiles/list`
+- `POST /api/v1/bandwidth/profiles/create`
+- `PATCH /api/v1/bandwidth/profiles/update`
+- `DELETE /api/v1/bandwidth/profiles/delete`
+- `POST /api/v1/bandwidth/profiles/apply`
+- `POST /api/v1/bandwidth/utilization/list`
 
 **Permissions Required:** `bandwidth.profile.view`, `bandwidth.profile.update`
 
@@ -5224,16 +5226,16 @@ audit.action.logged
 - Map view (geographic device locations)
 
 **API Requirements:**
-- `GET /api/v1/devices`
-- `GET /api/v1/devices/:id`
-- `POST /api/v1/devices`
-- `PATCH /api/v1/devices/:id`
-- `POST /api/v1/devices/:id/restart`
-- `POST /api/v1/devices/:id/shutdown`
-- `GET /api/v1/devices/:id/ports`
-- `GET /api/v1/devices/:id/logs`
-- `GET /api/v1/devices/:id/metrics`
-- `POST /api/v1/devices/:id/firmware/update`
+- `POST /api/v1/devices/list`
+- `POST /api/v1/devices/get`
+- `POST /api/v1/devices/create`
+- `PATCH /api/v1/devices/update`
+- `POST /api/v1/devices/restart`
+- `POST /api/v1/devices/shutdown`
+- `POST /api/v1/devices/ports/list`
+- `POST /api/v1/devices/logs/list`
+- `POST /api/v1/devices/metrics/list`
+- `POST /api/v1/devices/firmware/update`
 
 **Permissions Required:** `device.*.view`, `device.*.configure`, `device.*.restart`
 
@@ -5253,11 +5255,11 @@ audit.action.logged
 - ONT online/offline status
 
 **API Requirements:**
-- `GET /api/v1/olt/:id/ports`
-- `GET /api/v1/olt/:id/onts`
-- `POST /api/v1/olt/:id/onts/:ont_id/provision`
-- `GET /api/v1/olt/:id/traffic-profiles`
-- `GET /api/v1/olt/:id/optical-monitoring`
+- `POST /api/v1/olt/ports/list`
+- `POST /api/v1/olt/onts/list`
+- `POST /api/v1/olt/onts/provision`
+- `POST /api/v1/olt/traffic-profiles/list`
+- `POST /api/v1/olt/optical-monitoring/list`
 
 **Permissions Required:** `olt.configuration.view`, `olt.configuration.change`, `olt.configuration.deploy`
 
@@ -5280,15 +5282,15 @@ audit.action.logged
 - Revenue reports
 
 **API Requirements:**
-- `GET /api/v1/billing/invoices`
-- `GET /api/v1/billing/invoices/:id`
-- `POST /api/v1/billing/invoices`
-- `POST /api/v1/billing/invoices/:id/send`
-- `POST /api/v1/billing/invoices/:id/void`
-- `POST /api/v1/billing/payments`
-- `POST /api/v1/billing/refunds`
-- `GET /api/v1/billing/discounts`
-- `POST /api/v1/billing/discounts`
+- `POST /api/v1/billing/invoices/list`
+- `POST /api/v1/billing/invoices/get`
+- `POST /api/v1/billing/invoices/create`
+- `POST /api/v1/billing/invoices/send`
+- `POST /api/v1/billing/invoices/void`
+- `POST /api/v1/billing/payments/create`
+- `POST /api/v1/billing/refunds/create`
+- `POST /api/v1/billing/discounts/list`
+- `POST /api/v1/billing/discounts/create`
 
 **Permissions Required:** `billing.invoice.view`, `billing.invoice.generate`, `billing.payment.process`, `billing.invoice.refund`
 
@@ -5310,14 +5312,14 @@ audit.action.logged
 - Export to CSV/PDF
 
 **API Requirements:**
-- `GET /api/v1/reports/revenue`
-- `GET /api/v1/reports/customers`
-- `GET /api/v1/reports/churn`
-- `GET /api/v1/reports/plans`
-- `GET /api/v1/reports/area-performance`
-- `GET /api/v1/reports/bandwidth`
-- `GET /api/v1/reports/device-uptime`
-- `GET /api/v1/reports/tickets`
+- `POST /api/v1/reports/revenue`
+- `POST /api/v1/reports/customers`
+- `POST /api/v1/reports/churn`
+- `POST /api/v1/reports/plans`
+- `POST /api/v1/reports/area-performance`
+- `POST /api/v1/reports/bandwidth`
+- `POST /api/v1/reports/device-uptime`
+- `POST /api/v1/reports/tickets`
 - `POST /api/v1/reports/export`
 
 **Permissions Required:** `report.view`, `report.generate`, `report.export`
@@ -5338,16 +5340,16 @@ audit.action.logged
 - Audit log viewer
 
 **API Requirements:**
-- `GET /api/v1/users`
-- `GET /api/v1/users/:id`
-- `POST /api/v1/users`
-- `PATCH /api/v1/users/:id`
-- `DELETE /api/v1/users/:id`
-- `GET /api/v1/roles`
-- `POST /api/v1/roles`
-- `PATCH /api/v1/roles/:id`
-- `DELETE /api/v1/roles/:id`
-- `POST /api/v1/roles/:id/permissions`
+- `POST /api/v1/users/list`
+- `POST /api/v1/users/get`
+- `POST /api/v1/users/create`
+- `PATCH /api/v1/users/update`
+- `DELETE /api/v1/users/delete`
+- `POST /api/v1/roles/list`
+- `POST /api/v1/roles/create`
+- `PATCH /api/v1/roles/update`
+- `DELETE /api/v1/roles/delete`
+- `POST /api/v1/roles/permissions`
 
 **Permissions Required:** `user.account.view`, `user.role.assign`, `user.role.create`
 
@@ -5364,8 +5366,8 @@ audit.action.logged
 - Alert on suspicious patterns
 
 **API Requirements:**
-- `GET /api/v1/audit/logs`
-- `GET /api/v1/audit/logs/:id`
+- `POST /api/v1/audit/logs/list`
+- `POST /api/v1/audit/logs/get`
 - `POST /api/v1/audit/logs/export`
 
 **Permissions Required:** `audit.log.view`, `audit.log.export`
@@ -5385,10 +5387,10 @@ audit.action.logged
 - Notification preferences per customer
 
 **API Requirements:**
-- `GET /api/v1/notifications/templates`
-- `POST /api/v1/notifications/templates`
-- `PATCH /api/v1/notifications/templates/:id`
-- `GET /api/v1/notifications/history`
+- `POST /api/v1/notifications/templates/list`
+- `POST /api/v1/notifications/templates/create`
+- `PATCH /api/v1/notifications/templates/update`
+- `POST /api/v1/notifications/history/list`
 - `POST /api/v1/notifications/send`
 
 **Permissions Required:** `notification.template.manage`, `notification.send`
@@ -5419,15 +5421,15 @@ audit.action.logged
 | Feature | Description | API Endpoint |
 |---------|-------------|-------------|
 | **Authentication** | Phone + OTP login, biometric unlock | `POST /api/v1/auth/otp/send`, `POST /api/v1/auth/otp/verify` |
-| **Dashboard** | Current plan, usage stats, online status | `GET /api/v1/customer/dashboard` |
-| **Internet Usage** | Real-time bandwidth, daily/monthly usage charts | `GET /api/v1/customer/usage` |
-| **Current Plan** | Plan details, speed, pricing, next billing | `GET /api/v1/customer/subscription` |
-| **Invoices** | Invoice list, payment status, download PDF | `GET /api/v1/customer/invoices` |
+| **Dashboard** | Current plan, usage stats, online status | `POST /api/v1/customer/dashboard` |
+| **Internet Usage** | Real-time bandwidth, daily/monthly usage charts | `POST /api/v1/customer/usage` |
+| **Current Plan** | Plan details, speed, pricing, next billing | `POST /api/v1/customer/subscription` |
+| **Invoices** | Invoice list, payment status, download PDF | `POST /api/v1/customer/invoices/list` |
 | **Payment** | UPI, card, net banking via Razorpay SDK | `POST /api/v1/customer/payments` |
-| **Support Tickets** | Create, view, update, close tickets | `GET /api/v1/customer/tickets`, `POST /api/v1/customer/tickets` |
-| **Notifications** | Push notification history, read/unread | `GET /api/v1/customer/notifications` |
-| **Profile** | View/edit personal details, KYC status | `GET /api/v1/customer/profile`, `PATCH /api/v1/customer/profile` |
-| **Settings** | Notification preferences, theme, language | `GET /api/v1/customer/settings` |
+| **Support Tickets** | Create, view, update, close tickets | `POST /api/v1/customer/tickets/list`, `POST /api/v1/customer/tickets/create` |
+| **Notifications** | Push notification history, read/unread | `POST /api/v1/customer/notifications/list` |
+| **Profile** | View/edit personal details, KYC status | `POST /api/v1/customer/profile`, `PATCH /api/v1/customer/profile` |
+| **Settings** | Notification preferences, theme, language | `POST /api/v1/customer/settings` |
 
 ### 17.3 Architecture
 
@@ -6252,9 +6254,86 @@ jobs:
 
 ## Appendix A: API Versioning Strategy
 
-All APIs are versioned: `/api/v1/...`
+> **Full API design conventions:** `docs/backend/API-CONVENTIONS.md`
 
-Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (new fields, new endpoints) are added to the current version.
+### Protobuf-First API Design (v4.0)
+
+ALL APIs follow these rules strictly:
+
+| Rule | Description |
+|------|-------------|
+| **PF-001** | ALL request and response bodies MUST be Protocol Buffers (protobuf). JSON is not accepted. |
+| **PF-002** | NO GET endpoints. All reads use `POST /resource/list` or `POST /resource/get`. |
+| **PF-003** | NO PUT endpoints. All updates use `PATCH /resource/update`. |
+| **PF-004** | NO path variables. All identifiers are fields in the protobuf request body. |
+| **PF-005** | NO query strings. All filters, pagination, sorting are fields in the protobuf body. |
+| **PF-006** | DELETE uses `DELETE /resource/delete` with protobuf body containing the identifier. |
+| **PF-007** | All responses use a standard protobuf envelope: `Response { status, data, error, meta }`. |
+
+### HTTP Method Mapping
+
+| Old Pattern | New Pattern | HTTP Method | Path |
+|-------------|-------------|-------------|------|
+| `GET /api/v1/customers` | List customers | `POST` | `/api/v1/customers/list` |
+| `GET /api/v1/customers/:id` | Get customer | `POST` | `/api/v1/customers/get` |
+| `POST /api/v1/customers` | Create customer | `POST` | `/api/v1/customers/create` |
+| `PUT /api/v1/customers/:id` | Full update | `PATCH` | `/api/v1/customers/update` |
+| `PATCH /api/v1/customers/:id` | Partial update | `PATCH` | `/api/v1/customers/update` |
+| `DELETE /api/v1/customers/:id` | Delete customer | `DELETE` | `/api/v1/customers/delete` |
+
+### Pagination (Protobuf Body, Not Query String)
+
+```protobuf
+// WRONG: GET /api/v1/customers?page=1&limit=20&sort=name
+// RIGHT: POST /api/v1/customers/list
+
+message ListCustomersRequest {
+  uint32 page = 1;
+  uint32 page_size = 2;
+  string sort_by = 3;
+  string sort_order = 4;
+  string status = 5;
+  string search = 6;
+}
+```
+
+### IDs in Request Body (Not Path Variables)
+
+```protobuf
+// WRONG: GET /api/v1/customers/cust_abc123
+// RIGHT: POST /api/v1/customers/get
+
+message GetCustomerRequest {
+  string customer_id = 1;
+}
+```
+
+### Path Convention
+
+| Operation | Path | Method |
+|-----------|------|--------|
+| Create | `POST /api/v1/{module}/create` | POST |
+| Get | `POST /api/v1/{module}/get` | POST |
+| List | `POST /api/v1/{module}/list` | POST |
+| Update | `PATCH /api/v1/{module}/update` | PATCH |
+| Delete | `DELETE /api/v1/{module}/delete` | DELETE |
+| Action | `POST /api/v1/{module}/{action}` | POST |
+
+### Protobuf Dependencies
+
+```toml
+[dependencies]
+prost = "0.12"
+prost-types = "0.12"
+tonic = "0.11"
+```
+
+### Versioning
+
+- All APIs versioned: `/api/v1/...`
+- Breaking changes require new version (`/api/v2/...`)
+- Proto field additions are non-breaking (new field numbers)
+- Proto field removals require major version bump
 
 ## Appendix B: Coding Standards
 

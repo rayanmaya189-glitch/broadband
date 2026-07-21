@@ -725,14 +725,16 @@ pub async fn compress_old_partitions(db: &DatabaseConnection) -> Result<()> {
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/audit/entity-history` | GET | Search entity history (paginated) |
-| `/api/v1/audit/entity-history/:id` | GET | Get specific history entry |
-| `/api/v1/audit/entity-history/:entity/:id` | GET | Get all history for entity |
-| `/api/v1/audit/entity-history/:id/rollback` | POST | Rollback to this state |
-| `/api/v1/audit/entity-history/compare` | GET | Compare old vs new state |
-| `/api/v1/audit/entity-history/export` | GET | Export entity history |
+| `/api/v1/audit/entity-history/list` | `POST` | Search entity history (paginated) |
+| `/api/v1/audit/entity-history/get` | `POST` | Get specific history entry |
+| `/api/v1/audit/entity-history/entity-list` | `POST` | Get all history for entity |
+| `/api/v1/audit/entity-history/rollback` | `POST` | Rollback to this state |
+| `/api/v1/audit/entity-history/compare` | `POST` | Compare old vs new state |
+| `/api/v1/audit/entity-history/export` | `POST` | Export entity history |
 
 ---
 

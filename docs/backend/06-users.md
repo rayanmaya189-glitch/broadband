@@ -14,17 +14,19 @@ Manages system users (staff and customer-facing users), their profiles, and acco
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/users` | isp_owner+ | List all users |
-| POST | `/api/v1/users` | isp_owner+ | Create user account |
-| GET | `/api/v1/users/:id` | isp_owner+ | Get user details |
-| PUT | `/api/v1/users/:id` | isp_owner+ | Update user |
-| DELETE | `/api/v1/users/:id` | super_admin | Soft-delete user |
-| PUT | `/api/v1/users/:id/status` | isp_owner+ | Activate/suspend/lock |
-| GET | `/api/v1/users/me` | Yes | Get current user profile |
-| PUT | `/api/v1/users/me` | Yes | Update own profile |
-| POST | `/api/v1/users/:id/avatar` | isp_owner+ | Upload avatar |
+| POST | `/api/v1/users/list` | isp_owner+ | List all users |
+| POST | `/api/v1/users/create` | isp_owner+ | Create user account |
+| POST | `/api/v1/users/get` | isp_owner+ | Get user details |
+| PATCH | `/api/v1/users/update` | isp_owner+ | Update user |
+| DELETE | `/api/v1/users/delete` | super_admin | Soft-delete user |
+| PATCH | `/api/v1/users/status/update` | isp_owner+ | Activate/suspend/lock |
+| POST | `/api/v1/users/me/get` | Yes | Get current user profile |
+| PATCH | `/api/v1/users/me/update` | Yes | Update own profile |
+| POST | `/api/v1/users/avatar` | isp_owner+ | Upload avatar |
 
 ## 4. DTOs
 
@@ -73,3 +75,7 @@ user.account.enable
 user.role.assign
 user.role.revoke
 ```
+
+## Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11

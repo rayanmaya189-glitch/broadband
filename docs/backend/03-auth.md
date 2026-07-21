@@ -50,6 +50,8 @@ CREATE TABLE user_sessions (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/auth/login` | No | Email/password login |
@@ -66,8 +68,8 @@ CREATE TABLE user_sessions (
 | POST | `/api/v1/auth/2fa/verify` | Yes | Verify 2FA setup |
 | POST | `/api/v1/auth/2fa/disable` | Yes | Disable 2FA |
 | POST | `/api/v1/auth/2fa/backup-codes` | Yes | Generate backup codes |
-| GET | `/api/v1/auth/sessions` | Yes | List active sessions |
-| DELETE | `/api/v1/auth/sessions/:id` | Yes | Revoke specific session |
+| POST | `/api/v1/auth/sessions/list` | Yes | List active sessions |
+| DELETE | `/api/v1/auth/sessions/delete` | Yes | Revoke specific session |
 
 ## 4. JWT Token Structure
 
@@ -207,3 +209,7 @@ auth.2fa.disable
 auth.sessions.view
 auth.sessions.revoke
 ```
+
+## Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11

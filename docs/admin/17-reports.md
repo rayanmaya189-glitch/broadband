@@ -114,16 +114,19 @@ Custom Report Builder:
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/reports/summary` | GET | Dashboard summary |
-| `/api/v1/reports/revenue` | GET | Revenue report |
-| `/api/v1/reports/customers` | GET | Customer report |
-| `/api/v1/reports/network` | GET | Network report |
-| `/api/v1/reports/operations` | GET | Operations report |
+| `/api/v1/reports/summary/list` | POST | Dashboard summary |
+| `/api/v1/reports/revenue/list` | POST | Revenue report |
+| `/api/v1/reports/customers/list` | POST | Customer report |
+| `/api/v1/reports/network/list` | POST | Network report |
+| `/api/v1/reports/operations/list` | POST | Operations report |
 | `/api/v1/reports/custom` | POST | Custom report query |
-| `/api/v1/reports/export/:type` | GET | Export report (CSV/PDF) |
-| `/api/v1/reports/schedule` | POST/GET | Schedule recurring reports |
+| `/api/v1/reports/export` | POST | Export report (CSV/PDF) |
+| `/api/v1/reports/schedule/list` | POST | List scheduled reports |
+| `/api/v1/reports/schedule/create` | POST | Schedule recurring reports |
 
 ## 6. RBAC
 

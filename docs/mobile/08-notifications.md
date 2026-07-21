@@ -83,7 +83,7 @@ Dashboard header shows unread count:
 
 ### Get Notifications
 ```
-GET /api/v1/customer/notifications?page=1&limit=20
+POST /api/v1/customer/notifications/list
 
 Response 200:
 {

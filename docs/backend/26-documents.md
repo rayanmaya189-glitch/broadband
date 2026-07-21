@@ -92,15 +92,17 @@ max_file_size_mb: 10
 
 ## 6. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| POST | `/api/v1/documents/upload-url` | Yes | Get presigned upload URL |
-| POST | `/api/v1/documents/confirm` | Yes | Confirm upload completed |
-| GET | `/api/v1/documents/:id/download` | Yes | Get presigned download URL |
-| GET | `/api/v1/documents/:id` | Yes | Get document metadata |
-| DELETE | `/api/v1/documents/:id` | Yes | Soft-delete document |
-| GET | `/api/v1/documents` | Yes | List documents (filtered) |
-| GET | `/api/v1/documents/entity/:type/:id` | Yes | List docs for entity |
+| `POST` | `/api/v1/documents/upload-url` | Yes | Get presigned upload URL |
+| `POST` | `/api/v1/documents/confirm` | Yes | Confirm upload completed |
+| `POST` | `/api/v1/documents/download` | Yes | Get presigned download URL |
+| `POST` | `/api/v1/documents/get` | Yes | Get document metadata |
+| `DELETE` | `/api/v1/documents/delete` | Yes | Soft-delete document |
+| `POST` | `/api/v1/documents/list` | Yes | List documents (filtered) |
+| `POST` | `/api/v1/documents/entity/list` | Yes | List docs for entity |
 
 ## 7. Upload Flow
 

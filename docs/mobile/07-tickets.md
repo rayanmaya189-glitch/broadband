@@ -146,7 +146,7 @@ Customers can create, view, update, and close support tickets. Tickets follow a 
 
 ### List Tickets
 ```
-GET /api/v1/customer/tickets?page=1&limit=20&status=open
+POST /api/v1/customer/tickets/list
 
 Response 200:
 {
@@ -194,7 +194,7 @@ Response 201:
 
 ### Get Ticket Detail
 ```
-GET /api/v1/customer/tickets/:id
+POST /api/v1/customer/tickets/get
 
 Response 200:
 {

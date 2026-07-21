@@ -130,22 +130,24 @@ CREATE TABLE tickets_history (
 
 ## 6. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/tickets` | ticket.view | List tickets |
-| POST | `/api/v1/tickets` | ticket.create | Create ticket |
-| GET | `/api/v1/tickets/:id` | ticket.view | Get ticket |
-| PUT | `/api/v1/tickets/:id` | ticket.update | Update ticket |
-| POST | `/api/v1/tickets/:id/assign` | ticket.assign | Assign ticket |
-| POST | `/api/v1/tickets/:id/escalate` | ticket.escalate | Escalate ticket |
-| POST | `/api/v1/tickets/:id/resolve` | ticket.resolve | Resolve ticket |
-| POST | `/api/v1/tickets/:id/close` | ticket.close | Close ticket |
-| POST | `/api/v1/tickets/:id/reopen` | customer (own) | Reopen ticket |
-| GET | `/api/v1/tickets/:id/comments` | ticket.view | List comments |
-| POST | `/api/v1/tickets/:id/comments` | ticket.create | Add comment |
-| POST | `/api/v1/tickets/:id/satisfaction` | customer (own) | Rate ticket |
-| GET | `/api/v1/tickets/my-assignments` | ticket.view | My assigned tickets |
-| GET | `/api/v1/tickets/dashboard` | ticket.view | Ticket dashboard stats |
+| POST | `/api/v1/tickets/list` | ticket.view | List tickets |
+| POST | `/api/v1/tickets/create` | ticket.create | Create ticket |
+| POST | `/api/v1/tickets/get` | ticket.view | Get ticket |
+| PATCH | `/api/v1/tickets/update` | ticket.update | Update ticket |
+| POST | `/api/v1/tickets/assign` | ticket.assign | Assign ticket |
+| POST | `/api/v1/tickets/escalate` | ticket.escalate | Escalate ticket |
+| POST | `/api/v1/tickets/resolve` | ticket.resolve | Resolve ticket |
+| POST | `/api/v1/tickets/close` | ticket.close | Close ticket |
+| POST | `/api/v1/tickets/reopen` | customer (own) | Reopen ticket |
+| POST | `/api/v1/tickets/comments/list` | ticket.view | List comments |
+| POST | `/api/v1/tickets/comments/create` | ticket.create | Add comment |
+| POST | `/api/v1/tickets/satisfaction` | customer (own) | Rate ticket |
+| POST | `/api/v1/tickets/my-assignments/list` | ticket.view | My assigned tickets |
+| POST | `/api/v1/tickets/dashboard` | ticket.view | Ticket dashboard stats |
 
 ## 7. Ticket Number Generation
 

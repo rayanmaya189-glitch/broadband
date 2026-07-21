@@ -125,20 +125,23 @@ Speed Profile Configuration
 
 ## 6. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/plans` | GET | List plans (public, active only) |
-| `/api/v1/plans/:id` | GET | Get plan details |
-| `/api/v1/admin/plans` | GET | List all plans (including pending) |
-| `/api/v1/admin/plans` | POST | Create plan |
-| `/api/v1/admin/plans/:id` | PUT | Update plan |
-| `/api/v1/admin/plans/:id` | DELETE | Soft-delete plan |
-| `/api/v1/admin/plans/:id/publish` | POST | Publish (activate) plan |
-| `/api/v1/admin/plans/:id/unpublish` | POST | Unpublish plan |
-| `/api/v1/admin/plans/:id/clone` | POST | Clone plan |
-| `/api/v1/admin/plans/:id/pricing` | PUT | Update pricing |
-| `/api/v1/admin/plans/:id/speed-profile` | GET/PUT | Speed profile |
-| `/api/v1/admin/plans/:id/history` | GET | Change history |
+| `/api/v1/plans/list` | POST | List plans (public, active only) |
+| `/api/v1/plans/get` | POST | Get plan details |
+| `/api/v1/admin/plans/list` | POST | List all plans (including pending) |
+| `/api/v1/admin/plans/create` | POST | Create plan |
+| `/api/v1/admin/plans/update` | PATCH | Update plan |
+| `/api/v1/admin/plans/delete` | DELETE | Soft-delete plan |
+| `/api/v1/admin/plans/publish` | POST | Publish (activate) plan |
+| `/api/v1/admin/plans/unpublish` | POST | Unpublish plan |
+| `/api/v1/admin/plans/clone` | POST | Clone plan |
+| `/api/v1/admin/plans/pricing/update` | PATCH | Update pricing |
+| `/api/v1/admin/plans/speed-profile/list` | POST | Get speed profile |
+| `/api/v1/admin/plans/speed-profile/update` | PATCH | Update speed profile |
+| `/api/v1/admin/plans/history/list` | POST | Change history |
 
 ## 7. RBAC
 

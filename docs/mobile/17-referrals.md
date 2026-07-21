@@ -218,7 +218,7 @@ Customers can share their unique referral code, track referral status, view rewa
 
 ### Get My Referral Code
 ```
-GET /api/v1/customer/referrals/my-code
+POST /api/v1/customer/referrals/my-code
 
 Response 200:
 {
@@ -244,7 +244,7 @@ Response 200:
 
 ### Get My Referrals
 ```
-GET /api/v1/customer/referrals/my-referrals?page=1&limit=20
+POST /api/v1/customer/referrals/my-referrals/list
 
 Response 200:
 {
@@ -314,7 +314,7 @@ Response 200:
 
 ### Get Referral Stats
 ```
-GET /api/v1/customer/referrals/stats
+POST /api/v1/customer/referrals/stats
 
 Response 200:
 {
@@ -345,7 +345,7 @@ Response 200:
 
 ### Get Active Program
 ```
-GET /api/v1/customer/referrals/program
+POST /api/v1/customer/referrals/program
 
 Response 200:
 {

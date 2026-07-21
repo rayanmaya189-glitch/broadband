@@ -83,17 +83,19 @@ CREATE TABLE bandwidth_usage (
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/bandwidth/profiles` | network_admin+ | List profiles |
-| POST | `/api/v1/bandwidth/profiles` | network_admin+ | Create profile |
-| GET | `/api/v1/bandwidth/profiles/:id` | network_admin+ | Get profile |
-| PUT | `/api/v1/bandwidth/profiles/:id` | network_admin+ | Update profile |
-| DELETE | `/api/v1/bandwidth/profiles/:id` | network_admin+ | Delete profile |
-| POST | `/api/v1/bandwidth/profiles/:id/apply` | network_admin+ | Apply to all subscribers |
-| POST | `/api/v1/bandwidth/apply/:subscription_id` | network_admin+ | Apply to specific subscription |
-| GET | `/api/v1/bandwidth/applications` | network_admin+ | List application statuses |
-| GET | `/api/v1/bandwidth/usage/:subscription_id` | customer_ops | Get usage data |
+| POST | `/api/v1/bandwidth/profiles/list` | network_admin+ | List profiles |
+| POST | `/api/v1/bandwidth/profiles/create` | network_admin+ | Create profile |
+| POST | `/api/v1/bandwidth/profiles/get` | network_admin+ | Get profile |
+| PATCH | `/api/v1/bandwidth/profiles/update` | network_admin+ | Update profile |
+| DELETE | `/api/v1/bandwidth/profiles/delete` | network_admin+ | Delete profile |
+| POST | `/api/v1/bandwidth/profiles/apply` | network_admin+ | Apply to all subscribers |
+| POST | `/api/v1/bandwidth/apply` | network_admin+ | Apply to specific subscription |
+| POST | `/api/v1/bandwidth/applications/list` | network_admin+ | List application statuses |
+| POST | `/api/v1/bandwidth/usage/list` | customer_ops | Get usage data |
 
 ## 5. Speed Profile Application Flow
 

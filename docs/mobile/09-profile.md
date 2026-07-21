@@ -147,7 +147,7 @@ Customer profile management, KYC document upload, personal information editing, 
 
 ### Get Profile
 ```
-GET /api/v1/customer/profile
+POST /api/v1/customer/profile/get
 
 Response 200:
 {
@@ -210,7 +210,7 @@ Response 200:
 
 ### Get KYC Status
 ```
-GET /api/v1/customer/profile/kyc-status
+POST /api/v1/customer/profile/kyc-status
 
 Response 200:
 {

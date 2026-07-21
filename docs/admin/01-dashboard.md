@@ -121,14 +121,16 @@ Updates live via WebSocket (`ws:noc:alerts` channel).
 
 ## 8. API Endpoints Used
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 ```
-GET /api/v1/admin/dashboard/summary       → KPI card data
-GET /api/v1/admin/dashboard/revenue       → Revenue chart data
-GET /api/v1/admin/dashboard/subscriptions → Subscription growth data
-GET /api/v1/admin/dashboard/devices       → Device health summary
-GET /api/v1/admin/dashboard/tickets       → Open tickets summary
-GET /api/v1/admin/dashboard/activity      → Recent activity feed
-GET /api/v1/admin/dashboard/leads         → Lead pipeline summary
+POST /api/v1/admin/dashboard/summary/list       → KPI card data
+POST /api/v1/admin/dashboard/revenue/list       → Revenue chart data
+POST /api/v1/admin/dashboard/subscriptions/list → Subscription growth data
+POST /api/v1/admin/dashboard/devices/list       → Device health summary
+POST /api/v1/admin/dashboard/tickets/list       → Open tickets summary
+POST /api/v1/admin/dashboard/activity/list      → Recent activity feed
+POST /api/v1/admin/dashboard/leads/list         → Lead pipeline summary
 ```
 
 ## 9. WebSocket Channels

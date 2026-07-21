@@ -68,14 +68,19 @@ Application Status:
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/bandwidth/profiles` | GET/POST | List/create profiles |
-| `/api/v1/bandwidth/profiles/:id` | GET/PUT/DELETE | CRUD profile |
-| `/api/v1/bandwidth/profiles/:id/apply` | POST | Apply to all subscribers |
-| `/api/v1/bandwidth/apply/:subscription_id` | POST | Apply to specific subscription |
-| `/api/v1/bandwidth/applications` | GET | List application statuses |
-| `/api/v1/bandwidth/usage/:subscription_id` | GET | Usage data |
+| `/api/v1/bandwidth/profiles/list` | POST | List profiles |
+| `/api/v1/bandwidth/profiles/create` | POST | Create profile |
+| `/api/v1/bandwidth/profiles/get` | POST | Get profile details |
+| `/api/v1/bandwidth/profiles/update` | PATCH | Update profile |
+| `/api/v1/bandwidth/profiles/delete` | DELETE | Delete profile |
+| `/api/v1/bandwidth/profiles/apply` | POST | Apply to all subscribers |
+| `/api/v1/bandwidth/apply` | POST | Apply to specific subscription |
+| `/api/v1/bandwidth/applications/list` | POST | List application statuses |
+| `/api/v1/bandwidth/usage/list` | POST | Usage data |
 
 ## 4. RBAC
 

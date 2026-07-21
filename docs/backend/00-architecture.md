@@ -18,6 +18,7 @@
 | Object Storage | **MinIO** | S3‑compatible, self‑hosted document storage |
 | WebSocket | **axum::ws** | Real‑time NOC dashboard, customer status |
 | Auth | **JWT (RS256)** + **TOTP** | Stateless auth + 2FA |
+| API Encoding | **Protocol Buffers** (prost + tonic) | All request/response protobuf-encoded, no JSON |
 | Templating | **Handlebars** | Notification templates |
 | PDF Generation | **printpdf** or **wkhtmltopdf** | Invoice PDFs |
 | Testing | **testcontainers**, **mockall** | Real infrastructure integration, domain‑level mocking |
@@ -332,9 +333,40 @@ Standard 12‑factor configuration loaded from environment variables / `.env`:
 
 ---
 
-## 13. API Versioning
+## 13. API Design (Protobuf-First, v4.0)
 
-All public HTTP endpoints are versioned: `/api/v1/...`  
+> **Full conventions:** `API-CONVENTIONS.md`
+
+All APIs are **Protobuf-encoded** with POST/PATCH/DELETE only. No GET, no PUT, no path variables, no query strings.
+
+| Rule | Description |
+|------|-------------|
+| **PF-001** | ALL request/response bodies are Protocol Buffers (`application/protobuf`). |
+| **PF-002** | NO GET — reads use `POST /resource/list` or `POST /resource/get`. |
+| **PF-003** | NO PUT — updates use `PATCH /resource/update`. |
+| **PF-004** | NO path variables — all IDs are in protobuf body. |
+| **PF-005** | NO query strings — all filters/pagination in protobuf body. |
+| **PF-006** | DELETE uses `DELETE /resource/delete` with protobuf body. |
+
+### Path Convention
+
+| Operation | Path | Method |
+|-----------|------|--------|
+| Create | `POST /api/v1/{module}/create` | POST |
+| Get | `POST /api/v1/{module}/get` | POST |
+| List | `POST /api/v1/{module}/list` | POST |
+| Update | `PATCH /api/v1/{module}/update` | PATCH |
+| Delete | `DELETE /api/v1/{module}/delete` | DELETE |
+| Action | `POST /api/v1/{module}/{action}` | POST |
+
+### Proto Dependencies
+
+```toml
+prost = "0.12"
+tonic = "0.11"
+tonic-build = "0.11"
+```
+
 gRPC services (future) will follow semantic versioning in package names.
 
 ---

@@ -142,17 +142,19 @@ CREATE TABLE subnet_location_map (
 
 ## 6. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/discovery/scans` | noc_engineer+ | List scan configs |
-| POST | `/api/v1/discovery/scans` | network_admin+ | Create scan config |
-| PUT | `/api/v1/discovery/scans/:id` | network_admin+ | Update scan config |
-| POST | `/api/v1/discovery/scans/:id/start` | noc_engineer+ | Start scan |
-| POST | `/api/v1/discovery/scans/:id/stop` | noc_engineer+ | Stop scan |
-| GET | `/api/v1/discovery/results` | noc_engineer+ | List discovered devices |
-| POST | `/api/v1/discovery/results/:id/approve` | noc_engineer+ | Approve & register |
-| POST | `/api/v1/discovery/results/:id/reject` | noc_engineer+ | Reject device |
-| GET | `/api/v1/discovery/dashboard` | noc_engineer+ | Discovery dashboard data |
+| POST | `/api/v1/discovery/scans/list` | noc_engineer+ | List scan configs |
+| POST | `/api/v1/discovery/scans/create` | network_admin+ | Create scan config |
+| PATCH | `/api/v1/discovery/scans/update` | network_admin+ | Update scan config |
+| POST | `/api/v1/discovery/scans/start` | noc_engineer+ | Start scan |
+| POST | `/api/v1/discovery/scans/stop` | noc_engineer+ | Stop scan |
+| POST | `/api/v1/discovery/results/list` | noc_engineer+ | List discovered devices |
+| POST | `/api/v1/discovery/results/approve` | noc_engineer+ | Approve & register |
+| POST | `/api/v1/discovery/results/reject` | noc_engineer+ | Reject device |
+| POST | `/api/v1/discovery/dashboard` | noc_engineer+ | Discovery dashboard data |
 
 ## 7. Events Published
 

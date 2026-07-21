@@ -63,19 +63,21 @@ CREATE TABLE service_accounts (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/subscriptions` | customer_ops | List subscriptions |
-| POST | `/api/v1/subscriptions` | sales_agent+ | Create subscription |
-| GET | `/api/v1/subscriptions/:id` | customer_ops | Get subscription |
-| PUT | `/api/v1/subscriptions/:id` | customer_support+ | Update subscription |
-| POST | `/api/v1/subscriptions/:id/upgrade` | customer_support+ | Upgrade plan |
-| POST | `/api/v1/subscriptions/:id/downgrade` | customer_support+ | Downgrade plan |
-| POST | `/api/v1/subscriptions/:id/cancel` | customer_support+ | Cancel subscription |
-| POST | `/api/v1/subscriptions/:id/suspend` | billing_operator+ | Suspend subscription |
-| POST | `/api/v1/subscriptions/:id/reactivate` | billing_operator+ | Reactivate subscription |
-| POST | `/api/v1/subscriptions/:id/renew` | system (auto) | Auto-renew subscription |
-| GET | `/api/v1/subscriptions/:id/history` | customer_ops | View change history |
+| POST | `/api/v1/subscriptions/list` | customer_ops | List subscriptions |
+| POST | `/api/v1/subscriptions/create` | sales_agent+ | Create subscription |
+| POST | `/api/v1/subscriptions/get` | customer_ops | Get subscription |
+| PATCH | `/api/v1/subscriptions/update` | customer_support+ | Update subscription |
+| POST | `/api/v1/subscriptions/upgrade` | customer_support+ | Upgrade plan |
+| POST | `/api/v1/subscriptions/downgrade` | customer_support+ | Downgrade plan |
+| POST | `/api/v1/subscriptions/cancel` | customer_support+ | Cancel subscription |
+| POST | `/api/v1/subscriptions/suspend` | billing_operator+ | Suspend subscription |
+| POST | `/api/v1/subscriptions/reactivate` | billing_operator+ | Reactivate subscription |
+| POST | `/api/v1/subscriptions/renew` | system (auto) | Auto-renew subscription |
+| POST | `/api/v1/subscriptions/history/list` | customer_ops | View change history |
 
 ## 4. Subscription Lifecycle
 

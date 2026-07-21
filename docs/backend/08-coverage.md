@@ -62,18 +62,20 @@ CREATE INDEX idx_coverage_pincode_pincode ON coverage_pincode_map(pincode);
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/coverage/areas` | branch-scoped | List coverage areas |
-| POST | `/api/v1/coverage/areas` | network_admin+ | Create coverage area |
-| GET | `/api/v1/coverage/areas/:id` | branch-scoped | Get area details |
-| PUT | `/api/v1/coverage/areas/:id` | network_admin+ | Update area |
-| DELETE | `/api/v1/coverage/areas/:id` | network_admin+ | Deactivate area |
+| POST | `/api/v1/coverage/areas/list` | branch-scoped | List coverage areas |
+| POST | `/api/v1/coverage/areas/create` | network_admin+ | Create coverage area |
+| POST | `/api/v1/coverage/areas/get` | branch-scoped | Get area details |
+| PATCH | `/api/v1/coverage/areas/update` | network_admin+ | Update area |
+| DELETE | `/api/v1/coverage/areas/delete` | network_admin+ | Deactivate area |
 | POST | `/api/v1/coverage/check` | No (public) | Check pincode availability |
 | POST | `/api/v1/coverage/check/address` | No (public) | Check address availability |
-| GET | `/api/v1/coverage/areas/:id/stats` | network_admin+ | Area statistics |
-| POST | `/api/v1/coverage/areas/:id/pincodes` | network_admin+ | Add pincodes |
-| DELETE | `/api/v1/coverage/areas/:id/pincodes/:pincode` | network_admin+ | Remove pincode |
+| POST | `/api/v1/coverage/areas/stats/get` | network_admin+ | Area statistics |
+| POST | `/api/v1/coverage/areas/pincodes` | network_admin+ | Add pincodes |
+| DELETE | `/api/v1/coverage/areas/pincodes/delete` | network_admin+ | Remove pincode |
 
 ## 4. Availability Check Flow
 
@@ -112,3 +114,7 @@ coverage.area.update
 coverage.area.delete
 coverage.check.view
 ```
+
+## Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11

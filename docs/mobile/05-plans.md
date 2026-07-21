@@ -124,7 +124,7 @@ Customers can view their current plan details, browse available plans, and reque
 
 ### Get Current Subscription
 ```
-GET /api/v1/customer/subscription
+POST /api/v1/customer/subscription/get
 
 Response 200:
 {
@@ -156,7 +156,7 @@ Response 200:
 
 ### Browse Plans
 ```
-GET /api/v1/plans
+POST /api/v1/plans/list
 
 Response 200:
 {

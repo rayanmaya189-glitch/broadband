@@ -88,7 +88,7 @@ Customer app preferences including notification settings, theme selection, langu
 
 ### Get Settings
 ```
-GET /api/v1/customer/settings
+POST /api/v1/customer/settings/get
 
 Response 200:
 {

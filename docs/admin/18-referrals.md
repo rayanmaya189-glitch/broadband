@@ -202,9 +202,18 @@ The Referrals module allows administrators to create, manage, and monitor referr
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 ### List Referral Programs
 ```
-GET /api/v1/admin/referral-programs?page=1&limit=20&status=active
+POST /api/v1/admin/referral-programs/list
+
+Request:
+{
+  "page": 1,
+  "limit": 20,
+  "status": "active"
+}
 
 Response 200:
 {
@@ -236,7 +245,7 @@ Response 200:
 
 ### Create Referral Program
 ```
-POST /api/v1/admin/referral-programs
+POST /api/v1/admin/referral-programs/create
 
 Request:
 {
@@ -262,10 +271,11 @@ Response 201:
 
 ### Update Referral Program
 ```
-PUT /api/v1/admin/referral-programs/:id
+PATCH /api/v1/admin/referral-programs/update
 
 Request:
 {
+  "id": "prog_abc123",
   "status": "paused",
   "referrer_reward_value": 250
 }
@@ -278,7 +288,14 @@ Response 200:
 
 ### Get Referral Analytics
 ```
-GET /api/v1/admin/referrals/analytics?program_id=prog_abc123&from=2026-01-01&to=2026-07-08
+POST /api/v1/admin/referrals/analytics/list
+
+Request:
+{
+  "program_id": "prog_abc123",
+  "from": "2026-01-01",
+  "to": "2026-07-08"
+}
 
 Response 200:
 {
@@ -310,7 +327,15 @@ Response 200:
 
 ### List All Referrals
 ```
-GET /api/v1/admin/referrals?page=1&limit=50&program_id=prog_abc123&status=activated
+POST /api/v1/admin/referrals/list
+
+Request:
+{
+  "page": 1,
+  "limit": 50,
+  "program_id": "prog_abc123",
+  "status": "activated"
+}
 
 Response 200:
 {
@@ -335,7 +360,13 @@ Response 200:
 
 ### Export Referrals
 ```
-GET /api/v1/admin/referrals/export?program_id=prog_abc123&format=csv
+POST /api/v1/admin/referrals/export
+
+Request:
+{
+  "program_id": "prog_abc123",
+  "format": "csv"
+}
 
 Response 200: CSV file download
 ```

@@ -135,7 +135,7 @@ Invoice management, payment processing via Razorpay SDK, payment history, and re
 
 ### Get Invoices
 ```
-GET /api/v1/customer/invoices?page=1&limit=20&status=pending
+POST /api/v1/customer/invoices/list
 
 Response 200:
 {
@@ -167,7 +167,7 @@ Response 200:
 
 ### Get Invoice Detail
 ```
-GET /api/v1/customer/invoices/:id
+POST /api/v1/customer/invoices/get
 
 Response 200:
 {
@@ -244,7 +244,7 @@ Response 200:
 
 ### Download Invoice PDF
 ```
-GET /api/v1/customer/invoices/:id/pdf
+POST /api/v1/customer/invoices/pdf
 
 Response 200: application/pdf (binary)
 ```

@@ -126,23 +126,27 @@ Auto-generated on creation using Redis atomic counter.
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/billing/invoices` | GET | List invoices |
-| `/api/v1/billing/invoices` | POST | Create invoice |
-| `/api/v1/billing/invoices/:id` | GET | Get invoice details |
-| `/api/v1/billing/invoices/:id` | PUT | Update invoice |
-| `/api/v1/billing/invoices/:id/send` | POST | Send to customer |
-| `/api/v1/billing/invoices/:id/void` | POST | Void invoice |
-| `/api/v1/billing/invoices/:id/pdf` | GET | Download PDF |
-| `/api/v1/billing/payments` | GET | List payments |
-| `/api/v1/billing/payments` | POST | Record payment |
-| `/api/v1/billing/refunds` | POST | Request refund |
-| `/api/v1/billing/refunds/:id/approve` | POST | Approve refund |
-| `/api/v1/billing/refunds/:id/reject` | POST | Reject refund |
-| `/api/v1/billing/discounts` | GET/POST | List/create discounts |
-| `/api/v1/billing/discounts/:id` | PUT/DELETE | Update/delete discount |
-| `/api/v1/billing/payment-link` | POST | Generate payment link |
+| `/api/v1/billing/invoices/list` | POST | List invoices |
+| `/api/v1/billing/invoices/create` | POST | Create invoice |
+| `/api/v1/billing/invoices/get` | POST | Get invoice details |
+| `/api/v1/billing/invoices/update` | PATCH | Update invoice |
+| `/api/v1/billing/invoices/send` | POST | Send to customer |
+| `/api/v1/billing/invoices/void` | POST | Void invoice |
+| `/api/v1/billing/invoices/pdf` | POST | Download PDF |
+| `/api/v1/billing/payments/list` | POST | List payments |
+| `/api/v1/billing/payments/create` | POST | Record payment |
+| `/api/v1/billing/refunds/create` | POST | Request refund |
+| `/api/v1/billing/refunds/approve` | POST | Approve refund |
+| `/api/v1/billing/refunds/reject` | POST | Reject refund |
+| `/api/v1/billing/discounts/list` | POST | List discounts |
+| `/api/v1/billing/discounts/create` | POST | Create discount |
+| `/api/v1/billing/discounts/update` | PATCH | Update discount |
+| `/api/v1/billing/discounts/delete` | DELETE | Delete discount |
+| `/api/v1/billing/payment-link/create` | POST | Generate payment link |
 
 ## 6. RBAC
 
@@ -347,17 +351,19 @@ When invoice is generated:
 
 ### Manual Payment API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/manual-payments` | GET | List manual payments |
-| `/api/v1/admin/manual-payments` | POST | Create manual payment |
-| `/api/v1/admin/manual-payments/:id` | GET | Get payment detail |
-| `/api/v1/admin/manual-payments/:id/approve` | POST | Approve payment |
-| `/api/v1/admin/manual-payments/:id/reject` | POST | Reject payment |
-| `/api/v1/admin/wallets` | GET | List customer wallets |
-| `/api/v1/admin/wallets/:id` | GET | Get wallet detail |
-| `/api/v1/admin/wallets/:id/transactions` | GET | Wallet transactions |
-| `/api/v1/admin/wallets/:id/adjust` | POST | Manual wallet adjustment |
+| `/api/v1/admin/manual-payments/list` | POST | List manual payments |
+| `/api/v1/admin/manual-payments/create` | POST | Create manual payment |
+| `/api/v1/admin/manual-payments/get` | POST | Get payment detail |
+| `/api/v1/admin/manual-payments/approve` | POST | Approve payment |
+| `/api/v1/admin/manual-payments/reject` | POST | Reject payment |
+| `/api/v1/admin/wallets/list` | POST | List customer wallets |
+| `/api/v1/admin/wallets/get` | POST | Get wallet detail |
+| `/api/v1/admin/wallets/transactions/list` | POST | Wallet transactions |
+| `/api/v1/admin/wallets/adjust` | POST | Manual wallet adjustment |
 | `/api/v1/customer/wallet` | GET | Get own wallet (customer) |
 | `/api/v1/customer/wallet/topup` | POST | Initiate top-up (customer) |
 

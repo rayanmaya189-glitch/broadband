@@ -72,16 +72,21 @@ Activity Timeline:
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/leads` | GET/POST | List/create leads |
-| `/api/v1/leads/:id` | GET/PUT | Get/update lead |
-| `/api/v1/leads/:id/status` | POST | Change lead status |
-| `/api/v1/leads/:id/assign` | POST | Assign lead |
-| `/api/v1/leads/:id/activities` | GET/POST | List/add activities |
-| `/api/v1/leads/:id/convert` | POST | Convert to customer |
-| `/api/v1/leads/pipeline` | GET | Pipeline view data |
-| `/api/v1/leads/stats` | GET | Lead statistics |
+| `/api/v1/leads/list` | POST | List leads |
+| `/api/v1/leads/create` | POST | Create lead |
+| `/api/v1/leads/get` | POST | Get lead details |
+| `/api/v1/leads/update` | PATCH | Update lead |
+| `/api/v1/leads/status/update` | POST | Change lead status |
+| `/api/v1/leads/assign` | POST | Assign lead |
+| `/api/v1/leads/activities/list` | POST | List activities |
+| `/api/v1/leads/activities/create` | POST | Add activity |
+| `/api/v1/leads/convert` | POST | Convert to customer |
+| `/api/v1/leads/pipeline/list` | POST | Pipeline view data |
+| `/api/v1/leads/stats/list` | POST | Lead statistics |
 
 ## 5. RBAC
 

@@ -59,19 +59,21 @@ CREATE TABLE lead_activities (
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/leads` | sales_agent+ | List leads |
-| POST | `/api/v1/leads` | sales_agent+ | Create lead |
-| GET | `/api/v1/leads/:id` | sales_agent+ | Get lead details |
-| PUT | `/api/v1/leads/:id` | sales_agent+ | Update lead |
-| POST | `/api/v1/leads/:id/status` | sales_agent+ | Change lead status |
-| POST | `/api/v1/leads/:id/assign` | sales_agent+ | Assign lead |
-| POST | `/api/v1/leads/:id/activities` | sales_agent+ | Log activity |
-| GET | `/api/v1/leads/:id/activities` | sales_agent+ | List activities |
-| POST | `/api/v1/leads/:id/convert` | sales_agent+ | Convert to customer |
-| GET | `/api/v1/leads/pipeline` | sales_agent+ | Pipeline view |
-| GET | `/api/v1/leads/stats` | sales_agent+ | Lead statistics |
+| POST | `/api/v1/leads/list` | sales_agent+ | List leads |
+| POST | `/api/v1/leads/create` | sales_agent+ | Create lead |
+| POST | `/api/v1/leads/get` | sales_agent+ | Get lead details |
+| PATCH | `/api/v1/leads/update` | sales_agent+ | Update lead |
+| POST | `/api/v1/leads/status` | sales_agent+ | Change lead status |
+| POST | `/api/v1/leads/assign` | sales_agent+ | Assign lead |
+| POST | `/api/v1/leads/activities/create` | sales_agent+ | Log activity |
+| POST | `/api/v1/leads/activities/list` | sales_agent+ | List activities |
+| POST | `/api/v1/leads/convert` | sales_agent+ | Convert to customer |
+| POST | `/api/v1/leads/pipeline` | sales_agent+ | Pipeline view |
+| POST | `/api/v1/leads/stats` | sales_agent+ | Lead statistics |
 
 ## 5. Lead → Customer Conversion
 

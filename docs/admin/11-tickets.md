@@ -82,17 +82,22 @@ Support ticketing management — create, assign, escalate, resolve, and close ti
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/tickets` | GET/POST | List/create tickets |
-| `/api/v1/tickets/:id` | GET/PUT | Get/update ticket |
-| `/api/v1/tickets/:id/assign` | POST | Assign ticket |
-| `/api/v1/tickets/:id/escalate` | POST | Escalate ticket |
-| `/api/v1/tickets/:id/resolve` | POST | Resolve ticket |
-| `/api/v1/tickets/:id/close` | POST | Close ticket |
-| `/api/v1/tickets/:id/comments` | GET/POST | List/add comments |
-| `/api/v1/tickets/:id/satisfaction` | POST | Rate satisfaction |
-| `/api/v1/tickets/my-assignments` | GET | My assigned tickets |
+| `/api/v1/tickets/list` | POST | List tickets |
+| `/api/v1/tickets/create` | POST | Create ticket |
+| `/api/v1/tickets/get` | POST | Get ticket details |
+| `/api/v1/tickets/update` | PATCH | Update ticket |
+| `/api/v1/tickets/assign` | POST | Assign ticket |
+| `/api/v1/tickets/escalate` | POST | Escalate ticket |
+| `/api/v1/tickets/resolve` | POST | Resolve ticket |
+| `/api/v1/tickets/close` | POST | Close ticket |
+| `/api/v1/tickets/comments/list` | POST | List comments |
+| `/api/v1/tickets/comments/create` | POST | Add comment |
+| `/api/v1/tickets/satisfaction` | POST | Rate satisfaction |
+| `/api/v1/tickets/my-assignments/list` | POST | My assigned tickets |
 | `/api/v1/tickets/dashboard` | GET | Dashboard stats |
 
 ## 5. RBAC

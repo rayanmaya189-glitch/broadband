@@ -81,16 +81,20 @@ Preview: [Send Test] [Save] [Publish]
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/notifications` | GET | List notifications |
+| `/api/v1/notifications/list` | POST | List notifications |
 | `/api/v1/notifications/send` | POST | Send manual notification |
-| `/api/v1/notifications/templates` | GET/POST | List/create templates |
-| `/api/v1/notifications/templates/:id` | PUT/DELETE | Update/delete template |
-| `/api/v1/notifications/channels` | GET | List channels |
-| `/api/v1/notifications/channels/:id` | PUT | Configure channel |
-| `/api/v1/notifications/:id/retry` | POST | Retry failed notification |
-| `/api/v1/notifications/history` | GET | Delivery history |
+| `/api/v1/notifications/templates/list` | POST | List templates |
+| `/api/v1/notifications/templates/create` | POST | Create template |
+| `/api/v1/notifications/templates/update` | PATCH | Update template |
+| `/api/v1/notifications/templates/delete` | DELETE | Delete template |
+| `/api/v1/notifications/channels/list` | POST | List channels |
+| `/api/v1/notifications/channels/update` | PATCH | Configure channel |
+| `/api/v1/notifications/retry` | POST | Retry failed notification |
+| `/api/v1/notifications/history/list` | POST | Delivery history |
 
 ## 4. RBAC
 

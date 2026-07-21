@@ -79,30 +79,32 @@ The Referral Program module manages customer referral incentives, tracking them 
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 ### Customer-Facing APIs
 
 | Method | Path | Required Role | Description |
 |--------|------|---------------|-------------|
-| `GET` | `/api/v1/customer/referrals/my-code` | customer | Get my referral code and stats |
-| `GET` | `/api/v1/customer/referrals/my-referrals` | customer | List my referrals |
-| `GET` | `/api/v1/customer/referrals/stats` | customer | Get referral stats and rewards |
-| `GET` | `/api/v1/customer/referrals/program` | customer | Get active program details |
+| `POST` | `/api/v1/customer/referrals/my-code` | customer | Get my referral code and stats |
+| `POST` | `/api/v1/customer/referrals/my-referrals/list` | customer | List my referrals |
+| `POST` | `/api/v1/customer/referrals/stats` | customer | Get referral stats and rewards |
+| `POST` | `/api/v1/customer/referrals/program` | customer | Get active program details |
 | `POST` | `/api/v1/customer/referrals/share` | customer | Record a referral share |
-| `GET` | `/api/v1/customer/wallet` | customer | Get wallet balance and transactions |
+| `POST` | `/api/v1/customer/wallet/list` | customer | Get wallet balance and transactions |
 
 ### Admin APIs
 
 | Method | Path | Required Role | Description |
 |--------|------|---------------|-------------|
-| `GET` | `/api/v1/admin/referral-programs` | finance_manager+ | List all programs |
-| `POST` | `/api/v1/admin/referral-programs` | finance_manager+ | Create a new program |
-| `PUT` | `/api/v1/admin/referral-programs/:id` | finance_manager+ | Update program |
-| `DELETE` | `/api/v1/admin/referral-programs/:id` | super_admin | Delete program |
-| `GET` | `/api/v1/admin/referrals` | finance_manager+ | List all referrals |
-| `GET` | `/api/v1/admin/referrals/analytics` | finance_manager+ | Referral analytics |
-| `GET` | `/api/v1/admin/referrals/export` | finance_manager+ | Export referral data |
-| `GET` | `/api/v1/admin/wallets` | finance_manager+ | List all wallets |
-| `POST` | `/api/v1/admin/wallets/:id/adjust` | finance_manager+ | Manual wallet adjustment |
+| `POST` | `/api/v1/admin/referral-programs/list` | finance_manager+ | List all programs |
+| `POST` | `/api/v1/admin/referral-programs/create` | finance_manager+ | Create a new program |
+| `PATCH` | `/api/v1/admin/referral-programs/update` | finance_manager+ | Update program |
+| `DELETE` | `/api/v1/admin/referral-programs/delete` | super_admin | Delete program |
+| `POST` | `/api/v1/admin/referrals/list` | finance_manager+ | List all referrals |
+| `POST` | `/api/v1/admin/referrals/analytics` | finance_manager+ | Referral analytics |
+| `POST` | `/api/v1/admin/referrals/export` | finance_manager+ | Export referral data |
+| `POST` | `/api/v1/admin/wallets/list` | finance_manager+ | List all wallets |
+| `POST` | `/api/v1/admin/wallets/adjust` | finance_manager+ | Manual wallet adjustment |
 
 ---
 

@@ -90,7 +90,7 @@ Real-time and historical internet usage monitoring with speed tests, daily/month
 
 ### Usage Statistics
 ```
-GET /api/v1/customer/usage?period=monthly&from=2026-07-01&to=2026-07-08
+POST /api/v1/customer/usage
 
 Response 200:
 {
@@ -134,7 +134,7 @@ Response 200:
 
 ### Hourly Breakdown
 ```
-GET /api/v1/customer/usage/hourly?date=2026-07-08
+POST /api/v1/customer/usage/hourly
 
 Response 200:
 {

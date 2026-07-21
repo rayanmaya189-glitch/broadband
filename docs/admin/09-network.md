@@ -83,21 +83,27 @@ Shows device status, connections, and bandwidth utilization on each link.
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/network/vlans` | GET/POST | List/create VLANs |
-| `/api/v1/network/vlans/:id` | PUT/DELETE | Update/delete VLAN |
-| `/api/v1/network/ip-pools` | GET/POST | List/create IP pools |
-| `/api/v1/network/ip-pools/:id` | PUT | Update pool |
-| `/api/v1/network/ip-pools/:id/addresses` | GET | List addresses |
-| `/api/v1/network/ip-pools/:id/allocate` | POST | Allocate IP |
-| `/api/v1/network/ip-pools/:id/release` | POST | Release IP |
-| `/api/v1/network/pppoe/sessions` | GET | List PPPoE sessions |
-| `/api/v1/network/pppoe/sessions/:id/terminate` | POST | Terminate session |
-| `/api/v1/network/dhcp/leases` | GET | List DHCP leases |
-| `/api/v1/network/mac-bindings` | GET/POST | List/create MAC bindings |
-| `/api/v1/network/sessions` | GET | Customer sessions |
-| `/api/v1/network/topology` | GET | Network topology data |
+| `/api/v1/network/vlans/list` | POST | List VLANs |
+| `/api/v1/network/vlans/create` | POST | Create VLAN |
+| `/api/v1/network/vlans/update` | PATCH | Update VLAN |
+| `/api/v1/network/vlans/delete` | DELETE | Delete VLAN |
+| `/api/v1/network/ip-pools/list` | POST | List IP pools |
+| `/api/v1/network/ip-pools/create` | POST | Create IP pool |
+| `/api/v1/network/ip-pools/update` | PATCH | Update pool |
+| `/api/v1/network/ip-pools/addresses/list` | POST | List addresses |
+| `/api/v1/network/ip-pools/allocate` | POST | Allocate IP |
+| `/api/v1/network/ip-pools/release` | POST | Release IP |
+| `/api/v1/network/pppoe/sessions/list` | POST | List PPPoE sessions |
+| `/api/v1/network/pppoe/sessions/terminate` | POST | Terminate session |
+| `/api/v1/network/dhcp/leases/list` | POST | List DHCP leases |
+| `/api/v1/network/mac-bindings/list` | POST | List MAC bindings |
+| `/api/v1/network/mac-bindings/create` | POST | Create MAC binding |
+| `/api/v1/network/sessions/list` | POST | Customer sessions |
+| `/api/v1/network/topology/list` | POST | Network topology data |
 
 ## 4. RBAC
 

@@ -71,13 +71,15 @@ Metadata:
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/audit/logs` | GET | Search audit logs (paginated) |
-| `/api/v1/audit/logs/:id` | GET | Get specific log entry |
-| `/api/v1/audit/export` | GET | Export logs (CSV/JSON) |
-| `/api/v1/audit/user/:id` | GET | User activity log |
-| `/api/v1/audit/resource/:type/:id` | GET | Resource history |
+| `/api/v1/audit/logs/list` | POST | Search audit logs (paginated) |
+| `/api/v1/audit/logs/get` | POST | Get specific log entry |
+| `/api/v1/audit/export` | POST | Export logs (CSV/JSON) |
+| `/api/v1/audit/user/list` | POST | User activity log |
+| `/api/v1/audit/resource/list` | POST | Resource history |
 
 ## 6. RBAC
 
@@ -204,14 +206,16 @@ CREATE INDEX idx_{entity}_history_created ON {entity}_history(created_at);
 
 ### History API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/audit/entity-history` | GET | Search entity history |
-| `/api/v1/audit/entity-history/:id` | GET | Get history entry detail |
-| `/api/v1/audit/entity-history/:entity/:id` | GET | Get all history for entity |
-| `/api/v1/audit/entity-history/:id/rollback` | POST | Rollback to this state |
-| `/api/v1/audit/entity-history/compare` | GET | Compare old vs new state |
-| `/api/v1/audit/entity-history/export` | GET | Export entity history |
+| `/api/v1/audit/entity-history/list` | POST | Search entity history |
+| `/api/v1/audit/entity-history/get` | POST | Get history entry detail |
+| `/api/v1/audit/entity-history/entity/list` | POST | Get all history for entity |
+| `/api/v1/audit/entity-history/rollback` | POST | Rollback to this state |
+| `/api/v1/audit/entity-history/compare` | POST | Compare old vs new state |
+| `/api/v1/audit/entity-history/export` | POST | Export entity history |
 
 ### Entity History RBAC
 

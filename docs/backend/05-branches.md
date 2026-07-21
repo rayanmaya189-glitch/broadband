@@ -52,18 +52,20 @@ CREATE TABLE user_branches (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/branches` | isp_owner+ | List all branches |
-| POST | `/api/v1/branches` | isp_owner+ | Create branch |
-| GET | `/api/v1/branches/:id` | branch-scoped | Get branch details |
-| PUT | `/api/v1/branches/:id` | isp_owner+ | Update branch |
-| DELETE | `/api/v1/branches/:id` | super_admin | Deactivate branch |
-| GET | `/api/v1/branches/:id/working-hours` | branch-scoped | Get working hours |
-| PUT | `/api/v1/branches/:id/working-hours` | isp_owner+ | Update working hours |
-| GET | `/api/v1/branches/:id/stats` | isp_owner+ | Branch statistics |
-| POST | `/api/v1/branches/:id/users` | isp_owner+ | Assign user to branch |
-| DELETE | `/api/v1/branches/:id/users/:uid` | isp_owner+ | Remove user from branch |
+| POST | `/api/v1/branches/list` | isp_owner+ | List all branches |
+| POST | `/api/v1/branches/create` | isp_owner+ | Create branch |
+| POST | `/api/v1/branches/get` | branch-scoped | Get branch details |
+| PATCH | `/api/v1/branches/update` | isp_owner+ | Update branch |
+| DELETE | `/api/v1/branches/delete` | super_admin | Deactivate branch |
+| POST | `/api/v1/branches/working-hours/get` | branch-scoped | Get working hours |
+| PATCH | `/api/v1/branches/working-hours/update` | isp_owner+ | Update working hours |
+| POST | `/api/v1/branches/stats/get` | isp_owner+ | Branch statistics |
+| POST | `/api/v1/branches/users` | isp_owner+ | Assign user to branch |
+| DELETE | `/api/v1/branches/users/delete` | isp_owner+ | Remove user from branch |
 
 ## 4. Branch Scoping Middleware
 
@@ -124,3 +126,7 @@ branch.manage_working_hours
 branch.view_reports
 branch.manage_staff
 ```
+
+## Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11

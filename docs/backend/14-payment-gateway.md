@@ -19,17 +19,19 @@ Gateway-agnostic payment processing supporting Razorpay, PayU, InstaMojo, and CC
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
 | POST | `/api/v1/payments/create-link` | billing_operator+ | Generate payment link |
-| GET | `/api/v1/payments/links` | billing_ops | List payment links |
+| POST | `/api/v1/payments/links/list` | billing_ops | List payment links |
 | POST | `/api/v1/payments/webhook/razorpay` | No (webhook) | Razorpay webhook |
 | POST | `/api/v1/payments/webhook/payu` | No (webhook) | PayU webhook |
 | POST | `/api/v1/payments/webhook/instamojo` | No (webhook) | InstaMojo webhook |
-| GET | `/api/v1/payments/gateways` | finance_manager+ | List gateway configs |
-| POST | `/api/v1/payments/gateways` | finance_manager+ | Configure gateway |
-| PUT | `/api/v1/payments/gateways/:id` | finance_manager+ | Update gateway config |
-| POST | `/api/v1/payments/:id/retry` | billing_operator+ | Retry failed payment |
+| POST | `/api/v1/payments/gateways/list` | finance_manager+ | List gateway configs |
+| POST | `/api/v1/payments/gateways/create` | finance_manager+ | Configure gateway |
+| PATCH | `/api/v1/payments/gateways/update` | finance_manager+ | Update gateway config |
+| POST | `/api/v1/payments/retry` | billing_operator+ | Retry failed payment |
 
 ## 4. Payment Link Flow
 

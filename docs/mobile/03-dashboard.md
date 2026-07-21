@@ -66,7 +66,7 @@ The dashboard is the primary screen after login, providing a quick overview of t
 
 ### Dashboard Summary
 ```
-GET /api/v1/customer/dashboard
+POST /api/v1/customer/dashboard
 
 Response 200:
 {

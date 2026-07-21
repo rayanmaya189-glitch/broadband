@@ -94,26 +94,28 @@ CREATE TABLE addresses (
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/customers` | customer_ops | List customers (branch-scoped) |
-| POST | `/api/v1/customers` | sales_agent+ | Create customer |
-| GET | `/api/v1/customers/:id` | customer_ops | Get customer details |
-| PUT | `/api/v1/customers/:id` | customer_ops | Update customer |
-| DELETE | `/api/v1/customers/:id` | finance_manager+ | Soft-delete customer |
-| PUT | `/api/v1/customers/:id/status` | customer_support+ | Change customer status |
-| GET | `/api/v1/customers/:id/profile` | customer_ops | Get customer profile |
-| PUT | `/api/v1/customers/:id/profile` | customer_ops | Update profile |
-| POST | `/api/v1/customers/:id/kyc/submit` | customer_ops | Submit KYC documents |
-| POST | `/api/v1/customers/:id/kyc/verify` | finance_manager+ | Verify KYC |
-| POST | `/api/v1/customers/:id/kyc/reject` | finance_manager+ | Reject KYC |
-| GET | `/api/v1/customers/:id/addresses` | customer_ops | List addresses |
-| POST | `/api/v1/customers/:id/addresses` | customer_ops | Add address |
-| PUT | `/api/v1/customers/:id/addresses/:aid` | customer_ops | Update address |
-| DELETE | `/api/v1/customers/:id/addresses/:aid` | customer_ops | Delete address |
-| GET | `/api/v1/customers/:id/history` | customer_ops | View change history |
-| GET | `/api/v1/customers/:id/subscriptions` | customer_ops | List subscriptions |
-| GET | `/api/v1/customers/:id/tickets` | customer_ops | List tickets |
+| POST | `/api/v1/customers/list` | customer_ops | List customers (branch-scoped) |
+| POST | `/api/v1/customers/create` | sales_agent+ | Create customer |
+| POST | `/api/v1/customers/get` | customer_ops | Get customer details |
+| PATCH | `/api/v1/customers/update` | customer_ops | Update customer |
+| DELETE | `/api/v1/customers/delete` | finance_manager+ | Soft-delete customer |
+| PATCH | `/api/v1/customers/status/update` | customer_support+ | Change customer status |
+| POST | `/api/v1/customers/profile/get` | customer_ops | Get customer profile |
+| PATCH | `/api/v1/customers/profile/update` | customer_ops | Update profile |
+| POST | `/api/v1/customers/kyc/submit` | customer_ops | Submit KYC documents |
+| POST | `/api/v1/customers/kyc/verify` | finance_manager+ | Verify KYC |
+| POST | `/api/v1/customers/kyc/reject` | finance_manager+ | Reject KYC |
+| POST | `/api/v1/customers/addresses/list` | customer_ops | List addresses |
+| POST | `/api/v1/customers/addresses/create` | customer_ops | Add address |
+| PATCH | `/api/v1/customers/addresses/update` | customer_ops | Update address |
+| DELETE | `/api/v1/customers/addresses/delete` | customer_ops | Delete address |
+| POST | `/api/v1/customers/history/list` | customer_ops | View change history |
+| POST | `/api/v1/customers/subscriptions/list` | customer_ops | List subscriptions |
+| POST | `/api/v1/customers/tickets/list` | customer_ops | List tickets |
 
 ## 4. Customer Lifecycle State Machine
 
@@ -221,3 +223,7 @@ customer.installation.reschedule
 | BUG-CUST-07 | MEDIUM | `get_customer` doesn't filter soft-deletes — deleted customers accessible | `service.rs:34-42` |
 
 **Priority:** Fix CUST-01, 03 first (data corruption). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 1, 4.
+
+## Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11

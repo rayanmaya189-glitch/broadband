@@ -88,22 +88,24 @@ Inheritance is additive: a child role gets all parent permissions + its own.
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/rbac/roles` | isp_owner+ | List all roles |
-| POST | `/api/v1/rbac/roles` | super_admin | Create custom role |
-| PUT | `/api/v1/rbac/roles/:id` | super_admin | Update role |
-| DELETE | `/api/v1/rbac/roles/:id` | super_admin | Delete custom role |
-| GET | `/api/v1/rbac/permissions` | isp_owner+ | List all permissions |
-| POST | `/api/v1/rbac/roles/:id/permissions` | super_admin | Assign permissions to role |
-| DELETE | `/api/v1/rbac/roles/:id/permissions/:pid` | super_admin | Remove permission from role |
-| GET | `/api/v1/rbac/users/:id/roles` | isp_owner+ | List user's roles |
-| POST | `/api/v1/rbac/users/:id/roles` | super_admin | Assign role to user |
-| DELETE | `/api/v1/rbac/users/:id/roles/:rid` | super_admin | Revoke role from user |
-| POST | `/api/v1/rbac/temporary` | isp_owner+ | Grant temporary permission |
-| GET | `/api/v1/rbac/approval-workflows` | isp_owner+ | List approval workflows |
-| POST | `/api/v1/rbac/approval-requests/:id/approve` | Approver role | Approve request |
-| POST | `/api/v1/rbac/approval-requests/:id/reject` | Approver role | Reject request |
+| POST | `/api/v1/rbac/roles/list` | isp_owner+ | List all roles |
+| POST | `/api/v1/rbac/roles/create` | super_admin | Create custom role |
+| PATCH | `/api/v1/rbac/roles/update` | super_admin | Update role |
+| DELETE | `/api/v1/rbac/roles/delete` | super_admin | Delete custom role |
+| POST | `/api/v1/rbac/permissions/list` | isp_owner+ | List all permissions |
+| POST | `/api/v1/rbac/roles/permissions` | super_admin | Assign permissions to role |
+| DELETE | `/api/v1/rbac/roles/permissions/delete` | super_admin | Remove permission from role |
+| POST | `/api/v1/rbac/users/roles/list` | isp_owner+ | List user's roles |
+| POST | `/api/v1/rbac/users/roles` | super_admin | Assign role to user |
+| DELETE | `/api/v1/rbac/users/roles/delete` | super_admin | Revoke role from user |
+| POST | `/api/v1/rbac/temporary/create` | isp_owner+ | Grant temporary permission |
+| POST | `/api/v1/rbac/approval-workflows/list` | isp_owner+ | List approval workflows |
+| POST | `/api/v1/rbac/approval-requests/approve` | Approver role | Approve request |
+| POST | `/api/v1/rbac/approval-requests/reject` | Approver role | Reject request |
 
 ## 5. Permission Resolution Algorithm
 
@@ -233,3 +235,7 @@ rbac.approval.view
 rbac.approval.approve
 rbac.approval.reject
 ```
+
+## Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11

@@ -99,18 +99,26 @@ super_admin
 
 ## 3. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/users` | GET/POST | List/create users |
-| `/api/v1/users/:id` | GET/PUT | Get/update user |
-| `/api/v1/users/:id/status` | PUT | Change user status |
-| `/api/v1/users/:id/avatar` | POST | Upload avatar |
-| `/api/v1/rbac/roles` | GET/POST | List/create roles |
-| `/api/v1/rbac/roles/:id` | PUT/DELETE | Update/delete role |
-| `/api/v1/rbac/roles/:id/permissions` | POST/DELETE | Manage permissions |
-| `/api/v1/rbac/permissions` | GET | List all permissions |
-| `/api/v1/rbac/users/:id/roles` | POST/DELETE | Assign/revoke roles |
-| `/api/v1/rbac/temporary` | POST | Grant temporary permission |
+| `/api/v1/users/list` | POST | List users |
+| `/api/v1/users/create` | POST | Create user |
+| `/api/v1/users/get` | POST | Get user details |
+| `/api/v1/users/update` | PATCH | Update user |
+| `/api/v1/users/status/update` | PATCH | Change user status |
+| `/api/v1/users/avatar/upload` | POST | Upload avatar |
+| `/api/v1/rbac/roles/list` | POST | List roles |
+| `/api/v1/rbac/roles/create` | POST | Create role |
+| `/api/v1/rbac/roles/update` | PATCH | Update role |
+| `/api/v1/rbac/roles/delete` | DELETE | Delete role |
+| `/api/v1/rbac/roles/permissions/update` | POST | Manage permissions |
+| `/api/v1/rbac/roles/permissions/delete` | DELETE | Remove permissions |
+| `/api/v1/rbac/permissions/list` | POST | List all permissions |
+| `/api/v1/rbac/users/roles/update` | POST | Assign roles |
+| `/api/v1/rbac/users/roles/delete` | DELETE | Revoke roles |
+| `/api/v1/rbac/temporary/create` | POST | Grant temporary permission |
 
 ## 4. RBAC
 

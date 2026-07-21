@@ -104,20 +104,22 @@ EXPENSES (5xxx)
 
 ## 4. API Endpoints
 
+> **API Convention:** Protobuf-first. See `API-CONVENTIONS.md`.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/accounting/accounts` | GET | Chart of accounts |
-| `/api/v1/accounting/accounts` | POST | Create account |
-| `/api/v1/accounting/journal` | GET | List journal entries |
-| `/api/v1/accounting/journal` | POST | Create journal entry |
-| `/api/v1/accounting/journal/:id` | GET | Get entry details |
-| `/api/v1/accounting/journal/:id/post` | POST | Post entry |
-| `/api/v1/accounting/journal/:id/void` | POST | Void entry |
-| `/api/v1/accounting/trial-balance` | GET | Generate trial balance |
-| `/api/v1/accounting/statements/profit-loss` | GET | P&L statement |
-| `/api/v1/accounting/statements/balance-sheet` | GET | Balance sheet |
-| `/api/v1/accounting/statements/cash-flow` | GET | Cash flow statement |
-| `/api/v1/accounting/gst/:type` | GET | GST return data |
+| `/api/v1/accounting/accounts/list` | POST | Chart of accounts |
+| `/api/v1/accounting/accounts/create` | POST | Create account |
+| `/api/v1/accounting/journal/list` | POST | List journal entries |
+| `/api/v1/accounting/journal/create` | POST | Create journal entry |
+| `/api/v1/accounting/journal/get` | POST | Get entry details |
+| `/api/v1/accounting/journal/post` | POST | Post entry |
+| `/api/v1/accounting/journal/void` | POST | Void entry |
+| `/api/v1/accounting/trial-balance/list` | POST | Generate trial balance |
+| `/api/v1/accounting/statements/profit-loss/list` | POST | P&L statement |
+| `/api/v1/accounting/statements/balance-sheet/list` | POST | Balance sheet |
+| `/api/v1/accounting/statements/cash-flow/list` | POST | Cash flow statement |
+| `/api/v1/accounting/gst/list` | POST | GST return data |
 
 ## 5. RBAC
 

@@ -195,26 +195,28 @@ Status determined by:
 
 ## 6. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/network/vlans` | network.*.view | List VLANs |
-| POST | `/api/v1/network/vlans` | network.vlan.create | Create VLAN |
-| PUT | `/api/v1/network/vlans/:id` | network.vlan.update | Update VLAN |
-| DELETE | `/api/v1/network/vlans/:id` | network.vlan.delete | Delete VLAN |
-| GET | `/api/v1/network/ip-pools` | network.ippool.view | List IP pools |
-| POST | `/api/v1/network/ip-pools` | network.ippool.create | Create IP pool |
-| PUT | `/api/v1/network/ip-pools/:id` | network.ippool.update | Update IP pool |
-| GET | `/api/v1/network/ip-pools/:id/addresses` | network.ippool.view | List addresses |
-| POST | `/api/v1/network/ip-pools/:id/allocate` | network.ippool.allocate | Allocate IP |
-| POST | `/api/v1/network/ip-pools/:id/release` | network.ippool.release | Release IP |
-| GET | `/api/v1/network/pppoe/sessions` | network.pppoe.view | List PPPoE sessions |
-| POST | `/api/v1/network/pppoe/sessions` | network.pppoe.create | Create PPPoE session |
-| POST | `/api/v1/network/pppoe/sessions/:id/terminate` | network.pppoe.terminate | Terminate session |
-| GET | `/api/v1/network/dhcp/leases` | network.dhcp.view | List DHCP leases |
-| GET | `/api/v1/network/mac-bindings` | network.mac_binding.view | List MAC bindings |
-| POST | `/api/v1/network/mac-bindings` | network.mac_binding.create | Create MAC binding |
-| GET | `/api/v1/network/sessions` | noc_engineer+ | Customer sessions |
-| GET | `/api/v1/network/topology` | noc_engineer+ | Network topology |
+| POST | `/api/v1/network/vlans/list` | network.*.view | List VLANs |
+| POST | `/api/v1/network/vlans/create` | network.vlan.create | Create VLAN |
+| PATCH | `/api/v1/network/vlans/update` | network.vlan.update | Update VLAN |
+| DELETE | `/api/v1/network/vlans/delete` | network.vlan.delete | Delete VLAN |
+| POST | `/api/v1/network/ip-pools/list` | network.ippool.view | List IP pools |
+| POST | `/api/v1/network/ip-pools/create` | network.ippool.create | Create IP pool |
+| PATCH | `/api/v1/network/ip-pools/update` | network.ippool.update | Update IP pool |
+| POST | `/api/v1/network/ip-pools/addresses/list` | network.ippool.view | List addresses |
+| POST | `/api/v1/network/ip-pools/allocate` | network.ippool.allocate | Allocate IP |
+| POST | `/api/v1/network/ip-pools/release` | network.ippool.release | Release IP |
+| POST | `/api/v1/network/pppoe/sessions/list` | network.pppoe.view | List PPPoE sessions |
+| POST | `/api/v1/network/pppoe/sessions/create` | network.pppoe.create | Create PPPoE session |
+| POST | `/api/v1/network/pppoe/sessions/terminate` | network.pppoe.terminate | Terminate session |
+| POST | `/api/v1/network/dhcp/leases/list` | network.dhcp.view | List DHCP leases |
+| POST | `/api/v1/network/mac-bindings/list` | network.mac_binding.view | List MAC bindings |
+| POST | `/api/v1/network/mac-bindings/create` | network.mac_binding.create | Create MAC binding |
+| POST | `/api/v1/network/sessions/list` | noc_engineer+ | Customer sessions |
+| POST | `/api/v1/network/topology` | noc_engineer+ | Network topology |
 
 ## 7. Events Published
 

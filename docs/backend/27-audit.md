@@ -114,13 +114,15 @@ impl<S> Middleware<S> for AuditMiddleware {
 
 ## 5. API Endpoints
 
+> **API Convention:** Protobuf-first. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 | Method | Path | Required Role | Description |
 |--------|------|--------------|-------------|
-| GET | `/api/v1/audit/logs` | audit.log.view | Search audit logs |
-| GET | `/api/v1/audit/logs/:id` | audit.log.view | Get specific log entry |
-| GET | `/api/v1/audit/export` | audit.log.export | Export logs (CSV/JSON) |
-| GET | `/api/v1/audit/user/:id` | audit.log.view | User activity log |
-| GET | `/api/v1/audit/resource/:type/:id` | audit.log.view | Resource history |
+| `POST` | `/api/v1/audit/logs/list` | audit.log.view | Search audit logs |
+| `POST` | `/api/v1/audit/logs/get` | audit.log.view | Get specific log entry |
+| `POST` | `/api/v1/audit/export` | audit.log.export | Export logs (CSV/JSON) |
+| `POST` | `/api/v1/audit/user/list` | audit.log.view | User activity log |
+| `POST` | `/api/v1/audit/resource/list` | audit.log.view | Resource history |
 
 ## 6. Query Filters
 

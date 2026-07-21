@@ -118,7 +118,7 @@ Response 200:
 
 ### List Documents
 ```
-GET /api/v1/customer/documents?type=kyc&page=1&limit=20
+POST /api/v1/customer/documents/list
 
 Response 200:
 {
@@ -137,7 +137,7 @@ Response 200:
 
 ### Download Document
 ```
-GET /api/v1/customer/documents/:id/download
+POST /api/v1/customer/documents/download
 
 Response 200:
 {
