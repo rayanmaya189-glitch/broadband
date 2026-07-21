@@ -8,6 +8,8 @@
 
 Implements event sourcing using NATS JetStream for durable, exactly-once message delivery. All inter-module communication happens through events. The event store provides a complete audit trail of every state change in the system.
 
+> **v3.0 Gap Reference:** `GAP-architecture-patterns.md` §P-07 (no API/webhook retry+DLQ for external HTTP calls — outbox exists for domain events but not API ops), §P-15 (no worker job DLQ — bad record blocks entire queue). See also `24-events.md` §8 for full outbox pattern docs.
+
 ## 2. Architecture
 
 ```

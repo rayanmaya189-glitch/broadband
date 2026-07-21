@@ -395,3 +395,50 @@ The architecture is a **modular monolith** by design. Every bounded context can 
 | BUG-INF-05 | CRITICAL | Swagger | Swagger UI publicly accessible in production | `routes/mod.rs:13-16` |
 
 **Priority:** Fix INT-06, INT-08, INF-01, INF-04, INF-05 first. See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 0.
+
+---
+
+## 17. Architecture Pattern Gaps (v3.0)
+
+> **Full details:** `GAP-architecture-patterns.md` §1, `DESIGN-GAPS-DEEP-ANALYSIS.md` §11.2
+
+### Critical Pattern Gaps
+
+| Gap | Severity | Pattern | Issue | Fix Location |
+|-----|----------|---------|-------|-------------|
+| P-01 | CRITICAL | Circuit Breaker | No fuse for MikroTik/Huawei/RADIUS — cascade failure | `infrastructure/resilience/circuit_breaker.rs` |
+| P-14 | CRITICAL | Health Check | `/health` doesn't check DB/Redis/NATS/RADIUS | `routes/health.rs` |
+| P-05 | HIGH | Retry | No standardized retry policy — thundering herd risk | `infrastructure/resilience/retry.rs` |
+| P-02 | HIGH | Bulkhead | All workers share one DB connection pool | `shared/app_state.rs` |
+| P-03 | HIGH | Saga | No provisioning rollback on partial failure | `workers/provisioning_worker.rs` |
+| P-10 | HIGH | CDR Storage | No session-level data — usage disputes unresolvable | `migrations/network/` |
+
+### Missing Workers
+
+| Worker | Priority | Purpose |
+|--------|----------|---------|
+| CdrProcessingWorker | CRITICAL | Parse BNG CDRs → usage → FUP |
+| RadiusAccountingWorker | CRITICAL | RADIUS session tracking → billing |
+| UsageMeteringWorker | CRITICAL | Per-customer data usage, FUP |
+| SlaMonitorWorker | HIGH | SLA timers, auto-escalation |
+| CapacityAlertingWorker | HIGH | SNMP polling, threshold alerts |
+| ReportGenerationWorker | MEDIUM | Daily revenue, GST data |
+| CertificateRenewalWorker | MEDIUM | TLS/JWT/RADIUS secret rotation |
+| RetentionWorker | MEDIUM | Redis expiry, outbox cleanup |
+
+### Missing Entities (12 new)
+
+| Entity | Purpose | Priority |
+|--------|---------|----------|
+| `ip_address` | Individual IP allocation records | CRITICAL |
+| `radius_accounting` | RADIUS accounting packet logs | CRITICAL |
+| `provisioning_job` | Customer provisioning task tracking | CRITICAL |
+| `cdr_records` | Call detail records for usage tracking | CRITICAL |
+| `fiber_segment` | Physical fiber route segments | HIGH |
+| `olt_port` | OLT PON port → ONT mapping | HIGH |
+| `splitters` | Optical splitter locations and mappings | HIGH |
+| `customer_equipment` | Customer-premises equipment (ONT, router) | HIGH |
+| `mass_incident` | Area-wide outage tracking | HIGH |
+| `sla_definition` | SLA targets per plan/tier | HIGH |
+| `sla_measurement` | Actual SLA performance per customer | HIGH |
+| `usage_record` | Per-customer daily usage aggregation | HIGH |

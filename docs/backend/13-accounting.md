@@ -213,3 +213,44 @@ accounting.statements.view
 accounting.gst.view
 accounting.gst.file
 ```
+
+## 8. Known Issues & Gap Reference (v3.0)
+
+> **Full details:** `GAP-finance-compliance.md` (25 finance/gaps), `DESIGN-GAPS-DEEP-ANALYSIS.md` §11.1
+
+| Gap | Severity | Issue | Location |
+|-----|----------|-------|----------|
+| F-03 | HIGH | No security deposit ledger — balance sheet misstatement | No entity |
+| F-06 | HIGH | No Ind AS 115 revenue recognition — deferred revenue missing | No implementation |
+| F-07 | HIGH | No advance payment tracking | No implementation |
+| F-09 | MEDIUM | No reverse charge mechanism tracking | No implementation |
+| F-10 | HIGH | No GST e-invoice (IRN) generation | No implementation |
+| F-14 | MEDIUM | No MDR tracking — ₹37,800/month unreconciled | No implementation |
+| F-15 | MEDIUM | No bad debt provisioning (Ind AS 109 ECL model) | No implementation |
+| F-19 | MEDIUM | Incomplete chart of accounts — 15+ accounts missing | `13-accounting.md` §3 |
+
+### Missing Chart of Accounts
+
+```
+ADDITIONAL ASSETS (1xxx)
+├── 2005  TDS Receivable
+├── 2006  Security Deposits Held (liability)
+├── 2007  Deferred Revenue (liability)
+├── 2008  RCM GST Payable (liability)
+├── 2009  Provision for Bad Debts (contra-asset)
+
+ADDITIONAL REVENUE (4xxx)
+├── 4002  Late Fee Revenue
+├── 4003  Router Rental Revenue
+├── 4004  Static IP Revenue
+
+ADDITIONAL EXPENSES (5xxx)
+├── 5003  Depreciation Expense
+├── 5004  MDR/Gateway Fee Expense
+├── 5005  Bandwidth Upstream Cost
+├── 5006  RCM GST Paid
+├── 5007  Bad Debt Expense
+├── 5008  Provision for Doubtful Debts
+├── 5009  Legal & Professional Fees
+├── 5010  Bank Charges
+```

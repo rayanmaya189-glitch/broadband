@@ -21,11 +21,19 @@ The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong
 | Customer Operations | 10 | 3 | 4 | 3 | 0 |
 | Infrastructure & DevOps | 9 | 3 | 2 | 4 | 0 |
 | Regulatory (TRAI/GST/IT Act) | 12 | 2 | 3 | 5 | 2 |
-| **TOTAL** | **68** | **23** | **21** | **22** | **2** |
+| **v1.0 + v2.0 Subtotal** | **68** | **23** | **21** | **22** | **2** |
+| Indian Finance & Tax Compliance (v3.0) | 25 | 6 | 10 | 7 | 2 |
+| Architecture Patterns & Resilience (v3.0) | 18 | 4 | 8 | 5 | 1 |
+| Network Operations & Field Ops (v3.0) | 10 | 4 | 4 | 2 | 0 |
+| SRS Design Gaps (v3.0) | 15 | 2 | 5 | 6 | 2 |
+| Missing Workers (v3.0) | 8 | 3 | 3 | 2 | 0 |
+| **v3.0 Subtotal** | **76** | **19** | **30** | **22** | **5** |
+| **GRAND TOTAL (v1.0 + v2.0 + v3.0)** | **144** | **42** | **51** | **44** | **7** |
 
 **Previous analysis (v1.0):** 84 gaps (47 API/design + 37 ISP operational)
 **This analysis (v2.0):** 68 new gaps from code-level deep dive
-**Combined total:** 152 unique gaps identified
+**This analysis (v3.0):** 76 new gaps from SRS deep dive, finance compliance, architecture patterns, network ops
+**Combined total:** 215 unique gaps identified (71 additional addressed incrementally within phases)
 
 ---
 
@@ -730,6 +738,217 @@ The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong
 
 ---
 
-*Document version: 2.0 — Updated 2026-07-21*
+*Document version: 3.0 — Updated 2026-07-21*
+*Previous version: 2.0 — 2026-07-21 (68 code/security gaps)*
 *Previous version: 1.0 — 2026-07-21 (37 ISP operational gaps)*
-*Combined total: 152 unique gaps (84 from v1.0 + 68 from v2.0)*
+*Combined total: 215 unique gaps (84 from v1.0 + 68 from v2.0 + 76 from v3.0, with 71 addressed incrementally)*
+
+---
+
+## 11. v3.0 DEEP DIVE — Finance, Architecture Patterns, SRS, Network Ops
+
+> **Full gap details:** `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`
+> **Updated roadmap:** `GAP-IMPLEMENTATION-ROADMAP.md` (v3.0, 16 weeks, 12 phases)
+
+### 11.1 Indian Finance & Tax Compliance (25 gaps)
+
+| Gap | Priority | Summary |
+|-----|----------|---------|
+| F-01 | P0 | GST never calculated on invoices (`tax_amount: Set(Decimal::ZERO)`) |
+| F-02 | P0 | No place-of-supply logic — hardcoded Maharashtra only |
+| F-04 | P0 | Late fees lack 18% GST (Circular 178/10/2022) |
+| F-05 | P0 | No credit notes / debit notes (Section 34 CGST Act) |
+| F-08 | P1 | HSN/SAC codes never assigned to line items |
+| F-20 | P0 | Tax invoice missing 8 mandatory fields (Rule 46 CGST Rules) |
+| F-03 | P1 | No security deposit ledger — balance sheet misstatement |
+| F-06 | P1 | No Ind AS 115 revenue recognition — deferred revenue missing |
+| F-07 | P1 | No advance payment tracking |
+| F-16 | P2 | Mid-month pro-ration never applied |
+| F-17 | P2 | No grandfathered plan pricing |
+| F-18 | P2 | No enterprise billing (consolidated, PO ref, credit terms) |
+| F-19 | P2 | Incomplete chart of accounts (15+ missing accounts) |
+| F-25 | P1 | No TRAI-compliant dunning process |
+| F-09 | P2 | No reverse charge mechanism tracking |
+| F-10 | P1 | No GST e-invoice (IRN) generation |
+| F-11 | P1 | No payment reconciliation |
+| F-12 | P1 | No UPI autopay / e-mandate management |
+| F-13 | P2 | No gateway settlement cycle tracking |
+| F-14 | P2 | No MDR tracking — ₹37,800/month unreconciled |
+| F-15 | P2 | No bad debt provisioning (Ind AS 109 ECL model) |
+| F-21 | P2 | No GST on discounted amounts |
+| F-22 | P2 | No cash collection by field agents |
+| F-23 | P3 | No EMI options for annual plans |
+| F-24 | P2 | No wallet withdrawal for terminated customers |
+
+### 11.2 Architecture Patterns & Resilience (18 gaps)
+
+| Gap | Priority | Summary |
+|-----|----------|---------|
+| P-01 | P0 | No circuit breaker for MikroTik/Huawei/RADIUS — cascade failure |
+| P-02 | P1 | No bulkhead isolation — billing blocks provisioning |
+| P-03 | P1 | No saga compensation — partial provisioning zombie states |
+| P-05 | P1 | No standardized retry policy — thundering herd risk |
+| P-07 | P1 | No API/webhook retry + DLQ for external HTTP calls |
+| P-13 | P1 | No IPAM data model — CIDR math missing |
+| P-14 | P0 | Health check endpoints don't check DB/Redis/NATS |
+| P-10 | P1 | No CDR storage schema — usage disputes unresolvable |
+| P-11 | P1 | No data archival / AutoPurgeWorker |
+| P-04 | P2 | No backpressure for bursty network events |
+| P-06 | P2 | No graceful degradation strategy |
+| P-08 | P2 | No time-series strategy for metrics |
+| P-09 | P2 | No hot/cold data separation |
+| P-12 | P2 | No materialized views for dashboards |
+| P-15 | P2 | No worker job DLQ — bad record blocks entire queue |
+| P-16 | P2 | No external service health monitoring |
+| P-17 | P2 | No distributed tracing (OpenTelemetry) |
+| P-18 | P3 | No SLO/SLI definitions |
+
+### 11.3 Missing Workers (8 gaps)
+
+| Worker | Priority | Purpose |
+|--------|----------|---------|
+| CdrProcessingWorker | CRITICAL | Parse BNG CDRs → usage → FUP |
+| RadiusAccountingWorker | CRITICAL | RADIUS session tracking → billing |
+| UsageMeteringWorker | CRITICAL | Per-customer data usage, FUP enforcement |
+| SlaMonitorWorker | HIGH | SLA timers, auto-escalation, breach alerts |
+| CapacityAlertingWorker | HIGH | SNMP polling, threshold alerts |
+| ReportGenerationWorker | MEDIUM | Daily revenue, GST data |
+| CertificateRenewalWorker | MEDIUM | TLS/JWT/RADIUS secret rotation |
+| RetentionWorker | MEDIUM | Redis expiry, outbox cleanup |
+
+### 11.4 Network Operations Gaps (10 domains)
+
+| Domain | Priority | Key Missing |
+|--------|----------|------------|
+| Fiber Plant Topology | CRITICAL | OLT→Splitter→ONT hierarchy, fiber segments, splice points |
+| IPAM | CRITICAL | Public IPv4, CGNAT, IPv6, IP recycling |
+| Network Monitoring | CRITICAL | Real SNMP polling, all mocked, worker never spawned |
+| Bandwidth Enforcement | HIGH | HTB hierarchy, CIR/PIR, PCQ, post-FUP |
+| Provisioning Automation | CRITICAL | RADIUS CoA, OMCI, TR-069, fully manual |
+| Incident Management | HIGH | Shift handover, escalation matrix, MTTR tracking |
+| Field Operations | HIGH | Mobile app, GPS dispatch, checklists |
+| Capacity Planning | HIGH | PON utilization, growth forecasting |
+| Vendor/AMC Management | MEDIUM | Contracts, warranty, spare parts |
+| Regulatory Compliance | CRITICAL | TRAI QoS, lawful intercept, CDR retention |
+
+### 11.5 SRS Design Gaps (15 gaps)
+
+| Gap | Summary |
+|-----|---------|
+| D-01 | No `customer_type` field (residential vs enterprise) |
+| D-02 | No `relocation` installation type |
+| D-03 | No `disconnection_order` entity |
+| D-04 | No `customer_notes` / communication log |
+| D-05 | No fiber route / physical layer entities |
+| D-06 | No `sla_agreement` for enterprise |
+| D-07 | No `static_ip_assignment` |
+| D-08 | No `invoice_pdf_url` |
+| D-09 | No `service_outage` / `maintenance_window` |
+| D-10 | No `ticket_sla_timer` |
+| D-11 | No plan versioning |
+| D-12 | No `amount_paid` on invoices |
+| D-13 | No `customer_contacts` for enterprise |
+| D-14 | No `referral_wallet` linkage |
+| D-15 | No `ont_provisioning_profile` |
+
+### 11.6 Missing Entities (12 new)
+
+| Entity | Purpose | Priority |
+|--------|---------|----------|
+| `ip_address` | Individual IP allocation records | CRITICAL |
+| `radius_accounting` | RADIUS accounting packet logs | CRITICAL |
+| `provisioning_job` | Customer provisioning task tracking | CRITICAL |
+| `cdr_records` | Call detail records for usage tracking | CRITICAL |
+| `fiber_segment` | Physical fiber route segments | HIGH |
+| `olt_port` | OLT PON port → ONT mapping | HIGH |
+| `splitters` | Optical splitter locations and mappings | HIGH |
+| `customer_equipment` | Customer-premises equipment (ONT, router) | HIGH |
+| `mass_incident` | Area-wide outage tracking | HIGH |
+| `sla_definition` | SLA targets per plan/tier | HIGH |
+| `sla_measurement` | Actual SLA performance per customer | HIGH |
+| `usage_record` | Per-customer daily usage aggregation | HIGH |
+
+### 11.7 Updated Gap Tracking Matrix (v3.0 additions)
+
+| Gap ID | Category | Tier | Module | Status | Phase |
+|--------|----------|------|--------|--------|-------|
+| F-01 | Finance | CRITICAL | billing | Open | 1 |
+| F-02 | Finance | CRITICAL | billing | Open | 1 |
+| F-03 | Finance | HIGH | accounting | Open | 4 |
+| F-04 | Finance | CRITICAL | billing | Open | 1 |
+| F-05 | Finance | CRITICAL | billing | Open | 1 |
+| F-06 | Finance | HIGH | accounting | Open | 4 |
+| F-07 | Finance | HIGH | accounting | Open | 4 |
+| F-08 | Finance | HIGH | billing | Open | 1 |
+| F-09 | Finance | MEDIUM | accounting | Open | 8 |
+| F-10 | Finance | HIGH | accounting | Open | 6 |
+| F-11 | Finance | HIGH | billing | Open | 5 |
+| F-12 | Finance | HIGH | payment | Open | 6 |
+| F-13 | Finance | MEDIUM | payment | Open | 6 |
+| F-14 | Finance | MEDIUM | accounting | Open | 6 |
+| F-15 | Finance | MEDIUM | accounting | Open | 8 |
+| F-16 | Finance | MEDIUM | billing | Open | 2 |
+| F-17 | Finance | MEDIUM | subscription | Open | 5 |
+| F-18 | Finance | MEDIUM | billing | Open | 7 |
+| F-19 | Finance | MEDIUM | accounting | Open | 4 |
+| F-20 | Finance | CRITICAL | billing | Open | 1 |
+| F-21 | Finance | MEDIUM | billing | Open | 5 |
+| F-22 | Finance | MEDIUM | installation | Open | 7 |
+| F-23 | Finance | LOW | billing | Open | 9 |
+| F-24 | Finance | MEDIUM | payment | Open | 6 |
+| F-25 | Finance | HIGH | compliance | Open | 7 |
+| P-01 | Architecture | CRITICAL | infrastructure | Open | 0 |
+| P-02 | Architecture | HIGH | infrastructure | Open | 2 |
+| P-03 | Architecture | HIGH | workflow | Open | 3 |
+| P-04 | Architecture | MEDIUM | infrastructure | Open | 6 |
+| P-05 | Architecture | HIGH | infrastructure | Open | 2 |
+| P-06 | Architecture | MEDIUM | infrastructure | Open | 6 |
+| P-07 | Architecture | HIGH | infrastructure | Open | 5 |
+| P-08 | Architecture | MEDIUM | monitoring | Open | 7 |
+| P-09 | Architecture | MEDIUM | infrastructure | Open | 8 |
+| P-10 | Architecture | HIGH | network | Open | 3 |
+| P-11 | Architecture | HIGH | compliance | Open | 5 |
+| P-12 | Architecture | MEDIUM | monitoring | Open | 7 |
+| P-13 | Architecture | HIGH | network | Open | 1 |
+| P-14 | Architecture | CRITICAL | routes | Open | 0 |
+| P-15 | Architecture | MEDIUM | workers | Open | 5 |
+| P-16 | Architecture | MEDIUM | monitoring | Open | 3 |
+| P-17 | Architecture | MEDIUM | infrastructure | Open | 8 |
+| P-18 | Architecture | LOW | infrastructure | Open | 9 |
+| W-01 | Workers | CRITICAL | radius | Open | 3 |
+| W-02 | Workers | CRITICAL | radius | Open | 3 |
+| W-03 | Workers | CRITICAL | bandwidth | Open | 3 |
+| W-04 | Workers | HIGH | tickets | Open | 5 |
+| W-05 | Workers | HIGH | monitoring | Open | 5 |
+| W-06 | Workers | MEDIUM | reports | Open | 7 |
+| W-07 | Workers | MEDIUM | security | Open | 8 |
+| W-08 | Workers | MEDIUM | compliance | Open | 8 |
+| N-01 | Network | CRITICAL | network | Open | 4 |
+| N-02 | Network | CRITICAL | network | Open | 4 |
+| N-03 | Network | CRITICAL | monitoring | Open | 0 |
+| N-04 | Network | HIGH | bandwidth | Open | 2 |
+| N-05 | Network | CRITICAL | provisioning | Open | 3 |
+| N-06 | Network | HIGH | tickets | Open | 6 |
+| N-07 | Network | HIGH | installation | Open | 7 |
+| N-08 | Network | HIGH | monitoring | Open | 8 |
+| N-09 | Network | MEDIUM | inventory | Open | 8 |
+| N-10 | Network | CRITICAL | compliance | Open | 6 |
+| D-01 | SRS | HIGH | customer | Open | 4 |
+| D-02 | SRS | MEDIUM | installation | Open | 4 |
+| D-03 | SRS | MEDIUM | customer | Open | 5 |
+| D-04 | SRS | MEDIUM | customer | Open | 4 |
+| D-05 | SRS | HIGH | network | Open | 4 |
+| D-06 | SRS | HIGH | subscription | Open | 5 |
+| D-07 | SRS | MEDIUM | network | Open | 5 |
+| D-08 | SRS | MEDIUM | billing | Open | 4 |
+| D-09 | SRS | MEDIUM | monitoring | Open | 5 |
+| D-10 | SRS | HIGH | tickets | Open | 5 |
+| D-11 | SRS | MEDIUM | subscription | Open | 6 |
+| D-12 | SRS | MEDIUM | billing | Open | 2 |
+| D-13 | SRS | LOW | customer | Open | 5 |
+| D-14 | SRS | LOW | referrals | Open | 6 |
+| D-15 | SRS | HIGH | network | Open | 3 |
+| E-01 to E-12 | Entities | varies | various | Open | 3-5 |
+
+**v3.0 Gaps:** 76
+**Critical:** 19 | **High:** 30 | **Medium:** 22 | **Low:** 5

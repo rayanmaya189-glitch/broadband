@@ -1,27 +1,30 @@
-# ISP Design Gap — Implementation Roadmap (v2.0)
+# ISP Design Gap — Implementation Roadmap (v3.0)
 
 **Date:** 2026-07-21
-**Total Gaps:** 152 (84 from v1.0 API/design + 68 from v2.0 code/security deep dive)
+**Total Gaps:** 215 (84 from v1.0 + 68 from v2.0 + 76 from v3.0 finance/patterns/SRS/network)
 **Target:** Production-ready FTTH ISP platform for Jalgaon, India
 
 ---
 
 ## Gap Distribution
 
-| Category | v1.0 | v2.0 | Total | Critical | High | Medium | Low |
-|----------|------|------|-------|----------|------|--------|-----|
-| Security & Compliance | 2 | 13 | 15 | 7 | 4 | 4 | 0 |
-| ISP Network Operations | 12 | 7 | 19 | 5 | 12 | 2 | 0 |
-| Billing & Revenue | 8 | 11 | 19 | 10 | 7 | 1 | 1 |
-| Customer Operations | 6 | 7 | 13 | 3 | 5 | 4 | 1 |
-| Infrastructure & DevOps | 5 | 5 | 10 | 4 | 0 | 6 | 0 |
-| Tickets & SLA | 4 | 4 | 8 | 1 | 3 | 4 | 0 |
-| Bandwidth & Monitoring | 6 | 10 | 16 | 4 | 8 | 3 | 1 |
-| Integration Adapters | 7 | 8 | 15 | 2 | 9 | 4 | 0 |
-| Regulatory (TRAI/GST/IT) | 12 | 0 | 12 | 2 | 3 | 5 | 2 |
-| **TOTAL** | **62** | **65** | **127** | **38** | **51** | **33** | **5** |
+| Category | v1.0 | v2.0 | v3.0 | Total | Critical | High | Medium | Low |
+|----------|------|------|------|-------|----------|------|--------|-----|
+| Security & Compliance | 2 | 13 | 0 | 15 | 7 | 4 | 4 | 0 |
+| ISP Network Operations | 12 | 7 | 10 | 29 | 9 | 14 | 6 | 0 |
+| Billing & Revenue | 8 | 11 | 25 | 44 | 16 | 17 | 9 | 2 |
+| Customer Operations | 6 | 7 | 15 | 28 | 5 | 10 | 10 | 3 |
+| Infrastructure & DevOps | 5 | 5 | 18 | 28 | 8 | 10 | 9 | 1 |
+| Tickets & SLA | 4 | 4 | 2 | 10 | 1 | 5 | 4 | 0 |
+| Bandwidth & Monitoring | 6 | 10 | 8 | 24 | 7 | 11 | 5 | 1 |
+| Integration Adapters | 7 | 8 | 0 | 15 | 2 | 9 | 4 | 0 |
+| Regulatory (TRAI/GST/IT) | 12 | 0 | 0 | 12 | 2 | 3 | 5 | 2 |
+| Indian Finance & Tax (v3.0) | — | — | 25 | 25 | 6 | 10 | 7 | 2 |
+| Architecture Patterns (v3.0) | — | — | 18 | 18 | 4 | 8 | 5 | 1 |
+| Missing Workers (v3.0) | — | — | 8 | 8 | 3 | 3 | 2 | 0 |
+| **TOTAL** | **62** | **65** | **76** | **215** | **70** | **104** | **72** | **11** |
 
-> Note: 25 additional v1.0 gaps addressed incrementally within each phase.
+> Note: 71 additional gaps addressed incrementally within each phase.
 
 ---
 
@@ -246,18 +249,91 @@
 | All | OpenAPI documentation | utoipa annotations | 2 |
 
 **Gaps Closed:** 8
-**Cumulative:** 103 / 152
+**Cumulative:** 103 / 215
 
 ---
 
-## Remaining Gaps (49)
+## Phase 9: Indian Finance & Tax Compliance (Days 69-78) — v3.0 NEW
+
+**Goal:** Indian-specific GST, TDS, Ind AS compliance for billing and accounting.
+
+| Gap ID | Task | Files | Est. Days |
+|--------|------|-------|-----------|
+| F-01 | Implement GST calculation on invoices | `billing/application/service.rs` | 1 |
+| F-02 | Place-of-supply logic (intra/inter-state) | `billing/application/service.rs`, customer state | 1 |
+| F-04 | GST on late fees | `billing/workers/late_fee_worker.rs` | 0.5 |
+| F-05 | Credit notes / debit notes | `billing/domain/entities/credit_note.rs` | 1.5 |
+| F-08 | HSN/SAC per line item | `billing/domain/entities/invoice.rs` | 0.5 |
+| F-20 | Tax invoice compliance (Rule 46) | `billing/application/pdf.rs` | 1 |
+| F-03 | Security deposit ledger | `accounting/domain/entities/security_deposit.rs` | 1.5 |
+| F-16 | Mid-month pro-ration | `billing/domain/primitives.rs` | 1 |
+| F-19 | Complete chart of accounts (15+ accounts) | `13-accounting.md` schema | 1 |
+| F-25 | TRAI-compliant dunning process | `billing/workers/dunning_worker.rs` | 1 |
+
+**New Dependencies:** `ipnetwork = "0.20"` (for F-02 state comparison)
+**New Entities:** `credit_notes`, `security_deposits`
+**Gaps Closed:** 10
+**Cumulative:** 113 / 215
+
+---
+
+## Phase 10: Architecture Resilience & Missing Workers (Days 79-86) — v3.0 NEW
+
+**Goal:** Add circuit breakers, health checks, and implement 8 missing workers.
+
+| Gap ID | Task | Files | Est. Days |
+|--------|------|-------|-----------|
+| P-01 | Circuit breaker for external adapters | `infrastructure/resilience/circuit_breaker.rs` | 2 |
+| P-14 | Deep health check endpoints | `routes/health.rs` | 1 |
+| P-05 | Standardized retry policy | `infrastructure/resilience/retry.rs` | 1 |
+| P-02 | Bulkhead connection pools | `shared/app_state.rs` | 1 |
+| W-01 | CdrProcessingWorker | `workers/cdr_worker.rs` | 1.5 |
+| W-02 | RadiusAccountingWorker | `workers/radius_accounting_worker.rs` | 1.5 |
+| W-03 | UsageMeteringWorker | `workers/usage_metering_worker.rs` | 1 |
+| W-04 | SlaMonitorWorker | `workers/sla_worker.rs` | 1 |
+
+**New Dependencies:** `tokio-retry`, `dashmap`
+**New Entities:** `cdr_records`, `sla_measurement`
+**New Workers:** 4
+**Gaps Closed:** 8
+**Cumulative:** 121 / 215
+
+---
+
+## Phase 11: Network Ops & Fiber Plant (Days 87-100) — v3.0 NEW
+
+**Goal:** Real SNMP polling, fiber topology, IPAM, provisioning automation.
+
+| Gap ID | Task | Files | Est. Days |
+|--------|------|-------|-----------|
+| N-03 | SNMP polling library + real metrics | `integrations/snmp/mod.rs`, `Cargo.toml` | 3 |
+| N-01 | Fiber topology entities | `migrations/network/`, entities | 2 |
+| N-02 | IPAM with CIDR math | `network/domain/entities/ip_address.rs` | 2 |
+| N-05 | Provisioning automation (CoA + OMCI) | `workers/provisioning_worker.rs` | 3 |
+| P-10 | CDR storage schema | `migrations/network/003_create_cdr.sql` | 1 |
+| D-05 | Fiber route entities | `network/domain/entities/fiber_segment.rs` | 1 |
+| D-15 | ONT provisioning profile | `network/domain/entities/ont_profile.rs` | 1 |
+| E-01-E-12 | All missing entities | various | 3 |
+
+**New Dependencies:** `snmp = "0.9"`, `ipnetwork = "0.20"`
+**New Entities:** 12 (ip_address, radius_accounting, provisioning_job, cdr_records, fiber_segment, olt_port, splitters, customer_equipment, mass_incident, sla_definition, sla_measurement, usage_record)
+**New Workers:** CdrProcessingWorker, ProvisioningWorker
+**Gaps Closed:** 12
+**Cumulative:** 133 / 215
+
+---
+
+## Remaining Gaps (82)
 
 These gaps are addressed incrementally or deferred:
 
 | Category | Count | Notes |
 |----------|-------|-------|
-| Regulatory (TRAI/GST) | 12 | Partially addressed in Phase 7-8; full compliance requires legal review |
-| Medium/Low priority items | 37 | Addressed as part of module refinements |
+| Indian Finance & Tax (P1-P3) | 15 | Partially in Phase 9; full compliance requires legal review |
+| Architecture Patterns (P2-P3) | 10 | Graceful degradation, tracing, SLOs, hot/cold data |
+| SRS Design Gaps | 15 | Customer type, SLA, outage management, plan versioning |
+| Network Ops (P2-P3) | 8 | Field mobile app, capacity planning, vendor mgmt |
+| Medium/Low priority items | 34 | Addressed as part of module refinements |
 
 ---
 
@@ -265,18 +341,21 @@ These gaps are addressed incrementally or deferred:
 
 | Phase | Days | Focus | Gaps Closed | Cumulative |
 |-------|------|-------|-------------|------------|
-| 0 | 1-5 | Security Hardening | 13 | 13 / 152 (9%) |
-| 1 | 6-12 | Data Integrity | 11 | 24 / 152 (16%) |
-| 2 | 13-18 | Revenue & Billing | 10 | 34 / 152 (22%) |
-| 3 | 19-28 | Network & Provisioning | 12 | 46 / 152 (30%) |
-| 4 | 29-36 | Customer Portal | 10 | 56 / 152 (37%) |
-| 5 | 37-44 | Operations & Monitoring | 15 | 71 / 152 (47%) |
-| 6 | 45-52 | Network Ops & Integration | 10 | 81 / 152 (53%) |
-| 7 | 53-60 | Compliance & Advanced | 14 | 95 / 152 (63%) |
-| 8 | 61-68 | Quality & Production | 8 | 103 / 152 (68%) |
-| **Total** | **68 days (~14 weeks)** | | **103** | **103 / 152** |
+| 0 | 1-5 | Security Hardening | 13 | 13 / 215 (6%) |
+| 1 | 6-12 | Data Integrity | 11 | 24 / 215 (11%) |
+| 2 | 13-18 | Revenue & Billing | 10 | 34 / 215 (16%) |
+| 3 | 19-28 | Network & Provisioning | 12 | 46 / 215 (21%) |
+| 4 | 29-36 | Customer Portal | 10 | 56 / 215 (26%) |
+| 5 | 37-44 | Operations & Monitoring | 15 | 71 / 215 (33%) |
+| 6 | 45-52 | Network Ops & Integration | 10 | 81 / 215 (38%) |
+| 7 | 53-60 | Compliance & Advanced | 14 | 95 / 215 (44%) |
+| 8 | 61-68 | Quality & Production | 8 | 103 / 215 (48%) |
+| 9 | 69-78 | Indian Finance & Tax | 10 | 113 / 215 (53%) |
+| 10 | 79-86 | Architecture Resilience | 8 | 121 / 215 (56%) |
+| 11 | 87-100 | Network Ops & Fiber Plant | 12 | 133 / 215 (62%) |
+| **Total** | **100 days (~20 weeks)** | | **133** | **133 / 215** |
 
-**Remaining 49 gaps** are incremental improvements addressed during normal development sprints.
+**Remaining 82 gaps** are incremental improvements addressed during normal development sprints.
 
 ---
 
@@ -287,6 +366,7 @@ These gaps are addressed incrementally or deferred:
 | Rust Developer | 2 | Core implementation |
 | Security Engineer | 1 | Phase 0 + compliance |
 | Network Engineer | 1 | RADIUS/SNMP/MikroTik testing |
+| Finance/CA Consultant | 1 | GST/TDS/Ind AS compliance (Phase 9) |
 | QA Engineer | 1 | Integration + E2E testing |
 | DevOps | 1 | Infrastructure setup |
 
@@ -306,9 +386,15 @@ These gaps are addressed incrementally or deferred:
 | System uptime | 99.9% |
 | DPDP Act compliance | Full |
 | CERT-In readiness | 6-hour reporting capability |
+| TRAI QoS reporting | Automated |
+| Security deposit tracking | 100% |
+| Revenue recognition (Ind AS 115) | Compliant |
+| Fiber plant visibility | Full OLT→Splitter→ONT |
+| IPAM coverage | 100% of allocated IPs tracked |
 
 ---
 
-*Document version: 2.0 — 2026-07-21*
+*Document version: 3.0 — 2026-07-21*
 *Previous: v1.0 (84 gaps, 12 weeks, 6 phases)*
-*Updated: v2.0 (152 gaps, 14 weeks, 9 phases including security-first Phase 0)*
+*v2.0 (152 gaps, 14 weeks, 9 phases including security-first Phase 0)*
+*v3.0 (215 gaps, 20 weeks, 12 phases including finance compliance + architecture resilience + network ops)*

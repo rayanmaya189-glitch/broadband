@@ -6309,9 +6309,9 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 > **Cross-reference:** The following documents contain the complete ISP design gap analysis:
 >
 > ### Core Analysis Documents
-> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` — Deep ISP operational gap analysis (v2.0: 68 code/security gaps + 37 ISP operational gaps)
+> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` — Deep ISP operational gap analysis (v3.0: 76 new gaps + 68 v2.0 + 37 v1.0 = 215 total)
 > - `docs/backend/DESIGN-GAP-ANALYSIS.md` — API design & cross-module gap analysis (47 gaps)
-> - `docs/backend/BACKEND-STATUS-REPORT.md` — Backend implementation status report (Section 12: code-level bugs)
+> - `docs/backend/BACKEND-STATUS-REPORT.md` — Backend implementation status report (Section 12: code-level bugs, Section 13: v3.0 gaps)
 >
 > ### Module-Specific Gap Details
 > - `docs/backend/GAP-network.md` — Network module: RADIUS, IP allocation, provisioning, SNMP
@@ -6320,13 +6320,17 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 > - `docs/backend/GAP-workers.md` — 9 missing workers with implementation code
 >
 > ### Security & Code Quality
-> - `docs/backend/GAP-security.md` — **13 Tier 0 security vulnerabilities** (NEW v2.0) with attack vectors and fix code
-> - `docs/backend/GAP-code-bugs.md` — **52 code-level bugs** (NEW v2.0) with exact file:line references
+> - `docs/backend/GAP-security.md` — **13 Tier 0 security vulnerabilities** (v2.0) with attack vectors and fix code
+> - `docs/backend/GAP-code-bugs.md` — **52 code-level bugs** (v2.0) with exact file:line references
+>
+> ### v3.0 New Documents (2026-07-21)
+> - `docs/backend/GAP-finance-compliance.md` — **25 Indian finance/GST/TDS/Ind AS compliance gaps** (NEW v3.0)
+> - `docs/backend/GAP-architecture-patterns.md` — **51 architecture pattern + network ops + SRS gaps** (NEW v3.0)
 >
 > ### Implementation
-> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` — 14-week, 9-phase implementation plan (v2.0, updated from 12-week/6-phase)
+> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` — 20-week, 12-phase implementation plan (v3.0, updated from 14-week/9-phase)
 
-### Gap Summary (v2.0)
+### Gap Summary (v3.0)
 
 | Category | Critical | High | Medium | Low | Total |
 |----------|----------|------|--------|-----|-------|
@@ -6339,11 +6343,18 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 | Integration Adapters | 2 | 9 | 4 | 0 | **15** |
 | Infrastructure & DevOps | 4 | 0 | 6 | 0 | **10** |
 | Regulatory (TRAI/GST/IT) | 2 | 3 | 5 | 2 | **12** |
-| **TOTAL** | **38** | **51** | **33** | **5** | **127** |
+| **v1.0 + v2.0 Subtotal** | **38** | **51** | **33** | **5** | **127** |
+| Indian Finance & Tax (v3.0) | 6 | 10 | 7 | 2 | **25** |
+| Architecture Patterns (v3.0) | 4 | 8 | 5 | 1 | **18** |
+| Missing Workers (v3.0) | 3 | 3 | 2 | 0 | **8** |
+| Network Ops (v3.0) | 4 | 4 | 2 | 0 | **10** |
+| SRS Design Gaps (v3.0) | 2 | 5 | 6 | 2 | **15** |
+| **v3.0 Subtotal** | **19** | **30** | **22** | **5** | **76** |
+| **GRAND TOTAL** | **57** | **81** | **55** | **10** | **203** |
 
-> Note: 25 additional gaps addressed incrementally within each phase.
+> Note: 12 additional gaps addressed incrementally within each phase. Combined unique total: 215.
 
-### Top 15 Critical Gaps
+### Top 20 Critical Gaps
 
 | # | Gap | Impact | Phase |
 |---|-----|--------|-------|
@@ -6362,8 +6373,13 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 | 13 | **PPPoE terminate doesn't contact NAS** | Terminated users stay online | 3 |
 | 14 | **Huawei SSH always reports success** | Silent device failures | 0 |
 | 15 | **Random health scores** | Unreachable devices appear healthy | 0 |
+| 16 | **No security deposit ledger** | Balance sheet misstatement (v3.0 F-03) | 9 |
+| 17 | **No circuit breaker pattern** | Cascade failure on device down (v3.0 P-01) | 10 |
+| 18 | **No fiber plant topology** | Can't diagnose fiber cuts (v3.0 N-01) | 11 |
+| 19 | **No CDR storage** | Usage disputes unresolvable (v3.0 P-10) | 11 |
+| 20 | **No TRAI-compliant dunning** | Regulatory non-compliance (v3.0 F-25) | 9 |
 
-### Implementation Timeline (v2.0)
+### Implementation Timeline (v3.0)
 
 | Phase | Days | Focus | Gaps Closed |
 |-------|------|-------|-------------|
@@ -6376,7 +6392,17 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 | 6 | 45-52 | Network Ops & Integration | 10 |
 | 7 | 53-60 | Compliance & Advanced | 14 |
 | 8 | 61-68 | Quality & Production | 8 |
-| **Total** | **68 days (~14 weeks)** | | **103** |
+| 9 | 69-78 | Indian Finance & Tax (v3.0) | 10 |
+| 10 | 79-86 | Architecture Resilience (v3.0) | 8 |
+| 11 | 87-100 | Network Ops & Fiber Plant (v3.0) | 12 |
+| **Total** | **100 days (~20 weeks)** | | **133** |
 
-**Total gaps identified:** 152
-**Full roadmap:** `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` (v2.0)
+**Total gaps identified:** 215
+**Full roadmap:** `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` (v3.0)
+
+### v3.0 New Documents
+
+| Document | Purpose |
+|----------|---------|
+| `docs/backend/GAP-finance-compliance.md` | 25 Indian finance/ GST/ TDS/ Ind AS compliance gaps |
+| `docs/backend/GAP-architecture-patterns.md` | 18 pattern gaps + 8 workers + 10 network ops domains + 15 SRS gaps |

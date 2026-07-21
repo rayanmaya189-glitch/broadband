@@ -4,7 +4,7 @@
 
 This document defines the engineering standards for the **AeroXe Broadband** backend using **Domain-Driven Design** and **Test-Driven Development**. It includes a production‑ready folder architecture that enforces strict bounded‑context isolation, aggregate design, event versioning, and dedicated security/compliance contexts. Every component is designed to be tested from the ground up, with clear guidance on test placement and strategy.
 
-> **ISP Gap Analysis:** See Section 13 for ISP operational gap mitigation rules. Full gap analysis: `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` (v2.0), `docs/backend/GAP-security.md`, `docs/backend/GAP-code-bugs.md`.
+> **ISP Gap Analysis:** See Section 13 for ISP operational gap mitigation rules. Full gap analysis: `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` (v3.0), `docs/backend/GAP-security.md`, `docs/backend/GAP-code-bugs.md`, `docs/backend/GAP-finance-compliance.md` (NEW v3.0), `docs/backend/GAP-architecture-patterns.md` (NEW v3.0).
 
 ---
 
@@ -1379,13 +1379,15 @@ Thus, the system can be split incrementally, at the team’s own pace.
 
 ---
 
-## 13. ISP Operational Gap Mitigation Rules (v2.0)
+## 13. ISP Operational Gap Mitigation Rules (v3.0)
 
 > **Cross-reference:**
-> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` (v2.0) — 152 total gaps (84 v1.0 + 68 v2.0)
+> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` (v3.0) — 215 total gaps (84 v1.0 + 68 v2.0 + 76 v3.0)
 > - `docs/backend/GAP-security.md` — 13 Tier 0 security vulnerabilities
 > - `docs/backend/GAP-code-bugs.md` — 52 code-level bugs with file:line references
-> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` (v2.0) — 14-week, 9-phase implementation plan
+> - `docs/backend/GAP-finance-compliance.md` (NEW v3.0) — 25 Indian finance/GST/TDS/Ind AS compliance gaps
+> - `docs/backend/GAP-architecture-patterns.md` (NEW v3.0) — 18 architecture pattern gaps + 8 missing workers + 10 network ops domains + 15 SRS design gaps
+> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` (v3.0) — 20-week, 12-phase implementation plan
 
 The following rules address critical ISP operational gaps identified in the deep analysis. **All new code MUST comply with these rules.**
 
@@ -1429,8 +1431,35 @@ The following rules address critical ISP operational gaps identified in the deep
 | **INFRA-002** | All external integrations MUST implement retry with exponential backoff, circuit breaker, and fallback. |
 | **INFRA-003** | All database operations MUST use connection pooling. Per-request connection creation is not acceptable. |
 | **INFRA-004** | All scheduled jobs MUST have idempotency. Re-running a job must not create duplicates. |
+| **INFRA-005** | All health check endpoints MUST verify DB, Redis, NATS, and RADIUS connectivity. Returning 200 when dependencies are down is not acceptable. |
+| **INFRA-006** | All external HTTP calls (webhooks, API integrations) MUST use circuit breaker + retry + DLQ pattern. Silent failures are not acceptable. |
+| **INFRA-007** | All worker queues MUST implement per-job DLQ with max retry count. A single bad record must not block the entire queue. |
 
-### 13.5 Testing Requirements for Gap Mitigation
+### 13.5 Finance & Tax Compliance Rules (v3.0 NEW)
+
+| Rule | Description |
+|------|-------------|
+| **FIN-001** | All invoices MUST include GST (CGST 9% + SGST 9% intra-state, IGST 18% inter-state). Tax must never be ₹0 for active customers. |
+| **FIN-002** | All invoices MUST include place-of-supply comparison between provider and customer state codes. |
+| **FIN-003** | All late fees MUST include 18% GST per Circular 178/10/2022. |
+| **FIN-004** | Credit notes and debit notes MUST be supported for all post-invoice corrections (Section 34 CGST Act). |
+| **FIN-005** | Security deposits MUST be tracked as refundable liabilities in a separate ledger. |
+| **FIN-006** | Revenue recognition MUST follow Ind AS 115 — deferred revenue for annual/quarterly prepayments. |
+| **FIN-007** | HSN/SAC codes MUST be assigned per line item: broadband=998421, router_rental=998314, late_fee=997159. |
+| **FIN-008** | Tax invoices MUST include all 8 mandatory fields per Rule 46 CGST Rules. |
+
+### 13.6 Architecture Pattern Rules (v3.0 NEW)
+
+| Rule | Description |
+|------|-------------|
+| **ARCH-001** | All external adapter calls (MikroTik, Huawei, RADIUS) MUST use circuit breaker pattern with failure threshold. |
+| **ARCH-002** | All background workers MUST have dedicated connection pool limits, not share the main pool. |
+| **ARCH-003** | All multi-step provisioning MUST implement saga compensation for rollback on partial failure. |
+| **ARCH-004** | All distributed retries MUST use exponential backoff with jitter to prevent thundering herd. |
+| **ARCH-005** | All CDR data MUST be persisted in a partitioned `cdr_records` table for usage dispute resolution. |
+| **ARCH-006** | All fiber plant operations MUST have a physical layer model (OLT→Splitter→ONT). |
+
+### 13.7 Testing Requirements for Gap Mitigation
 
 | Test Type | Requirement |
 |-----------|-------------|
@@ -1449,10 +1478,10 @@ This document provides a complete, enterprise‑grade blueprint for building Aer
 
 The ISP operational gap mitigation rules (Section 13) ensure that all new code addresses the critical gaps identified in the deep analysis. These rules are mandatory for all new development.
 
-**Version 2.0** — Updated 2026-07-21 with security/code-level gap analysis.
+**Version 3.0** — Updated 2026-07-21 with v3.0 finance compliance, architecture patterns, and network ops gap analysis.
 
 Adopting this architecture will result in a codebase that accurately reflects the ISP domain, is resilient to change, and can be developed with confidence through test‑first practices.
 
 ---
 
-*Document maintained by the AeroXe Engineering Team. Version 2.1 – July 2026.*
+*Document maintained by the AeroXe Engineering Team. Version 3.0 – July 2026.*

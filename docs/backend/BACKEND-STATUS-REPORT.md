@@ -737,3 +737,58 @@ The AeroXe Broadband backend is a **well-architected, substantially complete** s
 **Code bugs detail:** `GAP-code-bugs.md`
 **Security detail:** `GAP-security.md`
 **Implementation roadmap:** `GAP-IMPLEMENTATION-ROADMAP.md` (v2.0, 14 weeks, 9 phases)
+
+---
+
+## 13. v3.0 Gaps — Finance, Architecture, Network Ops
+
+> **Cross-reference:** `DESIGN-GAPS-DEEP-ANALYSIS.md` §11, `GAP-finance-compliance.md`, `GAP-architecture-patterns.md`
+
+### 13.1 Indian Finance & Tax Compliance (25 gaps)
+
+| Severity | Gap | Issue |
+|----------|-----|-------|
+| CRITICAL | F-01 | GST never calculated — `tax_amount: Set(Decimal::ZERO)` |
+| CRITICAL | F-02 | No place-of-supply logic — hardcoded Maharashtra |
+| CRITICAL | F-04 | Late fees lack 18% GST (Circular 178/10/2022) |
+| CRITICAL | F-05 | No credit notes / debit notes (Section 34 CGST Act) |
+| CRITICAL | F-20 | Tax invoice missing 8 mandatory fields (Rule 46) |
+| HIGH | F-03 | No security deposit ledger — balance sheet misstatement |
+| HIGH | F-06 | No Ind AS 115 revenue recognition |
+| HIGH | F-08 | HSN/SAC codes never assigned |
+| HIGH | F-10 | No GST e-invoice (IRN) generation |
+| HIGH | F-11 | No payment reconciliation |
+| HIGH | F-12 | No UPI autopay / e-mandate management |
+
+### 13.2 Architecture Pattern Gaps (18 gaps)
+
+| Severity | Gap | Issue |
+|----------|-----|-------|
+| CRITICAL | P-01 | No circuit breaker for external adapters |
+| CRITICAL | P-14 | Health check endpoints don't check dependencies |
+| HIGH | P-02 | No bulkhead isolation |
+| HIGH | P-03 | No saga compensation for provisioning |
+| HIGH | P-05 | No standardized retry policy |
+| HIGH | P-10 | No CDR storage schema |
+
+### 13.3 Missing Workers (8)
+
+| Worker | Priority | Purpose |
+|--------|----------|---------|
+| CdrProcessingWorker | CRITICAL | Parse BNG CDRs → usage → FUP |
+| RadiusAccountingWorker | CRITICAL | RADIUS session tracking → billing |
+| UsageMeteringWorker | CRITICAL | Per-customer data usage, FUP |
+| SlaMonitorWorker | HIGH | SLA timers, auto-escalation |
+| CapacityAlertingWorker | HIGH | SNMP polling, threshold alerts |
+| ReportGenerationWorker | MEDIUM | Daily revenue, GST data |
+| CertificateRenewalWorker | MEDIUM | TLS/JWT/RADIUS secret rotation |
+| RetentionWorker | MEDIUM | Redis expiry, outbox cleanup |
+
+### 13.4 Combined Gap Summary
+
+| Version | Gaps | Focus |
+|---------|------|-------|
+| v1.0 | 84 | API/design + ISP operational |
+| v2.0 | 68 | Code-level security + bugs |
+| v3.0 | 76 | Finance compliance + patterns + network ops + SRS |
+| **Total** | **228** | **144 unique + 71 incremental + 13 in phases** |

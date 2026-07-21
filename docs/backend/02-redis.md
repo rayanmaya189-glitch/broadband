@@ -19,6 +19,8 @@ Redis serves multiple purposes in the platform:
 | Feature flags | Hash | No expiry |
 | Distributed locks | SET NX | 30s |
 
+> **v3.0 Gap Reference:** `GAP-architecture-patterns.md` §P-01 (no circuit breaker), §P-14 (health checks), §P-17 (no distributed tracing). Redis is not used for distributed rate limiting — only per-server limits exist (`GAP-security.md` SEC-006).
+
 ## 2. Key Naming Convention
 
 ```
