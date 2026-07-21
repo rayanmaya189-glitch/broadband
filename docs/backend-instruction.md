@@ -1,8 +1,10 @@
 # AeroXe Broadband – Domain-Driven Design & Test-Driven Development Guide (Enterprise Edition)
 
-**Version 2.0 – Complete DDD + TDD Folder Architecture**
+**Version 2.1 – Complete DDD + TDD Folder Architecture + ISP Gap Mitigation**
 
 This document defines the engineering standards for the **AeroXe Broadband** backend using **Domain-Driven Design** and **Test-Driven Development**. It includes a production‑ready folder architecture that enforces strict bounded‑context isolation, aggregate design, event versioning, and dedicated security/compliance contexts. Every component is designed to be tested from the ground up, with clear guidance on test placement and strategy.
+
+> **ISP Gap Analysis:** See Section 13 for ISP operational gap mitigation rules. Full gap analysis in `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md`.
 
 ---
 
@@ -1377,12 +1379,74 @@ Thus, the system can be split incrementally, at the team’s own pace.
 
 ---
 
-## 13. Conclusion
+## 13. ISP Operational Gap Mitigation Rules
+
+> **Cross-reference:** See `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` for the complete ISP-specific gap analysis.
+
+The following rules address critical ISP operational gaps identified in the deep analysis. **All new code MUST comply with these rules.**
+
+### 13.1 Network Operations Rules
+
+| Rule | Description |
+|------|-------------|
+| **NET-001** | All IP allocation MUST use CIDR math with per-address tracking. No counter-only allocation. |
+| **NET-002** | All device adapter connections (SSH, REST) MUST use connection pools. No per-request connection creation. |
+| **NET-003** | All device provisioning MUST be automated via `ProvisioningWorker`. Manual NOC intervention is not acceptable for standard installations. |
+| **NET-004** | All network device metrics MUST be collected via SNMP. Mock/placeholder data is not acceptable in production. |
+| **NET-005** | All bandwidth enforcement MUST be verified on-device after push. No DB-only speed limits. |
+| **NET-006** | All RADIUS interactions MUST use proper RFC 2865/2866 compliant implementations. No raw UDP byte-packing for production. |
+| **NET-007** | All device adapter parsing MUST handle firmware version differences gracefully. No hardcoded output format assumptions. |
+
+### 13.2 Billing Operations Rules
+
+| Rule | Description |
+|------|-------------|
+| **BILL-001** | All invoices MUST include GST calculation (CGST 9% + SGST 9% intra-state, IGST 18% inter-state). Tax columns must never be ₹0 for active customers. |
+| **BILL-002** | All invoice numbers MUST be unique and non-colliding. Use database sequences, not timestamp-based generation. |
+| **BILL-003** | All payment recording MUST support partial payments. Marking entire invoice paid for partial amount is incorrect. |
+| **BILL-004** | All late fees MUST be calculated and applied via background worker. Hardcoded values are not acceptable. |
+| **BILL-005** | All invoice generation MUST use proper month-end calculation. `period_start + 30 days` is incorrect for months with 28/31 days. |
+| **BILL-006** | All mid-cycle plan changes MUST generate pro-rata invoices. The `prorata_adjustments` table must be populated. |
+
+### 13.3 Customer Operations Rules
+
+| Rule | Description |
+|------|-------------|
+| **CUST-001** | All customer self-service MUST be available via `/api/v1/customer/me/*` endpoints. Customers must not require staff assistance for basic operations. |
+| **CUST-002** | All customer notifications MUST respect channel preferences. Customers must be able to opt-out of specific channels. |
+| **CUST-003** | All ticket SLA MUST be enforced with timers and auto-escalation. Status-only escalation is not acceptable. |
+| **CUST-004** | All subscription downgrades MUST validate current bandwidth usage before applying. Immediate speed reduction during active transfers is not acceptable. |
+
+### 13.4 Infrastructure Rules
+
+| Rule | Description |
+|------|-------------|
+| **INFRA-001** | All background workers MUST implement graceful shutdown, panic recovery, and restart logic. |
+| **INFRA-002** | All external integrations MUST implement retry with exponential backoff, circuit breaker, and fallback. |
+| **INFRA-003** | All database operations MUST use connection pooling. Per-request connection creation is not acceptable. |
+| **INFRA-004** | All scheduled jobs MUST have idempotency. Re-running a job must not create duplicates. |
+
+### 13.5 Testing Requirements for Gap Mitigation
+
+| Test Type | Requirement |
+|-----------|-------------|
+| **IP Allocation** | Unit tests for CIDR parsing, range generation, conflict detection, allocation/release |
+| **Provisioning** | Integration test for full provisioning sequence: RADIUS → BNG → OLT → verify |
+| **GST Calculation** | Unit tests for intra-state (CGST+SGST), inter-state (IGST), zero-tax scenarios |
+| **Bandwidth Push** | Integration test for bandwidth profile application with device verification |
+| **SLA Enforcement** | Unit test for SLA timer calculation, breach detection, escalation matrix |
+| **Invoice Generation** | Unit test for month-end calculation, pro-rata, line item totals |
+
+---
+
+## 14. Conclusion
 
 This document provides a complete, enterprise‑grade blueprint for building AeroXe Broadband with DDD and TDD. The folder structure enforces strict isolation, aggregate design, versioned events, and dedicated security/compliance contexts. Testing is woven into every layer, ensuring that the system remains maintainable, scalable, and ready for future microservice extraction.
+
+The ISP operational gap mitigation rules (Section 13) ensure that all new code addresses the critical gaps identified in the deep analysis. These rules are mandatory for all new development.
 
 Adopting this architecture will result in a codebase that accurately reflects the ISP domain, is resilient to change, and can be developed with confidence through test‑first practices.
 
 ---
 
-*Document maintained by the AeroXe Engineering Team. Version 2.0 – July 2026.*
+*Document maintained by the AeroXe Engineering Team. Version 2.1 – July 2026.*

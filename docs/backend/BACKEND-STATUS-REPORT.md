@@ -619,13 +619,70 @@ All implemented in `infrastructure/messaging/subscribers.rs` (1127 lines).
 
 ---
 
-## 11. CONCLUSION
+## 11. ISP OPERATIONAL GAPS (Deep Analysis)
 
-The AeroXe Broadband backend is a **well-architected, substantially complete** system. The DDD structure is clean, the module isolation is enforced, and the event-driven architecture is solid. The main areas needing attention are:
+> **Cross-reference:** See `DESIGN-GAPS-DEEP-ANALYSIS.md` for the complete ISP-specific operational gap analysis.
 
-1. **Testing** — the biggest gap; need E2E and more integration tests
-2. **Security hardening** — `cargo audit`, login anomaly detection, role-based rate limits
-3. **Minor DDD inconsistencies** — 2 modules missing repository traits
-4. **API documentation** — no OpenAPI/Swagger spec
+The backend has **excellent CRUD coverage** (~229 endpoints) and **strong architectural patterns** (DDD, outbox, events, partitioning). However, the **ISP operational core** — the layer that talks to real network devices, collects real usage data, and enforces real speed limits — is almost entirely stubbed.
 
-**Recommendation:** Focus next sprint on (1) comprehensive test suite, (2) CI security scanning, and (3) API documentation generation. The core business logic is production-ready.
+### 11.1 Critical ISP Gaps (Cannot Function Without)
+
+| Gap | What Exists | What's Missing |
+|-----|------------|----------------|
+| **No RADIUS Accounting Listener** | `RadiusClient` can send packets to RADIUS server | No listener for inbound RADIUS Accounting packets. `pppoe_sessions.bytes_in/bytes_out` never updated from real data. |
+| **IP Allocation is Fake** | `ip_pool` tracks `allocated_count` | `allocate_ip()` only increments counter. No CIDR math, no per-address tracking, no conflict prevention. |
+| **No Device Provisioning** | Adapters exist for MikroTik + Huawei | Creating subscription doesn't create PPPoE on RADIUS, doesn't push bandwidth to BNG, doesn't configure ONT on OLT. |
+| **No SNMP Polling** | `monitoring_worker` exists | No `snmp` crate. `device_metrics` table never populated from real devices. NOC dashboard shows fake data. |
+| **Bandwidth Limits are DB-Only** | `BandwidthWorker` calls adapter | MikroTik uses invalid REST endpoint (`/run`). Burst params always `None`. No Queue Tree/HTB. |
+| **No Tax Calculation** | GST fields defined | `create_invoice()` never computes tax. Invoices always show ₹0 tax. |
+| **No Customer Self-Service** | `customer` module has admin CRUD | Zero `/api/v1/customer/me/*` routes. Cannot launch customer app. |
+
+### 11.2 Critical ISP Gaps — Missing Workers
+
+| Worker | Purpose | Impact |
+|--------|---------|--------|
+| `ProvisioningWorker` | Auto-provision: RADIUS → BNG → OLT → verify | Every customer requires 30-60 min manual work |
+| `RadiusAccountingWorker` | Correlate RADIUS sessions → customers → usage | Usage data is fake |
+| `CdrIngestionWorker` | Parse CDR files from BNGs/OLTs | Billing is inaccurate |
+| `UsageMeteringWorker` | Track per-customer data usage, FUP | Cannot enforce fair usage |
+
+### 11.3 Critical ISP Gaps — Missing Entities
+
+| Entity | Purpose |
+|--------|---------|
+| `ip_address` | Individual IP allocation records (not just counter) |
+| `radius_accounting` | RADIUS accounting packet logs |
+| `provisioning_job` | Customer provisioning task tracking |
+| `fiber_segment` | Physical fiber route segments |
+| `olt_port` | OLT PON port → ONT mapping |
+| `mass_incident` | Area-wide outage tracking |
+| `sla_definition` | SLA targets per plan/tier |
+| `usage_record` | Per-customer daily usage aggregation |
+
+### 11.4 Implementation Roadmap
+
+| Phase | Weeks | Focus |
+|-------|-------|-------|
+| 1 | 1-2 | Fix foundation: IP allocation, connection pooling, MikroTik REST fix, GST calculation |
+| 2 | 3-4 | Wire data path: SNMP polling, RADIUS accounting, CDR ingestion |
+| 3 | 5-6 | Enable provisioning: auto-provision worker, bandwidth push, ONT config |
+| 4 | 7-8 | Customer portal: `/customer/me/*` APIs, invoice PDF, usage dashboard |
+| 5 | 9-10 | Operations: SLA monitoring, mass incidents, late fees, reconciliation |
+| 6 | 11-12 | Advanced: fraud detection, ZTE adapter, TR-069, reporting API |
+
+---
+
+## 12. CONCLUSION
+
+The AeroXe Broadband backend is a **well-architected, substantially complete** system for CRUD operations. The DDD structure is clean, the module isolation is enforced, and the event-driven architecture is solid. The main areas needing attention are:
+
+1. **ISP Operational Core** — the #1 gap; the system works as an admin panel but not as a live ISP platform
+2. **Testing** — need E2E and more integration tests
+3. **Security hardening** — `cargo audit`, login anomaly detection, role-based rate limits
+4. **Minor DDD inconsistencies** — 2 modules missing repository traits
+5. **API documentation** — OpenAPI/Swagger spec (partially addressed)
+
+**Recommendation:** Focus next sprint on (1) fixing the ISP operational core (IP allocation, connection pooling, SNMP, RADIUS), (2) implementing provisioning automation, and (3) building the customer self-service portal. The CRUD layer is production-ready; the ISP layer is not.
+
+**Combined gap count:** 47 (API/design) + 37 (ISP operational) = **84 gaps identified**
+**Full gap analysis:** `DESIGN-GAPS-DEEP-ANALYSIS.md`

@@ -6301,3 +6301,37 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 ---
 
 *End of Document*
+
+---
+
+## Appendix E: ISP Design Gap Analysis
+
+> **Cross-reference:** The following documents contain the complete ISP design gap analysis:
+>
+> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` — Deep ISP operational gap analysis (37 gaps)
+> - `docs/backend/DESIGN-GAP-ANALYSIS.md` — API design & cross-module gap analysis (47 gaps)
+> - `docs/backend/BACKEND-STATUS-REPORT.md` — Backend implementation status report
+> - `docs/backend/GAP-network.md` — Network module specific gaps & fixes
+> - `docs/backend/GAP-billing.md` — Billing module specific gaps & fixes
+> - `docs/backend/GAP-customer.md` — Customer module specific gaps & fixes
+> - `docs/backend/GAP-workers.md` — Workers & infrastructure gaps & fixes
+> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` — 12-week implementation plan
+
+### Summary of Critical Gaps
+
+| # | Gap | Impact | Phase |
+|---|-----|--------|-------|
+| 1 | No RADIUS Accounting Listener | Usage billing impossible | 2 |
+| 2 | IP Allocation is Fake | IP conflicts, DHCP exhaustion | 1 |
+| 3 | No Device Provisioning Automation | 30-60 min manual work per customer | 3 |
+| 4 | No SNMP Polling | NOC dashboard shows fake data | 2 |
+| 5 | Bandwidth Limits are DB-Only | All customers get unlimited speed | 1 |
+| 6 | No Tax Calculation | Non-compliant invoices | 1 |
+| 7 | No Customer Self-Service | Cannot launch mobile app | 4 |
+| 8 | No Connection Pooling | System unusable at 500+ devices | 1 |
+| 9 | No Provisioning Worker | Manual NOC intervention required | 3 |
+| 10 | No SLA Enforcement | Enterprise customers have no guarantees | 5 |
+
+**Total gaps identified:** 84
+**Implementation timeline:** 12 weeks (6 phases)
+**Full roadmap:** `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md`
