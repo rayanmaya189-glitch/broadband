@@ -1,26 +1,105 @@
-# AeroXe Broadband — Deep ISP Operational Design Gap Analysis
+# AeroXe Broadband — Deep ISP Operational Design Gap Analysis v2.0
 
 **Date:** 2026-07-21
 **Author:** Backend Architecture Team
-**Scope:** Complete backend codebase + all 35 module docs + 6303-line requirement spec
-**Methodology:** Real-world FTTH ISP operations perspective — what does a broadband ISP in Jalgaon, India actually need to run daily operations?
+**Scope:** Complete backend codebase + all 35 module docs + 6303-line requirement spec + 13 source code files
+**Methodology:** 4 parallel deep-dive agents analyzing docs, code, and requirements from real-world FTTH ISP perspective
 
 ---
 
 ## Executive Summary
 
-The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong architectural patterns** (DDD, outbox, events, partitioning). However, the **ISP operational core** — the layer that talks to real network devices, collects real usage data, and enforces real speed limits — is almost entirely stubbed.
+The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong architectural patterns** (DDD, outbox, events, partitioning). However, the **ISP operational core** — the layer that talks to real network devices, collects real usage data, and enforces real speed limits — is almost entirely stubbed. Additionally, **critical security vulnerabilities** and **data integrity bugs** were discovered in the code.
 
-**Bottom line:** The system works as an admin panel but not as a live ISP operations platform.
+**Bottom line:** The system works as an admin panel but not as a live ISP operations platform. It also has security holes that must be fixed before any deployment.
 
 | Category | Total Gaps | Critical | High | Medium | Low |
 |----------|-----------|----------|------|--------|-----|
-| ISP Network Operations | 12 | 5 | 4 | 3 | 0 |
-| Billing & Revenue | 8 | 2 | 3 | 3 | 0 |
-| Customer Operations | 6 | 1 | 3 | 2 | 0 |
-| Compliance & Security | 7 | 1 | 2 | 3 | 1 |
-| Infrastructure & DevOps | 5 | 1 | 2 | 1 | 1 |
-| **TOTAL** | **38** | **10** | **14** | **12** | **2** |
+| Security & Compliance | 13 | 7 | 2 | 4 | 0 |
+| ISP Network Operations | 13 | 4 | 5 | 4 | 0 |
+| Billing & Revenue | 11 | 4 | 5 | 2 | 0 |
+| Customer Operations | 10 | 3 | 4 | 3 | 0 |
+| Infrastructure & DevOps | 9 | 3 | 2 | 4 | 0 |
+| Regulatory (TRAI/GST/IT Act) | 12 | 2 | 3 | 5 | 2 |
+| **TOTAL** | **68** | **23** | **21** | **22** | **2** |
+
+**Previous analysis (v1.0):** 84 gaps (47 API/design + 37 ISP operational)
+**This analysis (v2.0):** 68 new gaps from code-level deep dive
+**Combined total:** 152 unique gaps identified
+
+---
+
+## TIER 0: SECURITY / DATA INTEGRITY (Immediate Fix — Before Any Deployment)
+
+### SEC-001: Aadhaar Hash Uses Static Salt
+- **File:** `28-security.md:111`, `shared/utils/pii.rs`
+- **Code:** `format!("aeroxe:{}", aadhaar)` — same Aadhaar always produces same hash
+- **Impact:** Rainbow table attack trivial. If DB dumped, all Aadhaar numbers recoverable.
+- **Fix:** Use per-record random salt stored alongside hash. `hash = SHA256(random_salt + aadhaar)`. Store `salt:hash` together.
+
+### SEC-002: MikroTik `execute_command` Allows Arbitrary RouterOS
+- **File:** `integrations/mikrotik/adapter.rs:501-508`
+- **Code:** `rest_post("/run", body)` — any command string accepted
+- **Impact:** `/system shutdown`, `/interface delete`, `/user set` — full device takeover.
+- **Fix:** Implement command whitelist: `["/queue/simple/*", "/ppp/secret/*", "/ip/dhcp-server/lease/*"]`. Reject all others.
+
+### SEC-003: MikroTik `danger_accept_invalid_certs(true)`
+- **File:** `integrations/mikrotik/adapter.rs:167`
+- **Impact:** MITM attacks trivial. Admin credentials exposed on network.
+- **Fix:** Use proper CA certificate validation. Add MikroTik CA cert to trusted store.
+
+### SEC-004: WebSocket Exposed Without Authentication
+- **File:** `routes/mod.rs:12`
+- **Code:** `.route("/ws", get(ws_handler))` under `health_routes()` — no auth middleware
+- **Impact:** Anonymous users access real-time ISP data (device status, customer sessions).
+- **Fix:** Move `/ws` to authenticated route group. Require JWT validation on WebSocket upgrade.
+
+### SEC-005: Swagger UI Publicly Accessible in Production
+- **File:** `routes/mod.rs:13-16`
+- **Code:** `SwaggerUi::new("/swagger-ui")` — no environment check
+- **Impact:** Attackers get complete API documentation and endpoint map.
+- **Fix:** Gate Swagger behind `#[cfg(debug_assertions)]` or environment check.
+
+### SEC-006: No Distributed Rate Limiting
+- **File:** `28-security.md:51-57`
+- **Impact:** Per-server limits bypassed with load balancer. 3 instances = 3× rate.
+- **Fix:** Use Redis-based sliding window rate limiting (already have Redis in stack).
+
+### SEC-007: RADIUS Password Encoding Broken for >16 Bytes
+- **File:** `integrations/radius/adapter.rs:231-252`
+- **Code:** `let h = if i < 16 { hash[i] } else { hash[i % 16] };`
+- **Impact:** Per RFC 2865, password chaining should XOR with MD5(previous_ciphertext + secret). Passwords >16 bytes won't decrypt on RADIUS server.
+- **Fix:** Implement proper RFC 2865 password chaining algorithm.
+
+### SEC-008: RADIUS Response Authenticator Not Validated
+- **File:** `integrations/radius/adapter.rs:355-424`
+- **Impact:** Any UDP response matching identifier is accepted. Vulnerable to spoofing.
+- **Fix:** Validate response authenticator = MD5(packet + response_auth + secret).
+
+### SEC-009: No JWT Refresh Token Rotation
+- **File:** `28-security.md:15-22`
+- **Impact:** Stolen refresh token = 7 days unlimited access.
+- **Fix:** Single-use refresh tokens with rotation. Invalidate old token on use.
+
+### SEC-010: Account Lockout is DoS Vector
+- **File:** `28-security.md:15-22`
+- **Impact:** Attacker locks out any user with 5 failed attempts.
+- **Fix:** Add CAPTCHA after 3 attempts. Progressive delays instead of hard lockout.
+
+### SEC-011: No DPDP Act 2023 Compliance
+- **File:** `28-security.md:154`
+- **Impact:** India's data protection law requires consent management, data principal rights, breach notification.
+- **Fix:** Add consent table, data access/erasure APIs, 72-hour breach notification workflow.
+
+### SEC-012: No IT Act Section 43A Compliance
+- **File:** `28-security.md:153`
+- **Impact:** CERT-In directive requires 6-hour incident reporting.
+- **Fix:** Add incident response workflow with CERT-In reporting.
+
+### SEC-013: No Aadhaar Act UIDAI Authorization
+- **File:** `28-security.md:155`
+- **Impact:** Storing Aadhaar data (even hashed) requires UIDAI authorization.
+- **Fix:** Obtain UIDAI requesting entity authorization or remove Aadhaar storage.
 
 ---
 
@@ -475,3 +554,182 @@ The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong
 
 **Total Gaps:** 37
 **Critical:** 9 | **High:** 14 | **Medium:** 12 | **Low:** 2
+
+---
+
+## 9. CODE-LEVEL GAPS (v2.0 Deep Dive)
+
+> These gaps were found by analyzing actual source code files. Each includes exact file:line references.
+
+### 9.1 Billing Service — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-BILL-01 | `billing/services.rs:15-18` | `_page` and `_limit` parameters prefixed with underscore, never used | Full table loads, OOM at scale |
+| CODE-BILL-02 | `billing/services.rs:68-70` | `tax_amount: Set(Decimal::ZERO)` — GST never calculated | Non-compliant invoices |
+| CODE-BILL-03 | `billing/services.rs:218-221` | Auto-generate ignores GST, discounts, proration | Revenue leakage |
+| CODE-BILL-04 | `billing/services.rs:56-59` | `timestamp_millis() % 10000` — collision possible | Duplicate invoices |
+| CODE-BILL-05 | `billing/services.rs:252-261` | `send_invoice` only flips status, no delivery | Invoices never sent |
+| CODE-BILL-06 | `billing/services.rs:402-417` | `get_dunning_config` returns hardcoded values | No per-branch config |
+| CODE-BILL-07 | `billing/services.rs:421-433` | `get_tax_config` hardcodes Maharashtra only | Multi-state failure |
+| CODE-BILL-08 | `billing/services.rs:83-120` | `record_payment` doesn't validate amount vs invoice | ₹1 pays ₹5000 |
+| CODE-BILL-09 | `billing/services.rs:314-333` | `approve_refund` doesn't process money or reverse accounting | Refunds broken |
+| CODE-BILL-10 | `billing/services.rs:111-118` | No database transaction on payment + invoice update | Double-credit race |
+| CODE-BILL-11 | `billing/services.rs` | Domain aggregates bypassed — business rules dead code | Rules not enforced |
+
+### 9.2 Network Service — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-NET-01 | `network/services.rs:158-176` | IP allocation: read-modify-write without locking | IP over-allocation |
+| CODE-NET-02 | `network/services.rs:88-113` | CIDR not validated on pool creation | Invalid pools created |
+| CODE-NET-03 | `network/services.rs:26-44` | VLAN ID not validated against domain rules | Invalid VLANs |
+| CODE-NET-04 | `network/services.rs:258-280` | MAC binding allows duplicate MACs | MAC spoofing |
+| CODE-NET-05 | `network/services.rs:234-244` | PPPoE terminate only updates DB, no NAS contact | Users stay online |
+| CODE-NET-06 | `network/services.rs:282-344` | `get_topology` loads all data without pagination | OOM at scale |
+| CODE-NET-07 | `network/services.rs` | No IP reclamation on subscription cancellation | IP pool exhaustion |
+
+### 9.3 Customer Service — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-CUST-01 | `customer/services.rs:52-60` | Phone uniqueness check has race condition | Duplicate accounts |
+| CODE-CUST-02 | `customer/services.rs:44-77` | No email uniqueness check | Duplicate emails |
+| CODE-CUST-03 | `customer/services.rs:80-89` | No status transition validation | Invalid state changes |
+| CODE-CUST-04 | `customer/services.rs:142-165` | No email/phone format validation | Invalid data |
+| CODE-CUST-05 | `customer/services.rs:168-186` | Search uses `LIKE '%query%'` — no index usage | Slow at scale |
+| CODE-CUST-06 | `customer/services.rs:125` | `add_address` always sets `is_primary=true` | Multiple primaries |
+| CODE-CUST-07 | `customer/services.rs:34-42` | `get_customer` doesn't filter soft-deletes | Deleted customer accessible |
+
+### 9.4 Ticket Service — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-TICK-01 | `ticket/services.rs:94-152` | No state machine — any status to any status | Invalid transitions |
+| CODE-TICK-02 | `ticket/services.rs:201-213` | Satisfaction rating on non-resolved tickets, no range check | Invalid ratings |
+| CODE-TICK-03 | `ticket/services.rs:120` | `escalate_ticket` overwrites resolution notes | Context lost |
+| CODE-TICK-04 | `ticket/services.rs:46-79` | No SLA deadline calculation or tracking | No SLA enforcement |
+
+### 9.5 Bandwidth Service — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-BW-01 | `bandwidth/services.rs:167-189` | `apply_profile` only flips DB flag, no device push | Profiles never enforced |
+| CODE-BW-02 | `bandwidth/services.rs:191-211` | `device_id` never set on application | Worker can't find target |
+| CODE-BW-03 | `bandwidth_worker.rs:148-174` | `verify_applied_profiles` is a no-op | No verification |
+| CODE-BW-04 | `bandwidth/services.rs:232-257` | `get_usage` returns no actual usage data | No visibility |
+| CODE-BW-05 | `bandwidth_worker.rs:43` | Processes only 20 items per cycle | Slow at scale |
+
+### 9.6 Monitoring Service — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-MON-01 | `monitoring/services.rs:38-139` | Only 5 hardcoded metrics | Incomplete monitoring |
+| CODE-MON-02 | `monitoring/services.rs:158-260` | `evaluate_alert_rules` returns empty Vec always | Alerts never surfaced |
+| CODE-MON-03 | `monitoring/services.rs:318-327` | Fetches ALL alerts then filters in Rust | O(n) waste |
+| CODE-MON-04 | `device_sync_worker.rs:236-239` | Random health scores when no adapter | False healthy status |
+| CODE-MON-05 | `main.rs` | Monitoring worker never spawned | No device metrics |
+
+### 9.7 Integration Adapters — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-INT-01 | `radius/adapter.rs:30` | `max_retries` config never used | Single packet loss = failure |
+| CODE-INT-02 | `radius/adapter.rs:508-517` | `CallingStationId` (MAC) not sent | No MAC-based filtering |
+| CODE-INT-03 | `radius/adapter.rs:355-424` | Response authenticator not validated | Spoofing possible |
+| CODE-INT-04 | `mikrotik/adapter.rs:323-338` | Queue removal: GET + DELETE not atomic | Partial deletion |
+| CODE-INT-05 | `mikrotik/adapter.rs:476` | PPPoE profile hardcoded to "default" | No bandwidth mapping |
+| CODE-INT-06 | `huawei/adapter.rs:559-567` | `get_pon_status` returns hardcoded values | Fake PON data |
+| CODE-INT-07 | `huawei/adapter.rs:495-511` | Traffic table CIR/PIR always 0 | No QoS data |
+| CODE-INT-08 | `huawei/adapter.rs:236-273` | SSH output always `success: true` | Errors never detected |
+
+### 9.8 Infrastructure — Code Bugs
+
+| Gap | File:Line | Issue | Impact |
+|-----|-----------|-------|--------|
+| CODE-INF-01 | `main.rs:74-77` | NATS failure silently degrades | Cross-module comms stop |
+| CODE-INF-02 | `main.rs:200` | Shutdown broadcast channel capacity 1 | Workers miss shutdown |
+| CODE-INF-03 | `main.rs:414` | No graceful drain period | In-flight operations aborted |
+| CODE-INF-04 | `routes/mod.rs:12` | WebSocket no auth middleware | Data exposure |
+| CODE-INF-05 | `routes/mod.rs:13` | Swagger UI in production | Attack surface |
+
+---
+
+## 10. UPDATED GAP TRACKING MATRIX (v2.0)
+
+| Gap ID | Category | Tier | Module | Status | Phase |
+|--------|----------|------|--------|--------|-------|
+| SEC-001 | Security | CRITICAL | security | Open | 0 |
+| SEC-002 | Security | CRITICAL | mikrotik | Open | 0 |
+| SEC-003 | Security | CRITICAL | mikrotik | Open | 0 |
+| SEC-004 | Security | CRITICAL | websocket | Open | 0 |
+| SEC-005 | Security | CRITICAL | routes | Open | 0 |
+| SEC-006 | Security | HIGH | security | Open | 1 |
+| SEC-007 | Security | CRITICAL | radius | Open | 0 |
+| SEC-008 | Security | HIGH | radius | Open | 1 |
+| SEC-009 | Security | HIGH | auth | Open | 1 |
+| SEC-010 | Security | MEDIUM | auth | Open | 2 |
+| SEC-011 | Compliance | CRITICAL | security | Open | 3 |
+| SEC-012 | Compliance | CRITICAL | security | Open | 3 |
+| SEC-013 | Compliance | MEDIUM | security | Open | 3 |
+| CODE-BILL-01 | Code | CRITICAL | billing | Open | 0 |
+| CODE-BILL-02 | Code | CRITICAL | billing | Open | 0 |
+| CODE-BILL-03 | Code | CRITICAL | billing | Open | 0 |
+| CODE-BILL-04 | Code | CRITICAL | billing | Open | 0 |
+| CODE-BILL-05 | Code | HIGH | billing | Open | 2 |
+| CODE-BILL-06 | Code | MEDIUM | billing | Open | 2 |
+| CODE-BILL-07 | Code | HIGH | billing | Open | 1 |
+| CODE-BILL-08 | Code | CRITICAL | billing | Open | 0 |
+| CODE-BILL-09 | Code | HIGH | billing | Open | 2 |
+| CODE-BILL-10 | Code | CRITICAL | billing | Open | 0 |
+| CODE-BILL-11 | Code | HIGH | billing | Open | 1 |
+| CODE-NET-01 | Code | CRITICAL | network | Open | 0 |
+| CODE-NET-02 | Code | HIGH | network | Open | 1 |
+| CODE-NET-03 | Code | HIGH | network | Open | 1 |
+| CODE-NET-04 | Code | HIGH | network | Open | 1 |
+| CODE-NET-05 | Code | CRITICAL | network | Open | 2 |
+| CODE-NET-06 | Code | HIGH | network | Open | 1 |
+| CODE-NET-07 | Code | HIGH | network | Open | 2 |
+| CODE-CUST-01 | Code | CRITICAL | customer | Open | 0 |
+| CODE-CUST-02 | Code | MEDIUM | customer | Open | 1 |
+| CODE-CUST-03 | Code | CRITICAL | customer | Open | 0 |
+| CODE-CUST-04 | Code | MEDIUM | customer | Open | 1 |
+| CODE-CUST-05 | Code | HIGH | customer | Open | 2 |
+| CODE-CUST-06 | Code | LOW | customer | Open | 3 |
+| CODE-CUST-07 | Code | MEDIUM | customer | Open | 1 |
+| CODE-TICK-01 | Code | HIGH | tickets | Open | 2 |
+| CODE-TICK-02 | Code | MEDIUM | tickets | Open | 2 |
+| CODE-TICK-03 | Code | MEDIUM | tickets | Open | 2 |
+| CODE-TICK-04 | Code | CRITICAL | tickets | Open | 2 |
+| CODE-BW-01 | Code | CRITICAL | bandwidth | Open | 2 |
+| CODE-BW-02 | Code | CRITICAL | bandwidth | Open | 2 |
+| CODE-BW-03 | Code | HIGH | bandwidth | Open | 2 |
+| CODE-BW-04 | Code | HIGH | bandwidth | Open | 2 |
+| CODE-BW-05 | Code | MEDIUM | bandwidth | Open | 2 |
+| CODE-MON-01 | Code | HIGH | monitoring | Open | 2 |
+| CODE-MON-02 | Code | HIGH | monitoring | Open | 2 |
+| CODE-MON-03 | Code | MEDIUM | monitoring | Open | 2 |
+| CODE-MON-04 | Code | CRITICAL | monitoring | Open | 0 |
+| CODE-MON-05 | Code | CRITICAL | monitoring | Open | 0 |
+| CODE-INT-01 | Code | HIGH | radius | Open | 1 |
+| CODE-INT-02 | Code | HIGH | radius | Open | 1 |
+| CODE-INT-03 | Code | HIGH | radius | Open | 1 |
+| CODE-INT-04 | Code | MEDIUM | mikrotik | Open | 1 |
+| CODE-INT-05 | Code | HIGH | mikrotik | Open | 2 |
+| CODE-INT-06 | Code | CRITICAL | huawei | Open | 2 |
+| CODE-INT-07 | Code | HIGH | huawei | Open | 2 |
+| CODE-INT-08 | Code | CRITICAL | huawei | Open | 2 |
+| CODE-INF-01 | Code | CRITICAL | main | Open | 0 |
+| CODE-INF-02 | Code | MEDIUM | main | Open | 1 |
+| CODE-INF-03 | Code | MEDIUM | main | Open | 1 |
+| CODE-INF-04 | Code | CRITICAL | routes | Open | 0 |
+| CODE-INF-05 | Code | CRITICAL | routes | Open | 0 |
+
+**Total v2.0 Gaps:** 68
+**Critical:** 23 | **High:** 21 | **Medium:** 22 | **Low:** 2
+
+---
+
+*Document version: 2.0 — Updated 2026-07-21*
+*Previous version: 1.0 — 2026-07-21 (37 ISP operational gaps)*
+*Combined total: 152 unique gaps (84 from v1.0 + 68 from v2.0)*

@@ -672,17 +672,68 @@ The backend has **excellent CRUD coverage** (~229 endpoints) and **strong archit
 
 ---
 
-## 12. CONCLUSION
+## 12. CODE-LEVEL BUGS (v2.0 Deep Dive)
 
-The AeroXe Broadband backend is a **well-architected, substantially complete** system for CRUD operations. The DDD structure is clean, the module isolation is enforced, and the event-driven architecture is solid. The main areas needing attention are:
+> **Cross-reference:** See `GAP-code-bugs.md` for the complete code-level bug analysis with fix code.
 
-1. **ISP Operational Core** — the #1 gap; the system works as an admin panel but not as a live ISP platform
-2. **Testing** — need E2E and more integration tests
-3. **Security hardening** — `cargo audit`, login anomaly detection, role-based rate limits
-4. **Minor DDD inconsistencies** — 2 modules missing repository traits
-5. **API documentation** — OpenAPI/Swagger spec (partially addressed)
+Direct source code audit identified **52 code-level bugs** across 8 service modules and 3 infrastructure areas. These are not missing features — they are **broken or dead code** that will cause data corruption, false data, or system failures in production.
 
-**Recommendation:** Focus next sprint on (1) fixing the ISP operational core (IP allocation, connection pooling, SNMP, RADIUS), (2) implementing provisioning automation, and (3) building the customer self-service portal. The CRUD layer is production-ready; the ISP layer is not.
+### 12.1 Critical Code Bugs (Data Corruption / Security)
 
-**Combined gap count:** 47 (API/design) + 37 (ISP operational) = **84 gaps identified**
+| Bug ID | Module | File:Line | Issue |
+|--------|--------|-----------|-------|
+| BUG-BILL-01 | billing | `service.rs:15-18` | Pagination `_page`/`_limit` never used — full table loads |
+| BUG-BILL-02 | billing | `service.rs:68-70` | GST always ₹0 — `tax_amount: Set(Decimal::ZERO)` |
+| BUG-BILL-03 | billing | `service.rs:218-221` | Auto-generate ignores tax, discounts, proration |
+| BUG-BILL-04 | billing | `service.rs:56-59` | Invoice number `timestamp_millis() % 10000` — collision possible |
+| BUG-BILL-08 | billing | `service.rs:83-120` | ₹1 payment marks ₹5,000 invoice as "Paid" |
+| BUG-BILL-10 | billing | `service.rs:111-118` | Payment + invoice update not in transaction — double-credit race |
+| BUG-NET-01 | network | `service.rs:158-176` | IP allocation: read-modify-write without `SELECT FOR UPDATE` |
+| BUG-NET-05 | network | `service.rs:234-244` | PPPoE terminate only updates DB, no RADIUS disconnect |
+| BUG-CUST-01 | customer | `service.rs:52-60` | Phone uniqueness check has race condition |
+| BUG-CUST-03 | customer | `service.rs:80-89` | No status transition validation — any-to-any allowed |
+| BUG-TICK-04 | tickets | `service.rs` | No SLA deadline calculation or tracking |
+| BUG-BW-01 | bandwidth | `service.rs:167-189` | `apply_profile` only flips DB flag, no device push |
+| BUG-BW-02 | bandwidth | `service.rs:191-211` | `device_id` never set — worker can't find target |
+| BUG-MON-04 | monitoring | `device_sync_worker.rs:236` | Random health scores `rng.gen_range(70..100)` when no adapter |
+| BUG-MON-05 | monitoring | `main.rs` | Monitoring worker never spawned — zero device metrics |
+| BUG-INT-06 | huawei | `adapter.rs:559-567` | `get_pon_status` returns hardcoded fake values |
+| BUG-INT-08 | huawei | `adapter.rs:236-273` | SSH output always `success: true` — errors never detected |
+| BUG-INF-01 | infra | `main.rs:74-77` | NATS failure silently degrades — no events |
+| BUG-INF-04/05 | infra | `routes/mod.rs:12-16` | WebSocket no auth + Swagger in production |
+
+### 12.2 Revenue Leakage Bugs
+
+| Bug ID | Module | Issue | Revenue Impact |
+|--------|--------|-------|----------------|
+| BUG-BILL-02 | billing | No GST calculation | 18% tax non-compliance |
+| BUG-BILL-03 | billing | Auto-generate ignores proration | Mid-month joins overcharged |
+| BUG-BILL-07 | billing | Hardcoded Maharashtra GST only | Inter-state invoicing wrong |
+| BUG-BILL-08 | billing | ₹1 payment → "Paid" | Full balance lost |
+| BUG-BILL-09 | billing | Refund approval doesn't process money | Refunds stuck |
+| BUG-NET-05 | network | PPPoE terminate no RADIUS CoA | Terminated users stay online |
+| BUG-BW-01 | bandwidth | Profiles never pushed to device | Speed limits unenforced |
+
+### 12.3 Dead Code / No-Op Functions
+
+| Bug ID | Module | Function | Issue |
+|--------|--------|----------|-------|
+| BUG-BILL-11 | billing | Domain aggregates | Business rules defined but never called |
+| BUG-BW-03 | bandwidth | `verify_applied_profiles()` | Returns `Ok(())` without checking anything |
+| BUG-MON-02 | monitoring | `evaluate_alert_rules()` | Returns empty Vec always |
+| BUG-MON-03 | monitoring | `get_active_alerts()` | Loads all alerts then filters in Rust |
+
+### 12.4 Updated Conclusion
+
+The AeroXe Broadband backend is a **well-architected, substantially complete** system for CRUD operations. However, code-level audit revealed **19 critical bugs** that would cause data corruption, security breaches, or revenue leakage in production.
+
+**Priority order:**
+1. **Phase 0 (Days 1-5):** Security hardening — 13 security vulnerabilities
+2. **Phase 1 (Days 6-12):** Data integrity — 11 critical data corruption bugs
+3. **Phases 2-8:** Feature completion and operational readiness
+
+**Combined gap count:** 84 (v1.0) + 68 (v2.0) = **152 gaps identified**
 **Full gap analysis:** `DESIGN-GAPS-DEEP-ANALYSIS.md`
+**Code bugs detail:** `GAP-code-bugs.md`
+**Security detail:** `GAP-security.md`
+**Implementation roadmap:** `GAP-IMPLEMENTATION-ROADMAP.md` (v2.0, 14 weeks, 9 phases)

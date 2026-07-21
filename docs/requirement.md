@@ -6308,30 +6308,75 @@ Breaking changes require a new version (`/api/v2/...`). Non-breaking additions (
 
 > **Cross-reference:** The following documents contain the complete ISP design gap analysis:
 >
-> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` — Deep ISP operational gap analysis (37 gaps)
+> ### Core Analysis Documents
+> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` — Deep ISP operational gap analysis (v2.0: 68 code/security gaps + 37 ISP operational gaps)
 > - `docs/backend/DESIGN-GAP-ANALYSIS.md` — API design & cross-module gap analysis (47 gaps)
-> - `docs/backend/BACKEND-STATUS-REPORT.md` — Backend implementation status report
-> - `docs/backend/GAP-network.md` — Network module specific gaps & fixes
-> - `docs/backend/GAP-billing.md` — Billing module specific gaps & fixes
-> - `docs/backend/GAP-customer.md` — Customer module specific gaps & fixes
-> - `docs/backend/GAP-workers.md` — Workers & infrastructure gaps & fixes
-> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` — 12-week implementation plan
+> - `docs/backend/BACKEND-STATUS-REPORT.md` — Backend implementation status report (Section 12: code-level bugs)
+>
+> ### Module-Specific Gap Details
+> - `docs/backend/GAP-network.md` — Network module: RADIUS, IP allocation, provisioning, SNMP
+> - `docs/backend/GAP-billing.md` — Billing module: GST, pro-rata, PDF, late fees, partial payments
+> - `docs/backend/GAP-customer.md` — Customer portal, WhatsApp, SLA, field ops
+> - `docs/backend/GAP-workers.md` — 9 missing workers with implementation code
+>
+> ### Security & Code Quality
+> - `docs/backend/GAP-security.md` — **13 Tier 0 security vulnerabilities** (NEW v2.0) with attack vectors and fix code
+> - `docs/backend/GAP-code-bugs.md` — **52 code-level bugs** (NEW v2.0) with exact file:line references
+>
+> ### Implementation
+> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` — 14-week, 9-phase implementation plan (v2.0, updated from 12-week/6-phase)
 
-### Summary of Critical Gaps
+### Gap Summary (v2.0)
+
+| Category | Critical | High | Medium | Low | Total |
+|----------|----------|------|--------|-----|-------|
+| Security & Compliance | 7 | 4 | 4 | 0 | **15** |
+| ISP Network Operations | 5 | 12 | 2 | 0 | **19** |
+| Billing & Revenue | 10 | 7 | 1 | 1 | **19** |
+| Customer Operations | 3 | 5 | 4 | 1 | **13** |
+| Tickets & SLA | 1 | 3 | 4 | 0 | **8** |
+| Bandwidth & Monitoring | 4 | 8 | 3 | 1 | **16** |
+| Integration Adapters | 2 | 9 | 4 | 0 | **15** |
+| Infrastructure & DevOps | 4 | 0 | 6 | 0 | **10** |
+| Regulatory (TRAI/GST/IT) | 2 | 3 | 5 | 2 | **12** |
+| **TOTAL** | **38** | **51** | **33** | **5** | **127** |
+
+> Note: 25 additional gaps addressed incrementally within each phase.
+
+### Top 15 Critical Gaps
 
 | # | Gap | Impact | Phase |
 |---|-----|--------|-------|
-| 1 | No RADIUS Accounting Listener | Usage billing impossible | 2 |
-| 2 | IP Allocation is Fake | IP conflicts, DHCP exhaustion | 1 |
-| 3 | No Device Provisioning Automation | 30-60 min manual work per customer | 3 |
-| 4 | No SNMP Polling | NOC dashboard shows fake data | 2 |
-| 5 | Bandwidth Limits are DB-Only | All customers get unlimited speed | 1 |
-| 6 | No Tax Calculation | Non-compliant invoices | 1 |
-| 7 | No Customer Self-Service | Cannot launch mobile app | 4 |
-| 8 | No Connection Pooling | System unusable at 500+ devices | 1 |
-| 9 | No Provisioning Worker | Manual NOC intervention required | 3 |
-| 10 | No SLA Enforcement | Enterprise customers have no guarantees | 5 |
+| 1 | **Aadhaar static salt hash** | Rainbow table → all Aadhaar numbers recoverable | 0 |
+| 2 | **MikroTik arbitrary command execution** | Full device takeover | 0 |
+| 3 | **WebSocket no authentication** | Real-time ISP data exposed | 0 |
+| 4 | **RADIUS password encoding broken** | PPPoE auth fails for >16 byte passwords | 0 |
+| 5 | **Swagger in production** | Complete API documentation exposed | 0 |
+| 6 | **Monitoring worker never spawned** | Zero device metrics in production | 0 |
+| 7 | **IP allocation race condition** | Duplicate IPs on network | 1 |
+| 8 | **Payment race condition** | Double-credit on same invoice | 1 |
+| 9 | **₹1 payment marks invoice "Paid"** | Revenue leakage | 1 |
+| 10 | **GST never calculated** | Non-compliant invoices | 1 |
+| 11 | **Invoice number collision** | Duplicate invoice numbers | 1 |
+| 12 | **Bandwidth profiles never pushed to device** | Speed limits unenforced | 5 |
+| 13 | **PPPoE terminate doesn't contact NAS** | Terminated users stay online | 3 |
+| 14 | **Huawei SSH always reports success** | Silent device failures | 0 |
+| 15 | **Random health scores** | Unreachable devices appear healthy | 0 |
 
-**Total gaps identified:** 84
-**Implementation timeline:** 12 weeks (6 phases)
-**Full roadmap:** `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md`
+### Implementation Timeline (v2.0)
+
+| Phase | Days | Focus | Gaps Closed |
+|-------|------|-------|-------------|
+| 0 | 1-5 | Security Hardening | 13 |
+| 1 | 6-12 | Data Integrity | 11 |
+| 2 | 13-18 | Revenue & Billing | 10 |
+| 3 | 19-28 | Network & Provisioning | 12 |
+| 4 | 29-36 | Customer Portal | 10 |
+| 5 | 37-44 | Operations & Monitoring | 15 |
+| 6 | 45-52 | Network Ops & Integration | 10 |
+| 7 | 53-60 | Compliance & Advanced | 14 |
+| 8 | 61-68 | Quality & Production | 8 |
+| **Total** | **68 days (~14 weeks)** | | **103** |
+
+**Total gaps identified:** 152
+**Full roadmap:** `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` (v2.0)

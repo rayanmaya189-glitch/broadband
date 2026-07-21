@@ -4,7 +4,7 @@
 
 This document defines the engineering standards for the **AeroXe Broadband** backend using **Domain-Driven Design** and **Test-Driven Development**. It includes a production‑ready folder architecture that enforces strict bounded‑context isolation, aggregate design, event versioning, and dedicated security/compliance contexts. Every component is designed to be tested from the ground up, with clear guidance on test placement and strategy.
 
-> **ISP Gap Analysis:** See Section 13 for ISP operational gap mitigation rules. Full gap analysis in `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md`.
+> **ISP Gap Analysis:** See Section 13 for ISP operational gap mitigation rules. Full gap analysis: `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` (v2.0), `docs/backend/GAP-security.md`, `docs/backend/GAP-code-bugs.md`.
 
 ---
 
@@ -1379,9 +1379,13 @@ Thus, the system can be split incrementally, at the team’s own pace.
 
 ---
 
-## 13. ISP Operational Gap Mitigation Rules
+## 13. ISP Operational Gap Mitigation Rules (v2.0)
 
-> **Cross-reference:** See `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` for the complete ISP-specific gap analysis.
+> **Cross-reference:**
+> - `docs/backend/DESIGN-GAPS-DEEP-ANALYSIS.md` (v2.0) — 152 total gaps (84 v1.0 + 68 v2.0)
+> - `docs/backend/GAP-security.md` — 13 Tier 0 security vulnerabilities
+> - `docs/backend/GAP-code-bugs.md` — 52 code-level bugs with file:line references
+> - `docs/backend/GAP-IMPLEMENTATION-ROADMAP.md` (v2.0) — 14-week, 9-phase implementation plan
 
 The following rules address critical ISP operational gaps identified in the deep analysis. **All new code MUST comply with these rules.**
 
@@ -1444,6 +1448,8 @@ The following rules address critical ISP operational gaps identified in the deep
 This document provides a complete, enterprise‑grade blueprint for building AeroXe Broadband with DDD and TDD. The folder structure enforces strict isolation, aggregate design, versioned events, and dedicated security/compliance contexts. Testing is woven into every layer, ensuring that the system remains maintainable, scalable, and ready for future microservice extraction.
 
 The ISP operational gap mitigation rules (Section 13) ensure that all new code addresses the critical gaps identified in the deep analysis. These rules are mandatory for all new development.
+
+**Version 2.0** — Updated 2026-07-21 with security/code-level gap analysis.
 
 Adopting this architecture will result in a codebase that accurately reflects the ISP domain, is resilient to change, and can be developed with confidence through test‑first practices.
 
