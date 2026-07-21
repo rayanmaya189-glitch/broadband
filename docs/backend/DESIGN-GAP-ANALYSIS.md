@@ -599,7 +599,20 @@ The 47 gaps above focus on **API design, security, and cross-module consistency*
 | 4 | **No SNMP Polling** | NOC dashboard shows fake data. Device failures go undetected. |
 | 5 | **Bandwidth Limits are DB-Only** | Speed limits decorative. All customers get unlimited speed regardless of plan. |
 
-**Full ISP gap analysis:** `DESIGN-GAPS-DEEP-ANALYSIS.md`
-**Combined total gaps:** 47 (API/design) + 37 (ISP operational) = **84 gaps identified**
+**Full ISP gap analysis:** `DESIGN-GAPS-DEEP-ANALYSIS.md` (v2.0)
+**Combined total gaps:** 84 (v1.0) + 68 (v2.0) = **152 gaps identified**
 
-**Next Steps:** Prioritize critical gaps for immediate implementation, schedule high gaps for next sprint, plan medium gaps for quarterly roadmap.
+### v2.0 Code-Level Findings (New)
+
+| Category | Gaps Found | Key Issues |
+|----------|-----------|------------|
+| Security vulnerabilities | 13 | Aadhaar static salt, MikroTik arbitrary commands, TLS bypass, WebSocket no-auth, RADIUS encoding |
+| Code-level bugs | 52 | Race conditions, pagination ignored, GST never calculated, fake health scores, dead code |
+| Infrastructure | 5 | NATS silent failure, shutdown drain, Swagger in production |
+
+**New gap documents:**
+- `GAP-security.md` — 13 Tier 0 security vulnerabilities with attack vectors and fix code
+- `GAP-code-bugs.md` — 52 code-level bugs with exact file:line references
+- `GAP-IMPLEMENTATION-ROADMAP.md` (v2.0) — 14-week, 9-phase plan with Phase 0 security hardening
+
+**Next Steps:** Phase 0 security hardening (Days 1-5) before any deployment. Then data integrity fixes (Phase 1), revenue fixes (Phase 2), network provisioning (Phase 3).

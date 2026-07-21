@@ -210,3 +210,18 @@ ticket.comment.create
 ticket.comment.update
 ticket.comment.delete
 ```
+
+---
+
+## Known Issues & Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §4, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.4
+
+| Bug ID | Severity | Issue | Location |
+|--------|----------|-------|----------|
+| BUG-TICK-01 | HIGH | No status state machine — any status → any status, skips escalation | `service.rs:94-152` |
+| BUG-TICK-02 | MEDIUM | Satisfaction rating has no guard — ratings on open tickets, no range check | `service.rs:201-213` |
+| BUG-TICK-03 | MEDIUM | Escalation overwrites resolution notes — previous context lost | `service.rs:120` |
+| BUG-TICK-04 | CRITICAL | No SLA deadline calculation or tracking — SLA compliance unknowable | throughout |
+
+**Priority:** Fix TICK-04 first (SLA enforcement). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 4.

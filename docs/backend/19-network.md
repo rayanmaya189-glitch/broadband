@@ -270,3 +270,21 @@ network.mac_binding.delete
 network_topology.view
 network_topology.update
 ```
+
+---
+
+## Known Issues & Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §2, `GAP-network.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.2
+
+| Bug ID | Severity | Issue | Location |
+|--------|----------|-------|----------|
+| BUG-NET-01 | CRITICAL | IP allocation race condition — no `SELECT FOR UPDATE` | `service.rs:158-176` |
+| BUG-NET-02 | HIGH | CIDR not validated on pool creation — invalid CIDR breaks all IP math | `service.rs:88-113` |
+| BUG-NET-03 | HIGH | VLAN ID not validated against 1-4094 range | `service.rs:26-44` |
+| BUG-NET-04 | HIGH | MAC binding allows duplicate MACs — traffic routed to wrong customer | `service.rs:258-280` |
+| BUG-NET-05 | CRITICAL | PPPoE terminate only updates DB — no RADIUS disconnect sent, users stay online | `service.rs:234-244` |
+| BUG-NET-06 | HIGH | Topology query loads ALL data without pagination — OOM at scale | `service.rs:282-344` |
+| BUG-NET-07 | HIGH | No IP reclamation on subscription cancellation — IP pool exhaustion | N/A (missing logic) |
+
+**Priority:** Fix NET-01, 05 first (data corruption + revenue leakage). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 1, 3.

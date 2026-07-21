@@ -190,3 +190,22 @@ discovery.result.reject
 discovery.config.view
 discovery.config.update
 ```
+
+---
+
+## Monitoring & Device Sync Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §6, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.6
+
+| Bug ID | Severity | Issue | Location |
+|--------|----------|-------|----------|
+| BUG-MON-01 | HIGH | Only 5 hardcoded metrics — incomplete device visibility | `monitoring/services.rs:38-139` |
+| BUG-MON-02 | HIGH | `evaluate_alert_rules` returns empty Vec always — no alerts ever generated | `monitoring/services.rs:158-260` |
+| BUG-MON-03 | MEDIUM | Fetches ALL alerts then filters in Rust — should filter at DB level | `monitoring/services.rs:318-327` |
+| BUG-MON-04 | CRITICAL | Random health scores `rng.gen_range(70..100)` when adapter unreachable — fake healthy status | `device_sync_worker.rs:236-239` |
+| BUG-MON-05 | CRITICAL | Monitoring worker never spawned in `main.rs` — zero device metrics | `main.rs` |
+| BUG-INT-06 | CRITICAL | Huawei `get_pon_status` returns hardcoded fake values | `integrations/huawei/adapter.rs:559-567` |
+| BUG-INT-07 | HIGH | Huawei traffic table CIR/PIR always 0 — no real QoS data | `integrations/huawei/adapter.rs:495-511` |
+| BUG-INT-08 | CRITICAL | Huawei SSH output always `success: true` — errors never detected | `integrations/huawei/adapter.rs:236-273` |
+
+**Priority:** Fix MON-04, MON-05, INT-06, INT-08 first (monitoring completely non-functional). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 0.

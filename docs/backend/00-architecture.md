@@ -366,3 +366,32 @@ The architecture is a **modular monolith** by design. Every bounded context can 
 - Each service gets its own database with the same isolated schema.
 
 ---
+
+## 16. Infrastructure & Integration Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §7-8, `GAP-security.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.7-9.8
+
+### Integration Adapter Bugs
+
+| Bug ID | Severity | Adapter | Issue | Location |
+|--------|----------|---------|-------|----------|
+| BUG-INT-01 | HIGH | RADIUS | `max_retries` config never used — single packet loss = failure | `radius/adapter.rs:30` |
+| BUG-INT-02 | HIGH | RADIUS | `CallingStationId` (MAC) not sent in Access-Request | `radius/adapter.rs:508-517` |
+| BUG-INT-03 | HIGH | RADIUS | Response authenticator not validated — spoofing possible | `radius/adapter.rs:355-424` |
+| BUG-INT-04 | MEDIUM | MikroTik | Queue removal GET+DELETE not atomic — partial deletion | `mikrotik/adapter.rs:323-338` |
+| BUG-INT-05 | HIGH | MikroTik | PPPoE profile hardcoded to "default" — no bandwidth mapping | `mikrotik/adapter.rs:476` |
+| BUG-INT-06 | CRITICAL | Huawei | `get_pon_status` returns hardcoded fake values | `huawei/adapter.rs:559-567` |
+| BUG-INT-07 | HIGH | Huawei | Traffic table CIR/PIR always 0 — no real QoS data | `huawei/adapter.rs:495-511` |
+| BUG-INT-08 | CRITICAL | Huawei | SSH output always `success: true` — errors never detected | `huawei/adapter.rs:236-273` |
+
+### Infrastructure Bugs
+
+| Bug ID | Severity | Component | Issue | Location |
+|--------|----------|-----------|-------|----------|
+| BUG-INF-01 | CRITICAL | NATS | Connection failure silently degrades — no events, no cross-module comms | `main.rs:74-77` |
+| BUG-INF-02 | MEDIUM | Shutdown | Broadcast channel capacity 1 — only 1 worker receives signal | `main.rs:200` |
+| BUG-INF-03 | MEDIUM | Shutdown | No graceful drain period — in-flight operations aborted | `main.rs:414` |
+| BUG-INF-04 | CRITICAL | WebSocket | `/ws` exposed without authentication middleware | `routes/mod.rs:12` |
+| BUG-INF-05 | CRITICAL | Swagger | Swagger UI publicly accessible in production | `routes/mod.rs:13-16` |
+
+**Priority:** Fix INT-06, INT-08, INF-01, INF-04, INF-05 first. See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 0.

@@ -292,3 +292,25 @@ billing.dunning.view
 billing.dunning.configure
 billing.dunning.execute
 ```
+
+---
+
+## Known Issues & Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §1, `GAP-security.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.1
+
+| Bug ID | Severity | Issue | Location |
+|--------|----------|-------|----------|
+| BUG-BILL-01 | CRITICAL | Pagination `_page`/`_limit` never used — full table loads | `service.rs:15-18` |
+| BUG-BILL-02 | CRITICAL | GST always ₹0 — `tax_amount: Set(Decimal::ZERO)` | `service.rs:68-70` |
+| BUG-BILL-03 | CRITICAL | Auto-generate ignores tax, discounts, proration | `service.rs:218-221` |
+| BUG-BILL-04 | CRITICAL | Invoice number `timestamp_millis() % 10000` — collision possible | `service.rs:56-59` |
+| BUG-BILL-05 | HIGH | Invoice delivery is no-op — only flips status, no email/SMS | `service.rs:252-261` |
+| BUG-BILL-06 | MEDIUM | Dunning config returns hardcoded values, ignores branch_id | `service.rs:402-417` |
+| BUG-BILL-07 | HIGH | Tax config hardcodes Maharashtra GST only — inter-state wrong | `service.rs:421-433` |
+| BUG-BILL-08 | CRITICAL | ₹1 payment marks ₹5,000 invoice as "Paid" — revenue leakage | `service.rs:83-120` |
+| BUG-BILL-09 | HIGH | Refund approval doesn't process money or reverse accounting | `service.rs:314-333` |
+| BUG-BILL-10 | CRITICAL | Payment + invoice update not in DB transaction — double-credit race | `service.rs:111-118` |
+| BUG-BILL-11 | HIGH | Domain aggregates bypassed — business rules in entities are dead code | `billing/domain/` |
+
+**Priority:** Fix BILL-02, 04, 08, 10 first (data corruption). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 1-2.

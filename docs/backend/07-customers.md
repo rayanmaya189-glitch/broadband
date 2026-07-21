@@ -203,3 +203,21 @@ customer.installation.complete
 customer.installation.cancel
 customer.installation.reschedule
 ```
+
+---
+
+## Known Issues & Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §3, `GAP-customer.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.3
+
+| Bug ID | Severity | Issue | Location |
+|--------|----------|-------|----------|
+| BUG-CUST-01 | CRITICAL | Phone uniqueness check has race condition — duplicate accounts possible | `service.rs:52-60` |
+| BUG-CUST-02 | MEDIUM | No email uniqueness check — multiple accounts with same email | `service.rs:44-77` |
+| BUG-CUST-03 | CRITICAL | No status transition validation — any status → any status allowed | `service.rs:80-89` |
+| BUG-CUST-04 | MEDIUM | No email/phone format validation — invalid data enters system | `service.rs:142-165` |
+| BUG-CUST-05 | HIGH | Customer search uses `LIKE '%query%'` — full table scan, slow at scale | `service.rs:168-186` |
+| BUG-CUST-06 | LOW | `add_address` always sets `is_primary=true` — overwrites existing primary | `service.rs:125` |
+| BUG-CUST-07 | MEDIUM | `get_customer` doesn't filter soft-deletes — deleted customers accessible | `service.rs:34-42` |
+
+**Priority:** Fix CUST-01, 03 first (data corruption). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 1, 4.

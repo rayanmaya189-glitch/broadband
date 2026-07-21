@@ -192,3 +192,30 @@ security.audit.export
 security.secrets.view
 security.secrets.rotate
 ```
+
+---
+
+## Security Vulnerability Reference (v2.0)
+
+> **Cross-reference:** `GAP-security.md`, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.0
+
+The following Tier 0 security vulnerabilities were identified in code-level audit:
+
+| SEC ID | Severity | Vulnerability | Location | Fix Effort |
+|--------|----------|---------------|----------|------------|
+| SEC-001 | CRITICAL | Aadhaar hash uses static salt — rainbow table attack | `shared/utils/pii.rs` | 1 day |
+| SEC-002 | CRITICAL | MikroTik `execute_command` allows arbitrary RouterOS commands | `integrations/mikrotik/adapter.rs:501` | 0.5 day |
+| SEC-003 | CRITICAL | MikroTik `danger_accept_invalid_certs(true)` — MITM possible | `integrations/mikrotik/adapter.rs:167` | 0.5 day |
+| SEC-004 | CRITICAL | WebSocket `/ws` exposed without authentication | `routes/mod.rs:12` | 1 day |
+| SEC-005 | CRITICAL | Swagger UI publicly accessible in production | `routes/mod.rs:13-16` | 0.5 day |
+| SEC-006 | HIGH | No distributed rate limiting — per-server limits bypassed | `28-security.md:51-57` | 1 day |
+| SEC-007 | CRITICAL | RADIUS password encoding broken for >16 bytes | `integrations/radius/adapter.rs:231` | 1 day |
+| SEC-008 | HIGH | RADIUS response authenticator not validated | `integrations/radius/adapter.rs:355` | 1 day |
+| SEC-009 | HIGH | No JWT refresh token rotation | `28-security.md:15-22` | 1 day |
+| SEC-010 | MEDIUM | Account lockout is DoS vector | `28-security.md:15-22` | 1 day |
+| SEC-011 | MEDIUM | No DPDP Act 2023 compliance | `28-security.md:154` | 3 days |
+| SEC-012 | MEDIUM | No IT Act §43A / CERT-In compliance | `28-security.md:153` | 2 days |
+| SEC-013 | MEDIUM | No Aadhaar Act UIDAI authorization | `28-security.md:155` | 1 day |
+
+**P0 Sprint (Days 1-3):** Fix SEC-001 through SEC-005, SEC-007 before any deployment.
+**Full details:** `GAP-security.md`

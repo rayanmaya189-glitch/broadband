@@ -166,3 +166,19 @@ bandwidth.rate_limit.create
 bandwidth.rate_limit.update
 bandwidth.rate_limit.delete
 ```
+
+---
+
+## Known Issues & Gap Reference (v2.0)
+
+> **Cross-reference:** `GAP-code-bugs.md` §5, `DESIGN-GAPS-DEEP-ANALYSIS.md` §9.5
+
+| Bug ID | Severity | Issue | Location |
+|--------|----------|-------|----------|
+| BUG-BW-01 | CRITICAL | `apply_profile` only flips DB flag — no device push, speed limits unenforced | `service.rs:167-189` |
+| BUG-BW-02 | CRITICAL | `device_id` never set on profile application — worker can't find target device | `service.rs:191-211` |
+| BUG-BW-03 | HIGH | `verify_applied_profiles` is a no-op — returns `Ok(())` without checking | `bandwidth_worker.rs:148-174` |
+| BUG-BW-04 | HIGH | `get_usage` returns profile config, not actual usage statistics | `service.rs:232-257` |
+| BUG-BW-05 | MEDIUM | Worker processes only 20 items per cycle — hours to propagate at scale | `bandwidth_worker.rs:43` |
+
+**Priority:** Fix BW-01, 02 first (speed limits completely non-functional). See `GAP-IMPLEMENTATION-ROADMAP.md` Phase 5.
