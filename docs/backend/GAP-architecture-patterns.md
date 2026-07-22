@@ -253,15 +253,15 @@ CREATE TABLE cdr_records (
 - **Fix:**
 ```rust
 // routes/health.rs
-async fn deep_health(State(state): State<AppState>) -> Json<HealthResponse> {
+async fn deep_health(State(state): State<AppState>) -> proto_response<HealthResponse> {
     let db = state.db.ping().await.is_ok();
     let redis = state.redis.ping().await.is_ok();
     let nats = state.nats.is_connected();
     let radius = state.radius.ping().await.is_ok();
     let healthy = db && redis && nats && radius;
-    Json(HealthResponse {
+    proto_response(HealthResponse {
         status: if healthy { "healthy" } else { "degraded" },
-        components: HealthComponents { db, redis, nats, radius },
+        components: Some(HealthComponents { db, redis, nats, radius }),
     })
 }
 ```

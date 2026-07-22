@@ -616,12 +616,14 @@ CREATE TABLE breach_notifications (
 ### API Endpoints
 ```
 POST   /api/v1/consent                    — Record consent
-GET    /api/v1/consent/:customer_id       — View consent history
-DELETE /api/v1/consent/:id                — Withdraw consent
+POST   /api/v1/consent/history            — View consent history
+DELETE /api/v1/consent/delete             — Withdraw consent
 POST   /api/v1/data-requests             — Submit data access/erasure request
-GET    /api/v1/data-requests/:id         — Check request status
+POST   /api/v1/data-requests/get         — Check request status
 POST   /api/v1/breach-notifications      — Report breach (internal)
 ```
+
+> All endpoints are Protobuf-encoded. See `API-CONVENTIONS.md`.
 
 ### Priority: P2 — Fix before public launch
 

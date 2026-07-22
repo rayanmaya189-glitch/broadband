@@ -424,13 +424,19 @@ All cross‑module communication happens over **versioned** domain events publis
 Every event implements the `DomainEvent` trait (or similar) and carries a standard envelope:
 
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventEnvelope<T> {
-    pub event_id: Uuid,
+#[derive(Debug, Clone, prost::Message)]
+pub struct EventEnvelope<T: prost::Message> {
+    #[prost(string, tag = "1")]
+    pub event_id: String,
+    #[prost(string, tag = "2")]
     pub event_type: String,
+    #[prost(uint32, tag = "3")]
     pub version: u32,
-    pub occurred_at: DateTime<Utc>,
-    pub producer: String,         // "customer-service"
+    #[prost(string, tag = "4")]
+    pub occurred_at: String,
+    #[prost(string, tag = "5")]
+    pub producer: String,
+    #[prost(message, tag = "6")]
     pub payload: T,
 }
 ```
@@ -613,7 +619,7 @@ async fn customer_created_event_creates_first_invoice() {
     // Publish customer.created.v1
     let event = CustomerCreatedV1 { customer_id: i64, email: "a@b.com".into() };
     let envelope = EventEnvelope::new(event, "customer-service".to_string());
-    nats.publish("aeroxe.customer.created.v1", serde_json::to_vec(&envelope).unwrap()).await.unwrap();
+    nats.publish("aeroxe.customer.created.v1", envelope.encode_to_vec()).await.unwrap();
 
     // Wait for processing
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -651,6 +657,7 @@ All flows follow these rules:
 - **Synchronous queries**: when a module needs data from another, it calls a defined query interface (e.g., `CustomerQueryService`), not the database.
 - **Asynchronous events**: side‑effects across modules are triggered by domain events published to NATS. Subscribers react in their own context.
 - **Audit**: every significant action emits an audit event (`audit.action.v1`) that the audit module consumes.
+- **Protobuf encoding**: all API request/response bodies and NATS event payloads are Protocol Buffers (protobuf). JSON is not used for API communication.
 
 ### 10.1 Customer Registration (with KYC Compliance)
 
@@ -1095,7 +1102,7 @@ async fn audit_subscriber_persists_event() {
         old_value: Some("ACTIVE".into()),
         new_value: Some("SUSPENDED".into()),
     };
-    nats.publish("aeroxe.audit.action.v1", serde_json::to_vec(&envelope).unwrap()).await?;
+    nats.publish("aeroxe.audit.action.v1", envelope.encode_to_vec()).await?;
 
     // Let subscriber process
     sleep(Duration::from_secs(1)).await;

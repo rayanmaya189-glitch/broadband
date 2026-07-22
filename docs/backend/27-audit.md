@@ -103,7 +103,7 @@ impl<S> Middleware<S> for AuditMiddleware {
                 ip_address: ip,
                 user_agent,
                 result: result.to_string(),
-                metadata: json!({ "duration_ms": start.elapsed().as_millis() }),
+                metadata: AuditMetadata { duration_ms: start.elapsed().as_millis() as u64 },
             }).await.ok();
         });
 

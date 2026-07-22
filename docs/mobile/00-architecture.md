@@ -33,59 +33,59 @@ All mobile features consume these backend API endpoints:
 ### Dashboard & Usage
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/dashboard` | Dashboard summary |
-| GET | `/api/v1/customer/usage` | Usage stats & charts |
-| GET | `/api/v1/customer/usage/realtime` | WebSocket: real-time bandwidth |
+| POST | `/api/v1/customer/dashboard` | Dashboard summary |
+| POST | `/api/v1/customer/usage` | Usage stats & charts |
+| POST | `/api/v1/customer/usage/realtime` | WebSocket: real-time bandwidth |
 
 ### Plans & Subscriptions
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/subscription` | Current plan details |
-| GET | `/api/v1/plans` | Browse available plans |
+| POST | `/api/v1/customer/subscription/get` | Current plan details |
+| POST | `/api/v1/plans/list` | Browse available plans |
 | POST | `/api/v1/customer/subscription/upgrade` | Request plan change |
 
 ### Billing & Payments
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/invoices` | Invoice list |
-| GET | `/api/v1/customer/invoices/:id` | Invoice detail |
-| GET | `/api/v1/customer/invoices/:id/pdf` | Download PDF |
+| POST | `/api/v1/customer/invoices/list` | Invoice list |
+| POST | `/api/v1/customer/invoices/get` | Invoice detail |
+| POST | `/api/v1/customer/invoices/pdf` | Download PDF |
 | POST | `/api/v1/customer/payments` | Initiate payment (Razorpay) |
 | POST | `/api/v1/customer/payments/verify` | Verify payment callback |
 
 ### Support Tickets
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/tickets` | List tickets |
-| POST | `/api/v1/customer/tickets` | Create ticket |
-| GET | `/api/v1/customer/tickets/:id` | Ticket detail |
-| POST | `/api/v1/customer/tickets/:id/messages` | Add message |
-| POST | `/api/v1/customer/tickets/:id/close` | Close ticket |
+| POST | `/api/v1/customer/tickets/list` | List tickets |
+| POST | `/api/v1/customer/tickets/create` | Create ticket |
+| POST | `/api/v1/customer/tickets/get` | Ticket detail |
+| POST | `/api/v1/customer/tickets/messages` | Add message |
+| POST | `/api/v1/customer/tickets/close` | Close ticket |
 
 ### Notifications
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/notifications` | Notification list |
-| PATCH | `/api/v1/customer/notifications/:id/read` | Mark as read |
-| PATCH | `/api/v1/customer/notifications/read-all` | Mark all read |
+| POST | `/api/v1/customer/notifications/list` | Notification list |
+| POST | `/api/v1/customer/notifications/read` | Mark as read |
+| POST | `/api/v1/customer/notifications/read-all` | Mark all read |
 | POST | `/api/v1/customer/devices/fcm` | Register FCM token |
 | POST | `/api/v1/customer/devices/apns` | Register APNs token |
 
 ### Profile & Documents
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/profile` | Get profile |
-| PATCH | `/api/v1/customer/profile` | Update profile |
-| GET | `/api/v1/customer/profile/kyc-status` | KYC verification status |
+| POST | `/api/v1/customer/profile/get` | Get profile |
+| PATCH | `/api/v1/customer/profile/update` | Update profile |
+| POST | `/api/v1/customer/profile/kyc-status` | KYC verification status |
 | POST | `/api/v1/customer/documents/upload-url` | Get presigned upload URL |
 | POST | `/api/v1/customer/documents/confirm-upload` | Confirm upload complete |
-| GET | `/api/v1/customer/documents` | List uploaded documents |
+| POST | `/api/v1/customer/documents/list` | List uploaded documents |
 
 ### Settings
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/customer/settings` | Get preferences |
-| PATCH | `/api/v1/customer/settings` | Update preferences |
+| POST | `/api/v1/customer/settings/get` | Get preferences |
+| PATCH | `/api/v1/customer/settings/update` | Update preferences |
 
 ---
 

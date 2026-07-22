@@ -304,7 +304,7 @@ impl RollbackService {
         &self,
         entity_type: &str,
         entity_id: Uuid,
-        old_data: &serde_json::Value,
+        old_data: &prost::bytes::Bytes,
     ) -> Result<()> {
         match entity_type {
             "customers" => {
@@ -372,7 +372,7 @@ impl RollbackService {
     // Note: restore_entity logic is now inline in rollback_entity
     // to avoid self-capture issues in async closures.
 
-    fn build_restore_query(&self, entity_type: &str, entity_id: Uuid, old_data: &serde_json::Value) -> String {
+    fn build_restore_query(&self, entity_type: &str, entity_id: Uuid, old_data: &prost::bytes::Bytes) -> String {
         // Dynamically build UPDATE SET clause from JSONB keys
         let mut set_clauses = Vec::new();
 
@@ -410,9 +410,9 @@ impl RollbackService {
              RETURNING *",
             entity_type,
             entity_id,
-            serde_json::to_string(&original_history.new_data).unwrap_or_default(),
-            serde_json::to_string(&original_history.old_data).unwrap_or_default(),
-            serde_json::to_string(&original_history.changed_fields).unwrap_or_default(),
+            original_history.new_data.map(|d| String::from_utf8_lossy(&d).to_string()).unwrap_or_default(),
+            original_history.old_data.map(|d| String::from_utf8_lossy(&d).to_string()).unwrap_or_default(),
+            original_history.changed_fields.map(|d| String::from_utf8_lossy(&d).to_string()).unwrap_or_default(),
             admin_id,
             reason,
             original_history.id
@@ -434,18 +434,17 @@ impl RollbackService {
 // src/api/audit/rollback.rs
 pub async fn rollback_entity(
     State(state): State<AppState>,
-    Path((entity_type, history_id)): Path<(String, Uuid)>,
-    Json(payload): Json<RollbackRequest>,
-) -> Result<Json<RollbackResult>> {
+    body: RollbackRequest,
+) -> Result<RollbackResult> {
     // Check RBAC permission
-    require_permission(&state, &payload.user_id, "audit.entity_history.rollback").await?;
+    require_permission(&state, &body.user_id, "audit.entity_history.rollback").await?;
 
     let result = state.rollback_service.rollback_entity(
-        &entity_type,
-        payload.entity_id,
-        history_id,
-        payload.user_id,
-        payload.reason,
+        &body.entity_type,
+        body.entity_id,
+        body.history_id,
+        body.user_id,
+        body.reason,
     ).await?;
 
     Ok(Json(result))
@@ -474,8 +473,8 @@ pub struct HistoryEntry {
     pub id: Uuid,
     pub entity_id: Uuid,
     pub action: String,
-    pub old_data: Option<serde_json::Value>,
-    pub new_data: Option<serde_json::Value>,
+    pub old_data: Option<prost::bytes::Bytes>,
+    pub new_data: Option<prost::bytes::Bytes>,
     pub changed_fields: Option<Vec<String>>,
     pub user_id: Option<Uuid>,
     pub user_name: Option<String>,

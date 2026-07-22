@@ -85,7 +85,7 @@ impl EventPublisher {
         event_type: &str,
         aggregate_type: &str,
         aggregate_id: i64,
-        payload: serde_json::Value,
+        payload: prost::bytes::Bytes,
         user_id: Option<i64>,
         branch_id: Option<i64>,
     ) -> Result<()> {

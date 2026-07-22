@@ -81,7 +81,7 @@ pub async fn get_usage(
          ORDER BY period",
     ).fetch_all?;
 
-    Ok(Json(UsageResponse {
+    Ok(proto_response(UsageResponse {
         usage,
         current_speed: get_current_speed(&state, &claims).await?,
         plan_limit: get_plan_limit(&state, &claims).await?,

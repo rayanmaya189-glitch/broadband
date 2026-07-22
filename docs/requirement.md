@@ -5609,10 +5609,12 @@ Staff users (noc_engineer, field_technician, customer_support, etc.) can upload 
 ```
 POST   /api/v1/documents/upload-url        → Generate presigned upload URL
 POST   /api/v1/documents/confirm-upload     → Confirm upload, store metadata
-GET    /api/v1/documents/:id/download-url   → Generate presigned download URL
-GET    /api/v1/documents                    → List documents (filtered by module/entity)
-DELETE /api/v1/documents/:id                → Soft-delete document
+POST   /api/v1/documents/download-url       → Generate presigned download URL
+POST   /api/v1/documents/list               → List documents (filtered by module/entity)
+DELETE /api/v1/documents/delete             → Soft-delete document
 ```
+
+> All endpoints are Protobuf-encoded. See `API-CONVENTIONS.md`.
 
 **Staff Upload Flow:**
 
@@ -5666,9 +5668,11 @@ Customers can upload documents via the mobile app for:
 ```
 POST   /api/v1/customer/documents/upload-url   → Generate presigned upload URL
 POST   /api/v1/customer/documents/confirm-upload → Confirm upload
-GET    /api/v1/customer/documents/:id/download-url → Get download URL
-GET    /api/v1/customer/documents               → List own documents
+POST   /api/v1/customer/documents/download-url → Get download URL
+POST   /api/v1/customer/documents/list         → List own documents
 ```
+
+> All endpoints are Protobuf-encoded. See `API-CONVENTIONS.md`.
 
 **Customer Upload Flow:**
 

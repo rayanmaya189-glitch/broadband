@@ -271,7 +271,7 @@ API Controller (module/api/http)
     │       └── Publish domain event (NATS)
     │
     ▼
-Response (JSON)
+Response (Protobuf)
     │
     ▼
 Audit Event (async to audit context)

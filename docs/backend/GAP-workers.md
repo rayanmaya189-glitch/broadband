@@ -196,10 +196,10 @@ impl ProvisioningWorker {
                     job.mark_completed(&self.db).await?;
                     self.event_publisher.publish(
                         "customer.provisioned",
-                        &serde_json::json!({
-                            "customer_id": job.customer_id,
-                            "subscription_id": job.subscription_id,
-                        }),
+                        &CustomerProvisioned {
+                            customer_id: job.customer_id,
+                            subscription_id: job.subscription_id,
+                        },
                     ).await?;
                 }
                 Err(e) => {
