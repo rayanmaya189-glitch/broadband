@@ -513,7 +513,7 @@ class AuthInterceptor: AsyncURLProtocol {
               ▼                         ▼
     ┌──────────────────┐     ┌──────────────────┐
     │ Validate Token   │     │ Phone Input      │
-    │ (GET /profile)   │     │ Screen           │
+    │ (POST /profile/get)   │     │ Screen           │
     └────────┬─────────┘     └────────┬─────────┘
              │                        │
      ┌───────┴───────┐               │

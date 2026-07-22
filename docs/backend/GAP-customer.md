@@ -16,28 +16,31 @@
 **Current State:** `customer` module has admin-facing CRUD only. Zero self-service endpoints.
 
 **Required Route Group:**
+
+> **WARNING:** These proposed routes must be converted to Protobuf-first before implementation. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 ```
 /api/v1/customer/me/
-  GET    /profile              — Get own profile
-  PUT    /profile              — Update own profile
-  GET    /subscription         — Get current subscription
-  GET    /invoices             — List own invoices
-  GET    /invoices/:id         — Get invoice detail
-  POST   /invoices/:id/pay     — Initiate payment
-  GET    /usage                — Get bandwidth usage (daily/hourly)
-  GET    /usage/realtime       — Get real-time speed
-  GET    /sessions             — List active sessions
-  POST   /tickets              — Create support ticket
-  GET    /tickets              — List own tickets
-  GET    /tickets/:id          — Get ticket detail
-  POST   /tickets/:id/comments — Add comment
+  POST   /profile/get          — Get own profile
+  PATCH  /profile/update       — Update own profile
+  POST   /subscription/get     — Get current subscription
+  POST   /invoices/list        — List own invoices
+  POST   /invoices/get         — Get invoice detail
+  POST   /invoices/pay         — Initiate payment
+  POST   /usage/get            — Get bandwidth usage (daily/hourly)
+  POST   /usage/realtime       — Get real-time speed
+  POST   /sessions/list        — List active sessions
+  POST   /tickets/create       — Create support ticket
+  POST   /tickets/list         — List own tickets
+  POST   /tickets/get          — Get ticket detail
+  POST   /tickets/comments     — Add comment
   POST   /plan-change          — Request plan upgrade/downgrade
   POST   /service/pause        — Pause service temporarily
   POST   /service/resume       — Resume paused service
-  GET    /referral-code        — Get own referral code
+  POST   /referral-code        — Get own referral code
   POST   /kyc/upload           — Upload KYC documents
-  GET    /notifications        — List notifications
-  PUT    /notifications/preferences — Update notification preferences
+  POST   /notifications/list   — List notifications
+  PATCH  /notifications/preferences — Update notification preferences
 ```
 
 **Customer Auth Separation:**
@@ -206,16 +209,19 @@ pub struct SlaMeasurement {
 ### ISP-CUST-H03: No Field Tech Mobile API
 
 **Required Endpoints:**
+
+> **WARNING:** These proposed routes must be converted to Protobuf-first before implementation. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 ```
 /api/v1/field-ops/
-  GET    /my-assignments         — List assigned installations
-  POST   /assignments/:id/checkin — GPS check-in (lat, lng, timestamp)
-  POST   /assignments/:id/checkout — GPS check-out
-  POST   /assignments/:id/photo  — Upload installation photo
-  POST   /assignments/:id/barcode — Scan equipment barcode
-  GET    /route                  — Get optimized route for day
-  POST   /assignments/:id/complete — Mark complete with notes
-  GET    /offline-sync           — Get data for offline mode
+  POST   /assignments/list     — List assigned installations
+  POST   /assignments/checkin  — GPS check-in (lat, lng, timestamp)
+  POST   /assignments/checkout — GPS check-out
+  POST   /assignments/photo    — Upload installation photo
+  POST   /assignments/barcode  — Scan equipment barcode
+  POST   /route/get            — Get optimized route for day
+  POST   /assignments/complete — Mark complete with notes
+  POST   /offline-sync/get     — Get data for offline mode
 ```
 
 **Offline Sync Data:**

@@ -1,6 +1,7 @@
 # AeroXe Admin Portal — Architecture Overview
 
-> **Req Ref:** §16 Admin Portal Requirements
+> **Req Ref:** §16 Admin Portal Requirements  
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
 
 ---
 

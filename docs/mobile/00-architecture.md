@@ -1,10 +1,10 @@
 # 00 — Mobile Architecture Overview
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ## Overview
 
 Both the Customer Android (§17) and Customer iOS (§18) applications share a feature-for-feature identical design, using the same API endpoints and data models. The only differences are platform-specific implementations.
-
----
 
 ## Shared Principles
 

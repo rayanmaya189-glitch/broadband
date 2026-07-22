@@ -1,7 +1,8 @@
 # AeroXe Backend — Threat Modeling Document
 
 > **Req Ref:** §28 Security Design, OWASP ASVS v4.0 Compliance  
-> **Version:** 1.0
+> **Version:** 1.0  
+> **Gap analysis:** See `DESIGN-GAPS-DEEP-ANALYSIS.md` and relevant `GAP-*.md` files.
 
 ---
 

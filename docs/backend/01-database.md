@@ -1,6 +1,7 @@
 # AeroXe Backend — Database Design
 
-> **Req Ref:** §13 Database Design
+> **Req Ref:** §13 Database Design  
+> **Gap analysis:** See `DESIGN-GAPS-DEEP-ANALYSIS.md` and relevant `GAP-*.md` files.
 
 ---
 

@@ -447,12 +447,14 @@ pub async fn rollback_entity(
         body.reason,
     ).await?;
 
-    Ok(Json(result))
+    Ok(proto_response(result))
 }
 
-#[derive(Deserialize)]
+#[derive(prost::Message)]
 pub struct RollbackRequest {
-    pub entity_id: Uuid,
+    #[prost(string, tag = "1")]
+    pub entity_id: String,
+    #[prost(string, tag = "2")]
     pub reason: String,
 }
 ```

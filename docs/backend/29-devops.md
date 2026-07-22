@@ -1,6 +1,7 @@
 # AeroXe Backend — DevOps & Deployment
 
-> **Req Ref:** §20 DevOps and Production Deployment
+> **Req Ref:** §20 DevOps and Production Deployment  
+> **Gap analysis:** See `DESIGN-GAPS-DEEP-ANALYSIS.md` and relevant `GAP-*.md` files.
 
 ---
 

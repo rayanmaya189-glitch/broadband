@@ -1,6 +1,7 @@
 # AeroXe Backend — Redis Design
 
-> **Req Ref:** §14 Redis Design
+> **Req Ref:** §14 Redis Design  
+> **Gap analysis:** See `DESIGN-GAPS-DEEP-ANALYSIS.md` and relevant `GAP-*.md` files.
 
 ---
 

@@ -98,7 +98,7 @@ Support ticketing management — create, assign, escalate, resolve, and close ti
 | `/api/v1/tickets/comments/create` | POST | Add comment |
 | `/api/v1/tickets/satisfaction` | POST | Rate satisfaction |
 | `/api/v1/tickets/my-assignments/list` | POST | My assigned tickets |
-| `/api/v1/tickets/dashboard` | GET | Dashboard stats |
+| `/api/v1/tickets/dashboard` | POST | Dashboard stats |
 
 ## 5. RBAC
 

@@ -311,17 +311,19 @@ chrono = "0.4"         # Date math for pro-rata
 
 ## New Route Groups Required
 
+> **WARNING:** These proposed routes must be converted to Protobuf-first before implementation. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 ```
 /api/v1/billing/gst/
-  POST   /calculate          — Calculate GST for invoice
-  GET    /returns            — Generate GSTR-1/3B data
-  GET    /hsn-summary        — HSN-wise summary
+  POST   /calculate            — Calculate GST for invoice
+  POST   /returns              — Generate GSTR-1/3B data
+  POST   /hsn-summary          — HSN-wise summary
 
 /api/v1/billing/pdf/
-  GET    /invoices/:id/pdf   — Generate/download invoice PDF
+  POST   /invoice/pdf          — Generate/download invoice PDF
 
 /api/v1/billing/reconciliation/
-  POST   /import             — Import bank statement
-  GET    /matches            — View matched/unmatched payments
-  POST   /adjust             — Manual adjustment
+  POST   /import               — Import bank statement
+  POST   /matches              — View matched/unmatched payments
+  POST   /adjust               — Manual adjustment
 ```

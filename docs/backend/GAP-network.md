@@ -312,21 +312,23 @@ ipnetwork = "0.20"     # CIDR parsing
 
 ## New Route Groups Required
 
+> **WARNING:** These proposed routes must be converted to Protobuf-first before implementation. No GET, no PUT, no path variables, no query strings. See `API-CONVENTIONS.md`.
+
 ```
 /api/v1/network/olt/
-  GET    /:id/onts              — List ONTs on OLT
-  POST   /:id/onts/:sn/provision — Provision ONT
-  GET    /:id/onts/:sn/optical  — Get ONT optical power
-  POST   /:id/onts/:sn/config   — Configure ONT VLAN/QoS
+  POST   /onts/list            — List ONTs on OLT
+  POST   /onts/provision       — Provision ONT
+  POST   /onts/optical         — Get ONT optical power
+  POST   /onts/config          — Configure ONT VLAN/QoS
 
 /api/v1/network/snmp/
-  GET    /walk                  — SNMP walk on device
-  GET    /get                   — SNMP get single OID
-  POST   /poll                  — Trigger immediate poll
+  POST   /walk                 — SNMP walk on device
+  POST   /get                  — SNMP get single OID
+  POST   /poll                 — Trigger immediate poll
 
 /api/v1/network/ipam/
-  GET    /pools/:id/addresses   — List IP addresses in pool
-  POST   /pools/:id/allocate    — Allocate specific IP
-  POST   /pools/:id/release     — Release specific IP
-  POST   /pools/:id/reserve     — Reserve static IP
+  POST   /addresses/list       — List IP addresses in pool
+  POST   /addresses/allocate   — Allocate specific IP
+  POST   /addresses/release    — Release specific IP
+  POST   /addresses/reserve    — Reserve static IP
 ```
