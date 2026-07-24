@@ -64,6 +64,8 @@ The dashboard is the primary screen after login, providing a quick overview of t
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Dashboard Summary
 ```
 POST /api/v1/customer/dashboard

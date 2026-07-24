@@ -133,6 +133,8 @@ Invoice management, payment processing via Razorpay SDK, payment history, and re
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Get Invoices
 ```
 POST /api/v1/customer/invoices/list

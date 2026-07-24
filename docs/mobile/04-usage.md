@@ -88,6 +88,8 @@ Real-time and historical internet usage monitoring with speed tests, daily/month
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Usage Statistics
 ```
 POST /api/v1/customer/usage

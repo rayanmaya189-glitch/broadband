@@ -29,8 +29,8 @@ This analysis identifies **47 specific design gaps** across the AeroXe backend d
 **Gap:** Subscriptions require `review_status` approval (lines 33-38), but the API endpoint `POST /api/v1/subscriptions` requires only `sales_agent+` role. No endpoint exists for approving pending subscriptions.
 **Risk:** Sales agents can create subscriptions that bypass Checker/Maker workflow.
 **Recommendation:**
-- Add `POST /api/v1/subscriptions/:id/approve` endpoint (finance_manager+)
-- Add `POST /api/v1/subscriptions/:id/reject` endpoint (finance_manager+)
+- Add `POST /api/v1/subscriptions/approve` endpoint with subscription_id in protobuf body (finance_manager+)
+- Add `POST /api/v1/subscriptions/reject` endpoint with subscription_id in protobuf body (finance_manager+)
 - Modify subscription creation to set `review_status: 'pending'` by default
 
 ### 1.2 Invoice Approval Bypass
@@ -38,8 +38,8 @@ This analysis identifies **47 specific design gaps** across the AeroXe backend d
 **Gap:** Invoices have `review_status` and `reviewed_by` fields (lines 36-40), but no approval endpoint exists. Only `billing_operator+` can create invoices directly.
 **Risk:** Critical financial documents lack dual-authorization.
 **Recommendation:**
-- Add `POST /api/v1/billing/invoices/:id/approve` endpoint (finance_manager+)
-- Add `POST /api/v1/billing/invoices/:id/reject` endpoint (finance_manager+)
+- Add `POST /api/v1/billing/invoices/approve` endpoint with invoice_id in protobuf body (finance_manager+)
+- Add `POST /api/v1/billing/invoices/reject` endpoint with invoice_id in protobuf body (finance_manager+)
 - Require approval for invoices above configurable threshold (e.g., ₹10,000)
 
 ### 1.3 Discount Code Abuse Prevention
@@ -63,7 +63,7 @@ This analysis identifies **47 specific design gaps** across the AeroXe backend d
 
 ### 1.5 Subscription Suspension Without Invoice Check
 **Files:** `10-subscriptions.md`, `12-billing.md`
-**Gap:** Subscriptions can be suspended via `POST /api/v1/subscriptions/:id/suspend` (line 75), but no validation checks if customer has pending unpaid invoices.
+**Gap:** Subscriptions can be suspended via `POST /api/v1/subscriptions/suspend` (with subscription_id in protobuf body), but no validation checks if customer has pending unpaid invoices.
 **Risk:** Customer suspended for non-payment but other invoices remain unpaid.
 **Recommendation:**
 - Before suspension, query billing module for all overdue invoices
@@ -107,8 +107,8 @@ This analysis identifies **47 specific design gaps** across the AeroXe backend d
 **Risk:** Inconsistent plan lifecycle management.
 **Recommendation:**
 - Document plan state machine: `draft → pending_approval → active → archived`
-- Add `POST /api/v1/plans/:id/activate` endpoint (requires Checker approval)
-- Add `POST /api/v1/plans/:id/archive` endpoint (requires Checker approval)
+- Add `POST /api/v1/plans/activate` endpoint with plan_id in protobuf body (requires Checker approval)
+- Add `POST /api/v1/plans/archive` endpoint with plan_id in protobuf body (requires Checker approval)
 
 ### 2.2 Incomplete Installation State Machine
 **Files:** `11-installations.md`

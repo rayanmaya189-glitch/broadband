@@ -122,6 +122,8 @@ Customers can view their current plan details, browse available plans, and reque
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Get Current Subscription
 ```
 POST /api/v1/customer/subscription/get

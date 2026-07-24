@@ -144,6 +144,8 @@ Customers can create, view, update, and close support tickets. Tickets follow a 
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### List Tickets
 ```
 POST /api/v1/customer/tickets/list
@@ -240,10 +242,11 @@ Response 200:
 
 ### Add Message
 ```
-POST /api/v1/customer/tickets/:id/messages
+POST /api/v1/customer/tickets/messages
 
 Request (multipart/form-data):
 {
+  "ticket_id": "tkc_001",
   "content": "Thank you for the quick response!",
   "attachments[]": [screenshot.png]
 }
@@ -259,7 +262,13 @@ Response 201:
 
 ### Close Ticket
 ```
-POST /api/v1/customer/tickets/:id/close
+POST /api/v1/customer/tickets/close
+
+Request:
+{
+  "ticket_id": "tkc_001",
+  "resolution": "Issue resolved"
+}
 
 Response 200:
 {

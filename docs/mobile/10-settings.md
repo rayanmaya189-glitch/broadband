@@ -86,6 +86,8 @@ Customer app preferences including notification settings, theme selection, langu
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Get Settings
 ```
 POST /api/v1/customer/settings/get

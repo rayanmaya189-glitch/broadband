@@ -66,11 +66,11 @@ pub async fn require_customer_auth(
 pub async fn get_usage(
     State(state): State<AppState>,
     claims: Claims,
-    Query(params): Query<UsageParams>,
-) -> Result<Json<UsageResponse>> {
-    // params.period: "daily" | "weekly" | "monthly"
-    // params.from: DateTime
-    // params.to: DateTime
+    body: UsageRequest,
+) -> proto_response<UsageResponse> {
+    // body.period: "daily" | "weekly" | "monthly"
+    // body.from: DateTime
+    // body.to: DateTime
 
     let usage = state.db.query(
         "SELECT date_trunc($1, session_start) as period,

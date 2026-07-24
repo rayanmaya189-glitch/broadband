@@ -145,6 +145,8 @@ Customer profile management, KYC document upload, personal information editing, 
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Get Profile
 ```
 POST /api/v1/customer/profile/get

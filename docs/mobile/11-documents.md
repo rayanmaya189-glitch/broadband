@@ -72,6 +72,8 @@ fun validateMagicBytes(bytes: ByteArray, expectedType: String): Boolean {
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Request Presigned URL
 ```
 POST /api/v1/customer/documents/upload-url

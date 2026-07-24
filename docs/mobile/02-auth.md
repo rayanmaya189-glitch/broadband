@@ -110,6 +110,8 @@ Phone + SMS-based OTP authentication with optional biometric unlock. Both platfo
 
 ## API Integration
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Send OTP
 ```kotlin
 // Request

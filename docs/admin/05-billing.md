@@ -364,7 +364,7 @@ When invoice is generated:
 | `/api/v1/admin/wallets/get` | POST | Get wallet detail |
 | `/api/v1/admin/wallets/transactions/list` | POST | Wallet transactions |
 | `/api/v1/admin/wallets/adjust` | POST | Manual wallet adjustment |
-| `/api/v1/customer/wallet` | GET | Get own wallet (customer) |
+| `/api/v1/customer/wallet/get` | POST | Get own wallet (customer) |
 | `/api/v1/customer/wallet/topup` | POST | Initiate top-up (customer) |
 
 ### Manual Payment RBAC

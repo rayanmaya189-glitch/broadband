@@ -216,6 +216,8 @@ Customers can share their unique referral code, track referral status, view rewa
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Get My Referral Code
 ```
 POST /api/v1/customer/referrals/my-code

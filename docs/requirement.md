@@ -5877,7 +5877,7 @@ Every API request is logged with:
   "request_id": "uuid",
   "user_id": "uuid",
   "method": "POST",
-  "path": "/api/v1/customers/:id/suspend",
+  "path": "/api/v1/customers/suspend",
   "ip_address": "10.0.1.50",
   "user_agent": "Mozilla/5.0...",
   "status_code": 200,

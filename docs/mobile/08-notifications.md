@@ -81,6 +81,8 @@ Dashboard header shows unread count:
 
 ## API Endpoints
 
+> **API Convention:** Protobuf-first. See `docs/backend/API-CONVENTIONS.md`.
+
 ### Get Notifications
 ```
 POST /api/v1/customer/notifications/list
@@ -109,7 +111,12 @@ Response 200:
 
 ### Mark as Read
 ```
-PATCH /api/v1/customer/notifications/:id/read
+PATCH /api/v1/customer/notifications/read
+
+Request:
+{
+  "notification_id": "ntf_001"
+}
 
 Response 200: { "success": true }
 ```

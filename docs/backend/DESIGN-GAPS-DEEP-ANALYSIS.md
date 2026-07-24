@@ -229,7 +229,7 @@ The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong
   - No KYC document upload by customer
   - No notification channel preferences
 - **Business Impact:** Cannot launch Android/iOS customer app. All customer interactions require calling support. Customer acquisition cost remains high.
-- **Required Fix:** Create `customer-portal` route group with: `GET /me/profile`, `GET /me/invoices`, `POST /me/pay`, `GET /me/usage`, `POST /me/tickets`, `POST /me/plan-change`, `POST /me/kyc-upload`, `GET /me/referral-code`.
+- **Required Fix:** Create `customer-portal` route group with: `POST /me/profile/get`, `POST /me/invoices/list`, `POST /me/pay`, `POST /me/usage/get`, `POST /me/tickets/create`, `POST /me/plan-change`, `POST /me/kyc/upload`, `POST /me/referral-code/get`.
 
 ---
 
