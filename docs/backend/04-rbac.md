@@ -151,7 +151,7 @@ impl<S> Middleware<S> for RequirePermission {
 ```rust
 // Route definition with permission guard
 Router::new()
-    .route("/devices/:id/restart", post(restart_device))
+    .route("/devices/restart", post(restart_device))
     .layer(RequirePermission::new("device.router.restart"))
 
 // Or per-handler check

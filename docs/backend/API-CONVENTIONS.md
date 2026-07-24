@@ -372,7 +372,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## 9. Axum Integration
 
 ```rust
-use axum::{routing::post, Router, Json};
+use axum::{routing::{post, patch, delete}, Router};
 use prost::Message;
 
 // Protobuf content type

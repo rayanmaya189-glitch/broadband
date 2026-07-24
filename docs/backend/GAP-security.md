@@ -203,6 +203,7 @@ ca_cert_path = "/etc/aeroxe/certs/mikrotik-ca.pem"
 ### Current Code
 ```rust
 // Under health_routes() — no auth middleware
+// Note: WebSocket upgrade requires HTTP GET per RFC 6455 (protocol requirement, not REST)
 .route("/ws", get(ws_handler))
 ```
 
@@ -221,6 +222,7 @@ Attacker connects to `ws://host/health/ws` without any token → receives real-t
 ### Fix
 ```rust
 // In routes/mod.rs: Move /ws to authenticated route group
+// Note: WebSocket upgrade requires HTTP GET per RFC 6455 (protocol requirement, not REST)
 let protected_routes = Router::new()
     .route("/ws", get(ws_handler))
     .layer(middleware::from_fn(auth_middleware));
@@ -260,6 +262,7 @@ async fn ws_handler(
 
 ### Current Code
 ```rust
+// Note: Swagger UI is for development only; gated behind #[cfg(debug_assertions)] in fix
 .route("/api-docs", get(openapi_doc))
 .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json"))
 ```

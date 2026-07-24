@@ -58,7 +58,7 @@ The AeroXe backend has **excellent CRUD coverage** (~229 endpoints) and **strong
 
 ### SEC-004: WebSocket Exposed Without Authentication
 - **File:** `routes/mod.rs:12`
-- **Code:** `.route("/ws", get(ws_handler))` under `health_routes()` — no auth middleware
+- **Code:** `.route("/ws", get(ws_handler))` under `health_routes()` — no auth middleware. **Note:** WebSocket upgrade requires HTTP GET per RFC 6455; this is a protocol requirement, not a REST design choice.
 - **Impact:** Anonymous users access real-time ISP data (device status, customer sessions).
 - **Fix:** Move `/ws` to authenticated route group. Require JWT validation on WebSocket upgrade.
 
