@@ -26,6 +26,7 @@ pub struct MikrotikConfig {
     pub username: String,
     pub password: String,
     pub use_ssl: bool,
+    pub accept_invalid_certs: bool,
     pub api_version: String,
 }
 
@@ -43,6 +44,10 @@ impl Default for MikrotikConfig {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap_or(true),
+            accept_invalid_certs: std::env::var("MIKROTIK_ACCEPT_INVALID_CERTS")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
             api_version: std::env::var("MIKROTIK_API_VERSION").unwrap_or_else(|_| "v7".to_string()),
         }
     }
@@ -163,11 +168,18 @@ impl MikrotikAdapter {
         let scheme = if config.use_ssl { "https" } else { "http" };
         let base_url = format!("{}://{}:{}/rest", scheme, config.host, config.port);
 
-        let client = Client::builder()
-            .danger_accept_invalid_certs(true) // MikroTik often uses self-signed certs
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap_or_default();
+        let mut builder = Client::builder()
+            .timeout(std::time::Duration::from_secs(30));
+
+        if config.accept_invalid_certs {
+            tracing::warn!(
+                host = %config.host,
+                "MikroTik TLS certificate validation disabled — use only for self-signed certs"
+            );
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        let client = builder.build().unwrap_or_default();
 
         Self {
             config,

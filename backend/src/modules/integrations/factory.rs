@@ -35,6 +35,7 @@ impl DeviceAdapterFactory {
             username: username.to_string(),
             password: password.to_string(),
             use_ssl: true,
+            accept_invalid_certs: false,
             api_version: "v7".to_string(),
         };
         Arc::new(MikrotikAdapter::new(config))

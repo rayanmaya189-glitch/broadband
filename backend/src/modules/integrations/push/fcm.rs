@@ -527,29 +527,56 @@ fn base64url_encode(data: &[u8]) -> String {
 
 /// Create a JWT RS256 signature for OAuth2 token exchange
 ///
-/// Uses the service account's private key to sign the JWT.
-/// The signature is created using raw PKCS#1 v1.5 with SHA-256.
-///
-/// NOTE: In production, replace with the `jsonwebtoken` crate:
-/// ```ignore
-/// let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())?;
-/// let token = jsonwebtoken::encode(&header, &claims, &key)?;
-/// ```
-fn create_jwt_signature(_signing_input: &str, _private_key_pem: &str) -> Result<String, AppError> {
-    // Validate the key is parseable
-    // In production, use: jsonwebtoken::EncodingKey::from_rsa_pem()
+/// Uses the `jsonwebtoken` crate to sign the JWT with the service account's RSA private key.
+fn create_jwt_signature(signing_input: &str, service_account_key: &str) -> Result<String, AppError> {
+    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 
-    tracing::warn!(
-        "FCM JWT signing returning placeholder — add 'jsonwebtoken' crate for production RSA signing"
-    );
+    let sa_key: serde_json::Value = serde_json::from_str(service_account_key)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid service account key for signing: {}", e)))?;
 
-    // Placeholder: returns a dummy signature
-    // When jsonwebtoken is added, replace with:
-    //   let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
-    //   let claims = serde_json::from_value(json!({ "iss": ..., "scope": ..., ... }))?;
-    //   let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())?;
-    //   jsonwebtoken::encode(&header, &claims, &key)
-    Ok("PLACEHOLDER_RSA_SIGNATURE".to_string())
+    let private_key_pem = sa_key["private_key"]
+        .as_str()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing private_key in service account")))?;
+
+    // Decode the PEM to DER if it's PEM-wrapped
+    let der_key = if private_key_pem.contains("BEGIN") {
+        let pem_lines: String = private_key_pem
+            .lines()
+            .filter(|l| !l.starts_with("-----"))
+            .collect();
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD
+            .decode(&pem_lines)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode PEM key: {}", e)))?
+    } else {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD
+            .decode(private_key_pem)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode base64 key: {}", e)))?
+    };
+
+    let header = Header::new(Algorithm::RS256);
+
+    // Parse the signing_input (header_b64.claims_b64) to extract claims
+    let parts: Vec<&str> = signing_input.split('.').collect();
+    let claims_b64 = parts.get(1).unwrap_or(&"");
+
+    let claims_value: serde_json::Value = {
+        use base64::Engine;
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(*claims_b64)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode claims: {}", e)))?;
+        serde_json::from_slice(&decoded)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse claims: {}", e)))?
+    };
+
+    let key = EncodingKey::from_rsa_der(&der_key);
+    let token = encode(&header, &claims_value, &key)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to sign JWT: {}", e)))?;
+
+    // Return only the signature part (third segment)
+    let signature = token.split('.').nth(2).unwrap_or("").to_string();
+    Ok(signature)
 }
 
 #[cfg(test)]

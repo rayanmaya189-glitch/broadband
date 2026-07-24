@@ -467,32 +467,58 @@ impl RadiusAdapter {
         Self::new(RadiusConfig::default())
     }
 
-    /// Send a RADIUS packet and receive response
+    /// Send a RADIUS packet and receive response with retry logic
     async fn send_and_receive(&self, packet: &[u8], port: u16) -> Result<Vec<u8>, AppError> {
         let addr: SocketAddr = format!("{}:{}", self.config.server, port)
             .parse()
             .map_err(|e| AppError::External(format!("Invalid RADIUS server address: {}", e)))?;
 
-        let socket = UdpSocket::bind("0.0.0.0:0")
+        let max_retries = self.config.max_retries.max(1);
+        let mut last_error = None;
+
+        for attempt in 1..=max_retries {
+            let socket = UdpSocket::bind("0.0.0.0:0")
+                .await
+                .map_err(|e| AppError::External(format!("Failed to bind UDP socket: {}", e)))?;
+
+            if let Err(e) = socket.send_to(packet, addr).await {
+                last_error = Some(format!("Send failed on attempt {}: {}", attempt, e));
+                continue;
+            }
+
+            let mut buf = vec![0u8; RADIUS_MAX_PACKET_SIZE];
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(self.config.timeout_seconds as u64),
+                socket.recv_from(&mut buf),
+            )
             .await
-            .map_err(|e| AppError::External(format!("Failed to bind UDP socket: {}", e)))?;
+            {
+                Ok(Ok((len, _))) => {
+                    buf.truncate(len);
+                    return Ok(buf);
+                }
+                Ok(Err(e)) => {
+                    last_error = Some(format!("Receive failed on attempt {}: {}", attempt, e));
+                }
+                Err(_) => {
+                    last_error = Some(format!("Request timed out on attempt {}/{}", attempt, max_retries));
+                }
+            }
 
-        socket
-            .send_to(packet, addr)
-            .await
-            .map_err(|e| AppError::External(format!("Failed to send RADIUS packet: {}", e)))?;
+            if attempt < max_retries {
+                debug!(
+                    attempt = attempt,
+                    max_retries = max_retries,
+                    "RADIUS request failed, retrying..."
+                );
+            }
+        }
 
-        let mut buf = vec![0u8; RADIUS_MAX_PACKET_SIZE];
-        let (len, _) = tokio::time::timeout(
-            std::time::Duration::from_secs(self.config.timeout_seconds as u64),
-            socket.recv_from(&mut buf),
-        )
-        .await
-        .map_err(|_| AppError::External("RADIUS request timed out".to_string()))?
-        .map_err(|e| AppError::External(format!("Failed to receive RADIUS response: {}", e)))?;
-
-        buf.truncate(len);
-        Ok(buf)
+        Err(AppError::External(format!(
+            "RADIUS request failed after {} retries: {}",
+            max_retries,
+            last_error.unwrap_or_else(|| "unknown error".to_string())
+        )))
     }
 }
 

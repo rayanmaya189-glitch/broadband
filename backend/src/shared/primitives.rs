@@ -7,6 +7,32 @@ pub type BranchId = i64;
 /// User ID type
 pub type UserId = i64;
 
+/// Client IP address extracted from request headers (X-Forwarded-For, X-Real-IP)
+#[derive(Debug, Clone)]
+pub struct ClientIp(pub String);
+
+impl ClientIp {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Extract client IP from request headers
+    pub fn from_headers(headers: &axum::http::HeaderMap) -> Self {
+        let ip = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.split(',').next().unwrap_or(v).trim().to_string())
+            .or_else(|| {
+                headers
+                    .get("x-real-ip")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.trim().to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
+        ClientIp(ip)
+    }
+}
+
 /// Customer ID type
 pub type CustomerId = i64;
 

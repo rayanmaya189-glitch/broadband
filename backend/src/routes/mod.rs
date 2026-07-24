@@ -85,6 +85,8 @@ pub fn v1_routes() -> Router<SharedState> {
         .nest("/payments", payment_routes())
         .nest("/approvals", approval_routes())
         .nest("/monitoring", monitoring_routes())
+        .nest("/compliance", compliance_routes())
+        .nest("/gateway", gateway_routes())
         .nest("/admin", admin_routes())
         .route(
             "/metrics",
@@ -852,4 +854,82 @@ fn admin_routes() -> Router<SharedState> {
     use crate::modules::admin::api::http as admin_http;
     Router::new()
         .route("/seed", axum::routing::post(admin_http::seed_data))
+}
+
+fn compliance_routes() -> Router<SharedState> {
+    use crate::modules::compliance::api::http;
+    Router::new()
+        // KYC verifications
+        .route(
+            "/kyc",
+            axum::routing::get(http::list_kyc_verifications).post(http::create_kyc_verification),
+        )
+        .route(
+            "/kyc/:id",
+            axum::routing::put(http::update_kyc_status),
+        )
+        .route(
+            "/kyc/customer/:customer_id",
+            axum::routing::get(http::get_customer_kyc),
+        )
+        // Consent management
+        .route(
+            "/consents",
+            axum::routing::post(http::grant_consent),
+        )
+        .route(
+            "/consents/revoke",
+            axum::routing::post(http::revoke_consent),
+        )
+        .route(
+            "/consents/:customer_id",
+            axum::routing::get(http::list_consents),
+        )
+        .route(
+            "/consents/:customer_id/:consent_type",
+            axum::routing::get(http::check_consent),
+        )
+        // Data retention policies
+        .route(
+            "/retention",
+            axum::routing::get(http::list_retention_policies)
+                .post(http::create_retention_policy),
+        )
+        .route(
+            "/retention/:id",
+            axum::routing::put(http::update_retention_policy),
+        )
+}
+
+fn gateway_routes() -> Router<SharedState> {
+    use crate::modules::gateway::api::http;
+    Router::new()
+        // Rate limit rules
+        .route(
+            "/rate-limits",
+            axum::routing::get(http::list_rate_limit_rules)
+                .post(http::create_rate_limit_rule),
+        )
+        .route(
+            "/rate-limits/:id",
+            axum::routing::delete(http::delete_rate_limit_rule),
+        )
+        // API keys
+        .route(
+            "/api-keys",
+            axum::routing::get(http::list_api_keys).post(http::create_api_key),
+        )
+        .route(
+            "/api-keys/:id",
+            axum::routing::delete(http::revoke_api_key),
+        )
+        // Request logs & stats
+        .route(
+            "/logs",
+            axum::routing::get(http::list_request_logs),
+        )
+        .route(
+            "/stats",
+            axum::routing::get(http::get_request_stats),
+        )
 }

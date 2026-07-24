@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::Router;
+use chrono::Datelike;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tower_http::cors::{Any, CorsLayer};
@@ -392,6 +393,66 @@ async fn main() -> anyhow::Result<()> {
                 }
             });
             tracing::info!("Outbox cleanup worker started (every hour)");
+        }
+
+        // Monitoring worker - runs every 2 minutes
+        {
+            let db = worker_db.clone();
+            let worker = aeroxe_backend::workers::monitoring_worker::MonitoringWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            if let Err(e) = worker.run_cycle().await {
+                                tracing::error!(error = %e, "Monitoring worker cycle failed");
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Monitoring worker shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+            tracing::info!("Monitoring worker started (every 2 minutes)");
+        }
+
+        // Partition worker - runs on 1st of each month (via scheduler, but also as a standalone fallback)
+        {
+            let db = worker_db.clone();
+            let mut rx = shutdown_tx.subscribe();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(86400));
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            let now = chrono::Utc::now();
+                            // Only run on 1st of the month
+                            if now.date_naive().day() == 1 {
+                                if let Err(e) =
+                                    aeroxe_backend::workers::partition_worker::create_monthly_partitions(&db)
+                                        .await
+                                {
+                                    tracing::error!(error = %e, "Partition creation failed");
+                                }
+                                if let Err(e) =
+                                    aeroxe_backend::workers::partition_worker::run_cleanup(&db)
+                                        .await
+                                {
+                                    tracing::error!(error = %e, "Partition cleanup failed");
+                                }
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("Partition worker shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+            tracing::info!("Partition worker started (monthly on 1st)");
         }
     }
 

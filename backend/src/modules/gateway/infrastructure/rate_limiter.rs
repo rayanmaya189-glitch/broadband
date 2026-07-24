@@ -25,10 +25,14 @@ impl RateLimiter {
         let window_start = now - window_seconds as i64;
         let redis_key = format!("rate_limit:{}", key);
 
-        // Use a sorted set with timestamps as scores for sliding window
         // Remove old entries outside the window
-        let _: () = redis
-            .zremrangebyscore(&redis_key, 0, window_start)
+        // Use redis::Cmd directly for zremrangebyscore since AsyncCommands may not expose it
+        let _: () = redis::Cmd::new()
+            .arg("ZREMRANGEBYSCORE")
+            .arg(&redis_key)
+            .arg("-inf")
+            .arg(window_start.to_string())
+            .query_async(&mut redis)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis error: {}", e)))?;
 
@@ -40,10 +44,10 @@ impl RateLimiter {
 
         if count >= max_requests as i64 {
             // Get the oldest entry to calculate retry_after
-            let oldest: Option<(String, f64)> = redis
+            let oldest: Option<Vec<(String, f64)>> = redis
                 .zrange_withscores(&redis_key, 0, 0)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis error: {}", e)))?;
+                .ok();
 
             let retry_after = oldest
                 .and_then(|v| v.into_iter().next())

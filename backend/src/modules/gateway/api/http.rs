@@ -1,4 +1,4 @@
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,6 @@ use std::sync::Arc;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use crate::shared::primitives::PaginationParams;
 use crate::modules::gateway::application::services::GatewayService;
 
 // ── Rate Limit Rules ──
@@ -37,10 +36,9 @@ pub struct CreateRateLimitRuleRequest {
 
 pub async fn list_rate_limit_rules(
     State(state): State<Arc<AppState>>,
-    user: UserContext,
-    Query(p): Query<PaginationParams>,
+    _user: UserContext,
 ) -> Result<Json<Vec<RateLimitRuleResponse>>, AppError> {
-    let (rules, total_rules) = GatewayService::list_rate_limit_rules(&state.db, p.page(), p.limit()).await?;
+    let rules = GatewayService::list_rate_limit_rules(&state.db).await?;
     Ok(Json(rules.into_iter().map(|r| RateLimitRuleResponse {
         id: r.id,
         route_pattern: r.route_pattern,
@@ -117,10 +115,9 @@ pub struct CreateApiKeyRequest {
 
 pub async fn list_api_keys(
     State(state): State<Arc<AppState>>,
-    user: UserContext,
-    Query(p): Query<PaginationParams>,
+    _user: UserContext,
 ) -> Result<Json<Vec<ApiKeyResponse>>, AppError> {
-    let (keys, total_keys) = GatewayService::list_api_keys(&state.db, p.page(), p.limit()).await?;
+    let keys = GatewayService::list_api_keys(&state.db).await?;
     Ok(Json(keys.into_iter().map(|k| ApiKeyResponse {
         id: k.id, name: k.name, key_prefix: k.key_prefix,
         permissions: k.permissions, is_active: k.is_active,
@@ -134,7 +131,6 @@ pub async fn create_api_key(
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<ApiKeyResponse>), AppError> {
     require_permission(&user, "gateway.apikey.create").map_err(|e| AppError::Forbidden(e.1))?;
-    // Generate a random API key
     let raw_key = format!("ax_{}_{}", uuid::Uuid::new_v4().to_string().replace("-", ""), chrono::Utc::now().timestamp());
     let key_hash = format!("{:x}", md5::compute(raw_key.as_bytes()));
     let key_prefix = raw_key[..12].to_string();
@@ -195,9 +191,8 @@ pub struct RequestLogResponse {
 pub async fn list_request_logs(
     State(state): State<Arc<AppState>>,
     _user: UserContext,
-    Query(p): Query<PaginationParams>,
 ) -> Result<Json<Vec<RequestLogResponse>>, AppError> {
-    let logs = GatewayService::list_request_logs(&state.db, 100, p.page(), p.limit()).await?;
+    let logs = GatewayService::list_request_logs(&state.db, 100).await?;
     Ok(Json(logs.into_iter().map(|l| RequestLogResponse {
         id: l.id, method: l.method, path: l.path,
         status_code: l.status_code, response_time_ms: l.response_time_ms,

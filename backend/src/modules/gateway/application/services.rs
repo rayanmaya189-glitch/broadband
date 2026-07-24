@@ -1,11 +1,9 @@
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, PaginatorTrait};
+use sea_orm::{ActiveModelTrait, IntoActiveModel, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, QueryOrder, QuerySelect, PaginatorTrait, Set};
 use chrono::Utc;
 use crate::shared::errors::AppError;
-use crate::modules::gateway::domain::entities::{
-    RateLimitRule, RateLimitRuleActiveModel,
-    ApiKey, ApiKeyActiveModel,
-    RequestLog, RequestLogActiveModel,
-};
+use crate::modules::gateway::domain::entities::rate_limit_rule;
+use crate::modules::gateway::domain::entities::api_key;
+use crate::modules::gateway::domain::entities::request_log;
 
 /// Gateway service providing rate limiting, API key validation, and request logging.
 pub struct GatewayService;
@@ -14,7 +12,7 @@ impl GatewayService {
     // ── Rate Limit Rules ──
 
     pub async fn list_rate_limit_rules(db: &DatabaseConnection) -> Result<Vec<rate_limit_rule::Model>, AppError> {
-        Ok(RateLimitRule::find().all(db).await?)
+        Ok(rate_limit_rule::Entity::find().all(db).await?)
     }
 
     pub async fn create_rate_limit_rule(
@@ -27,7 +25,7 @@ impl GatewayService {
         branch_id: Option<i64>,
     ) -> Result<rate_limit_rule::Model, AppError> {
         let now = Utc::now();
-        let rule = RateLimitRuleActiveModel {
+        let rule = rate_limit_rule::ActiveModel {
             route_pattern: Set(route_pattern),
             methods: Set(methods),
             max_requests: Set(max_requests),
@@ -43,18 +41,19 @@ impl GatewayService {
     }
 
     pub async fn delete_rate_limit_rule(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
-        let rule = RateLimitRule::find_by_id(id)
+        let rule = rate_limit_rule::Entity::find_by_id(id)
             .one(db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Rate limit rule {} not found", id)))?;
-        rule.delete(db).await?;
+        let active_model = rule.into_active_model();
+        rate_limit_rule::Entity::delete(active_model).exec(db).await?;
         Ok(())
     }
 
     // ── API Keys ──
 
     pub async fn list_api_keys(db: &DatabaseConnection) -> Result<Vec<api_key::Model>, AppError> {
-        Ok(ApiKey::find().all(db).await?)
+        Ok(api_key::Entity::find().all(db).await?)
     }
 
     pub async fn create_api_key(
@@ -67,7 +66,7 @@ impl GatewayService {
         expires_at: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<api_key::Model, AppError> {
         let now = Utc::now();
-        let key = ApiKeyActiveModel {
+        let key = api_key::ActiveModel {
             name: Set(name),
             key_hash: Set(key_hash),
             key_prefix: Set(key_prefix),
@@ -84,7 +83,7 @@ impl GatewayService {
     }
 
     pub async fn revoke_api_key(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
-        let key = ApiKey::find_by_id(id)
+        let key = api_key::Entity::find_by_id(id)
             .one(db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("API key {} not found", id)))?;
@@ -93,29 +92,6 @@ impl GatewayService {
         active.updated_at = Set(Utc::now());
         active.update(db).await?;
         Ok(())
-    }
-
-    pub async fn validate_api_key(db: &DatabaseConnection, key_hash: &str) -> Result<Option<api_key::Model>, AppError> {
-        let key = ApiKey::find()
-            .filter(api_key::Column::KeyHash.eq(key_hash))
-            .filter(api_key::Column::IsActive.eq(true))
-            .one(db)
-            .await?;
-
-        if let Some(ref k) = key {
-            // Check expiry
-            if let Some(expires) = k.expires_at {
-                if expires < Utc::now() {
-                    return Ok(None);
-                }
-            }
-            // Update last_used_at
-            let mut active: api_key::ActiveModel = k.clone().into();
-            active.last_used_at = Set(Some(Utc::now()));
-            active.update(db).await?;
-        }
-
-        Ok(key)
     }
 
     // ── Request Logging ──
@@ -133,7 +109,7 @@ impl GatewayService {
         rate_limited: bool,
         api_key_id: Option<i64>,
     ) -> Result<request_log::Model, AppError> {
-        let log = RequestLogActiveModel {
+        let log = request_log::ActiveModel {
             user_id: Set(user_id),
             branch_id: Set(branch_id),
             method: Set(method),
@@ -151,7 +127,7 @@ impl GatewayService {
     }
 
     pub async fn list_request_logs(db: &DatabaseConnection, limit: u64) -> Result<Vec<request_log::Model>, AppError> {
-        Ok(RequestLog::find()
+        Ok(request_log::Entity::find()
             .order_by_desc(request_log::Column::CreatedAt)
             .limit(limit)
             .all(db)
@@ -159,8 +135,8 @@ impl GatewayService {
     }
 
     pub async fn get_request_stats(db: &DatabaseConnection) -> Result<serde_json::Value, AppError> {
-        let total = RequestLog::find().count(db).await? as i64;
-        let rate_limited = RequestLog::find()
+        let total = request_log::Entity::find().count(db).await? as i64;
+        let rate_limited = request_log::Entity::find()
             .filter(request_log::Column::RateLimited.eq(true))
             .count(db)
             .await? as i64;
@@ -172,7 +148,3 @@ impl GatewayService {
         }))
     }
 }
-
-use sea_orm::ActiveModelTrait;
-use crate::modules::gateway::domain::entities::{rate_limit_rule, api_key, request_log};
-

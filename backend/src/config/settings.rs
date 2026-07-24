@@ -70,8 +70,15 @@ impl Settings {
 
             jwt_private_key_pem: env::var("JWT_PRIVATE_KEY").ok(),
             jwt_public_key_pem: env::var("JWT_PUBLIC_KEY").ok(),
-            jwt_secret: env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "aeroxe-jwt-secret-change-in-production".to_string()),
+            jwt_secret: env::var("JWT_SECRET").ok().filter(|s| !s.is_empty()).or_else(|| {
+                // In production, panic if JWT_SECRET is not set
+                let env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
+                if env == "production" {
+                    panic!("FATAL: JWT_SECRET must be set in production environment");
+                }
+                tracing::warn!("JWT_SECRET not set — using development fallback. DO NOT use in production!");
+                Some("dev-only-insecure-jwt-secret".to_string())
+            }).unwrap_or_default(),
             jwt_access_token_ttl_secs: env::var("JWT_ACCESS_TOKEN_TTL_SECS")
                 .unwrap_or_else(|_| "86400".to_string()) // 24 hours
                 .parse()

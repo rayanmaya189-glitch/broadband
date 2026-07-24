@@ -10,6 +10,7 @@ pub mod customer;
 pub mod device;
 pub mod discovery;
 pub mod document;
+pub mod gateway;
 pub mod identity;
 pub mod installation;
 pub mod integrations;

@@ -11,6 +11,7 @@ use crate::modules::identity::domain::entities::user;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::UserContext;
+use crate::shared::primitives::ClientIp;
 use crate::shared::utils::login_anomaly;
 
 #[derive(Debug, Deserialize)]
@@ -129,16 +130,17 @@ pub async fn register(
 /// POST /api/v1/auth/login — Step 1: verify password, return pending_token if 2FA required
 pub async fn login(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     let user_model =
         IdentityService::verify_password_only(&state.db, &req.email, &req.password).await?;
 
     // Login anomaly detection — check for new IP (non-blocking, best-effort)
-    // In production, extract real IP from X-Forwarded-For or connecting socket
-    let client_ip = "0.0.0.0"; // TODO: extract from request extensions via middleware
+    let client_ip = ClientIp::from_headers(&headers);
+    let ip_str = client_ip.as_str().to_string();
     let mut redis = state.redis.clone();
-    let anomaly = login_anomaly::check_login_anomaly(&mut redis, user_model.id, client_ip)
+    let anomaly = login_anomaly::check_login_anomaly(&mut redis, user_model.id, &ip_str)
         .await
         .ok(); // Non-blocking: don't fail login on anomaly check failure
 
@@ -146,7 +148,7 @@ pub async fn login(
         if check.is_anomaly {
             tracing::warn!(
                 user_id = user_model.id,
-                ip = client_ip,
+                ip = %ip_str,
                 "Login anomaly detected — new IP address"
             );
             // In production: spawn notification task to alert user via email/SMS

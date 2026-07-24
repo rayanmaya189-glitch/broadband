@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// API keys for external integrations and partner access.
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(schema_name = "gateway", table_name = "")]
+#[sea_orm(schema_name = "gateway", table_name = "api_keys")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

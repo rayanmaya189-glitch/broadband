@@ -32,6 +32,25 @@ pub struct HuaweiOltConfig {
     pub ssh_timeout_secs: u64,
 }
 
+/// Sanitize a string value for use in OLT CLI commands.
+/// Only allows alphanumeric characters, hyphens, underscores, and dots.
+/// Rejects strings containing shell metacharacters (`;`, `|`, `&`, `$`, etc.).
+fn sanitize_cli_input(input: &str) -> Result<String, AppError> {
+    let trimmed = input.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(AppError::Validation("CLI input cannot be empty".to_string()));
+    }
+    // Reject shell metacharacters and control characters
+    let forbidden = [';', '|', '&', '$', '`', '(', ')', '{', '}', '<', '>', '\n', '\r', '\0'];
+    if trimmed.chars().any(|c| forbidden.contains(&c)) || trimmed.contains("..") {
+        return Err(AppError::Validation(format!(
+            "CLI input contains forbidden characters: {}",
+            trimmed
+        )));
+    }
+    Ok(trimmed)
+}
+
 impl Default for HuaweiOltConfig {
     fn default() -> Self {
         Self {
@@ -397,10 +416,11 @@ impl HuaweiOltSshAdapter {
 #[async_trait]
 impl HuaweiOltAdapter for HuaweiOltSshAdapter {
     async fn create_dba_profile(&self, profile: &DbaProfile) -> Result<(), AppError> {
+        let safe_name = sanitize_cli_input(&profile.name)?;
         let mut cmd = format!(
             "dba-profile add profile-id {} profile-name {} {}",
             profile.profile_id,
-            profile.name,
+            safe_name,
             profile.profile_type.as_str()
         );
 
@@ -461,9 +481,10 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
     }
 
     async fn create_traffic_table(&self, table: &TrafficTable) -> Result<(), AppError> {
+        let safe_name = sanitize_cli_input(&table.name)?;
         let cmd = format!(
             "traffic table ip index {} name {} cir {} pir {}",
-            table.index, table.name, table.cir_kbps, table.pir_kbps
+            table.index, safe_name, table.cir_kbps, table.pir_kbps
         );
 
         let result = self.ssh_execute(&cmd).await?;
