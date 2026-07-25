@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package aeroxe.v1.bandwidth;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Profile Requests ───
+
+message CreateProfileRequest {
+  string name = 1;
+  int32 download_kbps = 2;
+  int32 upload_kbps = 3;
+}
+
+message GetProfileRequest {
+  int64 profile_id = 1;
+}
+
+message ListProfilesRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message UpdateProfileRequest {
+  int64 profile_id = 1;
+  optional string name = 2;
+  optional int32 download_kbps = 3;
+  optional int32 upload_kbps = 4;
+}
+
+message DeleteProfileRequest {
+  int64 profile_id = 1;
+}
+
+message ApplyProfileToAllRequest {
+  int64 profile_id = 1;
+}
+
+message ApplyToSubscriptionRequest {
+  int64 subscription_id = 1;
+  int64 profile_id = 2;
+}
+
+// ─── Policy Requests ───
+
+message CreatePolicyRequest {
+  string name = 1;
+  string policy_type = 2;
+  string config = 3;  // JSON string
+  optional int32 priority = 4;
+}
+
+message UpdatePolicyRequest {
+  int64 policy_id = 1;
+  optional string name = 2;
+  optional string config = 3;  // JSON string
+  optional int32 priority = 4;
+  optional bool is_active = 5;
+}
+
+message DeletePolicyRequest {
+  int64 policy_id = 1;
+}
+
+message ListPoliciesRequest {}
+
+// ─── Application / Usage ───
+
+message ListBandwidthApplicationsRequest {}
+
+message GetBandwidthUsageRequest {
+  int64 subscription_id = 1;
+}
+
+// ─── Responses ───
+
+message BandwidthProfile {
+  int64 id = 1;
+  string name = 2;
+  int32 download_kbps = 3;
+  int32 upload_kbps = 4;
+  bool is_active = 5;
+}
+
+message BandwidthPolicy {
+  int64 id = 1;
+  string name = 2;
+  string policy_type = 3;
+  string config = 4;  // JSON string
+  int32 priority = 5;
+  bool is_active = 6;
+}
+
+message BandwidthApplication {
+  int64 id = 1;
+  int64 profile_id = 2;
+  int64 subscription_id = 3;
+  string status = 4;
+  string applied_at = 5;
+  int32 retry_count = 6;
+  string created_at = 7;
+}
+
+message ApplyProfileResponse {
+  int64 profile_id = 1;
+  int32 updated_count = 2;
+}
+
+message ApplyToSubscriptionResponse {
+  int64 id = 1;
+  int64 subscription_id = 2;
+  int64 profile_id = 3;
+  string status = 4;
+}
+
+message ListProfilesResponse {
+  repeated BandwidthProfile profiles = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListPoliciesResponse {
+  repeated BandwidthPolicy policies = 1;
+}
+
+message ListBandwidthApplicationsResponse {
+  repeated BandwidthApplication applications = 1;
+}

@@ -285,7 +285,7 @@ impl HuaweiOltSshAdapter {
         };
 
         Ok(CliResult {
-            success: true,
+            success: !output.contains("Error") && !output.contains("Failure") && !output.contains("error"),
             output,
             error: None,
         })
@@ -520,11 +520,26 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
             if line.contains("Index:") && line.contains("Name:") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 4 {
+                    // Try to extract CIR and PIR from the line if present
+                    let mut cir_kbps = 0u32;
+                    let mut pir_kbps = 0u32;
+                    for part in &parts {
+                        if part.contains("CIR:") {
+                            cir_kbps = part.split(':').nth(1)
+                                .and_then(|v| v.trim_end_matches("Kbps").trim().parse().ok())
+                                .unwrap_or(0);
+                        }
+                        if part.contains("PIR:") {
+                            pir_kbps = part.split(':').nth(1)
+                                .and_then(|v| v.trim_end_matches("Kbps").trim().parse().ok())
+                                .unwrap_or(0);
+                        }
+                    }
                     tables.push(TrafficTable {
                         index: parts[1].parse().unwrap_or(0),
                         name: parts[3].to_string(),
-                        cir_kbps: 0,
-                        pir_kbps: 0,
+                        cir_kbps,
+                        pir_kbps,
                     });
                 }
             }

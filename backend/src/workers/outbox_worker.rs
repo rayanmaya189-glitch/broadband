@@ -94,7 +94,14 @@ impl OutboxWorker {
                         error = %e,
                         "Failed to publish event from outbox"
                     );
-                    // Don't mark as published - will retry on next tick
+                    // Record failure — increments retry_count; moves to DLQ after MAX_RETRIES
+                    if let Err(dlq_err) = outbox::record_publish_failure(&self.db, &event.event_id, &e.to_string()).await {
+                        error!(
+                            event_id = %event.event_id,
+                            error = %dlq_err,
+                            "Failed to record publish failure for outbox event"
+                        );
+                    }
                 }
             }
         }

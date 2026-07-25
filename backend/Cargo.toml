@@ -109,9 +109,22 @@ ssh2 = "0.9"
 # Regex for parsing CLI output
 regex = "1"
 
+# Protobuf serialization
+prost = "0.12"
+prost-types = "0.12"
+
+# Byte buffer manipulation (needed by prost)
+bytes = "1"
+
+# gRPC + HTTP transcoding (for protobuf support)
+tonic = "0.11"
+
 # OpenAPI documentation
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "8", features = ["axum"] }
+
+[build-dependencies]
+tonic-build = "0.11"
 
 [[bin]]
 name = "aeroxe-backend"

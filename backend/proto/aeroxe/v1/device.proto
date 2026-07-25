@@ -1,0 +1,150 @@
+syntax = "proto3";
+
+package aeroxe.v1.device;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message RegisterDeviceRequest {
+  int64 branch_id = 1;
+  string name = 2;
+  int64 device_model_id = 3;
+  string serial_number = 4;
+  string management_ip = 5;
+}
+
+message GetDeviceRequest {
+  int64 device_id = 1;
+}
+
+message ListDevicesRequest {
+  optional int64 branch_id = 1;
+}
+
+message UpdateDeviceStatusRequest {
+  int64 device_id = 1;
+  string status = 2;
+}
+
+message RestartDeviceRequest {
+  int64 device_id = 1;
+}
+
+message ShutdownDeviceRequest {
+  int64 device_id = 1;
+}
+
+message ConfigureDeviceRequest {
+  int64 device_id = 1;
+  string configuration = 2;  // JSON string
+}
+
+// ─── Port Requests ───
+
+message ListDevicePortsRequest {
+  int64 device_id = 1;
+}
+
+message UpdatePortRequest {
+  int64 device_id = 1;
+  int64 port_id = 2;
+  string status = 3;
+}
+
+// ─── Log / Metric Requests ───
+
+message ListDeviceLogsRequest {
+  int64 device_id = 1;
+  aeroxe.v1.PaginationRequest pagination = 2;
+}
+
+message ListDeviceMetricsRequest {
+  int64 device_id = 1;
+  aeroxe.v1.PaginationRequest pagination = 2;
+}
+
+// ─── Firmware Requests ───
+
+message GetFirmwareStatusRequest {
+  int64 device_id = 1;
+}
+
+message UpdateFirmwareRequest {
+  int64 device_id = 1;
+  string to_version = 2;
+}
+
+// ─── Responses ───
+
+message Device {
+  int64 id = 1;
+  string name = 2;
+  string serial_number = 3;
+  string management_ip = 4;
+  string status = 5;
+  optional int32 health_score = 6;
+}
+
+message DevicePort {
+  int64 id = 1;
+  int64 device_id = 2;
+  int32 port_number = 3;
+  optional string port_name = 4;
+  optional string port_type = 5;
+  optional int32 speed_mbps = 6;
+  string status = 7;
+}
+
+message DeviceLog {
+  int64 id = 1;
+  int64 device_id = 2;
+  string level = 3;
+  string message = 4;
+  optional string source = 5;
+  string created_at = 6;
+}
+
+message DeviceMetric {
+  int64 id = 1;
+  int64 device_id = 2;
+  string metric_name = 3;
+  string metric_value = 4;
+  optional string unit = 5;
+  string recorded_at = 6;
+}
+
+message FirmwareStatus {
+  int64 device_id = 1;
+  optional string firmware_version = 2;
+  optional string firmware_update_available = 3;
+  string status = 4;
+}
+
+message DeviceActionResponse {
+  int64 device_id = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+message ListDevicePortsResponse {
+  repeated DevicePort ports = 1;
+}
+
+message ListDeviceLogsResponse {
+  repeated DeviceLog items = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListDeviceMetricsResponse {
+  repeated DeviceMetric items = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}

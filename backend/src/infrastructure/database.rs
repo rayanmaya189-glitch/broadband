@@ -16,6 +16,7 @@ pub async fn create_database_pool(
 }
 
 /// Helper to set history context variables for PostgreSQL triggers.
+/// SECURITY: All values are parameterized to prevent SQL injection.
 pub async fn set_history_context(
     db: &DatabaseConnection,
     user_id: i64,
@@ -23,49 +24,60 @@ pub async fn set_history_context(
     ip_address: Option<&str>,
     user_agent: Option<&str>,
 ) -> Result<(), sea_orm::DbErr> {
-    use sea_orm::{ConnectionTrait, Statement};
+    use sea_orm::{ConnectionTrait, Statement, Value as SeaValue};
 
-    db.execute(Statement::from_string(
+    db.execute(Statement::from_sql_and_values(
         db.get_database_backend(),
-        format!(
-            "SELECT set_config('app.current_user_id', '{}', true)",
-            user_id
-        ),
+        "SELECT set_config('app.current_user_id', $1, true)",
+        vec![SeaValue::BigInt(Some(user_id))],
     ))
     .await?;
 
     if let Some(branch) = branch_id {
-        db.execute(Statement::from_string(
+        db.execute(Statement::from_sql_and_values(
             db.get_database_backend(),
-            format!(
-                "SELECT set_config('app.current_branch_id', '{}', true)",
-                branch
-            ),
+            "SELECT set_config('app.current_branch_id', $1, true)",
+            vec![SeaValue::BigInt(Some(branch))],
         ))
         .await?;
     }
 
     if let Some(ip) = ip_address {
-        db.execute(Statement::from_string(
+        // Sanitize IP address: only allow valid IPv4/IPv6 patterns
+        let sanitized_ip = sanitize_ip_address(ip);
+        db.execute(Statement::from_sql_and_values(
             db.get_database_backend(),
-            format!(
-                "SELECT set_config('app.current_ip_address', '{}', true)",
-                ip
-            ),
+            "SELECT set_config('app.current_ip_address', $1, true)",
+            vec![SeaValue::String(Some(Box::new(sanitized_ip)))],
         ))
         .await?;
     }
 
     if let Some(ua) = user_agent {
-        db.execute(Statement::from_string(
+        // Truncate user agent to prevent abuse
+        let truncated_ua: String = ua.chars().take(512).collect();
+        db.execute(Statement::from_sql_and_values(
             db.get_database_backend(),
-            format!(
-                "SELECT set_config('app.current_user_agent', '{}', true)",
-                ua
-            ),
+            "SELECT set_config('app.current_user_agent', $1, true)",
+            vec![SeaValue::String(Some(Box::new(truncated_ua)))],
         ))
         .await?;
     }
 
     Ok(())
+}
+
+/// Sanitize IP address — strip anything that isn't a valid IP character.
+/// Returns "unknown" if the input is empty or completely invalid.
+fn sanitize_ip_address(ip: &str) -> String {
+    let sanitized: String = ip
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == ':' || *c == 'a' || *c == 'f' || *c == 'A' || *c == 'F')
+        .take(45) // IPv6 max length
+        .collect();
+    if sanitized.is_empty() {
+        "unknown".to_string()
+    } else {
+        sanitized
+    }
 }

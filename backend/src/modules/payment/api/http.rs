@@ -223,34 +223,28 @@ pub async fn handle_razorpay_webhook(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
-    // 2. Get gateway config
-    let gateway = PaymentService::get_gateway_config(&state.db, "razorpay")
-        .await
-        .unwrap_or_else(|_| {
-            // Fallback for demo
-            crate::modules::payment::domain::entities::gateway_config::Model {
-                id: 0,
-                gateway_id: "razorpay".to_string(),
-                name: "Razorpay".to_string(),
-                is_primary: true,
-                is_active: true,
-                credentials: serde_json::json!({}),
-                webhook_secret: Some("test_secret".to_string()),
-                fee_percentage: sea_orm::prelude::Decimal::from(2),
-                fee_fixed: sea_orm::prelude::Decimal::from(0),
-                gst_on_fee: sea_orm::prelude::Decimal::from(18),
-                supported_methods: serde_json::json!(["upi", "card", "netbanking"]),
-                currency: "INR".to_string(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        });
+    // 2. Get gateway config — reject webhook if config is missing (no insecure fallback)
+    let gateway = match PaymentService::get_gateway_config(&state.db, "razorpay").await {
+        Ok(g) => g,
+        Err(_) => {
+            tracing::error!("Razorpay gateway config not found — webhook signature cannot be verified");
+            return Err(AppError::Internal(anyhow::anyhow!(
+                "Payment gateway config not configured. Set RAZORPAY_WEBHOOK_SECRET env or configure in DB."
+            )));
+        }
+    };
+
+    let webhook_secret = gateway.webhook_secret.ok_or_else(|| {
+        AppError::Internal(anyhow::anyhow!(
+            "Razorpay webhook_secret not configured — cannot verify webhook signature"
+        ))
+    })?;
 
     // 3. Verify signature
     let adapter = RazorpayAdapter {
         key_id: String::new(),
         key_secret: String::new(),
-        webhook_secret: gateway.webhook_secret.unwrap_or_default(),
+        webhook_secret,
     };
 
     if !adapter

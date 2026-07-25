@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package aeroxe.v1.subscription;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message CreateSubscriptionRequest {
+  int64 customer_id = 1;
+  int64 branch_id = 2;
+  int64 plan_id = 3;
+  int32 billing_period_months = 4;
+}
+
+message GetSubscriptionRequest {
+  int64 subscription_id = 1;
+}
+
+message ListSubscriptionsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+  optional int64 branch_id = 2;
+}
+
+message UpdateSubscriptionRequest {
+  int64 subscription_id = 1;
+  optional int32 billing_period_months = 2;
+  optional bool auto_renew = 3;
+}
+
+message UpgradeSubscriptionRequest {
+  int64 subscription_id = 1;
+  int64 new_plan_id = 2;
+  optional int32 new_billing_period_months = 3;
+}
+
+message DowngradeSubscriptionRequest {
+  int64 subscription_id = 1;
+  int64 new_plan_id = 2;
+  optional int32 new_billing_period_months = 3;
+}
+
+message CancelSubscriptionRequest {
+  int64 subscription_id = 1;
+}
+
+message SuspendSubscriptionRequest {
+  int64 subscription_id = 1;
+}
+
+message ReactivateSubscriptionRequest {
+  int64 subscription_id = 1;
+}
+
+message RenewSubscriptionRequest {
+  int64 subscription_id = 1;
+}
+
+message GetSubscriptionHistoryRequest {
+  int64 subscription_id = 1;
+}
+
+// ─── Responses ───
+
+message Subscription {
+  int64 id = 1;
+  int64 customer_id = 2;
+  int64 plan_id = 3;
+  string status = 4;
+  int32 billing_period_months = 5;
+  string start_date = 6;
+  optional string end_date = 7;
+  optional string next_billing_date = 8;
+  bool auto_renew = 9;
+  optional string review_status = 10;
+}
+
+message ListSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+}
+
+message SubscriptionHistoryResponse {
+  string entity_type = 1;
+  string entity_id = 2;
+  uint64 total = 3;
+  repeated SubscriptionHistoryEntry items = 4;
+}
+
+message SubscriptionHistoryEntry {
+  int64 id = 1;
+  string entity_id = 2;
+  string action = 3;
+  optional string old_data = 4;
+  optional string new_data = 5;
+  optional string changed_fields = 6;
+  optional int64 user_id = 7;
+  optional string user_name = 8;
+  optional string user_email = 9;
+  string created_at = 10;
+}

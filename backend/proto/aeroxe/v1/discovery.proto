@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package aeroxe.v1.discovery;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message CreateScanRequest {
+  string name = 1;
+  string scan_type = 2;
+}
+
+message ListScansRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message ListDiscoveryResultsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message ApproveDiscoveryResultRequest {
+  int64 result_id = 1;
+}
+
+// ─── Responses ───
+
+message Scan {
+  int64 id = 1;
+  string name = 2;
+  string scan_type = 3;
+  bool is_active = 4;
+}
+
+message DiscoveryResult {
+  int64 id = 1;
+  string discovered_ip = 2;
+  optional string vendor = 3;
+  optional string model = 4;
+  string status = 5;
+}
+
+message ListScansResponse {
+  repeated Scan scans = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListDiscoveryResultsResponse {
+  repeated DiscoveryResult results = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}

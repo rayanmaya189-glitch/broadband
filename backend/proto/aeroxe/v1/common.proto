@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package aeroxe.v1;
+
+// Standard response status codes
+enum ResponseStatus {
+  RESPONSE_STATUS_UNSPECIFIED = 0;
+  RESPONSE_STATUS_OK = 1;
+  RESPONSE_STATUS_ERROR = 2;
+  RESPONSE_STATUS_VALIDATION_ERROR = 3;
+  RESPONSE_STATUS_NOT_FOUND = 4;
+  RESPONSE_STATUS_UNAUTHORIZED = 5;
+  RESPONSE_STATUS_FORBIDDEN = 6;
+  RESPONSE_STATUS_CONFLICT = 7;
+}
+
+// Standard response envelope for all API responses
+message Response {
+  ResponseStatus status = 1;
+  bytes data = 2;           // Serialized inner message
+  ResponseError error = 3;
+  ResponseMeta meta = 4;
+}
+
+// Error details in response
+message ResponseError {
+  string code = 1;
+  string message = 2;
+  repeated FieldError details = 3;
+}
+
+// Field-level validation error
+message FieldError {
+  string field = 1;
+  string message = 2;
+}
+
+// Pagination metadata
+message ResponseMeta {
+  uint64 total_count = 1;
+  uint32 page = 2;
+  uint32 page_size = 3;
+  string next_cursor = 4;
+  bool has_more = 5;
+}
+
+// Pagination request (for list operations)
+message PaginationRequest {
+  uint32 page = 1;             // 1-indexed, default 1
+  uint32 page_size = 2;        // Default 20, max 100
+  string sort_by = 3;          // Field name
+  string sort_order = 4;       // "asc" | "desc"
+  string cursor = 5;           // For cursor-based pagination (optional)
+}
+
+// Generic empty request for operations that don't need input
+message EmptyRequest {}

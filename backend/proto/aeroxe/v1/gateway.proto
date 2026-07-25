@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package aeroxe.v1.gateway;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Rate Limit Rule Requests ───
+
+message CreateRateLimitRuleRequest {
+  string route_pattern = 1;
+  string methods = 2;
+  int32 max_requests = 3;
+  int32 window_seconds = 4;
+  optional string role = 5;
+  optional int64 branch_id = 6;
+}
+
+message ListRateLimitRulesRequest {}
+
+message DeleteRateLimitRuleRequest {
+  int64 rule_id = 1;
+}
+
+// ─── API Key Requests ───
+
+message CreateApiKeyRequest {
+  string name = 1;
+  string permissions = 2;
+  optional int64 branch_id = 3;
+  optional string expires_at = 4;
+}
+
+message ListApiKeysRequest {}
+
+message RevokeApiKeyRequest {
+  int64 key_id = 1;
+}
+
+// ─── Request Log Requests ───
+
+message ListRequestLogsRequest {
+  optional int64 limit = 1;
+}
+
+message GetRequestStatsRequest {}
+
+// ─── Responses ───
+
+message RateLimitRule {
+  int64 id = 1;
+  string route_pattern = 2;
+  string methods = 3;
+  int32 max_requests = 4;
+  int32 window_seconds = 5;
+  optional string role = 6;
+  bool is_active = 7;
+}
+
+message ApiKey {
+  int64 id = 1;
+  string name = 2;
+  string key_prefix = 3;
+  string permissions = 4;
+  bool is_active = 5;
+  optional string expires_at = 6;
+}
+
+message RequestLog {
+  int64 id = 1;
+  string method = 2;
+  string path = 3;
+  int32 status_code = 4;
+  int32 response_time_ms = 5;
+  bool rate_limited = 6;
+  string created_at = 7;
+}
+
+message ListRateLimitRulesResponse {
+  repeated RateLimitRule rules = 1;
+}
+
+message ListApiKeysResponse {
+  repeated ApiKey keys = 1;
+}
+
+message ListRequestLogsResponse {
+  repeated RequestLog logs = 1;
+}

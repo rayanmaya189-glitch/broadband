@@ -54,9 +54,9 @@ impl BillingService {
     ) -> Result<crate::modules::billing::domain::entities::invoice::Model, AppError> {
         let now = chrono::Utc::now();
         let invoice_number = format!(
-            "INV-{}-{:04}",
+            "INV-{}-{}",
             now.format("%Y%m"),
-            now.timestamp_millis() % 10000
+            ulid::Ulid::new()
         );
         let new_inv = InvoiceActiveModel {
             invoice_number: Set(invoice_number),
@@ -90,9 +90,9 @@ impl BillingService {
     ) -> Result<crate::modules::billing::domain::entities::payment::Model, AppError> {
         let now = chrono::Utc::now();
         let payment_number = format!(
-            "PAY-{}-{:04}",
+            "PAY-{}-{}",
             now.format("%Y%m"),
-            now.timestamp_millis() % 10000
+            ulid::Ulid::new()
         );
         let new_pay = PaymentActiveModel {
             payment_number: Set(payment_number),
@@ -108,11 +108,26 @@ impl BillingService {
             ..Default::default()
         };
         let payment = new_pay.insert(db).await?;
+
+        // Check if invoice is fully paid by summing all completed payments
         let inv = Invoice::find_by_id(invoice_id).one(db).await?;
         if let Some(i) = inv {
+            let total_amount = i.total_amount;
+            let total_paid = crate::modules::billing::domain::entities::payment::Entity::find()
+                .filter(crate::modules::billing::domain::entities::payment::Column::InvoiceId.eq(invoice_id))
+                .filter(crate::modules::billing::domain::entities::payment::Column::Status.eq("completed"))
+                .all(db)
+                .await?
+                .iter()
+                .fold(sea_orm::prelude::Decimal::ZERO, |acc, p| acc + p.amount);
+
             let mut active: InvoiceActiveModel = i.into();
-            active.status = Set("paid".to_string());
-            active.paid_at = Set(Some(now));
+            if total_paid >= total_amount {
+                active.status = Set("paid".to_string());
+                active.paid_at = Set(Some(now));
+            } else {
+                active.status = Set("partial".to_string());
+            }
             active.updated_at = Set(now);
             active.update(db).await?;
         }
@@ -203,9 +218,9 @@ impl BillingService {
 
             let now = chrono::Utc::now();
             let invoice_number = format!(
-                "INV-{}-{:04}",
+                "INV-{}-{}",
                 now.format("%Y%m"),
-                now.timestamp_millis() % 10000
+                ulid::Ulid::new()
             );
 
             let new_inv = InvoiceActiveModel {
@@ -292,9 +307,9 @@ impl BillingService {
     ) -> Result<crate::modules::billing::domain::entities::refund::Model, AppError> {
         let now = chrono::Utc::now();
         let refund_number = format!(
-            "REF-{}-{:04}",
+            "REF-{}-{}",
             now.format("%Y%m"),
-            now.timestamp_millis() % 10000
+            ulid::Ulid::new()
         );
         let new_refund = RefundActiveModel {
             refund_number: Set(refund_number),

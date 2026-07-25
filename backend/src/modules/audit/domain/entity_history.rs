@@ -5,7 +5,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 ///
 /// SECURITY: All entity_type inputs are validated against a whitelist
 /// to prevent SQL injection via table name interpolation.
-use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+/// All user-provided values use parameterized queries ($1, $2, etc.)
+/// to prevent SQL injection via value interpolation.
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement, Value as SeaValue};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -114,6 +116,25 @@ pub struct RollbackResult {
 /// Service for querying entity history and performing rollbacks.
 pub struct EntityHistoryService;
 
+/// Convert a serde_json::Value to a SeaORM Value for parameterized queries.
+fn json_to_sea_value(val: &Value) -> SeaValue {
+    match val {
+        Value::Null => SeaValue::String(None),
+        Value::Bool(b) => SeaValue::Bool(Some(*b)),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                SeaValue::BigInt(Some(i))
+            } else if let Some(f) = n.as_f64() {
+                SeaValue::Double(Some(f))
+            } else {
+                SeaValue::String(Some(Box::new(n.to_string())))
+            }
+        }
+        Value::String(s) => SeaValue::String(Some(Box::new(s.clone()))),
+        Value::Array(_) | Value::Object(_) => SeaValue::Json(Some(Box::new(val.clone()))),
+    }
+}
+
 impl EntityHistoryService {
     /// Search history entries for a given entity type with filters.
     pub async fn search_history(
@@ -132,11 +153,15 @@ impl EntityHistoryService {
 
         let table = format!("{}_history", entity_type);
 
-        // Build WHERE conditions using parameterized approach where possible
+        // Build WHERE conditions and bind parameters using parameterized queries
         let mut conditions = Vec::new();
+        let mut params: Vec<SeaValue> = Vec::new();
+        let mut param_idx: u32 = 1;
 
         if let Some(ref eid) = entity_id {
-            conditions.push(format!("h.entity_id = '{}'", eid));
+            conditions.push(format!("h.entity_id = ${}", param_idx));
+            params.push(SeaValue::String(Some(Box::new(eid.clone()))));
+            param_idx += 1;
         }
         if let Some(a) = action {
             // Whitelist allowed actions too
@@ -146,16 +171,28 @@ impl EntityHistoryService {
                     a
                 )));
             }
-            conditions.push(format!("h.action = '{}'", a));
+            conditions.push(format!("h.action = ${}", param_idx));
+            params.push(SeaValue::String(Some(Box::new(a.to_string()))));
+            param_idx += 1;
         }
         if let Some(uid) = user_id {
-            conditions.push(format!("h.user_id = {}", uid));
+            conditions.push(format!("h.user_id = ${}", param_idx));
+            params.push(SeaValue::BigInt(Some(uid)));
+            param_idx += 1;
         }
         if let Some(f) = from {
-            conditions.push(format!("h.created_at >= '{}'", f));
+            conditions.push(format!("h.created_at >= ${}", param_idx));
+            params.push(SeaValue::ChronoDateTime(Some(Box::new(
+                f.and_hms_opt(0, 0, 0).unwrap_or_default(),
+            ))));
+            param_idx += 1;
         }
         if let Some(t) = to {
-            conditions.push(format!("h.created_at <= '{}'", t));
+            conditions.push(format!("h.created_at <= ${}", param_idx));
+            params.push(SeaValue::ChronoDateTime(Some(Box::new(
+                t.and_hms_opt(23, 59, 59).unwrap_or_default(),
+            ))));
+            param_idx += 1;
         }
 
         let where_clause = if conditions.is_empty() {
@@ -165,11 +202,15 @@ impl EntityHistoryService {
         };
 
         // Get total count
-        let count_query = format!("SELECT COUNT(*) as count FROM {} h {}", table, where_clause);
+        let count_query = format!(
+            "SELECT COUNT(*) as count FROM {} h {}",
+            table, where_clause
+        );
         let count_result = db
-            .query_one(Statement::from_string(
+            .query_one(Statement::from_sql_and_values(
                 db.get_database_backend(),
-                count_query,
+                &count_query,
+                params.clone(),
             ))
             .await?
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Count query failed")))?;
@@ -177,18 +218,28 @@ impl EntityHistoryService {
 
         // Get paginated results with user join
         let offset = (page - 1) * limit;
+        // Add LIMIT and OFFSET as parameters
         let query = format!(
             "SELECT h.*, u.name as user_name, u.email as user_email
              FROM {} h
              LEFT JOIN users u ON h.user_id = u.id
              {}
              ORDER BY h.created_at DESC
-             LIMIT {} OFFSET {}",
-            table, where_clause, limit, offset
+             LIMIT ${} OFFSET ${}",
+            table,
+            where_clause,
+            param_idx,
+            param_idx + 1
         );
+        params.push(SeaValue::BigInt(Some(limit)));
+        params.push(SeaValue::BigInt(Some(offset)));
 
         let results = db
-            .query_all(Statement::from_string(db.get_database_backend(), query))
+            .query_all(Statement::from_sql_and_values(
+                db.get_database_backend(),
+                &query,
+                params,
+            ))
             .await?;
 
         let entries: Vec<HistoryEntry> = results
@@ -232,13 +283,17 @@ impl EntityHistoryService {
             "SELECT h.*, u.name as user_name, u.email as user_email
              FROM {} h
              LEFT JOIN users u ON h.user_id = u.id
-             WHERE h.id = '{}'
+             WHERE h.id = $1
              LIMIT 1",
-            table, history_id
+            table
         );
 
         let results = db
-            .query_all(Statement::from_string(db.get_database_backend(), query))
+            .query_all(Statement::from_sql_and_values(
+                db.get_database_backend(),
+                &query,
+                vec![SeaValue::String(Some(Box::new(history_id.to_string())))],
+            ))
             .await?;
 
         Ok(results.first().and_then(|row| {
@@ -366,43 +421,59 @@ impl EntityHistoryService {
         // 3. Safety checks per entity type
         Self::validate_rollback_safety(db, entity_type, entity_id).await?;
 
-        // 4. Build and execute restore query
+        // 4. Build and execute restore query using parameterized values
         if let Some(obj) = old_data.as_object() {
             let mut set_clauses = Vec::new();
+            let mut params: Vec<SeaValue> = Vec::new();
+            let mut param_idx: u32 = 1;
+
             for (key, value) in obj {
                 if ["id", "created_at"].contains(&key.as_str()) {
                     continue;
                 }
-                set_clauses.push(format!("{} = '{}'", key, value));
+                set_clauses.push(format!("{} = ${}", key, param_idx));
+                // Convert serde_json::Value to SeaValue
+                params.push(json_to_sea_value(value));
+                param_idx += 1;
             }
 
             if !set_clauses.is_empty() {
+                // Add entity_id as final parameter
+                params.push(SeaValue::String(Some(Box::new(entity_id.to_string()))));
                 let query = format!(
-                    "UPDATE {} SET {}, updated_at = NOW() WHERE id = '{}'",
+                    "UPDATE {} SET {}, updated_at = NOW() WHERE id = ${}",
                     entity_type,
                     set_clauses.join(", "),
-                    entity_id
+                    param_idx
                 );
-                db.execute(Statement::from_string(db.get_database_backend(), query))
-                    .await?;
+                db.execute(Statement::from_sql_and_values(
+                    db.get_database_backend(),
+                    &query,
+                    params,
+                ))
+                .await?;
             }
         }
 
-        // 5. Create rollback history entry
+        // 5. Create rollback history entry using parameterized values
         let rollback_query = format!(
             "INSERT INTO {}_history (entity_id, action, old_data, new_data, user_id, reason, rollback_reference, created_at)
-             VALUES ('{}', 'rollback', '{}', '{}', {}, '{}', '{}', NOW())",
-            entity_type,
-            entity_id,
-            entry.new_data.as_ref().map(|v| v.to_string()).unwrap_or_default(),
-            old_data,
-            admin_id,
-            reason,
-            history_id
+             VALUES ($1, 'rollback', $2, $3, $4, $5, $6, NOW())",
+            entity_type
         );
-        db.execute(Statement::from_string(
+        db.execute(Statement::from_sql_and_values(
             db.get_database_backend(),
-            rollback_query,
+            &rollback_query,
+            vec![
+                SeaValue::String(Some(Box::new(entity_id.to_string()))),
+                SeaValue::Json(Some(Box::new(
+                    entry.new_data.as_ref().cloned().unwrap_or_default(),
+                ))),
+                SeaValue::Json(Some(Box::new(old_data))),
+                SeaValue::BigInt(Some(admin_id)),
+                SeaValue::String(Some(Box::new(reason.to_string()))),
+                SeaValue::String(Some(Box::new(history_id.to_string()))),
+            ],
         ))
         .await?;
 
@@ -423,12 +494,10 @@ impl EntityHistoryService {
         match entity_type {
             "customers" => {
                 let count = db
-                    .query_one(Statement::from_string(
+                    .query_one(Statement::from_sql_and_values(
                         db.get_database_backend(),
-                        format!(
-                            "SELECT COUNT(*) as c FROM subscriptions WHERE customer_id = '{}' AND status = 'active'",
-                            entity_id
-                        ),
+                        "SELECT COUNT(*) as c FROM subscriptions WHERE customer_id = $1 AND status = 'active'",
+                        vec![SeaValue::String(Some(Box::new(entity_id.to_string())))],
                     ))
                     .await?
                     .map(|r| r.try_get::<i64>("", "c").unwrap_or(0))
@@ -441,12 +510,10 @@ impl EntityHistoryService {
             }
             "plans" => {
                 let count = db
-                    .query_one(Statement::from_string(
+                    .query_one(Statement::from_sql_and_values(
                         db.get_database_backend(),
-                        format!(
-                            "SELECT COUNT(*) as c FROM subscriptions WHERE plan_id = '{}' AND status = 'active'",
-                            entity_id
-                        ),
+                        "SELECT COUNT(*) as c FROM subscriptions WHERE plan_id = $1 AND status = 'active'",
+                        vec![SeaValue::String(Some(Box::new(entity_id.to_string())))],
                     ))
                     .await?
                     .map(|r| r.try_get::<i64>("", "c").unwrap_or(0))
@@ -459,12 +526,10 @@ impl EntityHistoryService {
             }
             "network_devices" => {
                 let count = db
-                    .query_one(Statement::from_string(
+                    .query_one(Statement::from_sql_and_values(
                         db.get_database_backend(),
-                        format!(
-                            "SELECT COUNT(*) as c FROM network_devices WHERE id = '{}' AND status = 'online'",
-                            entity_id
-                        ),
+                        "SELECT COUNT(*) as c FROM network_devices WHERE id = $1 AND status = 'online'",
+                        vec![SeaValue::String(Some(Box::new(entity_id.to_string())))],
                     ))
                     .await?
                     .map(|r| r.try_get::<i64>("", "c").unwrap_or(0))

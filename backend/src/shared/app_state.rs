@@ -11,6 +11,7 @@ use crate::shared::utils::jwt_keys::{JwtKeyPair, JwtKeyRotationManager};
 pub struct AppState {
     pub db: sea_orm::DatabaseConnection,
     pub redis: redis::aio::ConnectionManager,
+    pub redis_client: redis::Client,
     pub nats: Option<async_nats::Client>,
     pub event_publisher: Option<EventPublisher>,
     pub settings: Settings,
@@ -19,6 +20,9 @@ pub struct AppState {
     pub jwt_keys: Arc<JwtKeyPair>,
     pub jwt_rotation_manager: Arc<JwtKeyRotationManager>,
     pub metrics: Option<SharedMetrics>,
+    /// Semaphore to cap concurrent Redis Pub/Sub connections (used by WebSocket).
+    /// Each WS connection needs a dedicated Pub/Sub connection, so we limit to prevent exhaustion.
+    pub ws_pubsub_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
@@ -33,6 +37,8 @@ impl AppState {
         Self {
             db,
             redis: redis.clone(),
+            redis_client: redis::Client::open(settings.redis_url.as_str())
+                .expect("Failed to create Redis client"),
             nats: None,
             event_publisher: None,
             settings,
@@ -41,6 +47,7 @@ impl AppState {
             jwt_keys: Arc::new(jwt_keys),
             jwt_rotation_manager: Arc::new(rotation_manager),
             metrics: None,
+            ws_pubsub_semaphore: Arc::new(tokio::sync::Semaphore::new(100)),
         }
     }
 

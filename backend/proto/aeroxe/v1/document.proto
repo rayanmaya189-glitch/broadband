@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package aeroxe.v1.document;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message ListDocumentsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message ConfirmUploadRequest {
+  string filename = 1;
+  string mime_type = 2;
+  int64 file_size = 3;
+  string storage_bucket = 4;
+  string storage_key = 5;
+}
+
+message PresignUploadRequest {
+  string filename = 1;
+  string mime_type = 2;
+  int64 file_size = 3;
+  optional string bucket = 4;
+  optional string purpose = 5;
+}
+
+message GetDocumentRequest {
+  int64 document_id = 1;
+}
+
+message GetDownloadUrlRequest {
+  int64 document_id = 1;
+}
+
+message ListEntityDocumentsRequest {
+  string entity_type = 1;
+  int64 entity_id = 2;
+  aeroxe.v1.PaginationRequest pagination = 3;
+}
+
+message DeleteDocumentRequest {
+  int64 document_id = 1;
+}
+
+// ─── Responses ───
+
+message Document {
+  int64 id = 1;
+  string filename = 2;
+  string mime_type = 3;
+  int64 file_size = 4;
+  string status = 5;
+}
+
+message PresignUploadResponse {
+  string upload_url = 1;
+  string storage_key = 2;
+  string storage_bucket = 3;
+  uint64 expires_in_secs = 4;
+}
+
+message DownloadUrlResponse {
+  string url = 1;
+  string expires_at = 2;
+}
+
+message ListDocumentsResponse {
+  repeated Document documents = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}

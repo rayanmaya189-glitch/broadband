@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package aeroxe.v1.customer;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message CreateCustomerRequest {
+  int64 branch_id = 1;
+  string name = 2;
+  optional string email = 3;
+  string phone = 4;
+  optional string alternate_phone = 5;
+}
+
+message GetCustomerRequest {
+  int64 customer_id = 1;
+}
+
+message ListCustomersRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+  optional string status = 2;           // "active" | "suspended" | "terminated"
+  optional int64 branch_id = 3;
+}
+
+message UpdateCustomerRequest {
+  int64 customer_id = 1;
+  optional string name = 2;
+  optional string email = 3;
+  optional string phone = 4;
+  optional string alternate_phone = 5;
+}
+
+message UpdateCustomerStatusRequest {
+  int64 customer_id = 1;
+  string status = 2;
+}
+
+message DeleteCustomerRequest {
+  int64 customer_id = 1;
+}
+
+message SearchCustomersRequest {
+  optional string query = 1;            // Search by name, email, phone, code
+  optional string status = 2;
+}
+
+message GetCustomerHistoryRequest {
+  int64 customer_id = 1;
+  optional uint32 page = 2;
+  optional uint32 page_size = 3;
+}
+
+// ─── Address Requests ───
+
+message ListAddressesRequest {
+  int64 customer_id = 1;
+}
+
+message AddAddressRequest {
+  int64 customer_id = 1;
+  optional string address_type = 2;
+  string line1 = 3;
+  optional string line2 = 4;
+  string city = 5;
+  string state = 6;
+  string pincode = 7;
+  optional string landmark = 8;
+}
+
+// ─── Responses ───
+
+message Customer {
+  int64 id = 1;
+  string customer_code = 2;
+  int64 branch_id = 3;
+  string name = 4;
+  optional string email = 5;
+  string phone = 6;
+  string status = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message CustomerAddress {
+  int64 id = 1;
+  int64 customer_id = 2;
+  string address_type = 3;
+  string line1 = 4;
+  optional string line2 = 5;
+  string city = 6;
+  string state = 7;
+  string pincode = 8;
+  bool is_primary = 9;
+}
+
+message ListCustomersResponse {
+  repeated Customer customers = 1;
+  uint64 total_count = 2;
+  uint32 page = 3;
+  uint32 page_size = 4;
+}
+
+message ListAddressesResponse {
+  repeated CustomerAddress addresses = 1;
+}
+
+message CustomerHistoryEntry {
+  int64 id = 1;
+  string entity_id = 2;
+  string action = 3;
+  optional string old_data = 4;
+  optional string new_data = 5;
+  optional string changed_fields = 6;
+  optional int64 user_id = 7;
+  optional string user_name = 8;
+  optional string user_email = 9;
+  string created_at = 10;
+}
+
+message CustomerHistoryResponse {
+  string entity_type = 1;
+  string entity_id = 2;
+  uint64 total_count = 3;
+  repeated CustomerHistoryEntry items = 4;
+}

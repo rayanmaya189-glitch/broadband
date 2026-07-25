@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package aeroxe.v1.notification;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Template Requests ───
+
+message CreateTemplateRequest {
+  string name = 1;
+  string channel = 2;
+  string body_template = 3;
+  optional string subject_template = 4;
+}
+
+message UpdateTemplateRequest {
+  int64 template_id = 1;
+  optional string subject = 2;
+  optional string body = 3;
+  optional string channel = 4;
+}
+
+message DeleteTemplateRequest {
+  int64 template_id = 1;
+}
+
+message ListTemplatesRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+// ─── Notification Requests ───
+
+message SendNotificationRequest {
+  string channel = 1;
+  string recipient_type = 2;
+  int64 recipient_id = 3;
+  string recipient_address = 4;
+  optional string subject = 5;
+  string body = 6;
+}
+
+message ListNotificationsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message RetryNotificationRequest {
+  int64 notification_id = 1;
+}
+
+message RetryFailedNotificationsRequest {}
+
+// ─── Channel Requests ───
+
+message ListChannelsRequest {}
+
+message UpdateChannelRequest {
+  int64 channel_id = 1;
+  optional bool is_active = 2;
+  optional string config = 3;  // JSON string
+}
+
+// ─── Delivery History ───
+
+message ListDeliveryHistoryRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+  optional string status = 2;
+  optional string channel = 3;
+}
+
+// ─── Responses ───
+
+message Template {
+  int64 id = 1;
+  string name = 2;
+  string channel = 3;
+  bool is_active = 4;
+}
+
+message Notification {
+  int64 id = 1;
+  string channel = 2;
+  string status = 3;
+  string recipient_address = 4;
+}
+
+message Channel {
+  int64 id = 1;
+  string name = 2;
+  string channel_type = 3;
+  bool is_active = 4;
+  optional string config = 5;  // JSON string
+}
+
+message DeliveryHistory {
+  int64 id = 1;
+  int64 notification_id = 2;
+  string channel = 3;
+  string status = 4;
+  int32 attempts = 5;
+  optional string last_error = 6;
+  optional string sent_at = 7;
+}
+
+message ListTemplatesResponse {
+  repeated Template templates = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  uint64 total = 2;
+}
+
+message ListChannelsResponse {
+  repeated Channel channels = 1;
+}
+
+message ListDeliveryHistoryResponse {
+  repeated DeliveryHistory items = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message RetryFailedResponse {
+  int32 retried = 1;
+  string message = 2;
+}

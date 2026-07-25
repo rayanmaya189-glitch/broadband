@@ -208,19 +208,22 @@ async fn handle_socket(
             .await;
     }
 
-    // Subscribe to Redis Pub/Sub channels and forward messages to the WebSocket client
-    let redis_client = match redis::Client::open(state.settings.redis_url.as_str()) {
-        Ok(c) => c,
-        Err(e) => {
-            warn!(user_id = user_id, error = %e, "Failed to create Redis client for pub/sub");
+    // Subscribe to Redis Pub/Sub channels and forward messages to the WebSocket client.
+    // Use a semaphore to cap concurrent Pub/Sub connections and prevent Redis exhaustion.
+    let _permit = match state.ws_pubsub_semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            warn!(
+                user_id = user_id,
+                "WebSocket Pub/Sub connection limit reached, rejecting connection"
+            );
             return;
         }
     };
 
-    // `get_async_connection` is deprecated in favor of `get_multiplexed_async_connection`,
-    // but `into_pubsub()` is only available on the non-multiplexed `Connection` type.
+    // Use the shared redis::Client from AppState instead of creating a new one per connection.
     #[allow(deprecated)]
-    let conn = match redis_client.get_async_connection().await {
+    let conn = match state.redis_client.get_async_connection().await {
         Ok(c) => c,
         Err(e) => {
             warn!(user_id = user_id, error = %e, "Failed to get async Redis connection for pub/sub");

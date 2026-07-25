@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+package aeroxe.v1.referral;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Referral Requests ───
+
+message CreateReferralRequest {
+  int64 program_id = 1;
+  string referee_phone = 2;
+  string referral_code = 3;
+}
+
+message ListReferralsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message ShareReferralRequest {
+  string referred_phone = 1;
+  string channel = 2;
+}
+
+message GetMyReferralCodeRequest {}
+
+message ListMyReferralsRequest {}
+
+message GetReferralStatsRequest {}
+
+// ─── Program Requests ───
+
+message CreateProgramRequest {
+  string name = 1;
+  string reward_type = 2;
+  string reward_value = 3;
+  optional int32 max_referrals_per_user = 4;
+  string valid_from = 5;
+  string valid_until = 6;
+}
+
+message UpdateProgramRequest {
+  int64 program_id = 1;
+  optional string name = 2;
+  optional string reward_type = 3;
+  optional string reward_value = 4;
+  optional int32 max_referrals_per_user = 5;
+  optional string valid_from = 6;
+  optional string valid_until = 7;
+}
+
+message DeleteProgramRequest {
+  int64 program_id = 1;
+}
+
+message ListProgramsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+// ─── Wallet Requests ───
+
+message GetWalletRequest {}
+
+message ListWalletsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message AdjustWalletRequest {
+  int64 wallet_id = 1;
+  string amount = 2;
+  string reason = 3;
+}
+
+message GetAnalyticsRequest {}
+
+// ─── Responses ───
+
+message Referral {
+  int64 id = 1;
+  string referral_code = 2;
+  string status = 3;
+  string referee_phone = 4;
+}
+
+message Wallet {
+  int64 id = 1;
+  int64 customer_id = 2;
+  string balance = 3;
+  string total_earned = 4;
+}
+
+message ReferralProgram {
+  int64 id = 1;
+  string name = 2;
+  string reward_type = 3;
+  string reward_value = 4;
+  optional int32 max_referrals_per_user = 5;
+  string valid_from = 6;
+  string valid_until = 7;
+  bool is_active = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message WalletTransaction {
+  int64 id = 1;
+  int64 wallet_id = 2;
+  string transaction_type = 3;
+  string amount = 4;
+  string description = 5;
+  string created_at = 6;
+}
+
+message ReferralStats {
+  string referral_code = 1;
+  int64 total_shared = 2;
+  int64 total_registered = 3;
+  int64 total_active = 4;
+  int64 total_rewarded = 5;
+  string total_reward_amount = 6;
+  string wallet_balance = 7;
+  string wallet_total_earned = 8;
+}
+
+message ReferralAnalytics {
+  int64 total_referrals = 1;
+  int64 total_shared = 2;
+  int64 total_active = 3;
+  int64 total_rewarded = 4;
+  string conversion_rate = 5;
+  string total_rewards_paid = 6;
+}
+
+message ListReferralsResponse {
+  repeated Referral referrals = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListProgramsResponse {
+  repeated ReferralProgram programs = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListWalletsResponse {
+  repeated Wallet wallets = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ShareReferralResponse {
+  int64 id = 1;
+  string referral_code = 2;
+  string status = 3;
+  string referee_phone = 4;
+  string channel = 5;
+}

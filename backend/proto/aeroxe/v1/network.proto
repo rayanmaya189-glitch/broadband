@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package aeroxe.v1.network;
+
+import "aeroxe/v1/common.proto";
+
+// ─── VLAN Requests ───
+
+message CreateVlanRequest {
+  int64 branch_id = 1;
+  int32 vlan_id = 2;
+  string name = 3;
+  string vlan_type = 4;
+}
+
+message ListVlansRequest {
+  optional int64 branch_id = 1;
+}
+
+message GetVlanRequest {
+  int64 vlan_id = 1;
+}
+
+message UpdateVlanRequest {
+  int64 vlan_id = 1;
+  string name = 2;
+  string vlan_type = 3;
+}
+
+message DeleteVlanRequest {
+  int64 vlan_id = 1;
+}
+
+// ─── IP Pool Requests ───
+
+message CreateIpPoolRequest {
+  int64 branch_id = 1;
+  string name = 2;
+  string cidr = 3;
+  string gateway = 4;
+  optional int64 vlan_id = 5;
+  string pool_type = 6;
+  int32 total_count = 7;
+}
+
+message ListIpPoolsRequest {
+  optional int64 branch_id = 1;
+}
+
+message GetIpPoolRequest {
+  int64 pool_id = 1;
+}
+
+message UpdateIpPoolRequest {
+  int64 pool_id = 1;
+  string name = 2;
+  string gateway = 3;
+}
+
+message AllocateIpRequest {
+  int64 pool_id = 1;
+  int64 customer_id = 2;
+}
+
+message ReleaseIpRequest {
+  int64 pool_id = 1;
+  int64 customer_id = 2;
+}
+
+message ListPoolAddressesRequest {
+  int64 pool_id = 1;
+}
+
+// ─── PPPoE Requests ───
+
+message CreatePppoeRequest {
+  int64 branch_id = 1;
+  int64 customer_id = 2;
+  int64 subscription_id = 3;
+  string username = 4;
+  string password_encrypted = 5;
+}
+
+message ListPppoeSessionsRequest {
+  optional int64 branch_id = 1;
+}
+
+message TerminatePppoeSessionRequest {
+  int64 session_id = 1;
+}
+
+// ─── MAC Binding Requests ───
+
+message CreateMacBindingRequest {
+  int64 branch_id = 1;
+  int64 customer_id = 2;
+  int64 subscription_id = 3;
+  string mac_address = 4;
+  string assigned_ip = 5;
+}
+
+message ListMacBindingsRequest {
+  optional int64 branch_id = 1;
+}
+
+// ─── DHCP Requests ───
+
+message ListDhcpLeasesRequest {
+  optional int64 branch_id = 1;
+}
+
+// ─── Topology / Sessions ───
+
+message GetTopologyRequest {
+  optional int64 branch_id = 1;
+}
+
+message ListCustomerSessionsRequest {
+  optional int64 branch_id = 1;
+}
+
+// ─── Responses ───
+
+message Vlan {
+  int64 id = 1;
+  int64 branch_id = 2;
+  int32 vlan_id = 3;
+  string name = 4;
+  string vlan_type = 5;
+  bool is_active = 6;
+}
+
+message IpPool {
+  int64 id = 1;
+  string name = 2;
+  string cidr = 3;
+  string gateway = 4;
+  int32 allocated_count = 5;
+  int32 total_count = 6;
+  string status = 7;
+}
+
+message PppoeSession {
+  int64 id = 1;
+  string username = 2;
+  optional string assigned_ip = 3;
+  string status = 4;
+  int64 customer_id = 5;
+}
+
+message MacBinding {
+  int64 id = 1;
+  string mac_address = 2;
+  string assigned_ip = 3;
+  int64 customer_id = 4;
+  bool is_active = 5;
+}
+
+message DhcpLease {
+  int64 id = 1;
+  int64 branch_id = 2;
+  string ip_address = 3;
+  string mac_address = 4;
+  optional string hostname = 5;
+  string lease_start = 6;
+  optional string lease_end = 7;
+  string status = 8;
+}
+
+message ListVlansResponse {
+  repeated Vlan vlans = 1;
+}
+
+message ListIpPoolsResponse {
+  repeated IpPool pools = 1;
+}
+
+message ListPppoeSessionsResponse {
+  repeated PppoeSession sessions = 1;
+}
+
+message ListMacBindingsResponse {
+  repeated MacBinding bindings = 1;
+}
+
+message ListDhcpLeasesResponse {
+  repeated DhcpLease leases = 1;
+}

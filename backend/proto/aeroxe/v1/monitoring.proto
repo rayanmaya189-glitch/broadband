@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package aeroxe.v1.monitoring;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Metric Requests ───
+
+message ListMetricsRequest {
+  optional int64 device_id = 1;
+  optional string metric_name = 2;
+  optional int64 limit = 3;
+}
+
+message GetDeviceMetricsRequest {
+  int64 device_id = 1;
+  optional string metric_name = 2;
+  optional int64 limit = 3;
+}
+
+// ─── Alert Requests ───
+
+message ListAlertsRequest {
+  optional string severity = 1;
+  optional string status = 2;
+  optional int64 branch_id = 3;
+}
+
+message CreateAlertRequest {
+  int64 device_id = 1;
+  int64 branch_id = 2;
+  string severity = 3;
+  string title = 4;
+  string message = 5;
+}
+
+message AcknowledgeAlertRequest {
+  int64 alert_id = 1;
+  int64 user_id = 2;
+}
+
+message ResolveAlertRequest {
+  int64 alert_id = 1;
+  int64 user_id = 2;
+  optional string notes = 3;
+}
+
+message GetAlertStatsRequest {}
+
+// ─── Responses ───
+
+message MetricRecord {
+  int64 id = 1;
+  int64 device_id = 2;
+  int64 branch_id = 3;
+  string metric_name = 4;
+  string metric_value = 5;
+  optional string unit = 6;
+  string recorded_at = 7;
+}
+
+message MonitoringAlert {
+  int64 id = 1;
+  int64 device_id = 2;
+  int64 branch_id = 3;
+  string severity = 4;
+  string status = 5;
+  string title = 6;
+  string message = 7;
+  optional int64 acknowledged_by = 8;
+  optional int64 resolved_by = 9;
+  optional string resolved_at = 10;
+  string created_at = 11;
+}
+
+message AlertStats {
+  int64 total_active = 1;
+  int64 critical = 2;
+  int64 high = 3;
+  int64 medium = 4;
+  int64 low = 5;
+  map<string, int64> by_branch = 6;
+}
+
+message MetricsResponse {
+  repeated MetricRecord metrics = 1;
+  int64 total = 2;
+}
+
+message AlertsResponse {
+  repeated MonitoringAlert alerts = 1;
+  int64 total = 2;
+}
+
+message AlertCreatedResponse {
+  int64 id = 1;
+  string status = 2;
+  string created_at = 3;
+}

@@ -484,7 +484,7 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
             "name": username,
             "password": password,
             "service": service,
-            "profile": "default",
+            "profile": "default-encryption",
         });
 
         self.rest_post("/ppp/secret", body).await?;
@@ -510,12 +510,45 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
         Ok(())
     }
 
+    /// Execute a raw RouterOS command — restricted to safe read-only commands
     async fn execute_command(&self, command: &str) -> Result<serde_json::Value, AppError> {
-        // For REST API, we can use /run endpoint
-        let body = serde_json::json!({
-            "command": command,
-        });
+        // Whitelist: only allow safe read-only commands to prevent destructive operations
+        let cmd_lower = command.to_lowercase();
+        let allowed = [
+            "/system resource print",
+            "/system identity print",
+            "/interface print",
+            "/interface pppoe-server print",
+            "/ip address print",
+            "/ip pool print",
+            "/queue simple print",
+            "/ppp secret print",
+            "/ppp active print",
+            "/log print",
+            "/system clock print",
+            "/interface ethernet print",
+        ];
+        if !allowed.iter().any(|a| cmd_lower.starts_with(a)) {
+            return Err(AppError::Forbidden(format!(
+                "Command not allowed: {}. Only read-only commands are permitted via execute_command.",
+                command
+            )));
+        }
 
-        self.rest_post("/run", body).await
+        let cmd_path = match cmd_lower.split_whitespace().next() {
+            Some(cmd) => {
+                // Map command to REST API path
+                if cmd.starts_with("/system") { "/system" }
+                else if cmd.starts_with("/interface") { "/interface" }
+                else if cmd.starts_with("/ip") { "/ip" }
+                else if cmd.starts_with("/queue") { "/queue/simple" }
+                else if cmd.starts_with("/ppp") { "/ppp/secret" }
+                else if cmd.starts_with("/log") { "/log" }
+                else { return Err(AppError::Forbidden(format!("Unsupported command: {}", command))); }
+            }
+            None => return Err(AppError::Validation("Empty command".to_string())),
+        };
+
+        self.rest_get(cmd_path).await
     }
 }

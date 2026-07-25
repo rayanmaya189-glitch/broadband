@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package aeroxe.v1.branches;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message CreateBranchRequest {
+  string name = 1;
+  string slug = 2;
+  string code = 3;
+  string city = 4;
+  optional string state = 5;
+  optional string address = 6;
+  optional string phone = 7;
+  optional string email = 8;
+}
+
+message GetBranchRequest {
+  int64 branch_id = 1;
+}
+
+message ListBranchesRequest {}
+
+message UpdateBranchRequest {
+  int64 branch_id = 1;
+  optional string name = 2;
+  optional string city = 3;
+  optional string state = 4;
+  optional string address = 5;
+  optional string phone = 6;
+  optional string email = 7;
+}
+
+message DeleteBranchRequest {
+  int64 branch_id = 1;
+}
+
+message GetBranchHierarchyRequest {}
+
+// ─── Working Hours Requests ───
+
+message WorkingHoursEntry {
+  int32 day_of_week = 1;
+  string open_time = 2;
+  string close_time = 3;
+  bool is_closed = 4;
+}
+
+message GetWorkingHoursRequest {
+  int64 branch_id = 1;
+}
+
+message UpdateWorkingHoursRequest {
+  int64 branch_id = 1;
+  repeated WorkingHoursEntry entries = 2;
+}
+
+// ─── Branch Users ───
+
+message AssignBranchUserRequest {
+  int64 branch_id = 1;
+  int64 user_id = 2;
+  string role = 3;
+}
+
+message RemoveBranchUserRequest {
+  int64 branch_id = 1;
+  int64 user_id = 2;
+}
+
+// ─── Stats ───
+
+message GetBranchStatsRequest {
+  int64 branch_id = 1;
+}
+
+// ─── Responses ───
+
+message Branch {
+  int64 id = 1;
+  string name = 2;
+  string slug = 3;
+  string code = 4;
+  string city = 5;
+  string state = 6;
+  optional string address = 7;
+  optional string phone = 8;
+  optional string email = 9;
+  string timezone = 10;
+  bool is_active = 11;
+}
+
+message WorkingHours {
+  int64 id = 1;
+  int64 branch_id = 2;
+  int32 day_of_week = 3;
+  string open_time = 4;
+  string close_time = 5;
+  bool is_closed = 6;
+}
+
+message BranchUser {
+  int64 id = 1;
+  int64 branch_id = 2;
+  int64 user_id = 3;
+  string role = 4;
+}
+
+message ListBranchesResponse {
+  repeated Branch branches = 1;
+}
+
+message GetWorkingHoursResponse {
+  repeated WorkingHours hours = 1;
+}
+
+message UpdateWorkingHoursResponse {
+  repeated WorkingHours hours = 1;
+}

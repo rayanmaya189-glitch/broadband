@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package aeroxe.v1.admin;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message SeedDataRequest {}
+
+// ─── Responses ───
+
+message SeedResponse {
+  string message = 1;
+  int32 roles_created = 2;
+  int32 permissions_created = 3;
+}

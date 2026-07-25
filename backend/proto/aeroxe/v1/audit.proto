@@ -1,0 +1,169 @@
+syntax = "proto3";
+
+package aeroxe.v1.audit;
+
+import "aeroxe/v1/common.proto";
+
+// ─── History Requests ───
+
+message SearchHistoryRequest {
+  string entity_type = 1;
+  optional string entity_id = 2;
+  optional string action = 3;
+  optional int64 user_id = 4;
+  optional string from_date = 5;
+  optional string to_date = 6;
+  aeroxe.v1.PaginationRequest pagination = 7;
+}
+
+message GetHistoryEntryRequest {
+  string entity_type = 1;
+  string history_id = 2;
+}
+
+message RollbackEntityRequest {
+  string entity_type = 1;
+  string entity_id = 2;
+  string history_id = 3;
+  string reason = 4;
+}
+
+message CompareHistoryRequest {
+  string entity_type = 1;
+  string entity_id = 2;
+  string version_a = 3;
+  string version_b = 4;
+}
+
+message ExportHistoryRequest {
+  string entity_type = 1;
+  string entity_id = 2;
+  optional string format = 3;
+}
+
+message ListEntityTypesRequest {}
+
+// ─── Audit Log Requests ───
+
+message SearchAuditLogsRequest {
+  optional int64 user_id = 1;
+  optional string action = 2;
+  optional string resource_type = 3;
+  optional string result = 4;
+  aeroxe.v1.PaginationRequest pagination = 5;
+}
+
+message GetAuditLogRequest {
+  int64 log_id = 1;
+}
+
+message GetUserActivityRequest {
+  int64 user_id = 1;
+  optional int64 limit = 2;
+}
+
+message ExportAuditLogsRequest {
+  optional int64 user_id = 1;
+  optional string action = 2;
+  optional string resource_type = 3;
+  optional string result = 4;
+}
+
+// ─── Event Requests ───
+
+message ListEventsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+  optional string event_type = 2;
+  optional string aggregate_type = 3;
+  optional string status = 4;
+}
+
+message ExportEventsRequest {
+  optional string event_type = 1;
+  optional string from = 2;
+  optional string to = 3;
+  optional string format = 4;
+}
+
+message ReplayEventRequest {
+  int64 event_id = 1;
+}
+
+// ─── Responses ───
+
+message HistoryEntry {
+  string id = 1;
+  string entity_type = 2;
+  string entity_id = 3;
+  string action = 4;
+  optional string old_data = 5;
+  optional string new_data = 6;
+  optional string changed_fields = 7;
+  optional int64 user_id = 8;
+  optional string user_name = 9;
+  optional string user_email = 10;
+  string created_at = 11;
+}
+
+message HistoryDiff {
+  string entity_type = 1;
+  string entity_id = 2;
+  string version_a = 3;
+  string version_b = 4;
+  repeated DiffField fields = 5;
+}
+
+message DiffField {
+  string field = 1;
+  optional string old_value = 2;
+  optional string new_value = 3;
+}
+
+message AuditLog {
+  int64 id = 1;
+  optional int64 user_id = 2;
+  string action = 3;
+  string resource_type = 4;
+  optional string result = 5;
+  string created_at = 6;
+}
+
+message RollbackResult {
+  string status = 1;
+  string history_id = 2;
+  string entity_type = 3;
+  string entity_id = 4;
+  string restored_from = 5;
+}
+
+message ReplayResult {
+  string status = 1;
+  int64 event_id = 2;
+}
+
+message SearchHistoryResponse {
+  repeated HistoryEntry entries = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message SearchAuditLogsResponse {
+  repeated AuditLog logs = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListEntityTypesResponse {
+  repeated string entity_types = 1;
+}
+
+message ExportHistoryResponse {
+  string entity_type = 1;
+  string entity_id = 2;
+  string exported_at = 3;
+  int64 count = 4;
+  string format = 5;
+  repeated HistoryEntry data = 6;
+}

@@ -2,10 +2,18 @@
 //! Delegates to the docs module for the canonical ApiDoc definition.
 //! Provides OpenAPI JSON spec at /api-docs/openapi.json.
 
-/// Create the OpenAPI JSON spec router.
-/// Swagger UI is served from routes::health_routes() at /swagger-ui.
+/// Create the OpenAPI JSON spec router (only in non-production).
 pub fn swagger_routes() -> axum::Router<crate::shared::app_state::SharedState> {
     use axum::routing::get;
+
+    let is_prod = std::env::var("APP_ENV")
+        .unwrap_or_default()
+        .to_lowercase()
+        == "production";
+
+    if is_prod {
+        return axum::Router::new();
+    }
 
     axum::Router::new().route(
         "/api-docs/openapi.json",

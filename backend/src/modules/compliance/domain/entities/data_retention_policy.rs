@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Data retention policies defining how long different data types are kept.
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(schema_name = "compliance", table_name = "")]
+#[sea_orm(schema_name = "compliance", table_name = "data_retention_policies")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,

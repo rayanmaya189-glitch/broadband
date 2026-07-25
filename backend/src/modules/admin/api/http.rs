@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 
 #[derive(Debug, serde::Serialize)]
 pub struct SeedResponse {
@@ -16,10 +16,14 @@ pub struct SeedResponse {
 }
 
 /// POST /api/v1/admin/seed
+/// SECURITY: Requires admin.data.manage permission. Only super_admin should call this.
 pub async fn seed_data(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<(StatusCode, Json<SeedResponse>), AppError> {
+    // Require explicit permission — prevents accidental or malicious data seeding
+    require_permission(&user, "admin.data.manage")
+        .map_err(|(_, msg)| AppError::Forbidden(msg))?;
     use crate::modules::security::domain::entities::{Permission, PermissionColumn, Role, RoleColumn};
 
     let default_roles = vec![

@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package aeroxe.v1.installation;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Order Requests ───
+
+message CreateInstallationRequest {
+  int64 customer_id = 1;
+  optional int64 subscription_id = 2;
+}
+
+message GetInstallationRequest {
+  int64 installation_id = 1;
+}
+
+message ListInstallationsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+  optional int64 branch_id = 2;
+}
+
+message ScheduleInstallationRequest {
+  int64 installation_id = 1;
+  string scheduled_date = 2;
+  optional string scheduled_time_slot = 3;
+  optional int64 technician_id = 4;
+}
+
+message RescheduleInstallationRequest {
+  int64 installation_id = 1;
+  string new_date = 2;
+  optional string new_time_slot = 3;
+}
+
+message StartInstallationRequest {
+  int64 installation_id = 1;
+}
+
+message CompleteInstallationRequest {
+  int64 installation_id = 1;
+}
+
+message CancelInstallationRequest {
+  int64 installation_id = 1;
+}
+
+message ListMyAssignmentsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+// ─── Equipment Requests ───
+
+message ListEquipmentRequest {
+  int64 installation_id = 1;
+}
+
+message AddEquipmentRequest {
+  int64 installation_id = 1;
+  string equipment_type = 2;
+  optional string model_name = 3;
+  optional string serial_number = 4;
+  optional int32 quantity = 5;
+  optional string notes = 6;
+}
+
+message UpdateEquipmentStatusRequest {
+  int64 equipment_id = 1;
+  string status = 2;
+}
+
+// ─── Photo Requests ───
+
+message AddPhotoRequest {
+  int64 installation_id = 1;
+  string storage_key = 2;
+  string storage_bucket = 3;
+  string photo_type = 4;
+  optional string notes = 5;
+}
+
+// ─── Responses ───
+
+message Installation {
+  int64 id = 1;
+  int64 customer_id = 2;
+  string status = 3;
+  optional string scheduled_date = 4;
+}
+
+message Equipment {
+  int64 id = 1;
+  int64 installation_order_id = 2;
+  string equipment_type = 3;
+  optional string model_name = 4;
+  optional string serial_number = 5;
+  int32 quantity = 6;
+  string status = 7;
+  optional string notes = 8;
+}
+
+message Photo {
+  int64 id = 1;
+  int64 installation_order_id = 2;
+  string storage_key = 3;
+  string storage_bucket = 4;
+  string photo_type = 5;
+  optional int64 uploaded_by = 6;
+  optional string notes = 7;
+}
+
+message ListInstallationsResponse {
+  repeated Installation installations = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
+
+message ListEquipmentResponse {
+  repeated Equipment equipment = 1;
+}

@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package aeroxe.v1.compliance;
+
+import "aeroxe/v1/common.proto";
+
+// ─── KYC Requests ───
+
+message CreateKycRequest {
+  int64 customer_id = 1;
+  string document_type = 2;
+  string document_number_hash = 3;
+  optional string provider = 4;
+}
+
+message UpdateKycStatusRequest {
+  int64 kyc_id = 1;
+  string status = 2;
+  optional string rejection_reason = 3;
+  optional string provider_reference = 4;
+}
+
+message ListKycVerificationsRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message GetCustomerKycRequest {
+  int64 customer_id = 1;
+}
+
+// ─── Consent Requests ───
+
+message GrantConsentRequest {
+  int64 customer_id = 1;
+  string consent_type = 2;
+  string collection_channel = 3;
+  optional string ip_address = 4;
+  optional string user_agent = 5;
+}
+
+message RevokeConsentRequest {
+  int64 customer_id = 1;
+  string consent_type = 2;
+}
+
+message ListConsentsRequest {
+  int64 customer_id = 1;
+}
+
+message CheckConsentRequest {
+  int64 customer_id = 1;
+  string consent_type = 2;
+}
+
+// ─── Retention Policy Requests ───
+
+message CreateRetentionPolicyRequest {
+  string entity_type = 1;
+  int32 retention_days = 2;
+  string action = 3;
+  optional string description = 4;
+  optional string legal_basis = 5;
+}
+
+message UpdateRetentionPolicyRequest {
+  int64 policy_id = 1;
+  optional int32 retention_days = 2;
+  optional string action = 3;
+  optional bool is_active = 4;
+}
+
+message ListRetentionPoliciesRequest {}
+
+// ─── Responses ───
+
+message Kyc {
+  int64 id = 1;
+  int64 customer_id = 2;
+  string document_type = 3;
+  string status = 4;
+  optional string provider = 5;
+  optional string verified_at = 6;
+}
+
+message Consent {
+  int64 id = 1;
+  int64 customer_id = 2;
+  string consent_type = 3;
+  bool granted = 4;
+  string collection_channel = 5;
+  optional string revoked_at = 6;
+}
+
+message RetentionPolicy {
+  int64 id = 1;
+  string entity_type = 2;
+  int32 retention_days = 3;
+  string action = 4;
+  bool is_active = 5;
+  optional string description = 6;
+  optional string legal_basis = 7;
+}
+
+message CheckConsentResponse {
+  int64 customer_id = 1;
+  string consent_type = 2;
+  bool granted = 3;
+}
+
+message ListKycVerificationsResponse {
+  repeated Kyc kycs = 1;
+}
+
+message ListConsentsResponse {
+  repeated Consent consents = 1;
+}
+
+message ListRetentionPoliciesResponse {
+  repeated RetentionPolicy policies = 1;
+}

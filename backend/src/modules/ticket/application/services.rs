@@ -56,9 +56,9 @@ impl TicketService {
     ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
         let now = chrono::Utc::now();
         let ticket_number = format!(
-            "TKT-{}-{:04}",
+            "TKT-{}-{}",
             now.format("%Y%m"),
-            now.timestamp_millis() % 10000
+            ulid::Ulid::new()
         );
         let ticket = TicketActiveModel {
             ticket_number: Set(ticket_number),

@@ -6,14 +6,27 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::shared::app_state::SharedState;
 
 pub fn health_routes() -> Router<SharedState> {
-    Router::new()
-        .route("/health", get(health_check))
-        .route("/ready", get(readiness_check))
-        .route("/ws", get(crate::infrastructure::websocket::ws_handler))
-        .merge(
+    let swagger_ui = if std::env::var("APP_ENV")
+        .unwrap_or_default()
+        .to_lowercase()
+        != "production"
+    {
+        Router::new().merge(
             SwaggerUi::new("/swagger-ui")
                 .url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()),
         )
+    } else {
+        Router::new()
+    };
+
+    Router::new()
+        .route("/health", get(health_check))
+        .route("/ready", get(readiness_check))
+        .merge(swagger_ui)
+}
+
+pub fn ws_routes() -> Router<SharedState> {
+    Router::new().route("/ws", get(crate::infrastructure::websocket::ws_handler))
 }
 
 async fn health_check() -> axum::Json<serde_json::Value> {
@@ -29,6 +42,7 @@ async fn readiness_check(
 ) -> axum::Json<serde_json::Value> {
     use crate::modules::branches::domain::entities::branch;
     use sea_orm::{EntityTrait, QuerySelect};
+    use redis::RedisResult;
 
     let mut checks = serde_json::Map::new();
     let mut is_ready = true;
@@ -45,6 +59,33 @@ async fn readiness_check(
             );
             is_ready = false;
         }
+    }
+
+    // Check Redis connectivity
+    {
+        let mut conn = state.redis.clone();
+        let ping_result: RedisResult<String> = redis::cmd("PING")
+            .query_async(&mut conn)
+            .await;
+        match ping_result {
+            Ok(_) => {
+                checks.insert("redis".to_string(), serde_json::json!("ok"));
+            }
+            Err(e) => {
+                checks.insert(
+                    "redis".to_string(),
+                    serde_json::json!({"error": e.to_string()}),
+                );
+                is_ready = false;
+            }
+        }
+    }
+
+    // Check NATS connectivity (optional — degraded if unavailable)
+    if state.nats.is_some() {
+        checks.insert("nats".to_string(), serde_json::json!("ok"));
+    } else {
+        checks.insert("nats".to_string(), serde_json::json!("unavailable (non-critical)"));
     }
 
     let status = if is_ready { "ready" } else { "not_ready" };
@@ -206,25 +247,16 @@ fn branch_routes() -> Router<SharedState> {
 fn customer_routes() -> Router<SharedState> {
     use crate::modules::customer::api::http;
     Router::new()
-        .route(
-            "/",
-            axum::routing::get(http::list_customers).post(http::create_customer),
-        )
-        .route("/search", axum::routing::get(http::search_customers))
-        .route(
-            "/:id/history",
-            axum::routing::get(http::get_customer_history),
-        )
-        .route("/:id", axum::routing::get(http::get_customer).put(http::update_customer))
-        .route(
-            "/:id/status",
-            axum::routing::put(http::update_customer_status),
-        )
-        .route(
-            "/:id/addresses",
-            axum::routing::get(http::list_addresses).post(http::add_address),
-        )
-        .route("/:id", axum::routing::delete(http::delete_customer))
+        .route("/list", axum::routing::post(http::list_customers))
+        .route("/create", axum::routing::post(http::create_customer))
+        .route("/get", axum::routing::post(http::get_customer))
+        .route("/update", axum::routing::patch(http::update_customer))
+        .route("/update-status", axum::routing::post(http::update_customer_status))
+        .route("/delete", axum::routing::delete(http::delete_customer))
+        .route("/search", axum::routing::post(http::search_customers))
+        .route("/addresses/list", axum::routing::post(http::list_addresses))
+        .route("/addresses/create", axum::routing::post(http::add_address))
+        .route("/history", axum::routing::post(http::get_customer_history))
 }
 
 fn plan_routes() -> Router<SharedState> {

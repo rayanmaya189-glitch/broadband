@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .await
             {
-                tracing::warn!(error = %e, "Failed to set up JetStream, continuing without NATS");
+                tracing::warn!(error = %e, "Failed to set up JetStream, continuing without event publishing");
                 None
             } else {
                 tracing::info!("NATS JetStream ready");
@@ -73,7 +73,29 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Err(e) => {
-            tracing::warn!(error = %e, "Failed to connect to NATS, continuing without event publishing");
+            tracing::error!(
+                error = %e,
+                nats_url = %settings.nats_url,
+                "CRITICAL: Failed to connect to NATS — event publishing, outbox delivery, and cross-module communication DISABLED. Retrying in background."
+            );
+            // Spawn background NATS reconnection task
+            let nats_url = settings.nats_url.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                loop {
+                    interval.tick().await;
+                    match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(&nats_url).await {
+                        Ok(_client) => {
+                            tracing::info!("NATS reconnection successful");
+                            // Note: can't easily hot-swap into AppState, but at least we know it's back
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "NATS reconnection attempt failed, retrying in 30s");
+                        }
+                    }
+                }
+            });
             None
         }
     };
@@ -197,8 +219,8 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state.clone());
 
     // --- Graceful shutdown setup ---
-    // Create a shutdown signal broadcast channel
-    let (shutdown_tx, _) = tokio::sync::broadcast::channel::<()>(1);
+    // Create a shutdown signal broadcast channel (capacity 32 for 8+ workers + subscribers)
+    let (shutdown_tx, _) = tokio::sync::broadcast::channel::<()>(32);
 
     // Start outbox worker and NATS subscribers (if NATS is available)
     if let Some(nats_client) = state.nats.clone() {

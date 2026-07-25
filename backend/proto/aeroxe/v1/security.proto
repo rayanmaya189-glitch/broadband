@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package aeroxe.v1.security;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Role Requests ───
+
+message CreateRoleRequest {
+  string name = 1;
+  string slug = 2;
+  optional string description = 3;
+  optional int64 parent_role_id = 4;
+}
+
+message GetRoleRequest {
+  int64 role_id = 1;
+}
+
+message ListRolesRequest {}
+
+message UpdateRoleRequest {
+  int64 role_id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional int64 parent_role_id = 4;
+}
+
+message DeleteRoleRequest {
+  int64 role_id = 1;
+}
+
+// ─── Permission Requests ───
+
+message ListPermissionsRequest {}
+
+message AssignPermissionRequest {
+  int64 role_id = 1;
+  int64 permission_id = 2;
+}
+
+message RevokePermissionRequest {
+  int64 role_id = 1;
+  int64 permission_id = 2;
+}
+
+// ─── User Role Requests ───
+
+message AssignRoleRequest {
+  int64 user_id = 1;
+  int64 role_id = 2;
+}
+
+message RevokeRoleRequest {
+  int64 user_id = 1;
+  int64 role_id = 2;
+}
+
+// ─── Responses ───
+
+message Role {
+  int64 id = 1;
+  string name = 2;
+  string slug = 3;
+  optional string description = 4;
+  optional int64 parent_role_id = 5;
+  bool is_system = 6;
+}
+
+message Permission {
+  int64 id = 1;
+  string name = 2;
+  string module = 3;
+  string resource = 4;
+  string action = 5;
+}
+
+message ListRolesResponse {
+  repeated Role roles = 1;
+}
+
+message ListPermissionsResponse {
+  repeated Permission permissions = 1;
+}

@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package aeroxe.v1.accounting;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Account Requests ───
+
+message CreateAccountRequest {
+  string code = 1;
+  string name = 2;
+  string account_type = 3;
+  optional int64 parent_id = 4;
+  optional string description = 5;
+}
+
+message UpdateAccountRequest {
+  int64 account_id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional bool is_active = 4;
+}
+
+message ListAccountsRequest {}
+
+// ─── Journal Entry Requests ───
+
+message JournalLineRequest {
+  int64 account_id = 1;
+  string debit = 2;
+  string credit = 3;
+  optional string description = 4;
+}
+
+message CreateJournalEntryRequest {
+  string entry_date = 1;
+  string description = 2;
+  optional string reference_type = 3;
+  optional int64 reference_id = 4;
+  repeated JournalLineRequest lines = 5;
+}
+
+message ListJournalEntriesRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message PostJournalEntryRequest {
+  int64 entry_id = 1;
+}
+
+message VoidJournalEntryRequest {
+  int64 entry_id = 1;
+}
+
+// ─── Statement Requests ───
+
+message TrialBalanceRequest {
+  string period_start = 1;
+  string period_end = 2;
+}
+
+message ProfitLossRequest {
+  string period_start = 1;
+  string period_end = 2;
+}
+
+message BalanceSheetRequest {
+  string as_of_date = 1;
+}
+
+message GstReturnRequest {
+  string return_type = 1;
+  uint32 period_month = 2;
+  int32 period_year = 3;
+}
+
+message ReconcileAccountRequest {
+  int64 account_id = 1;
+  string period_start = 2;
+  string period_end = 3;
+}
+
+// ─── Responses ───
+
+message Account {
+  int64 id = 1;
+  string code = 2;
+  string name = 3;
+  string account_type = 4;
+  optional int64 parent_id = 5;
+  bool is_group = 6;
+  bool is_active = 7;
+  optional string description = 8;
+}
+
+message JournalEntry {
+  int64 id = 1;
+  string entry_number = 2;
+  string entry_date = 3;
+  string description = 4;
+  optional string reference_type = 5;
+  optional int64 reference_id = 6;
+  string total_debit = 7;
+  string total_credit = 8;
+  string status = 9;
+  optional int64 created_by = 10;
+  optional string posted_at = 11;
+  string created_at = 12;
+}
+
+message JournalLine {
+  int64 id = 1;
+  int64 account_id = 2;
+  string debit = 3;
+  string credit = 4;
+  optional string description = 5;
+}
+
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+  uint64 total = 2;
+}
+
+message ListJournalEntriesResponse {
+  repeated JournalEntry entries = 1;
+  uint64 total = 2;
+}

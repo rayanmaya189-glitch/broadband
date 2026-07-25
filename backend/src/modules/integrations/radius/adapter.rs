@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::shared::errors::AppError;
 
@@ -131,6 +131,7 @@ pub struct RadiusResponse {
     pub packet_type: RadiusPacketType,
     pub identifier: u8,
     pub attributes: Vec<RadiusAttribute>,
+    pub response_auth_valid: bool,
 }
 
 /// PPPoE authentication request
@@ -234,21 +235,31 @@ fn build_radius_packet(request: &RadiusRequest, secret: &str) -> Vec<u8> {
                 let attr_len = 2 + padded_len;
                 packet.push(attr_len as u8);
 
-                // XOR password with MD5(authenticator + secret)
-                let mut data = Vec::new();
-                data.extend_from_slice(&packet[authenticator_pos..authenticator_pos + 16]);
-                data.extend_from_slice(secret.as_bytes());
-                let hash = md5_hash(&data);
-
+                // RFC 2865 password encoding: chain XOR blocks with MD5(prev_ciphertext + secret)
                 let password_bytes = password.as_bytes();
-                for i in 0..padded_len {
-                    let p = if i < password_bytes.len() {
-                        password_bytes[i]
-                    } else {
-                        0
-                    };
-                    let h = if i < 16 { hash[i] } else { hash[i % 16] };
-                    packet.push(p ^ h);
+
+                // Initial vector: the authenticator (16 bytes)
+                let mut prev_ciphertext = [0u8; 16];
+                prev_ciphertext.copy_from_slice(&packet[authenticator_pos..authenticator_pos + 16]);
+
+                for chunk_start in (0..padded_len).step_by(16) {
+                    // MD5(previous ciphertext block + secret)
+                    let mut hash_input = Vec::with_capacity(32);
+                    hash_input.extend_from_slice(&prev_ciphertext);
+                    hash_input.extend_from_slice(secret.as_bytes());
+                    let hash = md5_hash(&hash_input);
+
+                    // XOR this 16-byte block of the password with the hash
+                    for i in 0..16 {
+                        let p = if chunk_start + i < password_bytes.len() {
+                            password_bytes[chunk_start + i]
+                        } else {
+                            0
+                        };
+                        let ciphertext = p ^ hash[i];
+                        prev_ciphertext[i] = ciphertext;
+                        packet.push(ciphertext);
+                    }
                 }
             }
             RadiusAttribute::NasIpAddress(ip) => {
@@ -351,8 +362,12 @@ fn md5_hash(data: &[u8]) -> [u8; 16] {
     digest.0
 }
 
-/// Parse RADIUS response packet
-fn parse_radius_packet(data: &[u8]) -> Result<RadiusResponse, AppError> {
+/// Parse RADIUS response packet with authenticator validation
+fn parse_radius_packet(
+    data: &[u8],
+    request_authenticator: &[u8; 16],
+    shared_secret: &str,
+) -> Result<RadiusResponse, AppError> {
     if data.len() < RADIUS_HEADER_SIZE {
         return Err(AppError::External("RADIUS packet too short".to_string()));
     }
@@ -362,6 +377,25 @@ fn parse_radius_packet(data: &[u8]) -> Result<RadiusResponse, AppError> {
 
     let identifier = data[1];
     let _length = ((data[2] as u16) << 8) | (data[3] as u16);
+
+    // Extract response authenticator (bytes 4..20)
+    let response_auth = &data[4..20];
+
+    // Validate response authenticator: MD5(code + id + length + req_auth + attributes + secret)
+    let mut auth_input = Vec::with_capacity(data.len() + shared_secret.len());
+    auth_input.extend_from_slice(&data[0..4]); // code + id + length
+    auth_input.extend_from_slice(request_authenticator);
+    auth_input.extend_from_slice(&data[20..]); // attributes
+    auth_input.extend_from_slice(shared_secret.as_bytes());
+    let expected_auth = md5_hash(&auth_input);
+    let auth_valid = expected_auth == response_auth;
+
+    if !auth_valid {
+        warn!(
+            identifier = identifier,
+            "RADIUS response authenticator mismatch — possible spoofing"
+        );
+    }
 
     let mut attributes = Vec::new();
     let mut pos = RADIUS_HEADER_SIZE;
@@ -420,6 +454,7 @@ fn parse_radius_packet(data: &[u8]) -> Result<RadiusResponse, AppError> {
         packet_type,
         identifier,
         attributes,
+        response_auth_valid: auth_valid,
     })
 }
 
@@ -543,8 +578,16 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
+        let request_auth: [u8; 16] = packet[4..20].try_into().unwrap_or([0u8; 16]);
         let response_data = self.send_and_receive(&packet, self.config.port).await?;
-        let response = parse_radius_packet(&response_data)?;
+        let response = parse_radius_packet(&response_data, &request_auth, &self.config.secret)?;
+
+        if !response.response_auth_valid {
+            warn!(
+                username = %request.username,
+                "RADIUS response authenticator validation failed — possible spoofing"
+            );
+        }
 
         let accepted = response.packet_type == RadiusPacketType::AccessAccept;
 
@@ -602,10 +645,11 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
+        let request_auth: [u8; 16] = packet[4..20].try_into().unwrap_or([0u8; 16]);
         let response_data = self
             .send_and_receive(&packet, self.config.accounting_port)
             .await?;
-        let response = parse_radius_packet(&response_data)?;
+        let response = parse_radius_packet(&response_data, &request_auth, &self.config.secret)?;
 
         if response.packet_type != RadiusPacketType::AccountingResponse {
             return Err(AppError::External(
@@ -653,10 +697,11 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
+        let request_auth: [u8; 16] = packet[4..20].try_into().unwrap_or([0u8; 16]);
         let response_data = self
             .send_and_receive(&packet, self.config.accounting_port)
             .await?;
-        let response = parse_radius_packet(&response_data)?;
+        let response = parse_radius_packet(&response_data, &request_auth, &self.config.secret)?;
 
         if response.packet_type != RadiusPacketType::AccountingResponse {
             return Err(AppError::External(
@@ -701,10 +746,11 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
+        let request_auth: [u8; 16] = packet[4..20].try_into().unwrap_or([0u8; 16]);
         let response_data = self
             .send_and_receive(&packet, self.config.accounting_port)
             .await?;
-        let response = parse_radius_packet(&response_data)?;
+        let response = parse_radius_packet(&response_data, &request_auth, &self.config.secret)?;
 
         if response.packet_type != RadiusPacketType::AccountingResponse {
             return Err(AppError::External(
@@ -744,8 +790,9 @@ impl RadiusClient for RadiusAdapter {
         };
 
         let packet = build_radius_packet(&radius_request, &self.config.secret);
+        let request_auth: [u8; 16] = packet[4..20].try_into().unwrap_or([0u8; 16]);
         let response_data = self.send_and_receive(&packet, self.config.coa_port).await?;
-        let response = parse_radius_packet(&response_data)?;
+        let response = parse_radius_packet(&response_data, &request_auth, &self.config.secret)?;
 
         let accepted = response.packet_type == RadiusPacketType::CoAACK;
 

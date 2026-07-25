@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package aeroxe.v1.plans;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message CreatePlanRequest {
+  string slug = 1;
+  string name = 2;
+  optional string description = 3;
+  string speed_label = 4;
+  int32 download_mbps = 5;
+  int32 upload_mbps = 6;
+  optional int32 burst_mbps = 7;
+  optional bool is_business = 8;
+}
+
+message GetPlanRequest {
+  int64 plan_id = 1;
+}
+
+message ListPlansRequest {}
+
+message UpdatePlanRequest {
+  int64 plan_id = 1;
+  string name = 2;
+  optional string description = 3;
+  bool is_active = 4;
+}
+
+message UpdatePricingRequest {
+  int64 plan_id = 1;
+  int32 billing_period_months = 2;
+  string price = 3;
+}
+
+message ClonePlanRequest {
+  int64 plan_id = 1;
+  string new_name = 2;
+}
+
+message ApprovePlanRequest {
+  int64 plan_id = 1;
+}
+
+message DeactivatePlanRequest {
+  int64 plan_id = 1;
+}
+
+message PublishPlanRequest {
+  int64 plan_id = 1;
+}
+
+message UnpublishPlanRequest {
+  int64 plan_id = 1;
+}
+
+message SetSpeedProfileRequest {
+  int64 plan_id = 1;
+  int64 bandwidth_profile_id = 2;
+}
+
+message GetSpeedProfileRequest {
+  int64 plan_id = 1;
+}
+
+message GetPlanHistoryRequest {
+  int64 plan_id = 1;
+}
+
+// ─── Responses ───
+
+message Pricing {
+  int32 billing_period_months = 1;
+  string price = 2;
+  optional string savings = 3;
+}
+
+message Plan {
+  int64 id = 1;
+  string slug = 2;
+  string name = 3;
+  optional string description = 4;
+  string speed_label = 5;
+  int32 download_mbps = 6;
+  int32 upload_mbps = 7;
+  optional int32 burst_mbps = 8;
+  bool is_popular = 9;
+  bool is_business = 10;
+  bool is_active = 11;
+  repeated Pricing pricing = 12;
+}
+
+message SpeedProfile {
+  int64 id = 1;
+  string name = 2;
+  int32 download_kbps = 3;
+  int32 upload_kbps = 4;
+  optional int32 burst_download_kbps = 5;
+  optional int32 burst_upload_kbps = 6;
+  optional int32 burst_duration_seconds = 7;
+  optional int32 priority = 8;
+  bool is_active = 9;
+}
+
+message ListPlansResponse {
+  repeated Plan plans = 1;
+}
+
+message PlanHistoryResponse {
+  string entity_type = 1;
+  string entity_id = 2;
+  uint64 total = 3;
+  repeated PlanHistoryEntry items = 4;
+}
+
+message PlanHistoryEntry {
+  int64 id = 1;
+  string entity_id = 2;
+  string action = 3;
+  optional string old_data = 4;
+  optional string new_data = 5;
+  optional string changed_fields = 6;
+  optional int64 user_id = 7;
+  optional string user_name = 8;
+  optional string user_email = 9;
+  string created_at = 10;
+}

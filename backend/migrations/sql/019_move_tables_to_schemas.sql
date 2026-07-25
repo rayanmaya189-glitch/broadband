@@ -39,12 +39,10 @@ ALTER TABLE IF EXISTS payments DROP CONSTRAINT IF EXISTS payments_invoice_id_fke
 ALTER TABLE IF EXISTS refunds DROP CONSTRAINT IF EXISTS refunds_payment_id_fkey;
 ALTER TABLE IF EXISTS payment_reminders DROP CONSTRAINT IF EXISTS payment_reminders_invoice_id_fkey;
 
--- Device tables reference customers/branches
-ALTER TABLE IF EXISTS devices DROP CONSTRAINT IF EXISTS devices_customer_id_fkey;
-ALTER TABLE IF EXISTS devices DROP CONSTRAINT IF EXISTS devices_branch_id_fkey;
+-- Device tables reference customers/branches (table is network_devices, not devices)
+ALTER TABLE IF EXISTS network_devices DROP CONSTRAINT IF EXISTS network_devices_branch_id_fkey;
 
--- Network tables reference branches
-ALTER TABLE IF EXISTS network_equipment DROP CONSTRAINT IF EXISTS network_equipment_branch_id_fkey;
+-- Network tables reference branches (network_equipment doesn't exist as a separate table)
 
 -- Bandwidth tables reference customers
 ALTER TABLE IF EXISTS bandwidth_profiles DROP CONSTRAINT IF EXISTS bandwidth_profiles_customer_id_fkey;
@@ -52,7 +50,7 @@ ALTER TABLE IF EXISTS bandwidth_applications DROP CONSTRAINT IF EXISTS bandwidth
 
 -- Ticket tables
 ALTER TABLE IF EXISTS tickets DROP CONSTRAINT IF EXISTS tickets_customer_id_fkey;
-ALTER TABLE IF EXISTS ticket_messages DROP CONSTRAINT IF EXISTS ticket_messages_ticket_id_fkey;
+ALTER TABLE IF EXISTS ticket_comments DROP CONSTRAINT IF EXISTS ticket_comments_ticket_id_fkey;
 
 -- Notification tables
 ALTER TABLE IF EXISTS notifications DROP CONSTRAINT IF EXISTS notifications_user_id_fkey;
@@ -65,12 +63,8 @@ ALTER TABLE IF EXISTS audit_logs DROP CONSTRAINT IF EXISTS audit_logs_user_id_fk
 ALTER TABLE IF EXISTS approval_requests DROP CONSTRAINT IF EXISTS approval_requests_requested_by_fkey;
 ALTER TABLE IF EXISTS approval_requests DROP CONSTRAINT IF EXISTS approval_requests_reviewed_by_fkey;
 
--- Document tables
-ALTER TABLE IF EXISTS documents DROP CONSTRAINT IF EXISTS documents_uploaded_by_fkey;
-
--- Monitoring tables reference devices/branches
-ALTER TABLE IF EXISTS monitoring_alerts DROP CONSTRAINT IF EXISTS monitoring_alerts_device_id_fkey;
-ALTER TABLE IF EXISTS monitoring_alerts DROP CONSTRAINT IF EXISTS monitoring_alerts_branch_id_fkey;
+-- Document tables (table is document_files, not documents)
+ALTER TABLE IF EXISTS document_files DROP CONSTRAINT IF EXISTS document_files_uploaded_by_fkey;
 
 -- ============================================================
 -- Step 2: Move tables to their respective schemas
@@ -111,19 +105,16 @@ ALTER TABLE IF EXISTS payments SET SCHEMA billing;
 ALTER TABLE IF EXISTS refunds SET SCHEMA billing;
 ALTER TABLE IF EXISTS payment_reminders SET SCHEMA billing;
 
--- device schema
-ALTER TABLE IF EXISTS devices SET SCHEMA device;
-
--- network schema
-ALTER TABLE IF EXISTS network_equipment SET SCHEMA network;
+-- device schema (table is network_devices)
+ALTER TABLE IF EXISTS network_devices SET SCHEMA device;
 
 -- bandwidth schema
 ALTER TABLE IF EXISTS bandwidth_profiles SET SCHEMA bandwidth;
 ALTER TABLE IF EXISTS bandwidth_applications SET SCHEMA bandwidth;
 
--- ticket schema
+-- ticket schema (table is ticket_comments, not ticket_messages)
 ALTER TABLE IF EXISTS tickets SET SCHEMA ticket;
-ALTER TABLE IF EXISTS ticket_messages SET SCHEMA ticket;
+ALTER TABLE IF EXISTS ticket_comments SET SCHEMA ticket;
 
 -- notification schema
 ALTER TABLE IF EXISTS notifications SET SCHEMA notification;
@@ -147,13 +138,12 @@ ALTER TABLE IF EXISTS lead_activities SET SCHEMA lead;
 -- installation schema
 ALTER TABLE IF EXISTS installation_orders SET SCHEMA installation;
 
--- document schema
-ALTER TABLE IF EXISTS documents SET SCHEMA document;
+-- document schema (table is document_files, not documents)
+ALTER TABLE IF EXISTS document_files SET SCHEMA document;
 
--- monitoring schema
-ALTER TABLE IF EXISTS metric_records SET SCHEMA monitoring;
-ALTER TABLE IF EXISTS alert_rules SET SCHEMA monitoring;
-ALTER TABLE IF EXISTS monitoring_alerts SET SCHEMA monitoring;
+-- NOTE: monitoring tables (alert_rules, metric_records, monitoring_alerts)
+-- are created in migration 020_create_monitoring_tables.sql and do not exist
+-- at the time this migration runs. Skip them here.
 
 -- ============================================================
 -- Step 3: Grant permissions to application user

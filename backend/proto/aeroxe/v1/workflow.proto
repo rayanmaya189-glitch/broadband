@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package aeroxe.v1.workflow;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message CreateApprovalRequest {
+  string workflow_type = 1;
+  string resource_type = 2;
+  int64 resource_id = 3;
+  optional string reason = 4;
+  string payload = 5;  // JSON string
+}
+
+message GetApprovalRequest {
+  int64 request_id = 1;
+}
+
+message ListPendingApprovalsRequest {}
+
+message ReviewApprovalRequest {
+  int64 request_id = 1;
+  optional string comment = 2;
+}
+
+// ─── Responses ───
+
+message ApprovalRequest {
+  int64 id = 1;
+  string workflow_type = 2;
+  string resource_type = 3;
+  int64 resource_id = 4;
+  int64 requested_by = 5;
+  string status = 6;
+  optional string reason = 7;
+  optional int64 reviewer_id = 8;
+  optional string reviewer_comment = 9;
+  string requested_at = 10;
+  optional string reviewed_at = 11;
+}
+
+message ApprovalCreatedResponse {
+  int64 id = 1;
+  string message = 2;
+}
+
+message ApprovalActionResponse {
+  string message = 1;
+}
+
+message ListPendingApprovalsResponse {
+  repeated ApprovalRequest requests = 1;
+}

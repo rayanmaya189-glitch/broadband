@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package aeroxe.v1.identity;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Auth Requests ───
+
+message RegisterRequest {
+  string email = 1;
+  string phone = 2;
+  string name = 3;
+  string password = 4;
+  optional int64 branch_id = 5;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message Login2FARequest {
+  string pending_token = 1;
+  string code = 2;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message PasswordResetRequest {
+  string email = 1;
+}
+
+message PasswordResetConfirmRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+// ─── 2FA Requests ───
+
+message TwoFactorVerifyRequest {
+  string code = 1;
+}
+
+message RevokeSessionRequest {
+  string session_id = 1;
+}
+
+// ─── Auth Responses ───
+
+message AuthResponse {
+  bool requires_2fa = 1;
+  optional string access_token = 2;
+  optional string refresh_token = 3;
+  optional UserResponse user = 4;
+  optional string pending_token = 5;
+  optional string message = 6;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message UserResponse {
+  int64 id = 1;
+  string email = 2;
+  string phone = 3;
+  string name = 4;
+  optional string avatar_url = 5;
+  optional int64 branch_id = 6;
+  string status = 7;
+  optional string last_login_at = 8;
+}
+
+message TwoFactorSetupResponse {
+  string secret_base32 = 1;
+  string otpauth_uri = 2;
+  repeated string backup_codes = 3;
+}
+
+message TwoFactorStatusResponse {
+  bool verified = 1;
+}
+
+message BackupCodeStatusResponse {
+  bool verified = 1;
+  int32 remaining_codes = 2;
+}
+
+message StatusResponse {
+  string status = 1;
+}
+
+message MessageResponse {
+  string message = 1;
+}
+
+// ─── Session ───
+
+message SessionResponse {
+  string session_id = 1;
+  optional string user_agent = 2;
+  optional string ip_address = 3;
+  string created_at = 4;
+  string last_active_at = 5;
+}
+
+message ListSessionsResponse {
+  repeated SessionResponse sessions = 1;
+}
+
+// ─── User List ───
+
+message ListUsersRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+}
+
+message ListUsersResponse {
+  repeated UserResponse users = 1;
+}
+
+message GetUserRequest {
+  int64 user_id = 1;
+}

@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package aeroxe.v1.coverage;
+
+import "aeroxe/v1/common.proto";
+
+// ─── Requests ───
+
+message ListCoverageAreasRequest {
+  aeroxe.v1.PaginationRequest pagination = 1;
+  optional int64 branch_id = 2;
+}
+
+message CreateCoverageAreaRequest {
+  string name = 1;
+  string area_type = 2;
+}
+
+message CheckAvailabilityRequest {
+  string pincode = 1;
+}
+
+// ─── Responses ───
+
+message CoverageArea {
+  int64 id = 1;
+  string name = 2;
+  string area_type = 3;
+  bool is_active = 4;
+}
+
+message Availability {
+  bool available = 1;
+  optional string area_name = 2;
+  optional int32 estimated_days = 3;
+}
+
+message ListCoverageAreasResponse {
+  repeated CoverageArea areas = 1;
+  uint64 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+}
