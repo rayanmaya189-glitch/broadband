@@ -42,7 +42,7 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
         },
         1,
     )
-    .unwrap();
+    .ok_or_else(|| anyhow::anyhow!("Failed to calculate next month date"))?;
 
     let next_next_month = NaiveDate::from_ymd_opt(
         if next_month.month() == 12 {
@@ -57,7 +57,7 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
         },
         1,
     )
-    .unwrap();
+    .ok_or_else(|| anyhow::anyhow!("Failed to calculate next-next month date"))?;
 
     let partition_name_suffix = format!("{:04}_{:02}", next_month.year(), next_month.month());
     let partition_start = next_month.format("%Y-%m-01").to_string();

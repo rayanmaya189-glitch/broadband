@@ -80,9 +80,9 @@ impl Settings {
                 Some("dev-only-insecure-jwt-secret".to_string())
             }).unwrap_or_default(),
             jwt_access_token_ttl_secs: env::var("JWT_ACCESS_TOKEN_TTL_SECS")
-                .unwrap_or_else(|_| "86400".to_string()) // 24 hours
+                .unwrap_or_else(|_| "1800".to_string()) // 30 minutes
                 .parse()
-                .unwrap_or(86400),
+                .unwrap_or(1800),
             jwt_refresh_token_ttl_secs: env::var("JWT_REFRESH_TOKEN_TTL_SECS")
                 .unwrap_or_else(|_| "604800".to_string()) // 7 days
                 .parse()

@@ -259,8 +259,12 @@ impl FcmAdapter {
         });
 
         // Base64url encode header and claims
-        let header_b64 = base64url_encode(&serde_json::to_vec(&header).unwrap());
-        let claims_b64 = base64url_encode(&serde_json::to_vec(&claims).unwrap());
+        let header_json = serde_json::to_vec(&header)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize FCM header: {}", e)))?;
+        let claims_json = serde_json::to_vec(&claims)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize FCM claims: {}", e)))?;
+        let header_b64 = base64url_encode(&header_json);
+        let claims_b64 = base64url_encode(&claims_json);
         let signing_input = format!("{}.{}", header_b64, claims_b64);
 
         // Sign with private key

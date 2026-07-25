@@ -133,14 +133,14 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Extract from extensions (injected by branch_scope_middleware)
-        // If not present, create a company-wide default
+        // If not present, deny access (NOT company-wide default)
         Ok(parts
             .extensions
             .get::<BranchScope>()
             .cloned()
             .unwrap_or_else(|| BranchScope {
                 branch_ids: Vec::new(),
-                is_company_wide: true,
+                is_company_wide: false,
             }))
     }
 }

@@ -7,8 +7,11 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub invoice_number: String,
+    #[sea_orm(index)]
     pub customer_id: i64,
+    #[sea_orm(index)]
     pub branch_id: i64,
+    #[sea_orm(index)]
     pub subscription_id: i64,
     pub billing_period_start: chrono::NaiveDate,
     pub billing_period_end: chrono::NaiveDate,
@@ -24,6 +27,14 @@ pub struct Model {
     pub review_status: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub cgst_amount: sea_orm::prelude::Decimal,
+    pub sgst_amount: sea_orm::prelude::Decimal,
+    pub igst_amount: sea_orm::prelude::Decimal,
+    pub place_of_supply_state: String,
+    pub supplier_gstin: Option<String>,
+    pub reverse_charge: bool,
+    pub late_fee_subtotal: sea_orm::prelude::Decimal,
+    pub late_fee_gst: sea_orm::prelude::Decimal,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

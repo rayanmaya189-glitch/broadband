@@ -905,14 +905,33 @@ async fn create_notification(
     subject: &str,
     body: &str,
 ) -> Result<(), AppError> {
+    use crate::modules::customer::domain::entities::customer;
     use crate::modules::notification::domain::entities::notification;
-    use sea_orm::{ActiveModelTrait, Set};
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+    let recipient_address = match channel {
+        "email" => {
+            let cust = customer::Entity::find_by_id(recipient_id)
+                .one(db)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Customer not found for notification".into()))?;
+            cust.email.unwrap_or_default()
+        }
+        "sms" | "whatsapp" => {
+            let cust = customer::Entity::find_by_id(recipient_id)
+                .one(db)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Customer not found for notification".into()))?;
+            cust.phone
+        }
+        _ => String::new(),
+    };
 
     let notif = notification::ActiveModel {
         channel: Set(channel.to_string()),
         recipient_type: Set("customer".to_string()),
         recipient_id: Set(recipient_id),
-        recipient_address: Set(String::new()),
+        recipient_address: Set(recipient_address),
         subject: Set(Some(subject.to_string())),
         body: Set(body.to_string()),
         status: Set("queued".to_string()),

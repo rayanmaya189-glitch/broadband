@@ -5,4 +5,5 @@ pub mod monitoring_worker;
 pub mod notification_worker;
 pub mod outbox_worker;
 pub mod partition_worker;
+pub mod radius_accounting_worker;
 pub mod scheduler_worker;

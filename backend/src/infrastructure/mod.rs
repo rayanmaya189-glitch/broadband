@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod circuit_breaker;
 pub mod database;
 pub mod messaging;
 pub mod metrics;

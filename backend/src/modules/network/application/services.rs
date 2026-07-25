@@ -3,6 +3,9 @@ use crate::modules::network::domain::entities::{
     MacBindingActiveModel, MacBindingColumn, PppoeSession, PppoeSessionActiveModel,
     PppoeSessionColumn, Vlan, VlanActiveModel, VlanColumn,
 };
+use crate::modules::integrations::radius::adapter::{
+    AccountingRequest, AccountingStatusType, RadiusAdapter, RadiusClient,
+};
 use crate::shared::errors::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
@@ -167,8 +170,9 @@ impl NetworkService {
                 pool.name, pool.allocated_count, pool.total_count
             )));
         }
+        let new_count = pool.allocated_count + 1;
         let mut active = <crate::modules::network::domain::entities::ip_pool::Entity as sea_orm::EntityTrait>::ActiveModel::from(pool);
-        active.allocated_count = Set(active.allocated_count.clone().unwrap() + 1);
+        active.allocated_count = Set(new_count);
         active.updated_at = Set(chrono::Utc::now());
         let updated = active.update(db).await?;
         tracing::info!(pool_id, customer_id, "IP allocated from pool");
@@ -187,8 +191,9 @@ impl NetworkService {
                 pool.name
             )));
         }
+        let new_count = pool.allocated_count - 1;
         let mut active = <crate::modules::network::domain::entities::ip_pool::Entity as sea_orm::EntityTrait>::ActiveModel::from(pool);
-        active.allocated_count = Set(active.allocated_count.clone().unwrap() - 1);
+        active.allocated_count = Set(new_count);
         active.updated_at = Set(chrono::Utc::now());
         let updated = active.update(db).await?;
         tracing::info!(pool_id, customer_id, "IP released from pool");
@@ -217,18 +222,42 @@ impl NetworkService {
         password_encrypted: String,
     ) -> Result<crate::modules::network::domain::entities::pppoe_session::Model, AppError> {
         let now = chrono::Utc::now();
+        let session_id = uuid::Uuid::new_v4().to_string();
         let session = PppoeSessionActiveModel {
             branch_id: Set(branch_id),
             customer_id: Set(customer_id),
             subscription_id: Set(subscription_id),
-            username: Set(username),
+            username: Set(username.clone()),
             password_encrypted: Set(password_encrypted),
+            nas_session_id: Set(Some(session_id.clone())),
             status: Set("active".to_string()),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
         };
-        Ok(session.insert(db).await?)
+        let model = session.insert(db).await?;
+
+        // Send RADIUS accounting start
+        if std::env::var("RADIUS_SERVER").is_ok() {
+            let radius = RadiusAdapter::from_env();
+            let nas_ip = std::env::var("RADIUS_NAS_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
+            let acct = AccountingRequest {
+                username,
+                session_id,
+                status_type: AccountingStatusType::Start,
+                nas_ip,
+                nas_port: model.id as u32,
+                input_octets: None,
+                output_octets: None,
+                session_time: None,
+                terminate_cause: None,
+            };
+            if let Err(e) = radius.accounting_start(&acct).await {
+                tracing::warn!(session_id = model.id, error = %e, "Failed to send RADIUS accounting start");
+            }
+        }
+
+        Ok(model)
     }
 
     pub async fn terminate_pppoe_session(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
@@ -236,6 +265,48 @@ impl NetworkService {
             .one(db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Session {} not found", id)))?;
+
+        // Send RADIUS accounting stop before terminating
+        if std::env::var("RADIUS_SERVER").is_ok() {
+            let radius = RadiusAdapter::from_env();
+            let nas_ip = session
+                .nas_ip_address
+                .clone()
+                .unwrap_or_else(|| "0.0.0.0".to_string());
+            let nas_port: u32 = session
+                .nas_port_id
+                .as_ref()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(0);
+            let session_time = session
+                .session_start
+                .map(|start| {
+                    chrono::Utc::now()
+                        .signed_duration_since(start)
+                        .num_seconds()
+                        .max(0) as u32
+                })
+                .unwrap_or(0);
+
+            let acct = AccountingRequest {
+                username: session.username.clone(),
+                session_id: session
+                    .nas_session_id
+                    .clone()
+                    .unwrap_or_default(),
+                status_type: AccountingStatusType::Stop,
+                nas_ip,
+                nas_port,
+                input_octets: Some(session.bytes_in as u64),
+                output_octets: Some(session.bytes_out as u64),
+                session_time: Some(session_time),
+                terminate_cause: Some(1), // 1 = User Request
+            };
+            if let Err(e) = radius.accounting_stop(&acct).await {
+                tracing::warn!(session_id = id, error = %e, "Failed to send RADIUS accounting stop");
+            }
+        }
+
         let mut active = <crate::modules::network::domain::entities::pppoe_session::Entity as sea_orm::EntityTrait>::ActiveModel::from(session);
         active.status = Set("terminated".to_string());
         active.updated_at = Set(chrono::Utc::now());

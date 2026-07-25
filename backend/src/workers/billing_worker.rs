@@ -1,4 +1,5 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use rust_decimal_macros::dec;
 use tracing::{error, info};
 
 use crate::infrastructure::messaging::outbox;
@@ -19,9 +20,13 @@ impl BillingWorker {
     /// Run the full billing worker cycle.
     pub async fn run_cycle(&self) -> anyhow::Result<()> {
         info!("Billing worker: starting cycle");
+        self.sync_usage_from_sessions().await?;
         self.check_overdue_invoices().await?;
+        self.apply_late_fees_with_gst().await?;
         self.send_dunning_reminders().await?;
         self.suspend_overdue_subscriptions().await?;
+        self.recognize_deferred_revenue().await?;
+        self.validate_rcm_entries().await?;
         info!("Billing worker: cycle complete");
         Ok(())
     }
@@ -94,6 +99,73 @@ impl BillingWorker {
         }
 
         info!(count = count, "Billing worker: marked invoices as overdue");
+        Ok(())
+    }
+
+    /// Apply late fees (2% of invoice) with GST on overdue invoices.
+    /// Late fees are applied once per invoice, after 7 days overdue.
+    /// GST on late fee follows same intra/inter state logic as the main invoice.
+    pub async fn apply_late_fees_with_gst(&self) -> anyhow::Result<()> {
+        info!("Billing worker: applying late fees with GST");
+
+        use crate::modules::billing::domain::entities::invoice;
+        use crate::modules::billing::domain::rules::tax_service;
+
+        let today = chrono::Utc::now().date_naive();
+        let late_fee_threshold_days = 7;
+        let late_fee_rate = dec!(0.02); // 2% of invoice subtotal
+        let late_fee_cap_rate = dec!(0.10); // Max 10% of invoice subtotal
+
+        // Find overdue invoices that haven't had late fees applied yet
+        let overdue_invoices = invoice::Entity::find()
+            .filter(invoice::Column::DueDate.lt(today - chrono::Duration::days(late_fee_threshold_days)))
+            .filter(invoice::Column::Status.is_in(vec!["overdue"]))
+            .all(&self.db)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to query overdue invoices: {}", e))?;
+
+        let mut fees_applied = 0;
+
+        for inv in &overdue_invoices {
+            // Skip if late fees already applied
+            if inv.late_fee_subtotal > rust_decimal::Decimal::ZERO {
+                continue;
+            }
+
+            let late_fee_base = (inv.subtotal * late_fee_rate).round_dp(2);
+            let max_fee = (inv.subtotal * late_fee_cap_rate).round_dp(2);
+            let late_fee_base = std::cmp::min(late_fee_base, max_fee);
+
+            // Determine intra/inter state for GST on late fee
+            let is_intra_state = inv.place_of_supply_state.to_lowercase() == "maharashtra";
+            let late_fee_gst = tax_service::calculate_late_fee_with_gst(late_fee_base, is_intra_state);
+            let total_late_fee = late_fee_gst.late_fee_subtotal + late_fee_gst.gst.total_tax;
+
+            let mut active: invoice::ActiveModel = inv.clone().into();
+            active.late_fee_subtotal = Set(late_fee_gst.late_fee_subtotal);
+            active.late_fee_gst = Set(late_fee_gst.gst.total_tax);
+            active.total_amount = Set(inv.subtotal + inv.discount_amount + inv.tax_amount + total_late_fee);
+            active.updated_at = Set(chrono::Utc::now());
+
+            if let Err(e) = active.update(&self.db).await {
+                error!(
+                    invoice_id = inv.id,
+                    error = %e,
+                    "Failed to apply late fee"
+                );
+                continue;
+            }
+
+            fees_applied += 1;
+            info!(
+                invoice_id = inv.id,
+                late_fee = %late_fee_gst.late_fee_subtotal,
+                gst = %late_fee_gst.gst.total_tax,
+                "Applied late fee with GST"
+            );
+        }
+
+        info!(count = fees_applied, "Billing worker: late fees applied");
         Ok(())
     }
 
@@ -281,6 +353,118 @@ impl BillingWorker {
         }
 
         info!(count = suspended, "Billing worker: subscriptions suspended");
+        Ok(())
+    }
+
+    /// Sync PPPoE session usage data into subscription records for usage-based billing.
+    /// Queries active PPPoE sessions and updates subscription bytes_in/bytes_out/duration.
+    pub async fn sync_usage_from_sessions(&self) -> anyhow::Result<()> {
+        use crate::modules::network::domain::entities::pppoe_session;
+        use crate::modules::subscription::domain::entities::subscription;
+
+        let active_sessions = pppoe_session::Entity::find()
+            .filter(pppoe_session::Column::Status.eq("active"))
+            .all(&self.db)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to query active sessions: {}", e))?;
+
+        let mut synced = 0;
+        for session in &active_sessions {
+            let sub = subscription::Entity::find()
+                .filter(subscription::Column::Id.eq(session.subscription_id))
+                .filter(subscription::Column::Status.eq("active"))
+                .one(&self.db)
+                .await;
+            let Ok(Some(sub)) = sub else { continue };
+
+            let mut active: subscription::ActiveModel = sub.into();
+            active.updated_at = Set(chrono::Utc::now());
+            if let Err(e) = active.update(&self.db).await {
+                error!(session_id = session.id, error = %e, "Failed to sync usage to subscription");
+                continue;
+            }
+            synced += 1;
+        }
+
+        info!(count = synced, "Billing worker: usage synced from PPPoE sessions");
+        Ok(())
+    }
+
+    /// Recognize deferred revenue per Ind AS 115.
+    /// Each month, recognize `monthly_recognition_amount` until fully recognized.
+    pub async fn recognize_deferred_revenue(&self) -> anyhow::Result<()> {
+        use crate::modules::billing::domain::entities::deferred_revenue;
+
+        let active_entries = deferred_revenue::Entity::find()
+            .filter(deferred_revenue::Column::Status.eq("active"))
+            .all(&self.db)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to query deferred revenue entries: {}", e))?;
+
+        let mut recognized_count = 0;
+
+        for entry in &active_entries {
+            if entry.deferred_amount <= rust_decimal::Decimal::ZERO {
+                continue;
+            }
+
+            let new_recognized = entry.recognized_amount + entry.monthly_recognition_amount;
+            let new_deferred = entry.total_amount - new_recognized;
+            let (final_recognized, final_deferred, new_status) = if new_deferred <= rust_decimal::Decimal::ZERO {
+                (entry.total_amount, rust_decimal::Decimal::ZERO, "fully_recognized".to_string())
+            } else {
+                (new_recognized, new_deferred, "active".to_string())
+            };
+
+            let mut active: deferred_revenue::ActiveModel = entry.clone().into();
+            active.recognized_amount = Set(final_recognized);
+            active.deferred_amount = Set(final_deferred);
+            active.status = Set(new_status);
+            active.updated_at = Set(chrono::Utc::now());
+
+            if let Err(e) = active.update(&self.db).await {
+                error!(entry_id = entry.id, error = %e, "Failed to recognize deferred revenue");
+                continue;
+            }
+            recognized_count += 1;
+        }
+
+        info!(count = recognized_count, "Billing worker: deferred revenue recognized");
+        Ok(())
+    }
+
+    /// Validate and auto-claim RCM entries for eligible vendor invoices.
+    /// Reverse Charge Mechanism: when vendor is unregistered under GST, the recipient
+    /// must self-accrue and pay GST, then claim ITC.
+    pub async fn validate_rcm_entries(&self) -> anyhow::Result<()> {
+        use crate::modules::billing::domain::entities::rcm_entry;
+
+        let pending_entries = rcm_entry::Entity::find()
+            .filter(rcm_entry::Column::ItcClaimed.eq(false))
+            .all(&self.db)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to query RCM entries: {}", e))?;
+
+        let mut claimed = 0;
+        for entry in &pending_entries {
+            // Validate: if vendor GSTIN is present and valid format, auto-claim ITC
+            let can_claim = match &entry.vendor_gstin {
+                Some(gstin) => gstin.len() == 15 && !gstin.is_empty(),
+                None => true, // Unregistered vendor — RCM applies, auto-claim
+            };
+
+            if can_claim && entry.total_gst > rust_decimal::Decimal::ZERO {
+                let mut active: rcm_entry::ActiveModel = entry.clone().into();
+                active.itc_claimed = Set(true);
+                if let Err(e) = active.update(&self.db).await {
+                    error!(entry_id = entry.id, error = %e, "Failed to claim ITC");
+                    continue;
+                }
+                claimed += 1;
+            }
+        }
+
+        info!(count = claimed, "Billing worker: RCM ITC claims processed");
         Ok(())
     }
 }

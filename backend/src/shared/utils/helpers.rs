@@ -1,20 +1,13 @@
 use chrono::Utc;
-use sha2::{Digest, Sha256};
 
-/// Hash Aadhaar number with personal salt
+/// Hash Aadhaar number with personal salt (delegates to pii module for consistency)
 pub fn hash_aadhaar(aadhaar: &str) -> String {
-    let salt = format!("aeroxe:{}", aadhaar);
-    let mut hasher = Sha256::new();
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
+    crate::shared::utils::pii::hash_aadhaar(aadhaar)
 }
 
-/// Hash PAN number with personal salt
+/// Hash PAN number with personal salt (delegates to pii module for consistency)
 pub fn hash_pan(pan: &str) -> String {
-    let salt = format!("aeroxe:{}", pan);
-    let mut hasher = Sha256::new();
-    hasher.update(salt.as_bytes());
-    hex::encode(hasher.finalize())
+    crate::shared::utils::pii::hash_pan(pan)
 }
 
 /// Mask phone number: +919876543210 → +91******3210

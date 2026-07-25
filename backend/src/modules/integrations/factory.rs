@@ -94,7 +94,10 @@ impl DeviceAdapterFactory {
                     .unwrap_or(443);
 
                 let adapter = Self::create_mikrotik(management_ip, port, &username, &password);
-                Some(Arc::new(MikrotikNetworkAdapter(adapter)))
+                Some(CircuitBreakerAdapter::wrap(
+                    &format!("mikrotik:{}", management_ip),
+                    Arc::new(MikrotikNetworkAdapter(adapter)),
+                ))
             }
             DeviceType::Olt | DeviceType::Ont => {
                 // Use Huawei OLT adapter for OLT and ONT devices
@@ -107,7 +110,10 @@ impl DeviceAdapterFactory {
                     .unwrap_or(22);
 
                 let adapter = Self::create_huawei_olt(management_ip, port, &username, &password);
-                Some(Arc::new(HuaweiNetworkAdapter(adapter)))
+                Some(CircuitBreakerAdapter::wrap(
+                    &format!("huawei-olt:{}", management_ip),
+                    Arc::new(HuaweiNetworkAdapter(adapter)),
+                ))
             }
         }
     }
@@ -133,6 +139,114 @@ pub trait NetworkDeviceAdapter: Send + Sync {
 
     /// Get device status info
     async fn get_status_info(&self) -> Result<serde_json::Value, AppError>;
+}
+
+/// Circuit breaker wrapper for NetworkDeviceAdapter.
+/// Protects against cascading failures when external devices are unreachable.
+struct CircuitBreakerAdapter {
+    inner: Arc<dyn NetworkDeviceAdapter>,
+    cb: crate::infrastructure::circuit_breaker::CircuitBreaker,
+}
+
+impl CircuitBreakerAdapter {
+    fn wrap(name: &str, inner: Arc<dyn NetworkDeviceAdapter>) -> Arc<dyn NetworkDeviceAdapter> {
+        Arc::new(Self {
+            inner,
+            cb: crate::infrastructure::circuit_breaker::CircuitBreaker::new(
+                name,
+                3,
+                std::time::Duration::from_secs(60),
+            ),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl NetworkDeviceAdapter for CircuitBreakerAdapter {
+    async fn get_health_score(&self) -> Result<i32, AppError> {
+        if !self.cb.can_proceed() {
+            return Err(AppError::External(format!(
+                "Circuit breaker OPEN for {} — device unreachable",
+                self.cb.name()
+            )));
+        }
+        match self.inner.get_health_score().await {
+            Ok(score) => {
+                self.cb.record_success();
+                Ok(score)
+            }
+            Err(e) => {
+                self.cb.record_failure();
+                Err(e)
+            }
+        }
+    }
+
+    async fn apply_bandwidth(
+        &self,
+        queue_name: &str,
+        target: &str,
+        download_kbps: u32,
+        upload_kbps: u32,
+    ) -> Result<(), AppError> {
+        if !self.cb.can_proceed() {
+            return Err(AppError::External(format!(
+                "Circuit breaker OPEN for {} — device unreachable",
+                self.cb.name()
+            )));
+        }
+        match self.inner
+            .apply_bandwidth(queue_name, target, download_kbps, upload_kbps)
+            .await
+        {
+            Ok(()) => {
+                self.cb.record_success();
+                Ok(())
+            }
+            Err(e) => {
+                self.cb.record_failure();
+                Err(e)
+            }
+        }
+    }
+
+    async fn remove_bandwidth(&self, queue_name: &str) -> Result<(), AppError> {
+        if !self.cb.can_proceed() {
+            return Err(AppError::External(format!(
+                "Circuit breaker OPEN for {} — device unreachable",
+                self.cb.name()
+            )));
+        }
+        match self.inner.remove_bandwidth(queue_name).await {
+            Ok(()) => {
+                self.cb.record_success();
+                Ok(())
+            }
+            Err(e) => {
+                self.cb.record_failure();
+                Err(e)
+            }
+        }
+    }
+
+    async fn get_status_info(&self) -> Result<serde_json::Value, AppError> {
+        if !self.cb.can_proceed() {
+            return Err(AppError::External(format!(
+                "Circuit breaker OPEN for {} — device unreachable",
+                self.cb.name()
+            )));
+        }
+        match self.inner.get_status_info().await {
+            Ok(val) => {
+                self.cb.record_success();
+                Ok(val)
+            }
+            Err(e) => {
+                self.cb.record_failure();
+                Err(e)
+            }
+        }
+    }
 }
 
 /// Wrapper for MikroTik adapter implementing unified trait

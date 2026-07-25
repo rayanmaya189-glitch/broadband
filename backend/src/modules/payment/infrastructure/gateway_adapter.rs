@@ -304,7 +304,7 @@ impl GatewayAdapter for PayuAdapter {
         use sha2::{Digest, Sha512};
         let mut hasher = Sha512::new();
         hasher.update(secret.as_bytes()); // salt
-        hasher.update(body.as_ref()); // concatenated webhook parameters
+        hasher.update(body); // concatenated webhook parameters
         let expected = hex::encode(hasher.finalize());
         Ok(expected == signature)
     }

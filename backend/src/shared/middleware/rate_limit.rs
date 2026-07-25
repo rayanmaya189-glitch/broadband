@@ -335,10 +335,27 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Respo
     Ok(response)
 }
 
-/// Extract client identifier from request headers
+/// Extract client identifier from request.
+/// Priority: API key hash > User ID > X-Forwarded-For > X-Real-IP > "unknown"
+/// SECURITY: Branch JWT tokens without user context fall back to IP-based limiting.
 fn extract_client_id(request: &Request) -> String {
-    // Prefer X-Forwarded-For, then X-Real-IP, then fallback
-    request
+    // 1. Check for API key in X-API-Key header — use hash for rate limit key
+    if let Some(api_key) = request.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
+        // Use first 16 chars as identifier (not the full key)
+        let prefix: String = api_key.chars().take(16).collect();
+        return format!("apikey:{}", prefix);
+    }
+
+    // 2. Check for authenticated user in extensions (set by auth middleware)
+    if let Some(user) = request
+        .extensions()
+        .get::<crate::shared::middleware::auth::UserContext>()
+    {
+        return format!("user:{}", user.user_id);
+    }
+
+    // 3. Fall back to IP-based identification
+    let ip = request
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -353,7 +370,9 @@ fn extract_client_id(request: &Request) -> String {
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.to_string())
         })
-        .unwrap_or_else(|| "unknown".to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    format!("ip:{}", ip)
 }
 
 /// Determine rate limit tier based on request path, method, and user role.
@@ -462,7 +481,7 @@ mod tests {
         request
             .headers_mut()
             .insert("x-forwarded-for", "10.0.0.1, 10.0.0.2".parse().unwrap());
-        assert_eq!(extract_client_id(&request), "10.0.0.1");
+        assert_eq!(extract_client_id(&request), "ip:10.0.0.1");
     }
 
     #[test]
@@ -474,7 +493,7 @@ mod tests {
         request
             .headers_mut()
             .insert("x-real-ip", "192.168.1.1".parse().unwrap());
-        assert_eq!(extract_client_id(&request), "192.168.1.1");
+        assert_eq!(extract_client_id(&request), "ip:192.168.1.1");
     }
 
     #[test]
@@ -483,7 +502,7 @@ mod tests {
             .uri("/api/v1/customers")
             .body(axum::body::Body::empty())
             .unwrap();
-        assert_eq!(extract_client_id(&request), "unknown");
+        assert_eq!(extract_client_id(&request), "ip:unknown");
     }
 
     #[test]

@@ -2,29 +2,29 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(schema_name = "subscription", table_name = "subscriptions")]
+#[sea_orm(schema_name = "billing", table_name = "credit_debit_notes")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    pub note_number: String,
+    pub note_type: String,
+    #[sea_orm(index)]
+    pub original_invoice_id: i64,
     #[sea_orm(index)]
     pub customer_id: i64,
     #[sea_orm(index)]
     pub branch_id: i64,
-    #[sea_orm(index)]
-    pub plan_id: i64,
+    pub reason: String,
+    pub subtotal: sea_orm::prelude::Decimal,
+    pub cgst_amount: sea_orm::prelude::Decimal,
+    pub sgst_amount: sea_orm::prelude::Decimal,
+    pub igst_amount: sea_orm::prelude::Decimal,
+    pub total_amount: sea_orm::prelude::Decimal,
     pub status: String,
-    pub billing_period_months: i32,
-    pub start_date: chrono::NaiveDate,
-    pub end_date: Option<chrono::NaiveDate>,
-    pub next_billing_date: Option<chrono::NaiveDate>,
-    pub auto_renew: bool,
-    pub pppoe_session_id: Option<i64>,
-    pub mac_address: Option<String>,
-    pub ip_address: Option<String>,
-    pub vlan_id: Option<i32>,
-    pub review_status: Option<String>,
     pub approved_by: Option<i64>,
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub applied_to_invoice_id: Option<i64>,
+    pub created_by: i64,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

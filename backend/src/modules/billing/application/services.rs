@@ -3,7 +3,9 @@ use crate::modules::billing::domain::entities::{
     InvoiceLineItem, InvoiceLineItemActiveModel, InvoiceLineItemColumn, Payment, PaymentActiveModel,
     PaymentColumn, Refund, RefundActiveModel,
 };
+use crate::modules::billing::domain::rules::tax_service;
 use crate::shared::errors::AppError;
+use rust_decimal_macros::dec;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
@@ -58,6 +60,14 @@ impl BillingService {
             now.format("%Y%m"),
             ulid::Ulid::new()
         );
+
+        // Determine place of supply from customer state (default: Maharashtra for intra-state)
+        let place_of_supply = Self::get_customer_state(db, customer_id).await
+            .unwrap_or_else(|| "Maharashtra".to_string());
+        let supplier_state = "Maharashtra"; // Company registered state
+        let is_intra_state = tax_service::is_intra_state(supplier_state, &place_of_supply);
+        let gst = tax_service::calculate_gst_breakdown(total_amount, is_intra_state);
+
         let new_inv = InvoiceActiveModel {
             invoice_number: Set(invoice_number),
             customer_id: Set(customer_id),
@@ -67,17 +77,37 @@ impl BillingService {
             billing_period_end: Set(billing_period_end),
             subtotal: Set(total_amount),
             discount_amount: Set(sea_orm::prelude::Decimal::ZERO),
-            tax_amount: Set(sea_orm::prelude::Decimal::ZERO),
-            total_amount: Set(total_amount),
+            tax_amount: Set(gst.total_tax),
+            total_amount: Set(total_amount + gst.total_tax),
             currency: Set("INR".to_string()),
             status: Set("pending".to_string()),
             due_date: Set(billing_period_end + chrono::Duration::days(15)),
             review_status: Set(Some("pending".to_string())),
             created_at: Set(now),
             updated_at: Set(now),
+            cgst_amount: Set(gst.cgst_amount),
+            sgst_amount: Set(gst.sgst_amount),
+            igst_amount: Set(gst.igst_amount),
+            place_of_supply_state: Set(place_of_supply),
+            supplier_gstin: Set(Some("27AABCA1234H1Z5".to_string())), // From env/config
+            reverse_charge: Set(false),
+            late_fee_subtotal: Set(sea_orm::prelude::Decimal::ZERO),
+            late_fee_gst: Set(sea_orm::prelude::Decimal::ZERO),
             ..Default::default()
         };
         Ok(new_inv.insert(db).await?)
+    }
+
+    /// Get customer's state for place-of-supply determination
+    async fn get_customer_state(db: &DatabaseConnection, customer_id: i64) -> Option<String> {
+        use crate::modules::customer::domain::entities::address;
+        let addr = address::Entity::find()
+            .filter(address::Column::CustomerId.eq(customer_id))
+            .one(db)
+            .await
+            .ok()
+            .flatten()?;
+        Some(addr.state)
     }
 
     pub async fn record_payment(
@@ -223,6 +253,13 @@ impl BillingService {
                 ulid::Ulid::new()
             );
 
+            // Calculate GST for auto-generated invoice
+            let place_of_supply = Self::get_customer_state(db, sub.customer_id).await
+                .unwrap_or_else(|| "Maharashtra".to_string());
+            let supplier_state = "Maharashtra";
+            let is_intra_state = tax_service::is_intra_state(supplier_state, &place_of_supply);
+            let gst = tax_service::calculate_gst_breakdown(plan_price, is_intra_state);
+
             let new_inv = InvoiceActiveModel {
                 invoice_number: Set(invoice_number),
                 customer_id: Set(sub.customer_id),
@@ -232,14 +269,22 @@ impl BillingService {
                 billing_period_end: Set(period_end),
                 subtotal: Set(plan_price),
                 discount_amount: Set(sea_orm::prelude::Decimal::ZERO),
-                tax_amount: Set(sea_orm::prelude::Decimal::ZERO),
-                total_amount: Set(plan_price),
+                tax_amount: Set(gst.total_tax),
+                total_amount: Set(plan_price + gst.total_tax),
                 currency: Set("INR".to_string()),
                 status: Set("pending".to_string()),
                 due_date: Set(period_end + chrono::Duration::days(15)),
                 review_status: Set(Some("pending".to_string())),
                 created_at: Set(now),
                 updated_at: Set(now),
+                cgst_amount: Set(gst.cgst_amount),
+                sgst_amount: Set(gst.sgst_amount),
+                igst_amount: Set(gst.igst_amount),
+                place_of_supply_state: Set(place_of_supply),
+                supplier_gstin: Set(Some("27AABCA1234H1Z5".to_string())),
+                reverse_charge: Set(false),
+                late_fee_subtotal: Set(sea_orm::prelude::Decimal::ZERO),
+                late_fee_gst: Set(sea_orm::prelude::Decimal::ZERO),
                 ..Default::default()
             };
 
@@ -466,10 +511,17 @@ impl BillingService {
         description: String,
         quantity: sea_orm::prelude::Decimal,
         unit_price: sea_orm::prelude::Decimal,
-        tax_rate: sea_orm::prelude::Decimal,
+        hsn_sac_code: Option<String>,
     ) -> Result<crate::modules::billing::domain::entities::invoice_line_item::Model, AppError> {
         let amount = quantity * unit_price;
-        let tax_amount = amount * tax_rate / sea_orm::prelude::Decimal::from(100);
+
+        // Get invoice's place-of-supply to determine GST type
+        let inv = Self::get_invoice(db, invoice_id).await?;
+        let is_intra_state = inv.place_of_supply_state.to_lowercase() == "maharashtra";
+        let gst = tax_service::calculate_gst_breakdown(amount, is_intra_state);
+        let tax_type = if is_intra_state { "CGST_SGST" } else { "IGST" };
+        let default_hsn = hsn_sac_code.unwrap_or_else(|| tax_service::SAC_INTERNET_ACCESS.to_string());
+
         let now = chrono::Utc::now();
         let item = InvoiceLineItemActiveModel {
             invoice_id: Set(invoice_id),
@@ -477,9 +529,17 @@ impl BillingService {
             quantity: Set(quantity),
             unit_price: Set(unit_price),
             amount: Set(amount),
-            tax_rate: Set(tax_rate),
-            tax_amount: Set(tax_amount),
+            tax_rate: Set(gst.total_tax / amount * dec!(100)),
+            tax_amount: Set(gst.total_tax),
             created_at: Set(now),
+            hsn_sac_code: Set(Some(default_hsn)),
+            tax_type: Set(tax_type.to_string()),
+            cgst_rate: Set(gst.cgst_rate),
+            sgst_rate: Set(gst.sgst_rate),
+            igst_rate: Set(gst.igst_rate),
+            cgst_amount: Set(gst.cgst_amount),
+            sgst_amount: Set(gst.sgst_amount),
+            igst_amount: Set(gst.igst_amount),
             ..Default::default()
         };
         let saved = item.insert(db).await?;
@@ -524,5 +584,120 @@ impl BillingService {
             active.update(db).await?;
         }
         Ok(())
+    }
+
+    // ─── Credit/Debit Notes ──────────────────────────────────────────────
+
+    pub async fn create_credit_note(
+        db: &DatabaseConnection,
+        original_invoice_id: i64,
+        customer_id: i64,
+        branch_id: i64,
+        reason: String,
+        amount: sea_orm::prelude::Decimal,
+        created_by: i64,
+    ) -> Result<crate::modules::billing::domain::entities::credit_debit_note::Model, AppError> {
+        let now = chrono::Utc::now();
+        let note_number = format!("CN-{}-{}", now.format("%Y%m"), ulid::Ulid::new());
+
+        // Get original invoice for GST context
+        let inv = Self::get_invoice(db, original_invoice_id).await?;
+        let is_intra_state = inv.place_of_supply_state.to_lowercase() == "maharashtra";
+        let gst = tax_service::calculate_gst_breakdown(amount, is_intra_state);
+
+        use crate::modules::billing::domain::entities::credit_debit_note;
+        let note = credit_debit_note::ActiveModel {
+            note_number: Set(note_number),
+            note_type: Set("credit".to_string()),
+            original_invoice_id: Set(original_invoice_id),
+            customer_id: Set(customer_id),
+            branch_id: Set(branch_id),
+            reason: Set(reason),
+            subtotal: Set(amount),
+            cgst_amount: Set(gst.cgst_amount),
+            sgst_amount: Set(gst.sgst_amount),
+            igst_amount: Set(gst.igst_amount),
+            total_amount: Set(amount + gst.total_tax),
+            status: Set("pending".to_string()),
+            created_by: Set(created_by),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        Ok(note.insert(db).await?)
+    }
+
+    pub async fn approve_credit_note(
+        db: &DatabaseConnection,
+        note_id: i64,
+        approved_by: i64,
+    ) -> Result<crate::modules::billing::domain::entities::credit_debit_note::Model, AppError> {
+        use crate::modules::billing::domain::entities::credit_debit_note;
+        let note = credit_debit_note::Entity::find_by_id(note_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Credit/debit note {} not found", note_id)))?;
+        if note.status != "pending" {
+            return Err(AppError::Validation("Note is not in pending status".into()));
+        }
+        let now = chrono::Utc::now();
+        let mut active: credit_debit_note::ActiveModel = note.into();
+        active.status = Set("approved".to_string());
+        active.approved_by = Set(Some(approved_by));
+        active.approved_at = Set(Some(now));
+        active.updated_at = Set(now);
+        Ok(active.update(db).await?)
+    }
+
+    // ─── Security Deposits ───────────────────────────────────────────────
+
+    pub async fn collect_security_deposit(
+        db: &DatabaseConnection,
+        customer_id: i64,
+        branch_id: i64,
+        amount: sea_orm::prelude::Decimal,
+        deposit_type: String,
+    ) -> Result<crate::modules::billing::domain::entities::security_deposit::Model, AppError> {
+        use crate::modules::billing::domain::entities::security_deposit;
+        let now = chrono::Utc::now();
+        let deposit = security_deposit::ActiveModel {
+            customer_id: Set(customer_id),
+            branch_id: Set(branch_id),
+            amount: Set(amount),
+            deposit_type: Set(deposit_type),
+            status: Set("held".to_string()),
+            collected_at: Set(now),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        Ok(deposit.insert(db).await?)
+    }
+
+    pub async fn refund_security_deposit(
+        db: &DatabaseConnection,
+        deposit_id: i64,
+        refund_amount: sea_orm::prelude::Decimal,
+        reason: String,
+    ) -> Result<crate::modules::billing::domain::entities::security_deposit::Model, AppError> {
+        use crate::modules::billing::domain::entities::security_deposit;
+        let deposit = security_deposit::Entity::find_by_id(deposit_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Deposit {} not found", deposit_id)))?;
+        if deposit.status != "held" {
+            return Err(AppError::Validation("Deposit is not in held status".into()));
+        }
+        if refund_amount > deposit.amount {
+            return Err(AppError::Validation("Refund exceeds deposit amount".into()));
+        }
+        let now = chrono::Utc::now();
+        let mut active: security_deposit::ActiveModel = deposit.into();
+        active.status = Set("refunded".to_string());
+        active.refund_amount = Set(Some(refund_amount));
+        active.refund_reason = Set(Some(reason));
+        active.refunded_at = Set(Some(now));
+        active.updated_at = Set(now);
+        Ok(active.update(db).await?)
     }
 }

@@ -7,8 +7,11 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub refund_number: String,
+    #[sea_orm(index)]
     pub payment_id: i64,
+    #[sea_orm(index)]
     pub invoice_id: i64,
+    #[sea_orm(index)]
     pub customer_id: i64,
     pub amount: sea_orm::prelude::Decimal,
     pub reason: String,

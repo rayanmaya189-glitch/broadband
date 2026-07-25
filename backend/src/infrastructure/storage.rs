@@ -5,6 +5,10 @@ use tracing::{debug, info};
 
 use crate::shared::errors::AppError;
 
+/// Maximum file size for direct upload (100 MB).
+/// Larger files should use presigned URLs instead.
+const MAX_DIRECT_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
+
 /// MinIO/S3 compatible storage service
 #[derive(Clone)]
 pub struct StorageService {
@@ -108,7 +112,8 @@ impl StorageService {
         Ok(url)
     }
 
-    /// Upload a file directly to storage
+    /// Upload a file directly to storage (max 100 MB).
+    /// For larger files, use presigned URLs instead.
     pub async fn upload_object(
         &self,
         bucket: Option<&str>,
@@ -117,6 +122,14 @@ impl StorageService {
         body: Vec<u8>,
     ) -> Result<String, AppError> {
         let bucket = bucket.unwrap_or(&self.default_bucket);
+
+        if body.len() > MAX_DIRECT_UPLOAD_BYTES {
+            return Err(AppError::Validation(format!(
+                "File too large for direct upload ({} bytes, max {}). Use presigned URL instead.",
+                body.len(),
+                MAX_DIRECT_UPLOAD_BYTES,
+            )));
+        }
 
         let result = self
             .client
@@ -135,7 +148,8 @@ impl StorageService {
         Ok(location)
     }
 
-    /// Download a file from storage
+    /// Download a file from storage as bytes (max 100 MB).
+    /// For larger files, use presigned download URLs instead.
     pub async fn download_object(
         &self,
         bucket: Option<&str>,
@@ -156,6 +170,13 @@ impl StorageService {
             AppError::Internal(anyhow::anyhow!("Failed to read object body: {}", e))
         })?;
         let data = bytes.into_bytes();
+
+        if data.len() > MAX_DIRECT_UPLOAD_BYTES {
+            return Err(AppError::Internal(anyhow::anyhow!(
+                "Downloaded file exceeds memory safety limit ({} bytes). Consider using presigned URL.",
+                data.len(),
+            )));
+        }
 
         debug!(bucket = %bucket, key = %key, size = data.len(), "Downloaded object from storage");
 

@@ -65,12 +65,12 @@ impl<T: Message + Default + Send + 'static> FromRequest<AppState> for Proto<T> {
 // Helper function to create protobuf response
 pub fn proto_response<T: Message>(data: T) -> Response<Body> {
     let mut buf = BytesMut::with_capacity(data.encoded_len());
-    data.encode(&mut buf).unwrap();
+    data.encode(&mut buf).expect("protobuf encode should not fail for valid message");
 
     Response::builder()
         .header("content-type", PROTOBUF_CONTENT_TYPE)
         .body(Body::from(buf.freeze()))
-        .unwrap()
+        .expect("Response builder should not fail with valid body")
 }
 
 // Helper function to create protobuf response from bytes
@@ -78,7 +78,7 @@ pub fn proto_response_from_bytes(data: Bytes) -> Response<Body> {
     Response::builder()
         .header("content-type", PROTOBUF_CONTENT_TYPE)
         .body(Body::from(data))
-        .unwrap()
+        .expect("Response builder should not fail with valid body")
 }
 
 // Include generated protobuf code

@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    #[sea_orm(index)]
     pub program_id: i64,
+    #[sea_orm(index)]
     pub referrer_id: i64,
+    #[sea_orm(index)]
     pub referee_id: Option<i64>,
     pub referral_code: String,
     pub referee_phone: String,

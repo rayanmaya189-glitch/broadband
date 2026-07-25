@@ -3,10 +3,12 @@
 //! A modular monolith built with Rust, Axum, SeaORM, PostgreSQL, Redis, and NATS.
 
 use std::net::SocketAddr;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 use axum::Router;
 use chrono::Datelike;
+use futures::FutureExt;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tower_http::cors::{Any, CorsLayer};
@@ -233,6 +235,11 @@ async fn main() -> anyhow::Result<()> {
             std::sync::Arc::new(outbox_db),
             outbox_publisher,
         );
+        let outbox_worker = if let Some(ref metrics) = state.metrics {
+            outbox_worker.with_metrics(metrics.clone())
+        } else {
+            outbox_worker
+        };
         let mut outbox_rx = shutdown_tx.subscribe();
         tokio::spawn(async move {
             tokio::select! {
@@ -268,10 +275,12 @@ async fn main() -> anyhow::Result<()> {
     // Start background workers with graceful shutdown
     {
         let worker_db = state.db.clone();
+        let worker_metrics = state.metrics.clone();
 
         // Billing worker - runs every 5 minutes
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let worker = aeroxe_backend::workers::billing_worker::BillingWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
@@ -279,8 +288,15 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = worker.run_cycle().await {
-                                tracing::error!(error = %e, "Billing worker cycle failed");
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "Billing worker cycle failed"),
+                                Err(_) => tracing::error!("Billing worker PANICKED — will restart next cycle"),
                             }
                         }
                         _ = rx.recv() => {
@@ -296,6 +312,7 @@ async fn main() -> anyhow::Result<()> {
         // Notification worker - runs every 30 seconds
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let worker = aeroxe_backend::workers::notification_worker::NotificationWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
@@ -303,8 +320,15 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = worker.run_cycle().await {
-                                tracing::error!(error = %e, "Notification worker cycle failed");
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "Notification worker cycle failed"),
+                                Err(_) => tracing::error!("Notification worker PANICKED — will restart next cycle"),
                             }
                         }
                         _ = rx.recv() => {
@@ -320,6 +344,7 @@ async fn main() -> anyhow::Result<()> {
         // Device sync worker - runs every 2 minutes
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let worker = aeroxe_backend::workers::device_sync_worker::DeviceSyncWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
@@ -327,8 +352,15 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = worker.run_cycle().await {
-                                tracing::error!(error = %e, "Device sync worker cycle failed");
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "Device sync worker cycle failed"),
+                                Err(_) => tracing::error!("Device sync worker PANICKED — will restart next cycle"),
                             }
                         }
                         _ = rx.recv() => {
@@ -344,6 +376,7 @@ async fn main() -> anyhow::Result<()> {
         // Bandwidth worker - runs every minute
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let worker = aeroxe_backend::workers::bandwidth_worker::BandwidthWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
@@ -351,8 +384,15 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = worker.run_cycle().await {
-                                tracing::error!(error = %e, "Bandwidth worker cycle failed");
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "Bandwidth worker cycle failed"),
+                                Err(_) => tracing::error!("Bandwidth worker PANICKED — will restart next cycle"),
                             }
                         }
                         _ = rx.recv() => {
@@ -365,9 +405,42 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Bandwidth worker started (every minute)");
         }
 
+        // RADIUS accounting worker - runs every 5 minutes
+        {
+            let db = worker_db.clone();
+            let wm = worker_metrics.clone();
+            let worker = aeroxe_backend::workers::radius_accounting_worker::RadiusAccountingWorker::new(db);
+            let mut rx = shutdown_tx.subscribe();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "RADIUS accounting worker cycle failed"),
+                                Err(_) => tracing::error!("RADIUS accounting worker PANICKED — will restart next cycle"),
+                            }
+                        }
+                        _ = rx.recv() => {
+                            tracing::info!("RADIUS accounting worker shutting down");
+                            break;
+                        }
+                    }
+                }
+            });
+            tracing::info!("RADIUS accounting worker started (every 5 minutes)");
+        }
+
         // Scheduler worker - runs every 30 seconds
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let worker = aeroxe_backend::workers::scheduler_worker::SchedulerWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
@@ -375,8 +448,15 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = worker.run_cycle().await {
-                                tracing::error!(error = %e, "Scheduler worker cycle failed");
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "Scheduler worker cycle failed"),
+                                Err(_) => tracing::error!("Scheduler worker PANICKED — will restart next cycle"),
                             }
                         }
                         _ = rx.recv() => {
@@ -420,6 +500,7 @@ async fn main() -> anyhow::Result<()> {
         // Monitoring worker - runs every 2 minutes
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let worker = aeroxe_backend::workers::monitoring_worker::MonitoringWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
@@ -427,8 +508,15 @@ async fn main() -> anyhow::Result<()> {
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
-                            if let Err(e) = worker.run_cycle().await {
-                                tracing::error!(error = %e, "Monitoring worker cycle failed");
+                            let result = AssertUnwindSafe(worker.run_cycle())
+                                .catch_unwind()
+                                .await;
+                            match result {
+                                Ok(Ok(())) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                },
+                                Ok(Err(e)) => tracing::error!(error = %e, "Monitoring worker cycle failed"),
+                                Err(_) => tracing::error!("Monitoring worker PANICKED — will restart next cycle"),
                             }
                         }
                         _ = rx.recv() => {

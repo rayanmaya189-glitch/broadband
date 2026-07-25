@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    #[sea_orm(index)]
     pub invoice_id: i64,
     pub reminder_type: String,
     pub channel: String,

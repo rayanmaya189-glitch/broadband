@@ -73,6 +73,24 @@ pub struct QueueConfig {
     pub enabled: bool,
 }
 
+impl Default for QueueConfig {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            target: String::new(),
+            download_kbps: 0,
+            upload_kbps: 0,
+            burst_download_kbps: None,
+            burst_upload_kbps: None,
+            burst_threshold_download_kbps: None,
+            burst_threshold_upload_kbps: None,
+            burst_time_seconds: None,
+            priority: None,
+            enabled: true,
+        }
+    }
+}
+
 /// Device status from MikroTik
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceStatus {

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    #[sea_orm(index)]
     pub customer_id: i64,
     pub balance: sea_orm::prelude::Decimal,
     pub total_earned: sea_orm::prelude::Decimal,

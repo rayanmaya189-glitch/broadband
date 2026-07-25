@@ -14,6 +14,14 @@ pub struct Model {
     pub tax_rate: sea_orm::prelude::Decimal,
     pub tax_amount: sea_orm::prelude::Decimal,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub hsn_sac_code: Option<String>,
+    pub tax_type: String,
+    pub cgst_rate: sea_orm::prelude::Decimal,
+    pub sgst_rate: sea_orm::prelude::Decimal,
+    pub igst_rate: sea_orm::prelude::Decimal,
+    pub cgst_amount: sea_orm::prelude::Decimal,
+    pub sgst_amount: sea_orm::prelude::Decimal,
+    pub igst_amount: sea_orm::prelude::Decimal,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

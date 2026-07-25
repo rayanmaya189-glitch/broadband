@@ -182,16 +182,27 @@ impl JwtKeyRotationManager {
 }
 
 /// Initialize JwtKeyPair from settings. Uses PEM env vars if set, otherwise generates ephemeral keys.
+/// SECURITY: In production, panics if RSA keys are not set (ephemeral keys are insecure).
 pub fn init_jwt_keys(
     private_pem: &Option<String>,
     public_pem: &Option<String>,
 ) -> Result<JwtKeyPair> {
+    let is_production = std::env::var("APP_ENV")
+        .unwrap_or_else(|_| "development".to_string())
+        == "production";
+
     match (private_pem, public_pem) {
         (Some(priv_pem), Some(pub_pem)) => {
             info!("Loading JWT RS256 keys from environment variables");
             JwtKeyPair::from_pems(priv_pem, pub_pem)
         }
         (None, None) => {
+            if is_production {
+                anyhow::bail!(
+                    "FATAL: JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must be set in production. \
+                     Ephemeral keys are insecure — tokens signed with dev keys are rejected."
+                );
+            }
             info!("No JWT keys in env — generating ephemeral RSA-2048 key pair (development mode)");
             JwtKeyPair::generate()
         }

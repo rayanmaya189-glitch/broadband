@@ -15,7 +15,14 @@ pub struct InvoiceResponse {
     pub id: i64,
     pub invoice_number: String,
     pub customer_id: i64,
+    pub subtotal: String,
+    pub discount_amount: String,
+    pub tax_amount: String,
     pub total_amount: String,
+    pub cgst_amount: String,
+    pub sgst_amount: String,
+    pub igst_amount: String,
+    pub place_of_supply_state: String,
     pub status: String,
     pub due_date: String,
 }
@@ -67,7 +74,14 @@ pub async fn list_invoices(
             id: i.id,
             invoice_number: i.invoice_number,
             customer_id: i.customer_id,
+            subtotal: i.subtotal.to_string(),
+            discount_amount: i.discount_amount.to_string(),
+            tax_amount: i.tax_amount.to_string(),
             total_amount: i.total_amount.to_string(),
+            cgst_amount: i.cgst_amount.to_string(),
+            sgst_amount: i.sgst_amount.to_string(),
+            igst_amount: i.igst_amount.to_string(),
+            place_of_supply_state: i.place_of_supply_state,
             status: i.status,
             due_date: i.due_date.to_string(),
         })
@@ -133,7 +147,14 @@ pub async fn create_invoice(
             id: inv.id,
             invoice_number: inv.invoice_number,
             customer_id: inv.customer_id,
+            subtotal: inv.subtotal.to_string(),
+            discount_amount: inv.discount_amount.to_string(),
+            tax_amount: inv.tax_amount.to_string(),
             total_amount: inv.total_amount.to_string(),
+            cgst_amount: inv.cgst_amount.to_string(),
+            sgst_amount: inv.sgst_amount.to_string(),
+            igst_amount: inv.igst_amount.to_string(),
+            place_of_supply_state: inv.place_of_supply_state,
             status: inv.status,
             due_date: inv.due_date.to_string(),
         }),
@@ -242,7 +263,14 @@ pub async fn list_overdue_invoices(
             id: i.id,
             invoice_number: i.invoice_number,
             customer_id: i.customer_id,
+            subtotal: i.subtotal.to_string(),
+            discount_amount: i.discount_amount.to_string(),
+            tax_amount: i.tax_amount.to_string(),
             total_amount: i.total_amount.to_string(),
+            cgst_amount: i.cgst_amount.to_string(),
+            sgst_amount: i.sgst_amount.to_string(),
+            igst_amount: i.igst_amount.to_string(),
+            place_of_supply_state: i.place_of_supply_state,
             status: i.status,
             due_date: i.due_date.to_string(),
         })
@@ -280,7 +308,14 @@ pub async fn get_invoice(
         id: inv.id,
         invoice_number: inv.invoice_number,
         customer_id: inv.customer_id,
+        subtotal: inv.subtotal.to_string(),
+        discount_amount: inv.discount_amount.to_string(),
+        tax_amount: inv.tax_amount.to_string(),
         total_amount: inv.total_amount.to_string(),
+        cgst_amount: inv.cgst_amount.to_string(),
+        sgst_amount: inv.sgst_amount.to_string(),
+        igst_amount: inv.igst_amount.to_string(),
+        place_of_supply_state: inv.place_of_supply_state,
         status: inv.status,
         due_date: inv.due_date.to_string(),
     }))
@@ -358,7 +393,14 @@ pub async fn void_invoice(
         id: inv.id,
         invoice_number: inv.invoice_number,
         customer_id: inv.customer_id,
+        subtotal: inv.subtotal.to_string(),
+        discount_amount: inv.discount_amount.to_string(),
+        tax_amount: inv.tax_amount.to_string(),
         total_amount: inv.total_amount.to_string(),
+        cgst_amount: inv.cgst_amount.to_string(),
+        sgst_amount: inv.sgst_amount.to_string(),
+        igst_amount: inv.igst_amount.to_string(),
+        place_of_supply_state: inv.place_of_supply_state,
         status: inv.status,
         due_date: inv.due_date.to_string(),
     }))
@@ -604,6 +646,10 @@ pub struct LineItemResponse {
     pub amount: String,
     pub tax_rate: String,
     pub tax_amount: String,
+    pub hsn_sac_code: Option<String>,
+    pub cgst_amount: String,
+    pub sgst_amount: String,
+    pub igst_amount: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -612,7 +658,7 @@ pub struct AddLineItemRequest {
     pub quantity: String,
     pub unit_price: String,
     #[serde(default)]
-    pub tax_rate: Option<String>,
+    pub hsn_sac_code: Option<String>,
 }
 
 /// GET /api/v1/billing/invoices/:id/items
@@ -632,6 +678,10 @@ pub async fn list_invoice_items(
             amount: i.amount.to_string(),
             tax_rate: i.tax_rate.to_string(),
             tax_amount: i.tax_amount.to_string(),
+            hsn_sac_code: i.hsn_sac_code,
+            cgst_amount: i.cgst_amount.to_string(),
+            sgst_amount: i.sgst_amount.to_string(),
+            igst_amount: i.igst_amount.to_string(),
         }).collect(),
     ))
 }
@@ -646,8 +696,7 @@ pub async fn add_invoice_item(
     require_permission(&user, "billing.invoice.create").map_err(|e| AppError::Forbidden(e.1))?;
     let qty: sea_orm::prelude::Decimal = req.quantity.parse().map_err(|_| AppError::Validation("Invalid quantity".into()))?;
     let price: sea_orm::prelude::Decimal = req.unit_price.parse().map_err(|_| AppError::Validation("Invalid unit_price".into()))?;
-    let tax_rate: sea_orm::prelude::Decimal = req.tax_rate.unwrap_or_else(|| "0".to_string()).parse().map_err(|_| AppError::Validation("Invalid tax_rate".into()))?;
-    let item = BillingService::add_line_item(&state.db, id, req.description, qty, price, tax_rate).await?;
+    let item = BillingService::add_line_item(&state.db, id, req.description, qty, price, req.hsn_sac_code).await?;
     Ok((
         StatusCode::CREATED,
         Json(LineItemResponse {
@@ -659,6 +708,10 @@ pub async fn add_invoice_item(
             amount: item.amount.to_string(),
             tax_rate: item.tax_rate.to_string(),
             tax_amount: item.tax_amount.to_string(),
+            hsn_sac_code: item.hsn_sac_code,
+            cgst_amount: item.cgst_amount.to_string(),
+            sgst_amount: item.sgst_amount.to_string(),
+            igst_amount: item.igst_amount.to_string(),
         }),
     ))
 }

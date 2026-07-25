@@ -106,6 +106,9 @@ md5 = "0.7"
 # SSH for network device management
 ssh2 = "0.9"
 
+# PDF generation for invoices
+printpdf = "0.7"
+
 # Regex for parsing CLI output
 regex = "1"
 

@@ -111,11 +111,12 @@ pub async fn list_dead_letters(
     Ok(results)
 }
 
-/// Replay a dead-letter event by re-publishing it
+/// Replay a dead-letter event by re-inserting it into the outbox for re-publication.
 pub async fn replay_dead_letter(
     db: &DatabaseConnection,
     dead_letter_id: i64,
 ) -> Result<DeadLetterEvent, AppError> {
+    // Fetch the dead-letter event
     let result = db
         .execute_unprepared(&format!(
             "SELECT * FROM dead_letter_events WHERE id = {} AND status = 'failed'",
@@ -123,7 +124,35 @@ pub async fn replay_dead_letter(
         ))
         .await?;
 
-    // Mark as replayed
+    let rows: Vec<serde_json::Value> = result.into();
+    let row = rows
+        .first()
+        .ok_or_else(|| AppError::NotFound(format!("Dead-letter event {} not found", dead_letter_id)))?;
+
+    let event_type = row["event_type"]
+        .as_str()
+        .unwrap_or("unknown");
+    let aggregate_type = row["aggregate_type"]
+        .as_str()
+        .unwrap_or("unknown");
+    let aggregate_id = row["aggregate_id"].as_i64().unwrap_or(0);
+    let payload = row["payload"].clone();
+
+    // Re-insert into outbox for re-publication
+    crate::infrastructure::messaging::outbox::insert_outbox_event(
+        db,
+        &format!("replay.{}", event_type),
+        aggregate_type,
+        aggregate_id,
+        payload,
+        None,
+        None,
+        None,
+    )
+    .await
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to re-insert into outbox: {}", e)))?;
+
+    // Mark as replayed in DLQ
     db.execute_unpaired(format!(
         "UPDATE dead_letter_events SET status = 'replayed', last_retry_at = NOW() WHERE id = {}",
         dead_letter_id
@@ -132,13 +161,26 @@ pub async fn replay_dead_letter(
 
     info!(
         dead_letter_id = dead_letter_id,
-        "Dead-letter event marked for replay"
+        event_type = event_type,
+        "Dead-letter event re-inserted into outbox for replay"
     );
 
-    // Return placeholder - actual replay logic triggers NATS publish
-    Err(AppError::Internal(anyhow::anyhow!(
-        "Replay logic requires NATS client integration"
-    )))
+    // Return the event for reference
+    let event = DeadLetterEvent {
+        id: dead_letter_id,
+        event_id: row["event_id"].as_str().unwrap_or("").to_string(),
+        event_type: event_type.to_string(),
+        aggregate_type: aggregate_type.to_string(),
+        aggregate_id,
+        payload,
+        error_message: row["error_message"].as_str().unwrap_or("").to_string(),
+        retry_count: row["retry_count"].as_i64().unwrap_or(0) as i32,
+        max_retries: row["max_retries"].as_i64().unwrap_or(3) as i32,
+        status: "replayed".to_string(),
+        created_at: chrono::Utc::now(),
+        last_retry_at: Some(chrono::Utc::now()),
+    };
+    Ok(event)
 }
 
 /// Discard a dead-letter event (mark as discarded, no retry)

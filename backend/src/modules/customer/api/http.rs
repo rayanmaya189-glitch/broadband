@@ -22,7 +22,8 @@ async fn decode_proto<T: Message + Default>(req: Request) -> Result<T, AppError>
 
 fn wrap_ok<T: Message>(data: &T) -> Result<Response<Body>, AppError> {
     let mut buf = bytes::BytesMut::with_capacity(data.encoded_len());
-    data.encode(&mut buf).unwrap();
+    data.encode(&mut buf)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Protobuf encode failed: {}", e)))?;
     let envelope = pb::Response {
         status: pb::ResponseStatus::Ok.into(),
         data: buf.freeze().to_vec(),
@@ -34,7 +35,8 @@ fn wrap_ok<T: Message>(data: &T) -> Result<Response<Body>, AppError> {
 
 fn wrap_created<T: Message>(data: &T) -> Result<Response<Body>, AppError> {
     let mut buf = bytes::BytesMut::with_capacity(data.encoded_len());
-    data.encode(&mut buf).unwrap();
+    data.encode(&mut buf)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Protobuf encode failed: {}", e)))?;
     let envelope = pb::Response {
         status: pb::ResponseStatus::Ok.into(),
         data: buf.freeze().to_vec(),
@@ -42,19 +44,20 @@ fn wrap_created<T: Message>(data: &T) -> Result<Response<Body>, AppError> {
         meta: None,
     };
     let mut envelope_buf = bytes::BytesMut::with_capacity(envelope.encoded_len());
-    envelope.encode(&mut envelope_buf).unwrap();
+    envelope.encode(&mut envelope_buf)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Protobuf encode failed: {}", e)))?;
     Ok(Response::builder()
         .status(StatusCode::CREATED)
         .header("content-type", PROTOBUF_CONTENT_TYPE)
         .body(Body::from(envelope_buf.freeze()))
-        .unwrap())
+        .expect("Response builder should not fail"))
 }
 
 fn no_content_response() -> Response<Body> {
     Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
-        .unwrap()
+        .expect("Response builder should not fail")
 }
 
 fn model_to_proto(c: &crate::modules::customer::domain::entities::customer::Model) -> Customer {

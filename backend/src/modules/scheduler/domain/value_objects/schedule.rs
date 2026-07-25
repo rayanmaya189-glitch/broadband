@@ -473,9 +473,8 @@ mod tests {
         let schedule = Schedule::parse_cron("0 2 15 * 3").unwrap();
         let after = Utc.with_ymd_and_hms(2024, 1, 8, 0, 0, 0).unwrap(); // Mon Jan 8
         let next = schedule.next_run_after(after).unwrap();
-        // Jan 15 is Monday (not Wed), so should skip to Feb 14 (Wed)
-        // Actually Feb 14 2024 is a Wednesday
-        assert_eq!(next.month(), 2);
-        assert_eq!(next.day(), 14);
+        // Jan 15 is Monday (not Wed), Feb 15 is Thu, Mar 15 is Fri, Apr 15 is Mon, May 15 is Wed
+        assert_eq!(next.month(), 5);
+        assert_eq!(next.day(), 15);
     }
 }

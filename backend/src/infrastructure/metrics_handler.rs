@@ -22,18 +22,28 @@ pub async fn metrics_handler(State(state): State<SharedState>) -> impl IntoRespo
     let m = metrics.read().await;
     let metric_families = m.registry.gather();
     let mut buffer = Vec::new();
-    encoder.encode(&metric_families, &mut buffer).unwrap();
-    debug!(bytes = buffer.len(), "Prometheus metrics scraped");
-
-    (
-        StatusCode::OK,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/plain; version=0.0.4",
-        )],
-        buffer,
-    )
-        .into_response()
+    match encoder.encode(&metric_families, &mut buffer) {
+        Ok(()) => {
+            debug!(bytes = buffer.len(), "Prometheus metrics scraped");
+            (
+                StatusCode::OK,
+                [(
+                    axum::http::header::CONTENT_TYPE,
+                    "text/plain; version=0.0.4",
+                )],
+                buffer,
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to encode Prometheus metrics");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Metrics encoding failed: {}", e),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// GET /api/v1/metrics/summary — JSON summary of key metrics for dashboards.

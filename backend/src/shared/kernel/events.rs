@@ -133,9 +133,11 @@ impl NatsEventBus {
         Self { client }
     }
 
-    /// Build NATS subject from event type
+    /// Build NATS subject from event type.
+    /// Must match subscriber wildcards: events.{entity}.>
+    /// e.g., "customer.created.v1" → "events.customer.created.v1"
     fn build_subject(&self, event_type: &str) -> String {
-        format!("aeroxe.{}", event_type)
+        format!("events.{}", event_type)
     }
 }
 

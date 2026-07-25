@@ -5,6 +5,7 @@ use tracing::{debug, error, info};
 
 use crate::infrastructure::messaging::outbox;
 use crate::infrastructure::messaging::EventPublisher;
+use crate::infrastructure::metrics::Metrics;
 
 /// Background worker that polls the outbox table and publishes events to NATS.
 pub struct OutboxWorker {
@@ -12,6 +13,7 @@ pub struct OutboxWorker {
     publisher: EventPublisher,
     poll_interval_secs: u64,
     batch_size: u64,
+    metrics: Option<Arc<tokio::sync::RwLock<Metrics>>>,
 }
 
 impl OutboxWorker {
@@ -21,7 +23,13 @@ impl OutboxWorker {
             publisher,
             poll_interval_secs: 5,
             batch_size: 100,
+            metrics: None,
         }
+    }
+
+    pub fn with_metrics(mut self, metrics: Arc<tokio::sync::RwLock<Metrics>>) -> Self {
+        self.metrics = Some(metrics);
+        self
     }
 
     pub fn with_poll_interval(mut self, secs: u64) -> Self {
@@ -82,6 +90,10 @@ impl OutboxWorker {
                     // Mark as published in outbox
                     outbox::mark_event_published(&self.db, &event.event_id).await?;
                     published_count += 1;
+                    // Increment NATS publish counter
+                    if let Some(ref metrics) = self.metrics {
+                        metrics.read().await.nats_messages_published.inc();
+                    }
                     debug!(
                         event_id = %event.event_id,
                         event_type = %event.event_type,

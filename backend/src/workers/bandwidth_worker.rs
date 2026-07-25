@@ -145,31 +145,84 @@ impl BandwidthWorker {
         Ok(())
     }
 
-    /// Verify that applied profiles match expected configuration.
+    /// Verify that applied profiles match expected configuration by reapplying if needed.
     pub async fn verify_applied_profiles(&self) -> anyhow::Result<()> {
         info!("Bandwidth worker: verifying applied profiles");
 
         use crate::modules::bandwidth::domain::entities::bandwidth_application;
+        use crate::modules::bandwidth::domain::entities::bandwidth_profile;
+        use crate::modules::device::domain::entities::network_device;
 
-        // Fetch recently applied profiles for verification
         let applied = bandwidth_application::Entity::find()
             .filter(bandwidth_application::Column::Status.eq("applied"))
             .order_by_desc(bandwidth_application::Column::AppliedAt)
-            .limit(10)
+            .limit(20)
             .all(&self.db)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query applied profiles: {}", e))?;
 
         let mut verified = 0;
+        let mut reapplied = 0;
 
         for app in &applied {
-            // In production: query device via SNMP to verify bandwidth limits
-            if app.applied_at.is_some() {
-                verified += 1;
+            let Some(device_id) = app.device_id else { continue };
+
+            let device = match network_device::Entity::find_by_id(device_id)
+                .one(&self.db)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to query device: {}", e))?
+            {
+                Some(d) => d,
+                None => continue,
+            };
+
+            let profile = match bandwidth_profile::Entity::find_by_id(app.profile_id)
+                .one(&self.db)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to query bandwidth profile: {}", e))?
+            {
+                Some(p) => p,
+                None => continue,
+            };
+
+            let device_type = if device.device_model_id >= 101 && device.device_model_id <= 200 {
+                DeviceType::Olt
+            } else {
+                DeviceType::Router
+            };
+
+            if let Some(adapter) =
+                DeviceAdapterFactory::create_for_device(&device_type, &device.management_ip)
+            {
+                let queue_name = format!("bw_{}", app.subscription_id);
+                let expected_dl = profile.download_kbps.max(0) as u32;
+                let expected_ul = profile.upload_kbps.max(0) as u32;
+
+                // Reconcile: reapply the bandwidth config via the unified trait
+                match adapter
+                    .apply_bandwidth(&queue_name, &device.management_ip, expected_dl, expected_ul)
+                    .await
+                {
+                    Ok(()) => verified += 1,
+                    Err(e) => {
+                        reapplied += 1;
+                        warn!(
+                            application_id = app.id,
+                            queue_name = %queue_name,
+                            device = %device.name,
+                            error = %e,
+                            "Failed to reconcile bandwidth queue"
+                        );
+                    }
+                }
             }
         }
 
-        info!(count = verified, "Bandwidth worker: verified profiles");
+        info!(
+            verified = verified,
+            reapplied = reapplied,
+            "Bandwidth worker: verification complete"
+        );
         Ok(())
     }
 

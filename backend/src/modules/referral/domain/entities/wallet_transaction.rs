@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    #[sea_orm(index)]
     pub wallet_id: i64,
     pub transaction_type: String,
     pub amount: sea_orm::prelude::Decimal,

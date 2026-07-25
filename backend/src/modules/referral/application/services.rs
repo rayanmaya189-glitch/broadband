@@ -306,7 +306,11 @@ impl ReferralService {
         let mut wallet_active: CustomerWalletActiveModel = wallet.into();
         wallet_active.balance = Set(new_balance);
         if amount > sea_orm::prelude::Decimal::ZERO {
-            wallet_active.total_earned = Set(wallet_active.total_earned.clone().unwrap() + amount);
+            let prev_earned = match &wallet_active.total_earned {
+                sea_orm::ActiveValue::Set(v) | sea_orm::ActiveValue::Unchanged(v) => *v,
+                sea_orm::ActiveValue::NotSet => sea_orm::prelude::Decimal::ZERO,
+            };
+            wallet_active.total_earned = Set(prev_earned + amount);
         }
         wallet_active.updated_at = Set(chrono::Utc::now());
         wallet_active.update(db).await?;

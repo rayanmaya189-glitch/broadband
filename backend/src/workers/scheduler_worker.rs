@@ -86,7 +86,10 @@ impl SchedulerWorker {
             // Spawn the job execution concurrently with timeout + semaphore
             join_set.spawn(async move {
                 // Acquire semaphore permit to limit concurrency
-                let _permit = semaphore.acquire().await.expect("semaphore closed");
+                let _permit = match semaphore.acquire().await {
+                    Ok(permit) => permit,
+                    Err(_) => return job_id,
+                };
 
                 let start = std::time::Instant::now();
 
@@ -212,6 +215,16 @@ async fn execute_job(
             worker.run_cycle().await?;
             Ok(serde_json::json!({
                 "module": "monitoring",
+                "action": action,
+                "status": "completed"
+            }))
+        }
+        "radius" => {
+            tracing::info!(action = %action, "Scheduler: running RADIUS accounting worker cycle");
+            let worker = crate::workers::radius_accounting_worker::RadiusAccountingWorker::new(db.clone());
+            worker.run_cycle().await?;
+            Ok(serde_json::json!({
+                "module": "radius",
                 "action": action,
                 "status": "completed"
             }))
