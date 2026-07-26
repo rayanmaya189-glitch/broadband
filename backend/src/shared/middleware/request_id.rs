@@ -1,6 +1,6 @@
 //! Request ID middleware for distributed tracing.
 //! Propagates X-Request-ID through the request pipeline.
-//! If not provided by the client, generates a UUID v4.
+//! If not provided by the client, generates a UUID v7.
 
 use axum::extract::Request;
 use axum::http::HeaderValue;
@@ -13,7 +13,7 @@ pub const X_REQUEST_ID: &str = "X-Request-ID";
 /// Middleware that ensures every request has a unique X-Request-ID.
 ///
 /// - If the client sends `X-Request-ID`, it is preserved and propagated.
-/// - If missing, a UUID v4 is generated.
+/// - If missing, a UUID v7 is generated.
 /// - The request ID is added to response headers and to tracing span context.
 pub async fn request_id_middleware(mut req: Request, next: Next) -> Response {
     let request_id = req
