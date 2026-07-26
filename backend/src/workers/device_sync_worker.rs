@@ -50,8 +50,11 @@ impl DeviceSyncWorker {
         let mut status_changes = 0;
 
         for device in &devices {
-            let health_score = self.check_device_health(device).await;
-            let new_status = if health_score > 80 {
+            let (health_score, has_adapter) = self.check_device_health(device).await;
+            let new_status = if !has_adapter {
+                // No adapter available for this device type — mark as unknown, skip status change
+                "unknown"
+            } else if health_score > 80 {
                 "online"
             } else if health_score > 50 {
                 "degraded"
@@ -59,7 +62,8 @@ impl DeviceSyncWorker {
                 "offline"
             };
 
-            let status_changed = device.status != new_status;
+            // Only trigger status change events for devices we can actually monitor
+            let status_changed = has_adapter && device.status != new_status;
 
             let mut active: network_device::ActiveModel = device.clone().into();
             active.health_score = Set(Some(health_score));
@@ -194,7 +198,7 @@ impl DeviceSyncWorker {
     async fn check_device_health(
         &self,
         device: &crate::modules::device::domain::entities::network_device::Model,
-    ) -> i32 {
+    ) -> (i32, bool) {
         // Determine device type from model_id (1-100 = MikroTik, 101-200 = Huawei OLT)
         let device_type = if device.device_model_id >= 101 && device.device_model_id <= 200 {
             DeviceType::Olt
@@ -213,29 +217,26 @@ impl DeviceSyncWorker {
                         health_score = score,
                         "Device health score from adapter"
                     );
-                    score
+                    (score, true)
                 }
                 Err(e) => {
                     warn!(
                         device_id = device.id,
                         device_name = %device.name,
                         error = %e,
-                        "Failed to get device health from adapter, using fallback"
+                        "Failed to get device health from adapter"
                     );
-                    // Fallback: return degraded score (50) to avoid false offline alerts
-                    50
+                    // Adapter exists but failed — degraded score to avoid false offline alerts
+                    (50, true)
                 }
             }
         } else {
-            // No adapter available for this device type, use simulated health
             warn!(
                 device_id = device.id,
                 device_name = %device.name,
-                "No adapter available for device type, using simulated health"
+                "No adapter available for device type — cannot determine health"
             );
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            rng.gen_range(70..100)
+            (0, false)
         }
     }
 }

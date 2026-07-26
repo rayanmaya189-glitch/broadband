@@ -219,7 +219,7 @@ pub async fn upgrade_subscription(
     Json(req): Json<UpgradeSubscriptionRequest>,
 ) -> Result<Json<SubscriptionResponse>, AppError> {
     require_permission(&user, "subscription.upgrade").map_err(|e| AppError::Forbidden(e.1))?;
-    let sub = SubscriptionService::upgrade_subscription(
+    let (sub, proration) = SubscriptionService::upgrade_subscription(
         &state.db,
         id,
         req.new_plan_id,
@@ -227,11 +227,36 @@ pub async fn upgrade_subscription(
     )
     .await?;
 
+    // If proration adjustment exists, create a proration credit invoice
+    if let Some(ref adj) = proration {
+        if !adj.adjustment.is_zero() {
+            let today = chrono::Utc::now().date_naive();
+            let billing_start = today - chrono::Duration::days(30 * sub.billing_period_months as i64);
+            let proration_amount = adj.adjustment;
+            if let Err(e) = crate::modules::billing::application::services::BillingService::create_invoice(
+                &state.db,
+                sub.customer_id,
+                sub.branch_id,
+                sub.id,
+                billing_start,
+                today,
+                proration_amount,
+            ).await {
+                tracing::error!(
+                    subscription_id = sub.id,
+                    error = %e,
+                    "Failed to create proration credit invoice"
+                );
+            }
+        }
+    }
+
     let payload = serde_json::json!({
         "subscription_id": sub.id,
         "customer_id": sub.customer_id,
         "action": "upgraded",
         "new_plan_id": sub.plan_id,
+        "proration_adjustment": proration.as_ref().map(|p| p.adjustment.to_string()).unwrap_or_default(),
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,

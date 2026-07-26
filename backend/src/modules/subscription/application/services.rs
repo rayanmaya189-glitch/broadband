@@ -94,13 +94,16 @@ impl SubscriptionService {
         Ok(active.update(db).await?)
     }
 
-    /// Upgrade a subscription to a new plan (proration handled at billing layer)
+    /// Upgrade a subscription to a new plan with mid-cycle proration
     pub async fn upgrade_subscription(
         db: &DatabaseConnection,
         id: i64,
         new_plan_id: i64,
         new_billing_period_months: Option<i32>,
-    ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+    ) -> Result<(
+        crate::modules::subscription::domain::entities::subscription::Model,
+        Option<crate::shared::primitives::ProRataAdjustment>,
+    ), AppError> {
         let sub = Self::get_subscription(db, id).await?;
 
         if sub.status != "active" {
@@ -110,12 +113,46 @@ impl SubscriptionService {
             )));
         }
 
-        // Don't allow downgrade via upgrade endpoint
         if sub.plan_id == new_plan_id {
             return Err(AppError::Validation(
                 "New plan must be different from current plan".into(),
             ));
         }
+
+        // Fetch old and new plan prices for proration
+        use crate::modules::plans::domain::entities::{PlanPricing, PlanPricingColumn};
+        let old_pricing = PlanPricing::find()
+            .filter(PlanPricingColumn::PlanId.eq(sub.plan_id))
+            .filter(PlanPricingColumn::BillingPeriodMonths.eq(sub.billing_period_months))
+            .filter(PlanPricingColumn::IsActive.eq(true))
+            .one(db)
+            .await?;
+        let new_pricing = PlanPricing::find()
+            .filter(PlanPricingColumn::PlanId.eq(new_plan_id))
+            .filter(PlanPricingColumn::BillingPeriodMonths.eq(
+                new_billing_period_months.unwrap_or(sub.billing_period_months)
+            ))
+            .filter(PlanPricingColumn::IsActive.eq(true))
+            .one(db)
+            .await?;
+
+        let proration = match (old_pricing, new_pricing) {
+            (Some(old_p), Some(new_p)) => {
+                let today = chrono::Utc::now().date_naive();
+                let billing_period_days = (sub.billing_period_months as i64 * 30) as i32;
+                let days_used = (today - sub.start_date).num_days() as i32;
+                let days_used = days_used.max(0).min(billing_period_days);
+
+                let adjustment = crate::shared::primitives::calculate_pro_rata(
+                    old_p.price,
+                    new_p.price,
+                    billing_period_days,
+                    days_used,
+                );
+                Some(adjustment)
+            }
+            _ => None,
+        };
 
         let now = chrono::Utc::now();
         let mut active: SubscriptionActiveModel = sub.into();
@@ -124,7 +161,8 @@ impl SubscriptionService {
             active.billing_period_months = Set(period);
         }
         active.updated_at = Set(now);
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+        Ok((updated, proration))
     }
 
     /// Downgrade a subscription to a lower plan

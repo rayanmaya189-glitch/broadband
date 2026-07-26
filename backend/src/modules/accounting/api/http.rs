@@ -376,6 +376,21 @@ pub async fn gst_return(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct RocFilingQuery {
+    pub financial_year: i32,
+}
+
+/// GET /api/v1/accounting/roc/annual
+pub async fn roc_annual_filing(
+    State(state): State<Arc<AppState>>,
+    _user: UserContext,
+    Query(q): Query<RocFilingQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let data = AccountingService::generate_roc_annual_data(&state.db, q.financial_year).await?;
+    Ok(Json(serde_json::to_value(data).unwrap_or_default()))
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ReconciliationQuery {
     pub period_start: String,
     pub period_end: String,

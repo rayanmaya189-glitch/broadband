@@ -7,7 +7,7 @@ use tracing::{debug, info, warn};
 
 use crate::modules::payment::application::services::PaymentService;
 use crate::modules::payment::infrastructure::gateway_adapter::{
-    GatewayAdapter, PayuAdapter, RazorpayAdapter,
+    GatewayAdapter, PayuAdapter, RazorpayAdapter, StripeAdapter,
 };
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
@@ -323,6 +323,35 @@ pub async fn handle_payu_webhook(
 
     let adapter = PayuAdapter::from_env();
 
+    // Verify PayU webhook signature (SHA-512 hash verification)
+    let received_hash = payload["hash"].as_str().unwrap_or("");
+    if received_hash.is_empty() {
+        warn!("PayU webhook rejected: missing hash");
+        return Err(AppError::Validation("Missing webhook signature".into()));
+    }
+
+    // PayU verification: SHA512(salt|status|||||||key|txnid|amount|productinfo|firstname|email)
+    let status = payload["status"].as_str().unwrap_or("");
+    let txnid = payload["txnid"].as_str().unwrap_or("");
+    let amount = payload["amount"].as_str().unwrap_or("");
+    let productinfo = payload["productinfo"].as_str().unwrap_or("");
+    let firstname = payload["firstname"].as_str().unwrap_or("");
+    let email = payload["email"].as_str().unwrap_or("");
+
+    let verify_string = format!(
+        "{}|{}|||||||{}|{}|{}|{}|{}|{}",
+        adapter.merchant_salt, status, adapter.merchant_key, txnid, amount, productinfo, firstname, email
+    );
+    use sha2::{Digest, Sha512};
+    let mut hasher = Sha512::new();
+    hasher.update(verify_string.as_bytes());
+    let expected_hash = hex::encode(hasher.finalize());
+
+    if expected_hash != received_hash {
+        warn!(txnid = %txnid, "PayU webhook rejected: signature mismatch");
+        return Err(AppError::Validation("Invalid webhook signature".into()));
+    }
+
     let webhook = adapter
         .parse_webhook(payload.clone())
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse webhook: {}", e)))?;
@@ -369,6 +398,85 @@ pub async fn handle_payu_webhook(
 
     // Mark webhook as processed
     PaymentService::mark_webhook_processed(&state.db, "payu", &webhook.event_id).await?;
+
+    Ok(StatusCode::OK)
+}
+
+/// POST /api/v1/payments/webhook/stripe
+pub async fn handle_stripe_webhook(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<StatusCode, AppError> {
+    let adapter = StripeAdapter::from_env();
+
+    // Verify Stripe webhook signature (t=timestamp,v1=signature)
+    let stripe_sig = headers
+        .get("stripe-signature")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if stripe_sig.is_empty() {
+        warn!("Stripe webhook rejected: missing stripe-signature header");
+        return Err(AppError::Validation("Missing stripe-signature".into()));
+    }
+
+    if !adapter.verify_webhook_signature(&body, stripe_sig, &adapter.webhook_signing_secret)? {
+        warn!("Stripe webhook rejected: invalid signature");
+        return Err(AppError::Validation("Invalid webhook signature".into()));
+    }
+
+    let payload: serde_json::Value = serde_json::from_slice(&body)
+        .map_err(|e| AppError::Validation(format!("Invalid JSON: {}", e)))?;
+
+    let webhook = adapter
+        .parse_webhook(payload.clone())
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse Stripe webhook: {}", e)))?;
+
+    // Idempotency check
+    let already_processed = PaymentService::log_webhook(
+        &state.db,
+        "stripe",
+        &webhook.event_id,
+        &webhook.event_type,
+        payload,
+    )
+    .await?;
+
+    if already_processed {
+        return Ok(StatusCode::OK);
+    }
+
+    // Process based on event type
+    match webhook.event_type.as_str() {
+        "payment_intent.succeeded" | "checkout.session.completed" => {
+            PaymentService::process_successful_payment(
+                &state.db,
+                "stripe",
+                &webhook.transaction_id,
+                webhook.amount,
+                webhook.payment_method,
+            )
+            .await?;
+        }
+        "payment_intent.payment_failed" | "charge.failed" => {
+            PaymentService::process_failed_payment(
+                &state.db,
+                "stripe",
+                &webhook.transaction_id,
+                webhook.error_reason,
+            )
+            .await?;
+        }
+        "charge.refunded" => {
+            info!(transaction_id = %webhook.transaction_id, "Stripe refund processed");
+        }
+        _ => {
+            debug!(event = %webhook.event_type, "Unhandled Stripe event");
+        }
+    }
+
+    PaymentService::mark_webhook_processed(&state.db, "stripe", &webhook.event_id).await?;
 
     Ok(StatusCode::OK)
 }

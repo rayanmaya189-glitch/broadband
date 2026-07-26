@@ -726,3 +726,62 @@ pub async fn remove_invoice_item(
     BillingService::remove_line_item(&state.db, id, item_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+// ── TDS Endpoints ──
+
+#[derive(Debug, Deserialize)]
+pub struct TdsCalculationRequest {
+    pub amount: String,
+    pub section: String, // "194C", "194J", "194H", "194A"
+    pub deductee_pan: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TdsCalculationResponse {
+    pub section: String,
+    pub gross_amount: String,
+    pub threshold: String,
+    pub tds_rate: String,
+    pub tds_amount: String,
+    pub net_payable: String,
+    pub pan_available: bool,
+    pub requires_filing: bool,
+}
+
+/// POST /api/v1/billing/tds/calculate
+pub async fn calculate_tds(
+    State(_state): State<Arc<AppState>>,
+    user: UserContext,
+    Json(req): Json<TdsCalculationRequest>,
+) -> Result<Json<TdsCalculationResponse>, AppError> {
+    require_permission(&user, "billing.tds.calculate").map_err(|e| AppError::Forbidden(e.1))?;
+
+    let amount: sea_orm::prelude::Decimal = req.amount.parse()
+        .map_err(|_| AppError::Validation("Invalid amount".into()))?;
+
+    let section = match req.section.as_str() {
+        "194C" => crate::modules::billing::domain::rules::tds_service::TdsSection::Contractor,
+        "194J" => crate::modules::billing::domain::rules::tds_service::TdsSection::Professional,
+        "194H" => crate::modules::billing::domain::rules::tds_service::TdsSection::Commission,
+        "194A" => crate::modules::billing::domain::rules::tds_service::TdsSection::Interest,
+        _ => return Err(AppError::Validation(format!("Invalid TDS section: {}", req.section))),
+    };
+
+    let result = crate::modules::billing::domain::rules::tds_service::calculate_tds(
+        amount,
+        section,
+        req.deductee_pan.as_deref(),
+        sea_orm::prelude::Decimal::ZERO, // YTD aggregate would come from DB in production
+    );
+
+    Ok(Json(TdsCalculationResponse {
+        section: result.section.to_string(),
+        gross_amount: result.gross_amount.to_string(),
+        threshold: result.threshold.to_string(),
+        tds_rate: result.tds_rate.to_string(),
+        tds_amount: result.tds_amount.to_string(),
+        net_payable: result.net_payable.to_string(),
+        pan_available: result.pan_available,
+        requires_filing: result.requires_filing,
+    }))
+}

@@ -240,36 +240,42 @@ impl FcmAdapter {
             AppError::Internal(anyhow::anyhow!("Missing client_email in service account"))
         })?;
 
-        // Build JWT claims for OAuth2 token exchange
-        let now = chrono::Utc::now().timestamp();
-        let exp = now + 3600;
-        let scope = "https://www.googleapis.com/auth/firebase.messaging";
+        // Build JWT claims for OAuth2 token exchange using jsonwebtoken directly
 
-        // Create JWT header and claims
-        let header = serde_json::json!({
-            "alg": "RS256",
-            "typ": "JWT"
-        });
+        // Extract private key PEM from service account JSON
+        let private_key_pem = sa_key["private_key"]
+            .as_str()
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing private_key in service account")))?;
+
+        // Parse PEM to DER if PEM-wrapped
+        let der_key = if private_key_pem.contains("BEGIN") {
+            let pem_lines: String = private_key_pem
+                .lines()
+                .filter(|l| !l.starts_with("-----"))
+                .collect();
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD
+                .decode(&pem_lines)
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode PEM key: {}", e)))?
+        } else {
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD
+                .decode(private_key_pem)
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode base64 key: {}", e)))?
+        };
+
+        // Build proper JWT using jsonwebtoken (no manual header+claims+signature assembly)
+        let jwt_header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
         let claims = serde_json::json!({
             "iss": client_email,
-            "scope": scope,
+            "scope": "https://www.googleapis.com/auth/firebase.messaging",
             "aud": "https://oauth2.googleapis.com/token",
-            "iat": now,
-            "exp": exp
+            "iat": jsonwebtoken::get_current_timestamp(),
+            "exp": jsonwebtoken::get_current_timestamp() + 3600
         });
-
-        // Base64url encode header and claims
-        let header_json = serde_json::to_vec(&header)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize FCM header: {}", e)))?;
-        let claims_json = serde_json::to_vec(&claims)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize FCM claims: {}", e)))?;
-        let header_b64 = base64url_encode(&header_json);
-        let claims_b64 = base64url_encode(&claims_json);
-        let signing_input = format!("{}.{}", header_b64, claims_b64);
-
-        // Sign with private key
-        let signature = create_jwt_signature(&signing_input, &self.config.service_account_key)?;
-        let jwt = format!("{}.{}", signing_input, signature);
+        let key = jsonwebtoken::EncodingKey::from_rsa_der(&der_key);
+        let jwt = jsonwebtoken::encode(&jwt_header, &claims, &key)
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to sign FCM JWT: {}", e)))?;
 
         // Exchange JWT for access token
         let response = self
@@ -523,66 +529,6 @@ impl FcmAdapter {
     }
 }
 
-/// Base64url encode bytes (RFC 4648 §5)
-fn base64url_encode(data: &[u8]) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
-}
-
-/// Create a JWT RS256 signature for OAuth2 token exchange
-///
-/// Uses the `jsonwebtoken` crate to sign the JWT with the service account's RSA private key.
-fn create_jwt_signature(signing_input: &str, service_account_key: &str) -> Result<String, AppError> {
-    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-
-    let sa_key: serde_json::Value = serde_json::from_str(service_account_key)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid service account key for signing: {}", e)))?;
-
-    let private_key_pem = sa_key["private_key"]
-        .as_str()
-        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing private_key in service account")))?;
-
-    // Decode the PEM to DER if it's PEM-wrapped
-    let der_key = if private_key_pem.contains("BEGIN") {
-        let pem_lines: String = private_key_pem
-            .lines()
-            .filter(|l| !l.starts_with("-----"))
-            .collect();
-        use base64::Engine;
-        base64::engine::general_purpose::STANDARD
-            .decode(&pem_lines)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode PEM key: {}", e)))?
-    } else {
-        use base64::Engine;
-        base64::engine::general_purpose::STANDARD
-            .decode(private_key_pem)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode base64 key: {}", e)))?
-    };
-
-    let header = Header::new(Algorithm::RS256);
-
-    // Parse the signing_input (header_b64.claims_b64) to extract claims
-    let parts: Vec<&str> = signing_input.split('.').collect();
-    let claims_b64 = parts.get(1).unwrap_or(&"");
-
-    let claims_value: serde_json::Value = {
-        use base64::Engine;
-        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(*claims_b64)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode claims: {}", e)))?;
-        serde_json::from_slice(&decoded)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse claims: {}", e)))?
-    };
-
-    let key = EncodingKey::from_rsa_der(&der_key);
-    let token = encode(&header, &claims_value, &key)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to sign JWT: {}", e)))?;
-
-    // Return only the signature part (third segment)
-    let signature = token.split('.').nth(2).unwrap_or("").to_string();
-    Ok(signature)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -595,15 +541,17 @@ mod tests {
 
     #[test]
     fn test_base64url_encode() {
-        let encoded = base64url_encode(b"hello");
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b"hello");
         assert_eq!(encoded, "aGVsbG8");
     }
 
     #[test]
     fn test_base64url_encode_binary() {
+        use base64::Engine;
         // Ensure padding-free encoding
         let data = vec![0u8; 32];
-        let encoded = base64url_encode(&data);
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&data);
         assert!(!encoded.contains('='));
     }
 }

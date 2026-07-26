@@ -50,6 +50,13 @@ pub struct Settings {
 
     // Security
     pub jwt_key_rotation_days: i64,
+
+    // Tax / Compliance
+    pub supplier_gstin: String,
+    pub supplier_state: String,
+    pub tds_rate_professional: f64,
+    pub tds_rate_contractor: f64,
+    pub tds_pan: String,
 }
 
 impl Settings {
@@ -124,6 +131,20 @@ impl Settings {
                 .unwrap_or_else(|_| "90".to_string())
                 .parse()
                 .unwrap_or(90),
+
+            supplier_gstin: env::var("SUPPLIER_GSTIN")
+                .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string()),
+            supplier_state: env::var("SUPPLIER_STATE")
+                .unwrap_or_else(|_| "Maharashtra".to_string()),
+            tds_rate_professional: env::var("TDS_RATE_PROFESSIONAL")
+                .unwrap_or_else(|_| "0.10".to_string())
+                .parse()
+                .unwrap_or(0.10),
+            tds_rate_contractor: env::var("TDS_RATE_CONTRACTOR")
+                .unwrap_or_else(|_| "0.02".to_string())
+                .parse()
+                .unwrap_or(0.02),
+            tds_pan: env::var("TDS_PAN").unwrap_or_default(),
         })
     }
 }

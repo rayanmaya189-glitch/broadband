@@ -347,3 +347,178 @@ impl GatewayAdapter for PayuAdapter {
         })
     }
 }
+
+// ============================================================================
+// Stripe Adapter
+// ============================================================================
+
+/// Stripe gateway adapter with full API integration
+pub struct StripeAdapter {
+    pub secret_key: String,
+    pub webhook_signing_secret: String,
+    pub api_endpoint: String,
+}
+
+impl StripeAdapter {
+    pub fn from_env() -> Self {
+        let is_live = std::env::var("STRIPE_LIVE").unwrap_or_default() == "true";
+        Self {
+            secret_key: std::env::var("STRIPE_SECRET_KEY").unwrap_or_default(),
+            webhook_signing_secret: std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
+            api_endpoint: if is_live {
+                "https://api.stripe.com/v1".to_string()
+            } else {
+                "https://api.stripe.com/v1".to_string() // same API, test mode via key prefix
+            },
+        }
+    }
+
+    pub fn is_configured(&self) -> bool {
+        !self.secret_key.is_empty()
+    }
+}
+
+#[async_trait]
+impl GatewayAdapter for StripeAdapter {
+    async fn create_payment_link(
+        &self,
+        amount: sea_orm::prelude::Decimal,
+        currency: &str,
+        receipt: &str,
+        metadata: serde_json::Value,
+    ) -> Result<GatewayPaymentResponse, AppError> {
+        // Stripe expects amount in smallest currency unit (paise for INR)
+        let amount_paise = (amount * sea_orm::prelude::Decimal::new(100, 0))
+            .to_string()
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        // Create a PaymentIntent via Stripe API
+        let client = reqwest::Client::new();
+        let response = client
+            .post(format!("{}/payment_intents", self.api_endpoint))
+            .bearer_auth(&self.secret_key)
+            .form(&[
+                ("amount", amount_paise.to_string()),
+                ("currency", currency.to_lowercase()),
+                ("receipt_email", metadata["customer_email"].as_str().unwrap_or("").to_string()),
+                ("description", format!("{}: {}", receipt, metadata["customer_name"].as_str().unwrap_or("Customer"))),
+                ("metadata[customer_id]", metadata["customer_id"].as_str().unwrap_or("").to_string()),
+                ("metadata[receipt]", receipt.to_string()),
+            ])
+            .send()
+            .await
+            .map_err(|e| AppError::External(format!("Stripe API request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            warn!(status = %status, body = %error_body, "Stripe PaymentIntent creation failed");
+            return Err(AppError::External(format!(
+                "Stripe API error ({}): {}",
+                status, error_body
+            )));
+        }
+
+        let intent: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| AppError::External(format!("Failed to parse Stripe response: {}", e)))?;
+
+        let payment_intent_id = intent["id"].as_str().unwrap_or("").to_string();
+        let client_secret = intent["client_secret"].as_str().unwrap_or("").to_string();
+        let payment_url = format!(
+            "https://checkout.stripe.com/pay/{}#payment_intent_client_secret={}",
+            payment_intent_id, client_secret
+        );
+
+        info!(payment_intent_id = %payment_intent_id, amount = %amount, "Created Stripe PaymentIntent");
+
+        Ok(GatewayPaymentResponse {
+            order_id: payment_intent_id,
+            payment_url,
+            amount,
+            currency: currency.to_string(),
+        })
+    }
+
+    fn verify_webhook_signature(
+        &self,
+        body: &[u8],
+        signature: &str,
+        secret: &str,
+    ) -> Result<bool, AppError> {
+        // Stripe webhook verification uses HMAC-SHA256 with timestamp
+        // Signature format: t=timestamp,v1=signature,v1=signature
+        // We compute HMAC-SHA256(secret, "timestamp.body") and compare v1 signatures
+
+        let parts: Vec<&str> = signature.split(',').collect();
+        let mut timestamp = "";
+        let mut expected_sigs: Vec<String> = Vec::new();
+        for part in &parts {
+            if let Some(t) = part.strip_prefix("t=") {
+                timestamp = t;
+            } else if let Some(v) = part.strip_prefix("v1=") {
+                expected_sigs.push(v.to_string());
+            }
+        }
+
+        if timestamp.is_empty() || expected_sigs.is_empty() {
+            return Ok(false);
+        }
+
+        let sign_payload = format!("{}.{}", timestamp, std::str::from_utf8(body).unwrap_or(""));
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("HMAC key error: {}", e)))?;
+        mac.update(sign_payload.as_bytes());
+        let computed = hex::encode(mac.finalize().into_bytes());
+
+        Ok(expected_sigs.iter().any(|s| s == &computed))
+    }
+
+    fn parse_webhook(&self, payload: serde_json::Value) -> Result<GatewayWebhookPayload, AppError> {
+        let event_type = payload["type"].as_str().unwrap_or("unknown");
+        let data = &payload["data"]["object"];
+
+        let transaction_id = data["id"].as_str().unwrap_or("").to_string();
+        let order_id = data["metadata"]["receipt"].as_str().map(|s| s.to_string());
+        let amount_raw = data["amount"].as_i64().unwrap_or(0);
+        let amount_decimal = sea_orm::prelude::Decimal::new(amount_raw, 0);
+
+        let stripe_status = data["status"].as_str().unwrap_or("unknown");
+        let status = match stripe_status {
+            "succeeded" => "success",
+            "requires_payment_method" | "requires_confirmation" | "requires_action" => "pending",
+            "canceled" => "failure",
+            _ => "unknown",
+        };
+
+        let payment_method_type = data["payment_method_types"]
+            .as_array()
+            .and_then(|a| a.first())
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let error_reason = if event_type == "payment_intent.payment_failed" {
+            data["last_payment_error"]["message"]
+                .as_str()
+                .map(|s| s.to_string())
+        } else {
+            None
+        };
+
+        debug!(event_type = %event_type, transaction_id = %transaction_id, "Parsed Stripe webhook");
+
+        Ok(GatewayWebhookPayload {
+            event_id: payload["id"].as_str().unwrap_or("").to_string(),
+            event_type: event_type.to_string(),
+            transaction_id,
+            order_id,
+            amount: amount_decimal,
+            status: status.to_string(),
+            payment_method: payment_method_type,
+            error_reason,
+            raw_payload: payload,
+        })
+    }
+}

@@ -64,9 +64,13 @@ impl BillingService {
         // Determine place of supply from customer state (default: Maharashtra for intra-state)
         let place_of_supply = Self::get_customer_state(db, customer_id).await
             .unwrap_or_else(|| "Maharashtra".to_string());
-        let supplier_state = "Maharashtra"; // Company registered state
-        let is_intra_state = tax_service::is_intra_state(supplier_state, &place_of_supply);
+        let supplier_state = std::env::var("SUPPLIER_STATE")
+            .unwrap_or_else(|_| "Maharashtra".to_string());
+        let is_intra_state = tax_service::is_intra_state(&supplier_state, &place_of_supply);
         let gst = tax_service::calculate_gst_breakdown(total_amount, is_intra_state);
+
+        let supplier_gstin = std::env::var("SUPPLIER_GSTIN")
+            .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string());
 
         let new_inv = InvoiceActiveModel {
             invoice_number: Set(invoice_number),
@@ -89,7 +93,7 @@ impl BillingService {
             sgst_amount: Set(gst.sgst_amount),
             igst_amount: Set(gst.igst_amount),
             place_of_supply_state: Set(place_of_supply),
-            supplier_gstin: Set(Some("27AABCA1234H1Z5".to_string())), // From env/config
+            supplier_gstin: Set(Some(supplier_gstin)),
             reverse_charge: Set(false),
             late_fee_subtotal: Set(sea_orm::prelude::Decimal::ZERO),
             late_fee_gst: Set(sea_orm::prelude::Decimal::ZERO),
@@ -256,9 +260,12 @@ impl BillingService {
             // Calculate GST for auto-generated invoice
             let place_of_supply = Self::get_customer_state(db, sub.customer_id).await
                 .unwrap_or_else(|| "Maharashtra".to_string());
-            let supplier_state = "Maharashtra";
-            let is_intra_state = tax_service::is_intra_state(supplier_state, &place_of_supply);
+            let supplier_state = std::env::var("SUPPLIER_STATE")
+                .unwrap_or_else(|_| "Maharashtra".to_string());
+            let is_intra_state = tax_service::is_intra_state(&supplier_state, &place_of_supply);
             let gst = tax_service::calculate_gst_breakdown(plan_price, is_intra_state);
+            let supplier_gstin = std::env::var("SUPPLIER_GSTIN")
+                .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string());
 
             let new_inv = InvoiceActiveModel {
                 invoice_number: Set(invoice_number),
@@ -281,7 +288,7 @@ impl BillingService {
                 sgst_amount: Set(gst.sgst_amount),
                 igst_amount: Set(gst.igst_amount),
                 place_of_supply_state: Set(place_of_supply),
-                supplier_gstin: Set(Some("27AABCA1234H1Z5".to_string())),
+                supplier_gstin: Set(Some(supplier_gstin)),
                 reverse_charge: Set(false),
                 late_fee_subtotal: Set(sea_orm::prelude::Decimal::ZERO),
                 late_fee_gst: Set(sea_orm::prelude::Decimal::ZERO),

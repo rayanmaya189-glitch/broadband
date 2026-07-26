@@ -454,6 +454,7 @@ fn accounting_routes() -> Router<SharedState> {
             axum::routing::get(http::balance_sheet),
         )
         .route("/gst/:type", axum::routing::get(http::gst_return))
+        .route("/roc/annual", axum::routing::get(http::roc_annual_filing))
         .route(
             "/reconciliation/:account_id",
             axum::routing::get(http::reconcile_account),
@@ -842,6 +843,10 @@ fn payment_routes() -> Router<SharedState> {
         .route(
             "/webhook/payu",
             axum::routing::post(http::handle_payu_webhook),
+        )
+        .route(
+            "/webhook/stripe",
+            axum::routing::post(http::handle_stripe_webhook),
         )
         .route("/:id/retry", axum::routing::post(http::retry_payment))
 }
