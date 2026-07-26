@@ -10,6 +10,9 @@ pub struct Settings {
     // Database
     pub database_url: String,
     pub db_max_connections: u32,
+    pub db_min_connections: u32,
+    pub db_connect_timeout_secs: u64,
+    pub db_idle_timeout_secs: u64,
 
     // Redis
     pub redis_url: String,
@@ -69,6 +72,18 @@ impl Settings {
                 .unwrap_or_else(|_| "20".to_string())
                 .parse()
                 .unwrap_or(20),
+            db_min_connections: env::var("DB_MIN_CONNECTIONS")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .unwrap_or(5),
+            db_connect_timeout_secs: env::var("DB_CONNECT_TIMEOUT_SECS")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
+            db_idle_timeout_secs: env::var("DB_IDLE_TIMEOUT_SECS")
+                .unwrap_or_else(|_| "600".to_string())
+                .parse()
+                .unwrap_or(600),
 
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),

@@ -1,12 +1,17 @@
 use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::Response;
+use sea_orm::DatabaseConnection;
+use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, error};
+
+use super::request_id::RequestId;
 
 /// Middleware that logs all API actions to the audit_logs table.
 ///
 /// Records:
+/// - Request ID (for distributed tracing correlation)
 /// - User ID, email, role (from JWT)
 /// - HTTP method and URI
 /// - IP address and user agent
@@ -24,10 +29,22 @@ pub async fn audit_middleware(request: Request, next: Next) -> Response {
     // Extract client info
     let ip_address = extract_ip(&request);
 
+    // Extract request ID from extensions (set by request_id_middleware)
+    let request_id = request
+        .extensions()
+        .get::<RequestId>()
+        .map(|r| r.as_str().to_string());
+
     // Extract user context if available (from branch_scope middleware)
     let user_context = request
         .extensions()
         .get::<crate::shared::middleware::auth::UserContext>()
+        .cloned();
+
+    // Extract DB connection for persistence
+    let db = request
+        .extensions()
+        .get::<Arc<DatabaseConnection>>()
         .cloned();
 
     // Run the request
@@ -62,6 +79,7 @@ pub async fn audit_middleware(request: Request, next: Next) -> Response {
     let user_role = user_context.as_ref().map(|u| u.role.clone());
 
     debug!(
+        request_id = ?request_id,
         user_id = ?user_id,
         action = %action,
         result = %result,
@@ -70,33 +88,42 @@ pub async fn audit_middleware(request: Request, next: Next) -> Response {
         "Audit log entry"
     );
 
-    // Fire-and-forget: spawn audit log insertion
-    // In production, this would write to the audit_logs table
-    // For now, we log it via tracing which goes to the structured logging pipeline
+    // Fire-and-forget: persist audit log to database
+    if let Some(db) = db {
+        let request_id_clone = request_id.clone();
+        let action_clone = action.clone();
+        tokio::spawn(async move {
+            if let Err(e) = crate::modules::audit::application::services::AuditService::record_action(
+                &db,
+                user_id,
+                user_email,
+                user_role,
+                action_clone,
+                resource_type,
+                resource_id,
+                Some(ip_address),
+                result.to_string(),
+                None,
+                None,
+            ).await {
+                error!(
+                    request_id = ?request_id_clone,
+                    error = %e,
+                    "Failed to persist audit log"
+                );
+            }
+        });
+    }
+
+    // Also log denied/server errors via tracing for alerting
     if result == "denied" || status.is_server_error() {
         error!(
+            request_id = ?request_id,
             user_id = ?user_id,
-            user_email = ?user_email,
-            user_role = ?user_role,
             action = %action,
-            resource_type = ?resource_type,
-            resource_id = ?resource_id,
-            ip_address = %ip_address,
-            result = %result,
             status = %status.as_u16(),
             duration_ms = duration_ms,
             "Security audit event"
-        );
-    } else {
-        debug!(
-            user_id = ?user_id,
-            action = %action,
-            resource_type = ?resource_type,
-            resource_id = ?resource_id,
-            result = %result,
-            status = %status.as_u16(),
-            duration_ms = duration_ms,
-            "Audit event"
         );
     }
 

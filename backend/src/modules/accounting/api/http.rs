@@ -1,5 +1,6 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -66,6 +67,8 @@ pub struct BalanceSheetQuery {
 pub struct GstQuery {
     pub period_month: u32,
     pub period_year: i32,
+    #[serde(default)]
+    pub format: Option<String>, // "json" (default) or "csv"
 }
 
 // ── Response Types ──
@@ -359,7 +362,7 @@ pub async fn gst_return(
     _user: UserContext,
     Path(return_type): Path<String>,
     Query(q): Query<GstQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Response, AppError> {
     if !["GSTR1", "GSTR3B"].contains(&return_type.as_str()) {
         return Err(AppError::Validation(
             "Invalid GST return type, must be GSTR1 or GSTR3B".into(),
@@ -372,7 +375,58 @@ pub async fn gst_return(
         q.period_year,
     )
     .await?;
-    Ok(Json(serde_json::to_value(data).unwrap_or_default()))
+
+    if q.format.as_deref() == Some("csv") {
+        let csv = gst_return_to_csv(&data);
+        Ok((
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+             (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"gst_return.csv\"")],
+            csv,
+        ).into_response())
+    } else {
+        Ok(Json(serde_json::to_value(data).unwrap_or_default()).into_response())
+    }
+}
+
+/// Convert GSTR-1/3B data to CSV format for GST portal upload
+fn gst_return_to_csv(data: &crate::modules::accounting::application::services::GstReturnData) -> String {
+    let mut csv = String::with_capacity(1024);
+
+    // Header row
+    csv.push_str("Invoice Number,Invoice Date,Place of Supply,Taxable Value,CGST Amount,SGST Amount,IGST Amount,Total Tax,HSN/SAC,Is Intra-State,Reverse Charge\n");
+
+    // Per-invoice detail rows
+    for inv in &data.invoices {
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{},{},{}\n",
+            inv.invoice_number,
+            inv.invoice_date,
+            inv.place_of_supply,
+            inv.taxable_value,
+            inv.cgst_amount,
+            inv.sgst_amount,
+            inv.igst_amount,
+            inv.total_tax,
+            inv.hsn_sac_code,
+            inv.is_intra_state,
+            inv.reverse_charge,
+        ));
+    }
+
+    // Summary row
+    csv.push_str(&format!(
+        "\nSummary,,,{},{},{},{},{},,{},{}\n",
+        data.total_taxable_value,
+        data.total_cgst,
+        data.total_sgst,
+        data.total_igst,
+        data.total_tax,
+        data.return_type,
+        data.invoice_count,
+    ));
+
+    csv
 }
 
 #[derive(Debug, Deserialize)]

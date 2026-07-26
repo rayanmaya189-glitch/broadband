@@ -148,6 +148,67 @@ pub struct TdsReturnEntry {
     pub status: String,
 }
 
+/// Determine the Indian financial quarter (Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec, Q4=Jan-Mar)
+pub fn get_financial_quarter(month: u32) -> &'static str {
+    match month {
+        4..=6 => "Q1",
+        7..=9 => "Q2",
+        10..=12 => "Q3",
+        1..=3 => "Q4",
+        _ => "Q1",
+    }
+}
+
+/// Determine financial year start year from a calendar month
+pub fn get_financial_year_start(month: u32, year: i32) -> i32 {
+    if month >= 4 { year } else { year - 1 }
+}
+
+/// Generate a quarterly TDS return summary (Form 26Q format)
+pub fn generate_quarterly_tds_return(
+    entries: Vec<TdsReturnEntry>,
+    quarter: &str,
+    financial_year: &str,
+    deductor_pan: &str,
+) -> TdsReturnData {
+    let total_deducted: Decimal = entries.iter().map(|e| e.tds_amount).sum();
+    let total_paid: Decimal = entries.iter().map(|e| e.tds_deposited).sum();
+
+    TdsReturnData {
+        quarter: quarter.to_string(),
+        financial_year: financial_year.to_string(),
+        deductor_pan: deductor_pan.to_string(),
+        total_deducted,
+        total_paid,
+        entries,
+    }
+}
+
+/// Convert TDS return data to CSV for quarterly filing
+pub fn tds_return_to_csv(data: &TdsReturnData) -> String {
+    let mut csv = String::with_capacity(1024);
+    csv.push_str("Deductee Name,Deductee PAN,Section,Payment Date,Gross Amount,TDS Rate,TDS Amount,TDS Deposited,Status\n");
+    for entry in &data.entries {
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{}\n",
+            entry.deductee_name,
+            entry.deductee_pan,
+            entry.section,
+            entry.payment_date,
+            entry.gross_amount,
+            entry.tds_rate,
+            entry.tds_amount,
+            entry.tds_deposited,
+            entry.status,
+        ));
+    }
+    csv.push_str(&format!(
+        "\nTotal,,,{},{},{},,,\n",
+        data.total_deducted, "", data.total_paid,
+    ));
+    csv
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

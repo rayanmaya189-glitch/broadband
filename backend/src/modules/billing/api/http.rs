@@ -785,3 +785,79 @@ pub async fn calculate_tds(
         requires_filing: result.requires_filing,
     }))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct TdsQuarterlyReturnRequest {
+    pub quarter: String, // Q1, Q2, Q3, Q4
+    pub financial_year: String, // e.g. "2025-26"
+    pub entries: Vec<TdsReturnEntryRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TdsReturnEntryRequest {
+    pub deductee_name: String,
+    pub deductee_pan: String,
+    pub section: String,
+    pub payment_date: String,
+    pub gross_amount: String,
+    pub tds_rate: String,
+    pub tds_amount: String,
+    pub tds_deposited: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TdsQuarterlyReturnResponse {
+    pub quarter: String,
+    pub financial_year: String,
+    pub deductor_pan: String,
+    pub total_deducted: String,
+    pub total_paid: String,
+    pub entry_count: usize,
+    pub csv: String,
+}
+
+/// POST /api/v1/billing/tds/quarterly-return
+pub async fn generate_tds_quarterly_return(
+    State(_state): State<Arc<AppState>>,
+    user: UserContext,
+    Json(req): Json<TdsQuarterlyReturnRequest>,
+) -> Result<Json<TdsQuarterlyReturnResponse>, AppError> {
+    require_permission(&user, "billing.tds.return").map_err(|e| AppError::Forbidden(e.1))?;
+
+    let tds_pan = std::env::var("TDS_PAN").unwrap_or_default();
+
+    let entries: Vec<crate::modules::billing::domain::rules::tds_service::TdsReturnEntry> =
+        req.entries
+            .into_iter()
+            .map(|e| crate::modules::billing::domain::rules::tds_service::TdsReturnEntry {
+                deductee_name: e.deductee_name,
+                deductee_pan: e.deductee_pan,
+                section: e.section,
+                payment_date: e.payment_date,
+                gross_amount: e.gross_amount.parse().unwrap_or_default(),
+                tds_rate: e.tds_rate.parse().unwrap_or_default(),
+                tds_amount: e.tds_amount.parse().unwrap_or_default(),
+                tds_deposited: e.tds_deposited.parse().unwrap_or_default(),
+                status: "deposited".to_string(),
+            })
+            .collect();
+
+    let data = crate::modules::billing::domain::rules::tds_service::generate_quarterly_tds_return(
+        entries,
+        &req.quarter,
+        &req.financial_year,
+        &tds_pan,
+    );
+
+    let csv = crate::modules::billing::domain::rules::tds_service::tds_return_to_csv(&data);
+
+    Ok(Json(TdsQuarterlyReturnResponse {
+        quarter: data.quarter,
+        financial_year: data.financial_year,
+        deductor_pan: data.deductor_pan,
+        total_deducted: data.total_deducted.to_string(),
+        total_paid: data.total_paid.to_string(),
+        entry_count: data.entries.len(),
+        csv,
+    }))
+}

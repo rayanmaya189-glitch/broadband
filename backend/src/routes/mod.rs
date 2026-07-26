@@ -22,6 +22,7 @@ pub fn health_routes() -> Router<SharedState> {
     Router::new()
         .route("/health", get(health_check))
         .route("/ready", get(readiness_check))
+        .route("/metrics", get(prometheus_metrics))
         .merge(swagger_ui)
 }
 
@@ -37,9 +38,29 @@ async fn health_check() -> axum::Json<serde_json::Value> {
     }))
 }
 
+/// GET /metrics — Prometheus scrape endpoint
+async fn prometheus_metrics(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+) -> Result<String, axum::http::StatusCode> {
+    use prometheus::Encoder;
+
+    if let Some(ref metrics) = state.metrics {
+        let metrics = metrics.read().await;
+        let encoder = prometheus::TextEncoder::new();
+        let metric_families = metrics.registry.gather();
+        let mut buffer = Vec::new();
+        if let Err(_e) = encoder.encode(&metric_families, &mut buffer) {
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        String::from_utf8(buffer).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+    } else {
+        Ok("# Metrics not initialized\n".to_string())
+    }
+}
+
 async fn readiness_check(
     axum::extract::State(state): axum::extract::State<SharedState>,
-) -> axum::Json<serde_json::Value> {
+) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
     use crate::modules::branches::domain::entities::branch;
     use sea_orm::{EntityTrait, QuerySelect};
     use redis::RedisResult;
@@ -47,34 +68,40 @@ async fn readiness_check(
     let mut checks = serde_json::Map::new();
     let mut is_ready = true;
 
-    // Check database connectivity by querying a simple table
+    // Check database connectivity
     match branch::Entity::find().limit(1).all(&state.db).await {
         Ok(_) => {
-            checks.insert("database".to_string(), serde_json::json!("ok"));
+            checks.insert("database".to_string(), serde_json::json!({
+                "status": "ok",
+            }));
         }
         Err(e) => {
             checks.insert(
                 "database".to_string(),
-                serde_json::json!({"error": e.to_string()}),
+                serde_json::json!({"status": "error", "error": e.to_string()}),
             );
             is_ready = false;
         }
     }
 
-    // Check Redis connectivity
+    // Check Redis connectivity + latency
     {
+        let start = std::time::Instant::now();
         let mut conn = state.redis.clone();
         let ping_result: RedisResult<String> = redis::cmd("PING")
             .query_async(&mut conn)
             .await;
         match ping_result {
             Ok(_) => {
-                checks.insert("redis".to_string(), serde_json::json!("ok"));
+                checks.insert("redis".to_string(), serde_json::json!({
+                    "status": "ok",
+                    "latency_ms": start.elapsed().as_millis(),
+                }));
             }
             Err(e) => {
                 checks.insert(
                     "redis".to_string(),
-                    serde_json::json!({"error": e.to_string()}),
+                    serde_json::json!({"status": "error", "error": e.to_string()}),
                 );
                 is_ready = false;
             }
@@ -82,19 +109,40 @@ async fn readiness_check(
     }
 
     // Check NATS connectivity (optional — degraded if unavailable)
-    if state.nats.is_some() {
-        checks.insert("nats".to_string(), serde_json::json!("ok"));
+    if let Some(ref nats) = state.nats {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            nats.flush(),
+        ).await {
+            Ok(Ok(_)) => {
+                checks.insert("nats".to_string(), serde_json::json!({"status": "ok"}));
+            }
+            Ok(Err(e)) => {
+                checks.insert("nats".to_string(), serde_json::json!({
+                    "status": "degraded",
+                    "error": e.to_string(),
+                }));
+                // NATS failure is non-critical but worth noting
+            }
+            Err(_) => {
+                checks.insert("nats".to_string(), serde_json::json!({
+                    "status": "degraded",
+                    "error": "flush timed out (3s)",
+                }));
+            }
+        }
     } else {
-        checks.insert("nats".to_string(), serde_json::json!("unavailable (non-critical)"));
+        checks.insert("nats".to_string(), serde_json::json!({"status": "unavailable", "note": "non-critical"}));
     }
 
     let status = if is_ready { "ready" } else { "not_ready" };
 
-    axum::Json(serde_json::json!({
+    Ok(axum::Json(serde_json::json!({
         "status": status,
         "service": "aeroxe-backend",
+        "version": env!("CARGO_PKG_VERSION"),
         "checks": checks,
-    }))
+    })))
 }
 
 pub fn v1_routes() -> Router<SharedState> {
@@ -389,6 +437,14 @@ fn billing_routes() -> Router<SharedState> {
         .route(
             "/invoices/:id/items/:item_id",
             axum::routing::delete(http::remove_invoice_item),
+        )
+        .route(
+            "/tds/calculate",
+            axum::routing::post(http::calculate_tds),
+        )
+        .route(
+            "/tds/quarterly-return",
+            axum::routing::post(http::generate_tds_quarterly_return),
         )
 }
 

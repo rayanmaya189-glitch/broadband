@@ -4,12 +4,15 @@ use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 pub async fn create_database_pool(
     database_url: &str,
     max_connections: u32,
+    min_connections: u32,
+    connect_timeout_secs: u64,
+    idle_timeout_secs: u64,
 ) -> anyhow::Result<DatabaseConnection> {
     let mut opt = ConnectOptions::new(database_url.to_string());
     opt.max_connections(max_connections)
-        .min_connections(5)
-        .connect_timeout(std::time::Duration::from_secs(30))
-        .idle_timeout(std::time::Duration::from_secs(600));
+        .min_connections(min_connections)
+        .connect_timeout(std::time::Duration::from_secs(connect_timeout_secs))
+        .idle_timeout(std::time::Duration::from_secs(idle_timeout_secs));
 
     let db = Database::connect(opt).await?;
     Ok(db)

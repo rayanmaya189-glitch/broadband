@@ -44,7 +44,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Server listening on {}", addr);
 
     // Create database pool
-    let db = create_database_pool(&settings.database_url, settings.db_max_connections).await?;
+    let db = create_database_pool(
+        &settings.database_url,
+        settings.db_max_connections,
+        settings.db_min_connections,
+        settings.db_connect_timeout_secs,
+        settings.db_idle_timeout_secs,
+    ).await?;
     tracing::info!("Database pool created");
 
     // Create Redis pool
@@ -182,6 +188,10 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api/v1", aeroxe_backend::routes::v1_routes())
         .merge(aeroxe_backend::routes::health_routes())
         .merge(aeroxe_backend::infrastructure::openapi::swagger_routes())
+        // 0. Request ID (outermost — generates/propagates X-Request-ID before anything else)
+        .layer(axum::middleware::from_fn(
+            aeroxe_backend::shared::middleware::request_id::request_id_middleware,
+        ))
         // 1. Request body size limit (10 MB default)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
             10 * 1024 * 1024,
@@ -194,10 +204,19 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::security_headers::security_headers_middleware,
         ))
-        // 4. Audit middleware (captures timing, logs after response)
-        .layer(axum::middleware::from_fn(
-            aeroxe_backend::shared::middleware::audit::audit_middleware,
-        ))
+        // 4. Audit middleware (captures timing, logs after response, persists to DB)
+        .layer(axum::middleware::from_fn({
+            let db = std::sync::Arc::new(state.db.clone());
+            move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
+                let db = db.clone();
+                async move {
+                    let mut req = req;
+                    req.extensions_mut().insert(db);
+                    aeroxe_backend::shared::middleware::audit::audit_middleware(req, next)
+                        .await
+                }
+            }
+        }))
         // 5. Rate limiting (with injected store)
         .layer(axum::middleware::from_fn({
             let store = rate_limit_store.clone();
@@ -578,8 +597,22 @@ async fn main() -> anyhow::Result<()> {
             .expect("Server failed");
     });
 
-    // Wait for the server task to complete (due to shutdown signal)
-    server_handle.await?;
+    // Wait for the server task to complete, with 30-second drain timeout
+    let drain_timeout = std::time::Duration::from_secs(30);
+    match tokio::time::timeout(drain_timeout, server_handle).await {
+        Ok(Ok(())) => {
+            tracing::info!("Server drained cleanly");
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "Server task panicked during shutdown");
+        }
+        Err(_) => {
+            tracing::warn!(
+                drain_secs = 30,
+                "Server drain timed out — forcing shutdown"
+            );
+        }
+    }
 
     // Broadcast shutdown to all workers
     let _ = shutdown_tx.send(());
