@@ -131,7 +131,7 @@ pub async fn create_api_key(
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<ApiKeyResponse>), AppError> {
     require_permission(&user, "gateway.apikey.create").map_err(|e| AppError::Forbidden(e.1))?;
-    let raw_key = format!("ax_{}_{}", uuid::Uuid::new_v4().to_string().replace("-", ""), chrono::Utc::now().timestamp());
+    let raw_key = format!("ax_{}_{}", crate::shared::utils::uuid_v7::new_v7_compact(), chrono::Utc::now().timestamp());
     let key_hash = format!("{:x}", md5::compute(raw_key.as_bytes()));
     let key_prefix = raw_key[..12].to_string();
 

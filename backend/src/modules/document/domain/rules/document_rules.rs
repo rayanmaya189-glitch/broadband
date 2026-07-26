@@ -40,7 +40,7 @@ impl DocumentRules {
             entity_type,
             entity_id,
             chrono::Utc::now().format("%Y/%m/%d"),
-            uuid::Uuid::new_v4().to_string() + "." + ext
+            crate::shared::utils::uuid_v7::new_v7_string() + "." + ext
         )
     }
 }

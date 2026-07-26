@@ -52,7 +52,7 @@ impl DomainEvent {
         payload: serde_json::Value,
     ) -> Self {
         Self {
-            event_id: uuid::Uuid::new_v4().to_string(),
+            event_id: crate::shared::utils::uuid_v7::new_v7_string(),
             event_type: event_type.to_string(),
             aggregate_type: aggregate_type.to_string(),
             aggregate_id: aggregate_id.to_string(),

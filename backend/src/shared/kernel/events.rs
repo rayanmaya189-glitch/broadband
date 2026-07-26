@@ -21,7 +21,7 @@ pub struct EventEnvelope<T: Serialize> {
 impl<T: Serialize> EventEnvelope<T> {
     pub fn new(event_type: &str, producer: &str, payload: T) -> Self {
         Self {
-            event_id: uuid::Uuid::new_v4().to_string(),
+            event_id: crate::shared::utils::uuid_v7::new_v7_string(),
             event_type: event_type.to_string(),
             version: 1,
             occurred_at: Utc::now(),

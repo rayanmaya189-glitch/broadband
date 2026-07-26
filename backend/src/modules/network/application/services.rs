@@ -222,7 +222,7 @@ impl NetworkService {
         password_encrypted: String,
     ) -> Result<crate::modules::network::domain::entities::pppoe_session::Model, AppError> {
         let now = chrono::Utc::now();
-        let session_id = uuid::Uuid::new_v4().to_string();
+        let session_id = crate::shared::utils::uuid_v7::new_v7_string();
         let session = PppoeSessionActiveModel {
             branch_id: Set(branch_id),
             customer_id: Set(customer_id),

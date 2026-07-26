@@ -138,7 +138,7 @@ pub async fn presign_upload(
         purpose,
         now.format("%Y/%m/%d"),
         user.user_id,
-        uuid::Uuid::new_v4(),
+        crate::shared::utils::uuid_v7::new_v7(),
         req.filename
             .replace(|c: char| !c.is_alphanumeric() && c != '.', "_"),
         ext

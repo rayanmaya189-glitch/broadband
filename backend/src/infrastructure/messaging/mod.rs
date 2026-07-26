@@ -6,7 +6,6 @@ pub mod subscribers;
 use async_nats::Client;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// Event envelope for all domain events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +21,7 @@ pub struct EventEnvelope<T> {
 impl<T> EventEnvelope<T> {
     pub fn new(event_type: String, producer: String, payload: T) -> Self {
         Self {
-            event_id: Uuid::new_v4().to_string(),
+            event_id: crate::shared::utils::uuid_v7::new_v7_string(),
             event_type,
             version: 1,
             occurred_at: Utc::now(),
@@ -235,7 +234,7 @@ impl EventPublisher {
         payload: &serde_json::Value,
     ) -> anyhow::Result<()> {
         let envelope = serde_json::json!({
-            "event_id": Uuid::new_v4().to_string(),
+            "event_id": crate::shared::utils::uuid_v7::new_v7_string(),
             "event_type": event_type,
             "version": 1,
             "occurred_at": Utc::now().to_rfc3339(),

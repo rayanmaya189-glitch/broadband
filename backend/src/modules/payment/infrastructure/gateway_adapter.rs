@@ -223,7 +223,7 @@ impl GatewayAdapter for PayuAdapter {
         receipt: &str,
         metadata: serde_json::Value,
     ) -> Result<GatewayPaymentResponse, AppError> {
-        let uuid_str = uuid::Uuid::new_v4().to_string().replace('-', "");
+        let uuid_str = crate::shared::utils::uuid_v7::new_v7_compact();
         let txn_id = format!("txn_{}", &uuid_str[..14.min(uuid_str.len())]);
 
         // PayU uses SHA-512 hash for hash generation

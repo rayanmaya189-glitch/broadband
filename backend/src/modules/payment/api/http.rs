@@ -92,7 +92,7 @@ pub async fn create_payment_link(
     let gateway_id = req.gateway_id.unwrap_or_else(|| "razorpay".to_string());
     let idempotency_key = req
         .idempotency_key
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        .unwrap_or_else(|| crate::shared::utils::uuid_v7::new_v7_string());
     let expires_in_hours = req.expires_in_hours.unwrap_or(24);
 
     let link = PaymentService::create_payment_link(

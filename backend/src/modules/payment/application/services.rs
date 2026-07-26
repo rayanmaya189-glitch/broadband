@@ -1,7 +1,6 @@
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use tracing::{debug, info, warn};
-use uuid::Uuid;
 
 use crate::modules::payment::domain::entities::{gateway_config, payment_link, webhook_log};
 use crate::shared::errors::AppError;
@@ -36,7 +35,7 @@ impl PaymentService {
             return Ok(link);
         }
 
-        let link_id = Uuid::new_v4().to_string();
+        let link_id = crate::shared::utils::uuid_v7::new_v7_string().to_string();
         let now = Utc::now();
         let expires_at = now + chrono::Duration::hours(expires_in_hours);
 
@@ -156,7 +155,7 @@ impl PaymentService {
         notes: Option<String>,
         recorded_by: i64,
     ) -> Result<payment_link::Model, AppError> {
-        let link_id = Uuid::new_v4().to_string();
+        let link_id = crate::shared::utils::uuid_v7::new_v7_string().to_string();
         let now = Utc::now();
 
         let metadata = serde_json::json!({
@@ -178,7 +177,7 @@ impl PaymentService {
             gateway_order_id: Set(None),
             payment_url: Set(None),
             status: Set("completed".to_string()),
-            idempotency_key: Set(Uuid::new_v4().to_string()),
+            idempotency_key: Set(crate::shared::utils::uuid_v7::new_v7_string().to_string()),
             metadata: Set(Some(metadata)),
             expires_at: Set(None),
             paid_at: Set(Some(now)),

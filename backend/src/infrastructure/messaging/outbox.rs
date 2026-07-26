@@ -30,7 +30,7 @@ pub async fn insert_outbox_event(
     caused_by_user_id: Option<i64>,
     caused_by_branch_id: Option<i64>,
 ) -> Result<i64, AppError> {
-    let event_id = uuid::Uuid::new_v4().to_string();
+    let event_id = crate::shared::utils::uuid_v7::new_v7_string();
     let now = chrono::Utc::now();
 
     let model = ActiveModel {

@@ -23,7 +23,7 @@ pub async fn request_id_middleware(mut req: Request, next: Next) -> Response {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .unwrap_or_else(|| {
-            uuid::Uuid::new_v4().to_string()
+            crate::shared::utils::uuid_v7::new_v7_string()
         });
 
     // Insert into request extensions so handlers can access it
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_request_id_format() {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = crate::shared::utils::uuid_v7::new_v7_string();
         assert_eq!(id.len(), 36);
         assert!(id.contains('-'));
     }
