@@ -253,7 +253,8 @@ async fn main() -> anyhow::Result<()> {
         let outbox_worker = aeroxe_backend::workers::outbox_worker::OutboxWorker::new(
             std::sync::Arc::new(outbox_db),
             outbox_publisher,
-        );
+        )
+        .with_poll_interval(state.settings.worker_outbox_poll_interval_secs);
         let outbox_worker = if let Some(ref metrics) = state.metrics {
             outbox_worker.with_metrics(metrics.clone())
         } else {
@@ -295,15 +296,17 @@ async fn main() -> anyhow::Result<()> {
     {
         let worker_db = state.db.clone();
         let worker_metrics = state.metrics.clone();
+        let worker_settings = state.settings.clone();
 
         // Billing worker - runs every 5 minutes
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_billing_poll_interval_secs;
             let worker = aeroxe_backend::workers::billing_worker::BillingWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -312,14 +315,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["billing"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["billing"]).inc(); }
                                     tracing::error!(error = %e, "Billing worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["billing"]).inc(); }
                                     tracing::error!("Billing worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -338,10 +341,11 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_notification_poll_interval_secs;
             let worker = aeroxe_backend::workers::notification_worker::NotificationWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -350,14 +354,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["notification"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["notification"]).inc(); }
                                     tracing::error!(error = %e, "Notification worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["notification"]).inc(); }
                                     tracing::error!("Notification worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -376,10 +380,11 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_device_sync_poll_interval_secs;
             let worker = aeroxe_backend::workers::device_sync_worker::DeviceSyncWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -388,14 +393,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["device_sync"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["device_sync"]).inc(); }
                                     tracing::error!(error = %e, "Device sync worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["device_sync"]).inc(); }
                                     tracing::error!("Device sync worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -414,10 +419,11 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_bandwidth_poll_interval_secs;
             let worker = aeroxe_backend::workers::bandwidth_worker::BandwidthWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -426,14 +432,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["bandwidth"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["bandwidth"]).inc(); }
                                     tracing::error!(error = %e, "Bandwidth worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["bandwidth"]).inc(); }
                                     tracing::error!("Bandwidth worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -452,10 +458,11 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_radius_poll_interval_secs;
             let worker = aeroxe_backend::workers::radius_accounting_worker::RadiusAccountingWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -464,14 +471,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["radius"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["radius"]).inc(); }
                                     tracing::error!(error = %e, "RADIUS accounting worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["radius"]).inc(); }
                                     tracing::error!("RADIUS accounting worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -490,10 +497,11 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_scheduler_poll_interval_secs;
             let worker = aeroxe_backend::workers::scheduler_worker::SchedulerWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -502,14 +510,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["scheduler"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["scheduler"]).inc(); }
                                     tracing::error!(error = %e, "Scheduler worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["scheduler"]).inc(); }
                                     tracing::error!("Scheduler worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -527,9 +535,10 @@ async fn main() -> anyhow::Result<()> {
         // Outbox cleanup worker - runs every hour
         {
             let db = worker_db.clone();
+            let poll = worker_settings.worker_outbox_cleanup_poll_interval_secs;
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -556,10 +565,11 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_monitoring_poll_interval_secs;
             let worker = aeroxe_backend::workers::monitoring_worker::MonitoringWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -568,14 +578,14 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             match result {
                                 Ok(Ok(())) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["monitoring"]).inc(); }
                                 },
                                 Ok(Err(e)) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["monitoring"]).inc(); }
                                     tracing::error!(error = %e, "Monitoring worker cycle failed");
                                 },
                                 Err(_) => {
-                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["monitoring"]).inc(); }
                                     tracing::error!("Monitoring worker PANICKED — will restart next cycle");
                                 },
                             }
@@ -594,9 +604,10 @@ async fn main() -> anyhow::Result<()> {
         {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
+            let poll = worker_settings.worker_partition_poll_interval_secs;
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(86400));
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
                 loop {
                     tokio::select! {
                         _ = interval.tick() => {
@@ -608,14 +619,14 @@ async fn main() -> anyhow::Result<()> {
                                 }).catch_unwind().await;
                                 match result {
                                     Ok(Ok(())) => {
-                                        if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                        if let Some(ref m) = wm { m.read().await.worker_cycles_total.with_label_values(&["partition"]).inc(); }
                                     },
                                     Ok(Err(e)) => {
-                                        if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                        if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["partition"]).inc(); }
                                         tracing::error!(error = %e, "Partition creation failed");
                                     },
                                     Err(_) => {
-                                        if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                        if let Some(ref m) = wm { m.read().await.worker_errors_total.with_label_values(&["partition"]).inc(); }
                                         tracing::error!("Partition worker PANICKED");
                                     }
                                 }

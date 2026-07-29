@@ -1,7 +1,8 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, TransactionTrait,
 };
+use sea_orm::sea_query::{LockBehavior, LockType};
 use tracing::{error, info, warn};
 
 use crate::infrastructure::messaging::outbox;
@@ -35,18 +36,22 @@ impl BandwidthWorker {
 
         use crate::modules::bandwidth::domain::entities::bandwidth_application;
 
+        let txn = self.db.begin().await?;
+
         // Fetch pending applications
         let pending = bandwidth_application::Entity::find()
             .filter(bandwidth_application::Column::Status.eq("pending"))
             .order_by_asc(bandwidth_application::Column::CreatedAt)
             .limit(20)
-            .all(&self.db)
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .all(&txn)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query pending applications: {}", e))?;
 
         let count = pending.len();
         if count == 0 {
             info!("Bandwidth worker: no pending profile applications");
+            txn.commit().await?;
             return Ok(());
         }
 
@@ -56,7 +61,7 @@ impl BandwidthWorker {
             // Mark as applying
             let mut active: bandwidth_application::ActiveModel = app.clone().into();
             active.status = Set("applying".to_string());
-            if let Err(e) = active.update(&self.db).await {
+            if let Err(e) = active.update(&txn).await {
                 error!(
                     application_id = app.id,
                     error = %e,
@@ -73,7 +78,7 @@ impl BandwidthWorker {
                     active.applied_at = Set(Some(chrono::Utc::now()));
                     active.retry_count = Set(0);
 
-                    if let Err(e) = active.update(&self.db).await {
+                    if let Err(e) = active.update(&txn).await {
                         error!(
                             application_id = app.id,
                             error = %e,
@@ -91,7 +96,7 @@ impl BandwidthWorker {
                     });
 
                     if let Err(e) = outbox::insert_outbox_event(
-                        &self.db,
+                        &txn,
                         "bandwidth.profile.applied",
                         "bandwidth_application",
                         app.id,
@@ -130,7 +135,7 @@ impl BandwidthWorker {
                         active.status = Set("pending".to_string()); // Will retry next cycle
                     }
 
-                    if let Err(update_err) = active.update(&self.db).await {
+                    if let Err(update_err) = active.update(&txn).await {
                         error!(
                             application_id = app.id,
                             error = %update_err,
@@ -141,6 +146,7 @@ impl BandwidthWorker {
             }
         }
 
+        txn.commit().await?;
         info!(count = count, "Bandwidth worker: processed applications");
         Ok(())
     }

@@ -73,8 +73,26 @@ pub async fn metrics_summary_handler(
         invoices_generated: m.invoices_generated_total.get(),
         devices_online: m.device_online_count.get(),
         revenue_total: m.revenue_total.get(),
-        worker_cycles: m.worker_cycles_total.get(),
-        worker_errors: m.worker_errors_total.get(),
+        worker_cycles: {
+            let counter = &m.worker_cycles_total;
+            let mut total = 0u64;
+            for name in &["billing", "notification", "device_sync", "bandwidth", "radius", "scheduler", "monitoring", "partition"] {
+                if let Ok(c) = counter.get_metric_with_label_values(&[name]) {
+                    total += c.get();
+                }
+            }
+            total
+        },
+        worker_errors: {
+            let counter = &m.worker_errors_total;
+            let mut total = 0u64;
+            for name in &["billing", "notification", "device_sync", "bandwidth", "radius", "scheduler", "monitoring", "partition"] {
+                if let Ok(c) = counter.get_metric_with_label_values(&[name]) {
+                    total += c.get();
+                }
+            }
+            total
+        },
         nats_published: m.nats_messages_published.get(),
         nats_consumed: m.nats_messages_consumed.get(),
     }))

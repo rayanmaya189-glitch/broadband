@@ -54,6 +54,18 @@ pub struct Settings {
     // Security
     pub jwt_key_rotation_days: i64,
 
+    // Worker poll intervals
+    pub worker_outbox_poll_interval_secs: u64,
+    pub worker_billing_poll_interval_secs: u64,
+    pub worker_notification_poll_interval_secs: u64,
+    pub worker_device_sync_poll_interval_secs: u64,
+    pub worker_bandwidth_poll_interval_secs: u64,
+    pub worker_radius_poll_interval_secs: u64,
+    pub worker_scheduler_poll_interval_secs: u64,
+    pub worker_monitoring_poll_interval_secs: u64,
+    pub worker_partition_poll_interval_secs: u64,
+    pub worker_outbox_cleanup_poll_interval_secs: u64,
+
     // Tax / Compliance
     pub supplier_gstin: String,
     pub supplier_state: String,
@@ -146,6 +158,27 @@ impl Settings {
                 .unwrap_or_else(|_| "90".to_string())
                 .parse()
                 .unwrap_or(90),
+
+            worker_outbox_poll_interval_secs: env::var("WORKER_OUTBOX_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "5".to_string()).parse().unwrap_or(5),
+            worker_billing_poll_interval_secs: env::var("WORKER_BILLING_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "300".to_string()).parse().unwrap_or(300),
+            worker_notification_poll_interval_secs: env::var("WORKER_NOTIFICATION_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "30".to_string()).parse().unwrap_or(30),
+            worker_device_sync_poll_interval_secs: env::var("WORKER_DEVICE_SYNC_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "120".to_string()).parse().unwrap_or(120),
+            worker_bandwidth_poll_interval_secs: env::var("WORKER_BANDWIDTH_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "60".to_string()).parse().unwrap_or(60),
+            worker_radius_poll_interval_secs: env::var("WORKER_RADIUS_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "300".to_string()).parse().unwrap_or(300),
+            worker_scheduler_poll_interval_secs: env::var("WORKER_SCHEDULER_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "30".to_string()).parse().unwrap_or(30),
+            worker_monitoring_poll_interval_secs: env::var("WORKER_MONITORING_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "120".to_string()).parse().unwrap_or(120),
+            worker_partition_poll_interval_secs: env::var("WORKER_PARTITION_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "86400".to_string()).parse().unwrap_or(86400),
+            worker_outbox_cleanup_poll_interval_secs: env::var("WORKER_OUTBOX_CLEANUP_POLL_INTERVAL_SECS")
+                .unwrap_or_else(|_| "3600".to_string()).parse().unwrap_or(3600),
 
             supplier_gstin: env::var("SUPPLIER_GSTIN")
                 .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string()),

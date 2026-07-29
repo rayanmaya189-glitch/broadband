@@ -1,7 +1,8 @@
 use sea_orm::{
-    prelude::Expr, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    prelude::Expr, ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
+use sea_orm::sea_query::{LockBehavior, LockType};
 use serde_json::Value;
 use tracing::{debug, warn};
 
@@ -58,13 +59,14 @@ pub async fn insert_outbox_event(
 
 /// Fetch unpublished events from the outbox (for the background worker).
 pub async fn fetch_unpublished_events(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     limit: u64,
 ) -> Result<Vec<OutboxEventModel>, AppError> {
     let events = OutboxEventEntity::find()
         .filter(outbox_entity::Column::Published.eq(false))
         .order_by_asc(outbox_entity::Column::CreatedAt)
         .limit(limit)
+        .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
         .all(db)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to fetch outbox events: {}", e)))?;
@@ -77,7 +79,7 @@ pub async fn fetch_unpublished_events(
 }
 
 /// Mark an event as published in the outbox.
-pub async fn mark_event_published(db: &DatabaseConnection, event_id: &str) -> Result<(), AppError> {
+pub async fn mark_event_published(db: &impl ConnectionTrait, event_id: &str) -> Result<(), AppError> {
     let result = OutboxEventEntity::update_many()
         .col_expr(outbox_entity::Column::Published, Expr::value(true))
         .filter(outbox_entity::Column::EventId.eq(event_id))
@@ -93,7 +95,7 @@ pub async fn mark_event_published(db: &DatabaseConnection, event_id: &str) -> Re
 
 /// Record a failed publish attempt. If max retries exceeded, move to dead-letter queue.
 pub async fn record_publish_failure(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     event_id: &str,
     error: &str,
 ) -> Result<(), AppError> {
@@ -140,7 +142,7 @@ pub async fn record_publish_failure(
 
 /// Fetch events from the dead-letter queue for manual inspection/replay.
 pub async fn fetch_dead_letter_events(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     limit: u64,
 ) -> Result<Vec<OutboxEventModel>, AppError> {
     let events = OutboxEventEntity::find()
@@ -158,7 +160,7 @@ pub async fn fetch_dead_letter_events(
 
 /// Replay a dead-letter event (reset retry count and re-queue for publishing).
 pub async fn replay_dead_letter_event(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     event_id: &str,
 ) -> Result<(), AppError> {
     let event = OutboxEventEntity::find()
@@ -188,7 +190,7 @@ pub async fn replay_dead_letter_event(
 
 /// Delete old published events (cleanup worker).
 pub async fn cleanup_published_events(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     older_than_hours: i64,
 ) -> Result<u64, AppError> {
     let cutoff = chrono::Utc::now() - chrono::Duration::hours(older_than_hours);

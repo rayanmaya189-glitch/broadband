@@ -1,4 +1,8 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
+};
+use sea_orm::sea_query::{LockBehavior, LockType};
 use rust_decimal_macros::dec;
 use tracing::{error, info};
 
@@ -37,19 +41,22 @@ impl BillingWorker {
 
         use crate::modules::billing::domain::entities::invoice;
 
+        let txn = self.db.begin().await?;
         let today = chrono::Utc::now().date_naive();
 
         // Find invoices that are past due date but not yet marked overdue
         let overdue_invoices = invoice::Entity::find()
             .filter(invoice::Column::DueDate.lt(today))
             .filter(invoice::Column::Status.is_in(vec!["pending", "sent"]))
-            .all(&self.db)
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .all(&txn)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query overdue invoices: {}", e))?;
 
         let count = overdue_invoices.len();
         if count == 0 {
             info!("Billing worker: no overdue invoices found");
+            txn.commit().await?;
             return Ok(());
         }
 
@@ -60,7 +67,7 @@ impl BillingWorker {
             active.status = Set("overdue".to_string());
             active.updated_at = Set(chrono::Utc::now());
 
-            if let Err(e) = active.update(&self.db).await {
+            if let Err(e) = active.update(&txn).await {
                 error!(
                     invoice_id = inv.id,
                     error = %e,
@@ -79,7 +86,7 @@ impl BillingWorker {
             });
 
             if let Err(e) = outbox::insert_outbox_event(
-                &self.db,
+                &txn,
                 "invoice.overdue",
                 "invoice",
                 inv.id,
@@ -98,6 +105,7 @@ impl BillingWorker {
             }
         }
 
+        txn.commit().await?;
         info!(count = count, "Billing worker: marked invoices as overdue");
         Ok(())
     }
@@ -111,6 +119,7 @@ impl BillingWorker {
         use crate::modules::billing::domain::entities::invoice;
         use crate::modules::billing::domain::rules::tax_service;
 
+        let txn = self.db.begin().await?;
         let today = chrono::Utc::now().date_naive();
         let late_fee_threshold_days = 7;
         let late_fee_rate = dec!(0.02); // 2% of invoice subtotal
@@ -120,7 +129,8 @@ impl BillingWorker {
         let overdue_invoices = invoice::Entity::find()
             .filter(invoice::Column::DueDate.lt(today - chrono::Duration::days(late_fee_threshold_days)))
             .filter(invoice::Column::Status.is_in(vec!["overdue"]))
-            .all(&self.db)
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .all(&txn)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query overdue invoices: {}", e))?;
 
@@ -147,7 +157,7 @@ impl BillingWorker {
             active.total_amount = Set(inv.subtotal + inv.discount_amount + inv.tax_amount + total_late_fee);
             active.updated_at = Set(chrono::Utc::now());
 
-            if let Err(e) = active.update(&self.db).await {
+            if let Err(e) = active.update(&txn).await {
                 error!(
                     invoice_id = inv.id,
                     error = %e,
@@ -165,6 +175,7 @@ impl BillingWorker {
             );
         }
 
+        txn.commit().await?;
         info!(count = fees_applied, "Billing worker: late fees applied");
         Ok(())
     }
@@ -377,7 +388,11 @@ impl BillingWorker {
                 .await;
             let Ok(Some(sub)) = sub else { continue };
 
+            let bytes_used = Some(sub.bytes_used.unwrap_or(0) + session.bytes_in + session.bytes_out);
             let mut active: subscription::ActiveModel = sub.into();
+            active.bytes_used = Set(bytes_used);
+            active.last_session_duration = Set(Some(session.session_duration_seconds));
+            active.last_session_at = Set(Some(chrono::Utc::now()));
             active.updated_at = Set(chrono::Utc::now());
             if let Err(e) = active.update(&self.db).await {
                 error!(session_id = session.id, error = %e, "Failed to sync usage to subscription");
@@ -395,9 +410,11 @@ impl BillingWorker {
     pub async fn recognize_deferred_revenue(&self) -> anyhow::Result<()> {
         use crate::modules::billing::domain::entities::deferred_revenue;
 
+        let txn = self.db.begin().await?;
         let active_entries = deferred_revenue::Entity::find()
             .filter(deferred_revenue::Column::Status.eq("active"))
-            .all(&self.db)
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .all(&txn)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query deferred revenue entries: {}", e))?;
 
@@ -422,13 +439,14 @@ impl BillingWorker {
             active.status = Set(new_status);
             active.updated_at = Set(chrono::Utc::now());
 
-            if let Err(e) = active.update(&self.db).await {
+            if let Err(e) = active.update(&txn).await {
                 error!(entry_id = entry.id, error = %e, "Failed to recognize deferred revenue");
                 continue;
             }
             recognized_count += 1;
         }
 
+        txn.commit().await?;
         info!(count = recognized_count, "Billing worker: deferred revenue recognized");
         Ok(())
     }
@@ -439,9 +457,11 @@ impl BillingWorker {
     pub async fn validate_rcm_entries(&self) -> anyhow::Result<()> {
         use crate::modules::billing::domain::entities::rcm_entry;
 
+        let txn = self.db.begin().await?;
         let pending_entries = rcm_entry::Entity::find()
             .filter(rcm_entry::Column::ItcClaimed.eq(false))
-            .all(&self.db)
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .all(&txn)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to query RCM entries: {}", e))?;
 
@@ -456,7 +476,7 @@ impl BillingWorker {
             if can_claim && entry.total_gst > rust_decimal::Decimal::ZERO {
                 let mut active: rcm_entry::ActiveModel = entry.clone().into();
                 active.itc_claimed = Set(true);
-                if let Err(e) = active.update(&self.db).await {
+                if let Err(e) = active.update(&txn).await {
                     error!(entry_id = entry.id, error = %e, "Failed to claim ITC");
                     continue;
                 }
@@ -464,6 +484,7 @@ impl BillingWorker {
             }
         }
 
+        txn.commit().await?;
         info!(count = claimed, "Billing worker: RCM ITC claims processed");
         Ok(())
     }

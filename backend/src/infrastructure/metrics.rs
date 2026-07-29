@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use prometheus::{Gauge, IntCounter, IntGauge, Registry};
+use prometheus::{Gauge, IntCounter, IntCounterVec, IntGauge, Registry};
 type RwLock<T> = tokio::sync::RwLock<T>;
 
 /// Prometheus metrics for the AeroXe backend per §29 DevOps.
@@ -21,8 +21,8 @@ pub struct Metrics {
     pub revenue_total: Gauge,
 
     // Worker metrics
-    pub worker_cycles_total: IntCounter,
-    pub worker_errors_total: IntCounter,
+    pub worker_cycles_total: IntCounterVec,
+    pub worker_errors_total: IntCounterVec,
 
     // NATS metrics
     pub nats_messages_published: IntCounter,
@@ -77,15 +77,15 @@ impl Metrics {
             "Total revenue in INR"
         ))
         .expect("valid metric name");
-        let worker_cycles_total = IntCounter::with_opts(prometheus::opts!(
-            "aeroxe_worker_cycles_total",
-            "Total worker cycles"
-        ))
+        let worker_cycles_total = IntCounterVec::new(
+            prometheus::opts!("aeroxe_worker_cycles_total", "Total worker cycles"),
+            &["worker"],
+        )
         .expect("valid metric name");
-        let worker_errors_total = IntCounter::with_opts(prometheus::opts!(
-            "aeroxe_worker_errors_total",
-            "Worker cycle errors"
-        ))
+        let worker_errors_total = IntCounterVec::new(
+            prometheus::opts!("aeroxe_worker_errors_total", "Worker cycle errors"),
+            &["worker"],
+        )
         .expect("valid metric name");
         let nats_messages_published = IntCounter::with_opts(prometheus::opts!(
             "aeroxe_nats_messages_published",

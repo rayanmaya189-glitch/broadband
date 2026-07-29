@@ -25,6 +25,9 @@ pub struct Model {
     pub review_status: Option<String>,
     pub approved_by: Option<i64>,
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub bytes_used: Option<i64>,
+    pub last_session_duration: Option<i64>,
+    pub last_session_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

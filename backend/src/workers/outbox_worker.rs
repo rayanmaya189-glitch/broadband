@@ -1,4 +1,4 @@
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info};
@@ -72,25 +72,22 @@ impl OutboxWorker {
 
     /// Process a single batch of unpublished events.
     async fn process_batch(&self) -> Result<u64, anyhow::Error> {
-        let events = outbox::fetch_unpublished_events(&self.db, self.batch_size).await?;
+        let txn = self.db.begin().await?;
+        let events = outbox::fetch_unpublished_events(&txn, self.batch_size).await?;
 
         let mut published_count: u64 = 0;
 
         for event in &events {
-            // Build NATS subject from event type (matches subscriber expectations)
             let subject = format!("events.{}", event.event_type);
 
-            // Publish to NATS
             match self
                 .publisher
                 .publish_raw(&subject, &event.event_type, &event.payload)
                 .await
             {
                 Ok(_) => {
-                    // Mark as published in outbox
-                    outbox::mark_event_published(&self.db, &event.event_id).await?;
+                    outbox::mark_event_published(&txn, &event.event_id).await?;
                     published_count += 1;
-                    // Increment NATS publish counter
                     if let Some(ref metrics) = self.metrics {
                         metrics.read().await.nats_messages_published.inc();
                     }
@@ -106,8 +103,7 @@ impl OutboxWorker {
                         error = %e,
                         "Failed to publish event from outbox"
                     );
-                    // Record failure — increments retry_count; moves to DLQ after MAX_RETRIES
-                    if let Err(dlq_err) = outbox::record_publish_failure(&self.db, &event.event_id, &e.to_string()).await {
+                    if let Err(dlq_err) = outbox::record_publish_failure(&txn, &event.event_id, &e.to_string()).await {
                         error!(
                             event_id = %event.event_id,
                             error = %dlq_err,
@@ -118,6 +114,7 @@ impl OutboxWorker {
             }
         }
 
+        txn.commit().await?;
         Ok(published_count)
     }
 }
