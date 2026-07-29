@@ -187,6 +187,54 @@ pub async fn delete_branch(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "branch.delete").map_err(|e| AppError::Forbidden(e.1))?;
     BranchService::deactivate_branch(&state.db, id).await?;
+
+    // Cleanup: set all active network devices at this branch to offline
+    (async {
+        use crate::modules::device::domain::entities::{
+            NetworkDevice, NetworkDeviceActiveModel, NetworkDeviceColumn,
+        };
+        use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+        let devices = NetworkDevice::find()
+            .filter(NetworkDeviceColumn::BranchId.eq(id))
+            .filter(NetworkDeviceColumn::Status.ne("offline"))
+            .filter(NetworkDeviceColumn::Status.ne("decommissioned"))
+            .all(&state.db)
+            .await?;
+        for d in devices {
+            let mut m: NetworkDeviceActiveModel = d.into();
+            m.status = Set("offline".to_string());
+            m.updated_at = Set(chrono::Utc::now());
+            m.update(&state.db).await?;
+        }
+        Ok::<_, sea_orm::DbErr>(())
+    })
+    .await
+    .ok();
+
+    // Cleanup: close open tickets at this branch with note "Branch deactivated"
+    (async {
+        use crate::modules::ticket::domain::entities::{
+            Ticket, TicketActiveModel, TicketColumn,
+        };
+        use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+        let tickets = Ticket::find()
+            .filter(TicketColumn::BranchId.eq(id))
+            .filter(TicketColumn::Status.ne("closed"))
+            .all(&state.db)
+            .await?;
+        for t in tickets {
+            let mut m: TicketActiveModel = t.into();
+            m.status = Set("closed".to_string());
+            m.closed_at = Set(Some(chrono::Utc::now()));
+            m.updated_at = Set(chrono::Utc::now());
+            m.resolution_notes = Set(Some("Branch deactivated".to_string()));
+            m.update(&state.db).await?;
+        }
+        Ok::<_, sea_orm::DbErr>(())
+    })
+    .await
+    .ok();
+
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
         "branch.deleted",

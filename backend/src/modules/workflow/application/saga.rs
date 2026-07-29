@@ -5,6 +5,7 @@ use crate::shared::errors::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use std::collections::HashMap;
 use tracing::{error, info, warn};
@@ -96,6 +97,7 @@ impl SagaCoordinator {
         initiated_by: Option<i64>,
         branch_id: Option<i64>,
     ) -> Result<i64, AppError> {
+        let txn = db.begin().await?;
         let now = Utc::now();
         let total_steps = steps.len() as i32;
 
@@ -119,7 +121,7 @@ impl SagaCoordinator {
             ..Default::default()
         };
 
-        let saved_instance = instance.insert(db).await.map_err(|e| {
+        let saved_instance = instance.insert(&txn).await.map_err(|e| {
             error!(error = %e, "Failed to create workflow instance");
             AppError::Internal(anyhow::anyhow!("Failed to create workflow instance: {}", e))
         })?;
@@ -146,11 +148,12 @@ impl SagaCoordinator {
                 ..Default::default()
             };
 
-            step.insert(db).await.map_err(|e| {
+            step.insert(&txn).await.map_err(|e| {
                 error!(error = %e, workflow_id = saved_instance.id, "Failed to create workflow step");
                 AppError::Internal(anyhow::anyhow!("Failed to create workflow step: {}", e))
             })?;
         }
+        txn.commit().await?;
 
         info!(
             workflow_id = saved_instance.id,
@@ -168,9 +171,11 @@ impl SagaCoordinator {
         db: &DatabaseConnection,
         instance_id: i64,
     ) -> Result<serde_json::Value, AppError> {
+        let txn = db.begin().await?;
+
         // Load instance
         let instance = workflow_instance::Entity::find_by_id(instance_id)
-            .one(db)
+            .one(&txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load workflow: {}", e)))?
             .ok_or_else(|| AppError::NotFound("Workflow instance not found".to_string()))?;
@@ -190,7 +195,7 @@ impl SagaCoordinator {
         let mut inst_active: WorkflowInstanceActiveModel = instance.into();
         inst_active.status = Set("running".to_string());
         inst_active.updated_at = Set(now);
-        let instance = inst_active.update(db).await.map_err(|e| {
+        let instance = inst_active.update(&txn).await.map_err(|e| {
             AppError::Internal(anyhow::anyhow!("Failed to update workflow status: {}", e))
         })?;
 
@@ -198,7 +203,7 @@ impl SagaCoordinator {
         let steps = workflow_step::Entity::find()
             .filter(workflow_step::Column::WorkflowInstanceId.eq(instance.id))
             .order_by_asc(workflow_step::Column::StepOrder)
-            .all(db)
+            .all(&txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load steps: {}", e)))?;
 
@@ -248,7 +253,7 @@ impl SagaCoordinator {
                     step_active.status = Set("completed".to_string());
                     step_active.output_payload = Set(Some(output));
                     step_active.completed_at = Set(Some(now));
-                    step_active.update(db).await.map_err(|e| {
+                    step_active.update(&txn).await.map_err(|e| {
                         AppError::Internal(anyhow::anyhow!("Failed to mark step completed: {}", e))
                     })?;
 
@@ -256,7 +261,7 @@ impl SagaCoordinator {
                     let mut inst: WorkflowInstanceActiveModel = instance.clone().into();
                     inst.current_step = Set(step.step_order + 1);
                     inst.updated_at = Set(Utc::now());
-                    inst.update(db).await.map_err(|e| {
+                    inst.update(&txn).await.map_err(|e| {
                         AppError::Internal(anyhow::anyhow!("Failed to update current_step: {}", e))
                     })?;
 
@@ -281,7 +286,7 @@ impl SagaCoordinator {
                     step_active.status = Set("failed".to_string());
                     step_active.error_message = Set(Some(e.to_string()));
                     step_active.completed_at = Set(Some(now));
-                    step_active.update(db).await.ok();
+                    step_active.update(&txn).await.ok();
 
                     // Trigger compensation for completed steps
                     self.compensate(db, &steps, step.step_order).await;
@@ -293,7 +298,8 @@ impl SagaCoordinator {
                         Set(Some(format!("Step '{}' failed: {}", step.step_name, e)));
                     inst.completed_at = Set(Some(Utc::now()));
                     inst.updated_at = Set(Utc::now());
-                    inst.update(db).await.ok();
+                    inst.update(&txn).await.ok();
+                    txn.commit().await.ok();
 
                     return Err(AppError::Internal(anyhow::anyhow!(
                         "Workflow failed at step '{}': {}",
@@ -311,9 +317,10 @@ impl SagaCoordinator {
         inst.output_data = Set(last_output.clone());
         inst.completed_at = Set(Some(now));
         inst.updated_at = Set(now);
-        inst.update(db).await.map_err(|e| {
+        inst.update(&txn).await.map_err(|e| {
             AppError::Internal(anyhow::anyhow!("Failed to mark workflow completed: {}", e))
         })?;
+        txn.commit().await?;
 
         info!(workflow_id = instance.id, "Workflow completed successfully");
 
@@ -474,8 +481,9 @@ impl SagaCoordinator {
         db: &DatabaseConnection,
         instance_id: i64,
     ) -> Result<(), AppError> {
+        let txn = db.begin().await?;
         let instance = workflow_instance::Entity::find_by_id(instance_id)
-            .one(db)
+            .one(&txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load workflow: {}", e)))?
             .ok_or_else(|| AppError::NotFound("Workflow instance not found".to_string()))?;
@@ -491,7 +499,7 @@ impl SagaCoordinator {
         let steps = workflow_step::Entity::find()
             .filter(workflow_step::Column::WorkflowInstanceId.eq(instance_id))
             .order_by_asc(workflow_step::Column::StepOrder)
-            .all(db)
+            .all(&txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load steps: {}", e)))?;
 
@@ -502,9 +510,10 @@ impl SagaCoordinator {
         inst.status = Set("cancelled".to_string());
         inst.completed_at = Set(Some(Utc::now()));
         inst.updated_at = Set(Utc::now());
-        inst.update(db)
+        inst.update(&txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to cancel workflow: {}", e)))?;
+        txn.commit().await?;
 
         info!(workflow_id = instance_id, "Workflow cancelled");
         Ok(())

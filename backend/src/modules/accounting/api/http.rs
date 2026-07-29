@@ -261,6 +261,19 @@ pub async fn create_journal_entry(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
+    if lines.is_empty() {
+        return Err(AppError::Validation("At least one journal line is required".into()));
+    }
+
+    let total_debits: sea_orm::prelude::Decimal = lines.iter().map(|l| l.debit).sum();
+    let total_credits: sea_orm::prelude::Decimal = lines.iter().map(|l| l.credit).sum();
+    if total_debits != total_credits {
+        return Err(AppError::Validation(format!(
+            "Debits ({}) must equal credits ({})",
+            total_debits, total_credits
+        )));
+    }
+
     let entry = AccountingService::create_journal_entry(
         &state.db,
         entry_date,

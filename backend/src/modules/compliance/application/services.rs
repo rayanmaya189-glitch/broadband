@@ -58,6 +58,8 @@ impl ComplianceService {
             .one(db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("KYC verification {} not found", id)))?;
+        let customer_id = kyc.customer_id;
+        let kyc_id = kyc.id;
         let mut active: kyc_verification::ActiveModel = kyc.into();
         active.status = Set(status.clone());
         active.rejection_reason = Set(rejection_reason);
@@ -68,7 +70,28 @@ impl ComplianceService {
             // KYC valid for 1 year
             active.expires_at = Set(Some(Utc::now() + chrono::Duration::days(365)));
         }
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+
+        // Update customer status when KYC verified
+        if status == "verified" {
+            use crate::modules::customer::domain::entities::{Customer, CustomerActiveModel};
+            if let Some(customer) = Customer::find_by_id(customer_id).one(db).await? {
+                let mut cust_active: CustomerActiveModel = customer.into();
+                cust_active.status = Set("active".to_string());
+                cust_active.updated_at = Set(Utc::now());
+                let _ = cust_active.update(db).await;
+            }
+        }
+
+        // Publish outbox event
+        let evt_type = if status == "verified" { "kyc.verified" } else { "kyc.rejected" };
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, evt_type, "kyc", kyc_id,
+            serde_json::json!({"customer_id": customer_id, "status": status}),
+            None, None, None,
+        ).await.ok();
+
+        Ok(updated)
     }
 
     pub async fn get_kyc_by_customer(

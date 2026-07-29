@@ -1,6 +1,7 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
+use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -108,8 +109,12 @@ pub async fn create_invoice(
         .total_amount
         .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
+    if amt <= sea_orm::prelude::Decimal::ZERO {
+        return Err(AppError::Validation("Amount must be positive".into()));
+    }
+    let txn = state.db.begin().await?;
     let inv = BillingService::create_invoice(
-        &state.db,
+        &txn,
         req.customer_id,
         req.branch_id,
         req.subscription_id,
@@ -127,7 +132,7 @@ pub async fn create_invoice(
         "due_date": inv.due_date,
     });
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db,
+        &txn,
         "invoice.generated",
         "invoice",
         inv.id,
@@ -140,6 +145,7 @@ pub async fn create_invoice(
     {
         tracing::error!(invoice_id = inv.id, error = %e, "Failed to publish invoice.generated event");
     }
+    txn.commit().await?;
 
     Ok((
         StatusCode::CREATED,
@@ -172,6 +178,9 @@ pub async fn record_payment(
         .amount
         .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
+    if amt <= sea_orm::prelude::Decimal::ZERO {
+        return Err(AppError::Validation("Amount must be positive".into()));
+    }
     let pay = BillingService::record_payment(
         &state.db,
         req.invoice_id,
@@ -440,6 +449,9 @@ pub async fn request_refund(
         .amount
         .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
+    if amt <= sea_orm::prelude::Decimal::ZERO {
+        return Err(AppError::Validation("Amount must be positive".into()));
+    }
     let refund =
         BillingService::request_refund(&state.db, req.payment_id, req.invoice_id, req.customer_id, amt, req.reason, user.user_id).await?;
     Ok((

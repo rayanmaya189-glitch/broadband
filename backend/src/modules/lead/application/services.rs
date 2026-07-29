@@ -3,8 +3,8 @@ use crate::modules::lead::domain::entities::{
 };
 use crate::shared::errors::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
 pub struct LeadService;
@@ -64,7 +64,7 @@ impl LeadService {
     }
 
     pub async fn update_lead_status(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         id: i64,
         new_status: &str,
     ) -> Result<crate::modules::lead::domain::entities::lead::Model, AppError> {
@@ -80,7 +80,7 @@ impl LeadService {
 
     /// Link a converted lead to the newly created customer
     pub async fn link_customer(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         lead_id: i64,
         customer_id: i64,
     ) -> Result<(), AppError> {
@@ -97,7 +97,7 @@ impl LeadService {
     }
 
     pub async fn log_activity(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         lead_id: i64,
         activity_type: String,
         description: String,

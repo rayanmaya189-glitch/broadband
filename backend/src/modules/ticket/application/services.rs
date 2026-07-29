@@ -98,12 +98,20 @@ impl TicketService {
         resolution_notes: Option<String>,
     ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
         let ticket = Self::get_ticket(db, id).await?;
+        let customer_id = ticket.customer_id;
+        let ticket_id = ticket.id;
         let mut active: TicketActiveModel = ticket.into();
         active.status = Set("resolved".to_string());
         active.resolved_at = Set(Some(chrono::Utc::now()));
-        active.resolution_notes = Set(resolution_notes);
+        active.resolution_notes = Set(resolution_notes.clone());
         active.updated_at = Set(chrono::Utc::now());
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, "ticket.resolved", "ticket", ticket_id,
+            serde_json::json!({"customer_id": customer_id, "resolution_notes": resolution_notes}),
+            None, None, None,
+        ).await.ok();
+        Ok(updated)
     }
 
     pub async fn escalate_ticket(

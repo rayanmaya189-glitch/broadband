@@ -7,8 +7,8 @@ use crate::modules::billing::domain::rules::tax_service;
 use crate::shared::errors::AppError;
 use rust_decimal_macros::dec;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 
 pub struct BillingService;
@@ -46,7 +46,7 @@ impl BillingService {
     }
 
     pub async fn create_invoice(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         customer_id: i64,
         branch_id: i64,
         subscription_id: i64,
@@ -103,7 +103,7 @@ impl BillingService {
     }
 
     /// Get customer's state for place-of-supply determination
-    async fn get_customer_state(db: &DatabaseConnection, customer_id: i64) -> Option<String> {
+    async fn get_customer_state(db: &impl ConnectionTrait, customer_id: i64) -> Option<String> {
         use crate::modules::customer::domain::entities::address;
         let addr = address::Entity::find()
             .filter(address::Column::CustomerId.eq(customer_id))
@@ -122,6 +122,7 @@ impl BillingService {
         amount: sea_orm::prelude::Decimal,
         payment_method: String,
     ) -> Result<crate::modules::billing::domain::entities::payment::Model, AppError> {
+        let txn = db.begin().await?;
         let now = chrono::Utc::now();
         let payment_number = format!(
             "PAY-{}-{}",
@@ -141,16 +142,16 @@ impl BillingService {
             created_at: Set(now),
             ..Default::default()
         };
-        let payment = new_pay.insert(db).await?;
+        let payment = new_pay.insert(&txn).await?;
 
         // Check if invoice is fully paid by summing all completed payments
-        let inv = Invoice::find_by_id(invoice_id).one(db).await?;
+        let inv = Invoice::find_by_id(invoice_id).one(&txn).await?;
         if let Some(i) = inv {
             let total_amount = i.total_amount;
             let total_paid = crate::modules::billing::domain::entities::payment::Entity::find()
                 .filter(crate::modules::billing::domain::entities::payment::Column::InvoiceId.eq(invoice_id))
                 .filter(crate::modules::billing::domain::entities::payment::Column::Status.eq("completed"))
-                .all(db)
+                .all(&txn)
                 .await?
                 .iter()
                 .fold(sea_orm::prelude::Decimal::ZERO, |acc, p| acc + p.amount);
@@ -163,8 +164,9 @@ impl BillingService {
                 active.status = Set("partial".to_string());
             }
             active.updated_at = Set(now);
-            active.update(db).await?;
+            active.update(&txn).await?;
         }
+        txn.commit().await?;
         Ok(payment)
     }
 
@@ -392,12 +394,39 @@ impl BillingService {
                 "Refund is not in pending status".to_string(),
             ));
         }
+        let refund_id = refund.id;
+        let refund_number = refund.refund_number.clone();
+        let invoice_id = refund.invoice_id;
+        let customer_id = refund.customer_id;
+        let amount = refund.amount;
         let now = chrono::Utc::now();
         let mut active: RefundActiveModel = refund.into();
         active.status = Set("approved".to_string());
         active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+
+        // Create credit note for GST compliance
+        if let Some(inv) = Invoice::find_by_id(invoice_id).one(db).await? {
+            let _ = Self::create_credit_note(
+                db,
+                invoice_id,
+                customer_id,
+                inv.branch_id,
+                format!("Refund {} approved", refund_number),
+                amount,
+                approved_by,
+            ).await;
+        }
+
+        // Publish outbox event
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, "refund.approved", "refund", refund_id,
+            serde_json::json!({"customer_id": customer_id, "amount": amount, "invoice_id": invoice_id}),
+            None, None, None,
+        ).await.ok();
+
+        Ok(updated)
     }
 
     pub async fn reject_refund(

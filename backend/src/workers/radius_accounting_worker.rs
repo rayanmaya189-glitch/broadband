@@ -25,8 +25,10 @@ impl RadiusAccountingWorker {
     }
 
     pub async fn run_cycle(&self) -> anyhow::Result<()> {
+        info!("RadiusAccounting worker: starting cycle");
         self.sync_active_sessions().await?;
         self.send_interim_updates().await?;
+        info!("RadiusAccounting worker: cycle complete");
         Ok(())
     }
 

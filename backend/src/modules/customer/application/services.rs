@@ -3,8 +3,8 @@ use crate::modules::customer::domain::entities::{
 };
 use crate::shared::errors::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, Set,
 };
 
 pub struct CustomerService;
@@ -42,7 +42,7 @@ impl CustomerService {
     }
 
     pub async fn create_customer(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         branch_id: i64,
         name: String,
         email: Option<String>,
@@ -101,7 +101,7 @@ impl CustomerService {
     }
 
     pub async fn add_address(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         customer_id: i64,
         address_type: String,
         line1: String,
@@ -136,6 +136,92 @@ impl CustomerService {
         active.deleted_at = Set(Some(chrono::Utc::now()));
         active.updated_at = Set(chrono::Utc::now());
         active.update(db).await?;
+
+        // Cleanup: terminate active PPPoE sessions for this customer
+        (async {
+            use crate::modules::network::domain::entities::{
+                PppoeSession, PppoeSessionActiveModel, PppoeSessionColumn,
+            };
+            let sessions = PppoeSession::find()
+                .filter(PppoeSessionColumn::CustomerId.eq(id))
+                .filter(PppoeSessionColumn::Status.eq("active"))
+                .all(db)
+                .await?;
+            for s in sessions {
+                let mut m: PppoeSessionActiveModel = s.into();
+                m.status = Set("terminated".to_string());
+                m.updated_at = Set(chrono::Utc::now());
+                m.update(db).await?;
+            }
+            Ok::<_, sea_orm::DbErr>(())
+        })
+        .await
+        .ok();
+
+        // Cleanup: cancel active subscriptions for this customer
+        (async {
+            use crate::modules::subscription::domain::entities::{
+                Subscription, SubscriptionActiveModel, SubscriptionColumn,
+            };
+            let subs = Subscription::find()
+                .filter(SubscriptionColumn::CustomerId.eq(id))
+                .filter(SubscriptionColumn::Status.eq("active"))
+                .all(db)
+                .await?;
+            for s in subs {
+                let mut m: SubscriptionActiveModel = s.into();
+                m.status = Set("cancelled".to_string());
+                m.updated_at = Set(chrono::Utc::now());
+                m.update(db).await?;
+            }
+            Ok::<_, sea_orm::DbErr>(())
+        })
+        .await
+        .ok();
+
+        // Cleanup: release MAC bindings for this customer
+        (async {
+            use crate::modules::network::domain::entities::{
+                MacBinding, MacBindingActiveModel, MacBindingColumn,
+            };
+            let bindings = MacBinding::find()
+                .filter(MacBindingColumn::CustomerId.eq(id))
+                .all(db)
+                .await?;
+            for b in bindings {
+                let mut m: MacBindingActiveModel = b.into();
+                m.is_active = Set(false);
+                m.updated_at = Set(chrono::Utc::now());
+                m.update(db).await?;
+            }
+            Ok::<_, sea_orm::DbErr>(())
+        })
+        .await
+        .ok();
+
+        // Cleanup: close open tickets for this customer
+        (async {
+            use crate::modules::ticket::domain::entities::{
+                Ticket, TicketActiveModel, TicketColumn,
+            };
+            let tickets = Ticket::find()
+                .filter(TicketColumn::CustomerId.eq(Some(id)))
+                .filter(TicketColumn::Status.ne("closed"))
+                .all(db)
+                .await?;
+            for t in tickets {
+                let mut m: TicketActiveModel = t.into();
+                m.status = Set("closed".to_string());
+                m.closed_at = Set(Some(chrono::Utc::now()));
+                m.updated_at = Set(chrono::Utc::now());
+                m.resolution_notes = Set(Some("Customer deleted".to_string()));
+                m.update(db).await?;
+            }
+            Ok::<_, sea_orm::DbErr>(())
+        })
+        .await
+        .ok();
+
         Ok(())
     }
 

@@ -314,8 +314,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "Billing worker cycle failed"),
-                                Err(_) => tracing::error!("Billing worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "Billing worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("Billing worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -346,8 +352,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "Notification worker cycle failed"),
-                                Err(_) => tracing::error!("Notification worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "Notification worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("Notification worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -378,8 +390,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "Device sync worker cycle failed"),
-                                Err(_) => tracing::error!("Device sync worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "Device sync worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("Device sync worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -410,8 +428,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "Bandwidth worker cycle failed"),
-                                Err(_) => tracing::error!("Bandwidth worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "Bandwidth worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("Bandwidth worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -442,8 +466,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "RADIUS accounting worker cycle failed"),
-                                Err(_) => tracing::error!("RADIUS accounting worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "RADIUS accounting worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("RADIUS accounting worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -474,8 +504,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "Scheduler worker cycle failed"),
-                                Err(_) => tracing::error!("Scheduler worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "Scheduler worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("Scheduler worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -534,8 +570,14 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(Ok(())) => {
                                     if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
                                 },
-                                Ok(Err(e)) => tracing::error!(error = %e, "Monitoring worker cycle failed"),
-                                Err(_) => tracing::error!("Monitoring worker PANICKED — will restart next cycle"),
+                                Ok(Err(e)) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!(error = %e, "Monitoring worker cycle failed");
+                                },
+                                Err(_) => {
+                                    if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                    tracing::error!("Monitoring worker PANICKED — will restart next cycle");
+                                },
                             }
                         }
                         _ = rx.recv() => {
@@ -551,6 +593,7 @@ async fn main() -> anyhow::Result<()> {
         // Partition worker - runs on 1st of each month (via scheduler, but also as a standalone fallback)
         {
             let db = worker_db.clone();
+            let wm = worker_metrics.clone();
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(86400));
@@ -560,17 +603,29 @@ async fn main() -> anyhow::Result<()> {
                             let now = chrono::Utc::now();
                             // Only run on 1st of the month
                             if now.date_naive().day() == 1 {
-                                if let Err(e) =
-                                    aeroxe_backend::workers::partition_worker::create_monthly_partitions(&db)
-                                        .await
-                                {
-                                    tracing::error!(error = %e, "Partition creation failed");
+                                let result = AssertUnwindSafe(async {
+                                    aeroxe_backend::workers::partition_worker::create_monthly_partitions(&db).await
+                                }).catch_unwind().await;
+                                match result {
+                                    Ok(Ok(())) => {
+                                        if let Some(ref m) = wm { m.read().await.worker_cycles_total.inc(); }
+                                    },
+                                    Ok(Err(e)) => {
+                                        if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                        tracing::error!(error = %e, "Partition creation failed");
+                                    },
+                                    Err(_) => {
+                                        if let Some(ref m) = wm { m.read().await.worker_errors_total.inc(); }
+                                        tracing::error!("Partition worker PANICKED");
+                                    }
                                 }
-                                if let Err(e) =
-                                    aeroxe_backend::workers::partition_worker::run_cleanup(&db)
-                                        .await
-                                {
-                                    tracing::error!(error = %e, "Partition cleanup failed");
+                                let result2 = AssertUnwindSafe(async {
+                                    aeroxe_backend::workers::partition_worker::run_cleanup(&db).await
+                                }).catch_unwind().await;
+                                match result2 {
+                                    Ok(Ok(_)) => {},
+                                    Ok(Err(e)) => tracing::error!(error = %e, "Partition cleanup failed"),
+                                    Err(_) => tracing::error!("Partition cleanup PANICKED"),
                                 }
                             }
                         }

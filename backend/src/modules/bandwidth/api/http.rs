@@ -53,6 +53,9 @@ pub async fn create_profile(
     Json(req): Json<CreateProfileRequest>,
 ) -> Result<(StatusCode, Json<BandwidthProfileResponse>), AppError> {
     require_permission(&user, "bandwidth.profile.create").map_err(|e| AppError::Forbidden(e.1))?;
+    if req.download_kbps <= 0 || req.upload_kbps <= 0 {
+        return Err(AppError::Validation("Bandwidth values must be positive".into()));
+    }
     let p =
         BandwidthService::create_profile(&state.db, req.name, req.download_kbps, req.upload_kbps)
             .await?;

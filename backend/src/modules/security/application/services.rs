@@ -97,7 +97,13 @@ impl SecurityService {
             updated_at: Set(now),
             ..Default::default()
         };
-        Ok(role.insert(db).await?)
+        let new_role = role.insert(db).await?;
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, "role.created", "role", new_role.id,
+            serde_json::json!({"role_name": new_role.name, "slug": new_role.slug}),
+            None, None, None,
+        ).await.ok();
+        Ok(new_role)
     }
 
     pub async fn update_role(
@@ -128,10 +134,16 @@ impl SecurityService {
         if role.is_system {
             return Err(AppError::Conflict("Cannot delete system role".to_string()));
         }
+        let role_id = role.id;
         let mut active: RoleActiveModel = role.into();
         active.is_active = Set(false);
         active.updated_at = Set(chrono::Utc::now());
         active.update(db).await?;
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, "role.deleted", "role", role_id,
+            serde_json::json!({"role_id": role_id}),
+            None, None, None,
+        ).await.ok();
         Ok(())
     }
 
@@ -212,6 +224,11 @@ impl SecurityService {
             };
             new_ur.insert(db).await?;
         }
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, "role.assigned", "user_role", user_id,
+            serde_json::json!({"user_id": user_id, "role_id": role_id, "assigned_by": assigned_by}),
+            None, None, None,
+        ).await.ok();
         crate::modules::identity::application::services::IdentityService::invalidate_permissions(
             redis, user_id,
         )

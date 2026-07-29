@@ -375,6 +375,9 @@ pub async fn adjust_wallet(
     Json(req): Json<AdjustWalletRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
     require_permission(&user, "referral.wallet.adjust").map_err(|e| AppError::Forbidden(e.1))?;
+    if req.amount <= Decimal::ZERO {
+        return Err(AppError::Validation("Amount must be positive".into()));
+    }
     let tx = ReferralService::adjust_wallet(
         &state.db,
         id,

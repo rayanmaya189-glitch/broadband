@@ -6,6 +6,7 @@ use crate::shared::primitives::PaginationParams;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
+use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -359,11 +360,12 @@ pub async fn convert_lead(
         )));
     }
 
-    // 3. Create customer from lead data
+    // 3-6. Transactional: create customer, link lead, add address, log activity
+    let txn = state.db.begin().await?;
     let branch_id = user.branch_id.unwrap_or(lead.branch_id);
     let customer =
         crate::modules::customer::application::services::CustomerService::create_customer(
-            &state.db,
+            &txn,
             branch_id,
             lead.name.clone(),
             lead.email.clone(),
@@ -372,11 +374,9 @@ pub async fn convert_lead(
         )
         .await?;
 
-    // 4. Link lead to the new customer
-    LeadService::update_lead_status(&state.db, id, "converted").await?;
-    LeadService::link_customer(&state.db, id, customer.id).await?;
+    LeadService::update_lead_status(&txn, id, "converted").await?;
+    LeadService::link_customer(&txn, id, customer.id).await?;
 
-    // 5. Add installation address if provided
     if let Some(addr) = req.address {
         let line1 = addr["line1"].as_str().unwrap_or("");
         let city = addr["city"].as_str().unwrap_or("");
@@ -384,7 +384,7 @@ pub async fn convert_lead(
         let pincode = addr["pincode"].as_str().unwrap_or("");
         if !line1.is_empty() && !city.is_empty() {
             let _ = crate::modules::customer::application::services::CustomerService::add_address(
-                &state.db,
+                &txn,
                 customer.id,
                 "installation".to_string(),
                 line1.to_string(),
@@ -398,15 +398,15 @@ pub async fn convert_lead(
         }
     }
 
-    // 6. Log activity
     let _ = LeadService::log_activity(
-        &state.db,
+        &txn,
         id,
         "converted".to_string(),
         format!("Lead converted to customer {}", customer.customer_code),
         user.user_id,
     )
     .await;
+    txn.commit().await?;
 
     // 7. Publish lead.converted event
     let payload = serde_json::json!({

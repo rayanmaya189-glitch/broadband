@@ -1,6 +1,6 @@
 use sea_orm::{
-    prelude::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    prelude::Expr, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::Value;
 use tracing::{debug, warn};
@@ -21,7 +21,7 @@ const MAX_RETRIES: i32 = 5;
 
 /// Insert an event into the outbox table within the current transaction.
 pub async fn insert_outbox_event(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     event_type: &str,
     aggregate_type: &str,
     aggregate_id: i64,

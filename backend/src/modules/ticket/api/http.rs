@@ -366,6 +366,9 @@ pub async fn rate_ticket_satisfaction(
     Json(req): Json<SatisfactionRequest>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "ticket.resolve").map_err(|e| AppError::Forbidden(e.1))?;
+    if req.rating < 1 || req.rating > 5 {
+        return Err(AppError::Validation("Rating must be between 1 and 5".into()));
+    }
     TicketService::rate_satisfaction(&state.db, id, req.rating, req.feedback).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,

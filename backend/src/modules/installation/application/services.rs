@@ -85,7 +85,27 @@ impl InstallationService {
         active.status = Set("completed".to_string());
         active.completed_at = Set(Some(chrono::Utc::now()));
         active.updated_at = Set(chrono::Utc::now());
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+
+        // Activate linked subscription
+        if let Some(sub_id) = updated.subscription_id {
+            use crate::modules::subscription::domain::entities::{Subscription, SubscriptionActiveModel};
+            if let Some(sub) = Subscription::find_by_id(sub_id).one(db).await? {
+                let mut sub_active: SubscriptionActiveModel = sub.into();
+                sub_active.status = Set("active".to_string());
+                sub_active.updated_at = Set(chrono::Utc::now());
+                let _ = sub_active.update(db).await;
+            }
+        }
+
+        // Publish outbox event
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            db, "installation.completed", "installation", updated.id,
+            serde_json::json!({"customer_id": updated.customer_id, "subscription_id": updated.subscription_id}),
+            None, None, None,
+        ).await.ok();
+
+        Ok(updated)
     }
 
     pub async fn cancel_order(

@@ -106,19 +106,6 @@ impl MonitoringWorker {
                         "recorded_at": chrono::Utc::now(),
                     });
 
-                    // Save metric record
-                    let _record = metric_record::Model {
-                        id: 0,
-                        device_id: device.id,
-                        branch_id: device.branch_id,
-                        metric_name: "device_health".to_string(),
-                        metric_value: health_score as f64,
-                        unit: Some("score".to_string()),
-                        tags: None,
-                        recorded_at: chrono::Utc::now(),
-                        created_at: chrono::Utc::now(),
-                    };
-
                     // Save metric to database
                     let active_model = metric_record::ActiveModel {
                         id: sea_orm::ActiveValue::NotSet,
@@ -188,33 +175,6 @@ impl MonitoringWorker {
             "high"
         } else {
             "medium"
-        };
-
-        let _alert = monitoring_alert::Model {
-            id: 0,
-            device_id: device.id,
-            branch_id: device.branch_id,
-            alert_rule_id: None,
-            alert_type: "device_health".to_string(),
-            severity: severity.to_string(),
-            status: "active".to_string(),
-            title: format!("Device health degraded: {}", device.name),
-            message: format!(
-                "Device {} has health score {} (threshold: {})",
-                device.name,
-                health_score,
-                monitoring_rules::HEALTH_SCORE_WARNING
-            ),
-            metric_name: Some("device_health".to_string()),
-            metric_value: Some(health_score as f64),
-            threshold_value: Some(monitoring_rules::HEALTH_SCORE_WARNING as f64),
-            acknowledged_by: None,
-            acknowledged_at: None,
-            resolved_by: None,
-            resolved_at: None,
-            resolution_notes: None,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
         };
 
         // Save alert to database

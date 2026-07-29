@@ -1,3 +1,4 @@
+use crate::infrastructure::messaging::outbox;
 use crate::modules::subscription::domain::entities::{
     Subscription, SubscriptionActiveModel, SubscriptionColumn,
 };
@@ -65,7 +66,13 @@ impl SubscriptionService {
             updated_at: Set(now),
             ..Default::default()
         };
-        Ok(new_sub.insert(db).await?)
+        let new_sub_model = new_sub.insert(db).await?;
+        outbox::insert_outbox_event(
+            db, "subscription.created", "subscription", new_sub_model.id,
+            serde_json::json!({"customer_id": customer_id, "plan_id": plan_id}),
+            None, None, None,
+        ).await.ok();
+        Ok(new_sub_model)
     }
 
     /// Reactivate a suspended or cancelled subscription
@@ -205,10 +212,39 @@ impl SubscriptionService {
         _reason: &str,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
         let sub = Self::get_subscription(db, id).await?;
+        let customer_id = sub.customer_id;
+        let sub_id = sub.id;
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("cancelled".to_string());
         active.updated_at = Set(chrono::Utc::now());
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+
+        // Cleanup: release MAC bindings associated with this subscription
+        (async {
+            use crate::modules::network::domain::entities::{
+                MacBinding, MacBindingActiveModel, MacBindingColumn,
+            };
+            let bindings = MacBinding::find()
+                .filter(MacBindingColumn::SubscriptionId.eq(sub_id))
+                .all(db)
+                .await?;
+            for b in bindings {
+                let mut m: MacBindingActiveModel = b.into();
+                m.is_active = Set(false);
+                m.updated_at = Set(chrono::Utc::now());
+                m.update(db).await?;
+            }
+            Ok::<_, sea_orm::DbErr>(())
+        })
+        .await
+        .ok();
+
+        outbox::insert_outbox_event(
+            db, "subscription.cancelled", "subscription", sub_id,
+            serde_json::json!({"customer_id": customer_id, "status": "cancelled"}),
+            None, None, None,
+        ).await.ok();
+        Ok(updated)
     }
 
     pub async fn suspend_subscription(
@@ -217,10 +253,18 @@ impl SubscriptionService {
         _reason: &str,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
         let sub = Self::get_subscription(db, id).await?;
+        let customer_id = sub.customer_id;
+        let sub_id = sub.id;
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("suspended".to_string());
         active.updated_at = Set(chrono::Utc::now());
-        Ok(active.update(db).await?)
+        let updated = active.update(db).await?;
+        outbox::insert_outbox_event(
+            db, "subscription.suspended", "subscription", sub_id,
+            serde_json::json!({"customer_id": customer_id, "status": "suspended"}),
+            None, None, None,
+        ).await.ok();
+        Ok(updated)
     }
 
     pub async fn update_subscription(
