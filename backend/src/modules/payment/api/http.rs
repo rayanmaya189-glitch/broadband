@@ -91,6 +91,27 @@ pub struct RetryPaymentRequest {
     pub gateway_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct WalletPaymentRequest {
+    pub customer_id: i64,
+    pub invoice_id: i64,
+    /// Optional amount to pay. When omitted, the full outstanding balance is paid.
+    #[serde(default)]
+    pub amount: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WalletPaymentResponse {
+    pub payment_id: i64,
+    pub payment_number: String,
+    pub invoice_id: i64,
+    pub customer_id: i64,
+    pub amount: String,
+    pub currency: String,
+    pub invoice_status: Option<String>,
+    pub wallet_balance: String,
+}
+
 // --- Payment Link Endpoints ---
 
 /// POST /api/v1/payments/create-link
@@ -192,6 +213,44 @@ pub async fn record_manual_payment(
             invoice_status: result.invoice_status,
             wallet_credited: result.wallet_credited,
             wallet_credit_amount: result.wallet_credit_amount.to_string(),
+            wallet_balance: result.wallet_balance.to_string(),
+        }),
+    ))
+}
+
+/// POST /api/v1/payments/wallet/pay
+///
+/// Pays an invoice (or part of it) from the customer's wallet balance. The
+/// wallet is debited, the invoice settled (paid/partial), and a
+/// `payment.completed` event emitted. When `amount` is omitted, the full
+/// outstanding balance is paid.
+pub async fn pay_from_wallet(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    Json(req): Json<WalletPaymentRequest>,
+) -> Result<(StatusCode, Json<WalletPaymentResponse>), AppError> {
+    require_permission(&user, "payment.wallet.pay").map_err(|e| AppError::Forbidden(e.1))?;
+    let amount: Option<sea_orm::prelude::Decimal> = match req.amount {
+        Some(a) => Some(
+            a.parse()
+                .map_err(|_| AppError::Validation("Invalid amount".into()))?,
+        ),
+        None => None,
+    };
+
+    let result = PaymentService::pay_from_wallet(&state.db, req.invoice_id, req.customer_id, amount)
+        .await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(WalletPaymentResponse {
+            payment_id: result.payment_id,
+            payment_number: result.payment_number,
+            invoice_id: result.invoice_id,
+            customer_id: result.customer_id,
+            amount: result.amount.to_string(),
+            currency: result.currency,
+            invoice_status: result.invoice_status,
             wallet_balance: result.wallet_balance.to_string(),
         }),
     ))

@@ -891,6 +891,7 @@ fn payment_routes() -> Router<SharedState> {
             axum::routing::post(http::create_payment_link),
         )
         .route("/manual", axum::routing::post(http::record_manual_payment))
+        .route("/wallet/pay", axum::routing::post(http::pay_from_wallet))
         .route("/gateways", axum::routing::get(http::list_gateways))
         .route(
             "/webhook/razorpay",

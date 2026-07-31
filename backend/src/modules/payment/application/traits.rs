@@ -54,6 +54,14 @@ pub trait PaymentServiceTrait: Send + Sync {
         recorded_by: i64,
     ) -> Result<crate::modules::payment::application::services::ManualPaymentResult, AppError>;
 
+    async fn pay_from_wallet(
+        &self,
+        db: &DatabaseConnection,
+        invoice_id: i64,
+        customer_id: i64,
+        amount: Option<sea_orm::prelude::Decimal>,
+    ) -> Result<crate::modules::payment::application::services::WalletPaymentResult, AppError>;
+
     async fn get_gateway_config(
         &self,
         db: &DatabaseConnection,
