@@ -319,6 +319,7 @@ pub async fn handle_razorpay_webhook(
                 &state.db,
                 "razorpay",
                 &webhook.transaction_id,
+                webhook.order_id.as_deref(),
                 webhook.error_reason,
             )
             .await?;
@@ -413,6 +414,7 @@ pub async fn handle_payu_webhook(
                 &state.db,
                 "payu",
                 &webhook.transaction_id,
+                webhook.order_id.as_deref(),
                 webhook.error_reason,
             )
             .await?;
@@ -491,6 +493,7 @@ pub async fn handle_stripe_webhook(
                 &state.db,
                 "stripe",
                 &webhook.transaction_id,
+                webhook.order_id.as_deref(),
                 webhook.error_reason,
             )
             .await?;

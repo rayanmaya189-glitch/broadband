@@ -37,6 +37,7 @@ pub trait PaymentServiceTrait: Send + Sync {
         db: &DatabaseConnection,
         gateway_id: &str,
         gateway_transaction_id: &str,
+        order_id: Option<&str>,
         error_reason: Option<String>,
     ) -> Result<PaymentLinkModel, AppError>;
 

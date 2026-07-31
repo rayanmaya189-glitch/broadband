@@ -37,7 +37,7 @@ impl BillingService {
     }
 
     pub async fn get_invoice(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         id: i64,
     ) -> Result<crate::modules::billing::domain::entities::invoice::Model, AppError> {
         Invoice::find_by_id(id)
@@ -370,8 +370,12 @@ impl BillingService {
         id: i64,
         approved_by: i64,
     ) -> Result<crate::modules::billing::domain::entities::refund::Model, AppError> {
+        use crate::infrastructure::messaging::outbox;
+        use crate::modules::payment::application::services::PaymentService;
+
+        let txn = db.begin().await?;
         let refund = Refund::find_by_id(id)
-            .one(db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Refund {} not found", id)))?;
         if refund.status != "pending" {
@@ -389,27 +393,51 @@ impl BillingService {
         active.status = Set("approved".to_string());
         active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
-        let updated = active.update(db).await?;
+        let updated = active.update(&txn).await?;
 
-        // Create credit note for GST compliance
-        if let Some(inv) = Invoice::find_by_id(invoice_id).one(db).await? {
-            let _ = Self::create_credit_note(
-                db,
+        // Create credit note for GST compliance (same transaction).
+        if let Some(inv) = Invoice::find_by_id(invoice_id).one(&txn).await? {
+            Self::create_credit_note(
+                &txn,
                 invoice_id,
                 customer_id,
                 inv.branch_id,
                 format!("Refund {} approved", refund_number),
                 amount,
                 approved_by,
-            ).await;
+            )
+            .await?;
         }
 
-        // Publish outbox event
-        crate::infrastructure::messaging::outbox::insert_outbox_event(
-            db, "refund.approved", "refund", refund_id,
-            serde_json::json!({"customer_id": customer_id, "amount": amount, "invoice_id": invoice_id}),
-            None, None, None,
-        ).await.ok();
+        // Return the money to the customer's wallet (same transaction).
+        PaymentService::credit_wallet(
+            &txn,
+            customer_id,
+            amount,
+            "refund",
+            refund_id,
+            "refund",
+            Some(&format!("Refund {} approved", refund_number)),
+        )
+        .await?;
+
+        // Publish outbox events atomically with the state changes above.
+        let payload = serde_json::json!({
+            "customer_id": customer_id,
+            "amount": amount,
+            "invoice_id": invoice_id,
+            "refund_number": refund_number,
+        });
+        outbox::insert_outbox_event(
+            &txn, "refund.approved", "refund", refund_id,
+            payload.clone(), None, None, None,
+        ).await?;
+        outbox::insert_outbox_event(
+            &txn, "refund.processed", "refund", refund_id,
+            payload, None, None, None,
+        ).await?;
+
+        txn.commit().await?;
 
         Ok(updated)
     }
@@ -610,7 +638,7 @@ impl BillingService {
     // ─── Credit/Debit Notes ──────────────────────────────────────────────
 
     pub async fn create_credit_note(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         original_invoice_id: i64,
         customer_id: i64,
         branch_id: i64,

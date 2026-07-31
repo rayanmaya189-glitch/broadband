@@ -1,5 +1,7 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+};
 use tracing::{debug, info, warn};
 
 use crate::modules::payment::domain::entities::{gateway_config, payment_link, webhook_log};
@@ -264,6 +266,7 @@ impl PaymentService {
                 wallet_credit,
                 "overpayment",
                 payment.id,
+                "payment",
                 None,
             )
             .await?;
@@ -310,19 +313,38 @@ impl PaymentService {
         Ok(updated)
     }
 
-    /// Process a failed payment from gateway webhook
+    /// Process a failed payment from gateway webhook.
+    ///
+    /// Resolves the payment link (preferring the webhook order id, then the
+    /// transaction id), marks it failed with the failure reason, and emits a
+    /// `payment.failed` outbox event so subscribers can notify the customer.
     pub async fn process_failed_payment(
         db: &DatabaseConnection,
         gateway_id: &str,
         gateway_transaction_id: &str,
+        order_id: Option<&str>,
         error_reason: Option<String>,
     ) -> Result<payment_link::Model, AppError> {
-        let link = payment_link::Entity::find()
-            .filter(payment_link::Column::GatewayOrderId.eq(gateway_transaction_id))
-            .one(db)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
-            .ok_or_else(|| AppError::NotFound("Payment link not found".to_string()))?;
+        use crate::infrastructure::messaging::outbox;
+
+        let by_order = if let Some(oid) = order_id.filter(|o| !o.is_empty()) {
+            payment_link::Entity::find()
+                .filter(payment_link::Column::GatewayOrderId.eq(oid))
+                .one(db)
+                .await
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
+        } else {
+            None
+        };
+        let link = match by_order {
+            Some(l) => l,
+            None => payment_link::Entity::find()
+                .filter(payment_link::Column::GatewayOrderId.eq(gateway_transaction_id))
+                .one(db)
+                .await
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
+                .ok_or_else(|| AppError::NotFound("Payment link not found".to_string()))?,
+        };
 
         let now = Utc::now();
         let mut active: payment_link::ActiveModel = link.into();
@@ -346,6 +368,27 @@ impl PaymentService {
         let updated = active.update(db).await.map_err(|e| {
             AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e))
         })?;
+
+        // Notify downstream consumers so the customer can be told their payment failed.
+        outbox::insert_outbox_event(
+            db,
+            "payment.failed",
+            "payment_link",
+            updated.id,
+            serde_json::json!({
+                "link_id": updated.link_id,
+                "customer_id": updated.customer_id,
+                "invoice_id": updated.invoice_id,
+                "amount": updated.amount.to_string(),
+                "gateway": gateway_id,
+                "order_id": updated.gateway_order_id,
+            }),
+            None,
+            None,
+            Some(updated.branch_id),
+        )
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to queue payment event: {}", e)))?;
 
         warn!(link_id = %updated.link_id, gateway = %gateway_id, "Payment failed");
         Ok(updated)
@@ -486,9 +529,16 @@ impl PaymentService {
                 "manual_topup"
             };
             let desc = notes.clone().unwrap_or_else(|| tx_type.to_string());
-            let (balance, wid) =
-                Self::credit_wallet(&txn, customer_id, wallet_credit, tx_type, payment.id, Some(&desc))
-                    .await?;
+            let (balance, wid) = Self::credit_wallet(
+                &txn,
+                customer_id,
+                wallet_credit,
+                tx_type,
+                payment.id,
+                "payment",
+                Some(&desc),
+            )
+            .await?;
             wallet_balance = balance;
             wallet_id = Some(wid);
         }
@@ -689,12 +739,13 @@ impl PaymentService {
 
     /// Credit a customer wallet and record the wallet transaction.
     /// Creates the wallet if it does not exist. Returns (new_balance, wallet_id).
-    async fn credit_wallet(
-        txn: &sea_orm::DatabaseTransaction,
+    pub async fn credit_wallet(
+        txn: &impl ConnectionTrait,
         customer_id: i64,
         amount: sea_orm::prelude::Decimal,
         tx_type: &str,
         reference_id: i64,
+        reference_type: &str,
         description: Option<&str>,
     ) -> Result<(sea_orm::prelude::Decimal, i64), AppError> {
         use crate::modules::referral::domain::entities::{customer_wallet, wallet_transaction};
@@ -741,7 +792,7 @@ impl PaymentService {
             transaction_type: Set(tx_type.to_string()),
             amount: Set(amount),
             reference_id: Set(Some(reference_id)),
-            reference_type: Set(Some("payment".to_string())),
+            reference_type: Set(Some(reference_type.to_string())),
             description: Set(description.map(|s| s.to_string())),
             created_at: Set(now),
             ..Default::default()
