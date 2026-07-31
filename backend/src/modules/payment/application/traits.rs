@@ -27,6 +27,7 @@ pub trait PaymentServiceTrait: Send + Sync {
         db: &DatabaseConnection,
         gateway_id: &str,
         gateway_transaction_id: &str,
+        order_id: Option<&str>,
         amount: sea_orm::prelude::Decimal,
         payment_method: Option<String>,
     ) -> Result<PaymentLinkModel, AppError>;
