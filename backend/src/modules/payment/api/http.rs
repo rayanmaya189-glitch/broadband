@@ -57,15 +57,31 @@ pub struct CreatePaymentLinkRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ManualPaymentRequest {
-    pub invoice_id: i64,
     pub customer_id: i64,
     pub branch_id: i64,
     pub amount: String,
     pub payment_method: String,
+    /// Optional invoice ID. When omitted, the payment is treated as a pure wallet topup.
+    #[serde(default)]
+    pub invoice_id: Option<i64>,
     #[serde(default)]
     pub reference_number: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ManualPaymentResponse {
+    pub payment_id: i64,
+    pub payment_number: String,
+    pub link_id: String,
+    pub invoice_id: Option<i64>,
+    pub amount: String,
+    pub currency: String,
+    pub invoice_status: Option<String>,
+    pub wallet_credited: bool,
+    pub wallet_credit_amount: String,
+    pub wallet_balance: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -133,18 +149,25 @@ pub async fn create_payment_link(
 }
 
 /// POST /api/v1/payments/manual
+///
+/// Records a manual payment (cash, bank transfer, UPI). With `invoice_id` the
+/// invoice is settled and any excess is credited to the customer wallet; without
+/// `invoice_id` the full amount is a pure wallet topup.
 pub async fn record_manual_payment(
     State(state): State<Arc<AppState>>,
     user: UserContext,
     Json(req): Json<ManualPaymentRequest>,
-) -> Result<(StatusCode, Json<PaymentLinkResponse>), AppError> {
+) -> Result<(StatusCode, Json<ManualPaymentResponse>), AppError> {
     require_permission(&user, "payment.manual.record").map_err(|e| AppError::Forbidden(e.1))?;
     let amount: sea_orm::prelude::Decimal = req
         .amount
         .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
+    if amount <= sea_orm::prelude::Decimal::ZERO {
+        return Err(AppError::Validation("Payment amount must be positive".into()));
+    }
 
-    let link = PaymentService::record_manual_payment(
+    let result = PaymentService::record_manual_payment(
         &state.db,
         req.invoice_id,
         req.customer_id,
@@ -159,16 +182,17 @@ pub async fn record_manual_payment(
 
     Ok((
         StatusCode::CREATED,
-        Json(PaymentLinkResponse {
-            id: link.id,
-            link_id: link.link_id,
-            invoice_id: link.invoice_id,
-            amount: link.amount.to_string(),
-            currency: link.currency,
-            gateway_id: link.gateway_id,
-            payment_url: link.payment_url,
-            status: link.status,
-            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+        Json(ManualPaymentResponse {
+            payment_id: result.payment_id,
+            payment_number: result.payment_number,
+            link_id: result.link_id,
+            invoice_id: req.invoice_id,
+            amount: amount.to_string(),
+            currency: "INR".to_string(),
+            invoice_status: result.invoice_status,
+            wallet_credited: result.wallet_credited,
+            wallet_credit_amount: result.wallet_credit_amount.to_string(),
+            wallet_balance: result.wallet_balance.to_string(),
         }),
     ))
 }

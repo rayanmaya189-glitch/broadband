@@ -60,7 +60,8 @@ impl CustomerService {
         }
 
         let now = chrono::Utc::now();
-        let customer_code = format!("AX-CUST-{}", now.format("%Y%m%d%H%M%S"));
+        let uuid = crate::shared::utils::uuid_v7::new_v7_compact();
+        let customer_code = format!("AX-CUST-{}", &uuid[uuid.len() - 12..]);
 
         let new_customer = CustomerActiveModel {
             customer_code: Set(customer_code),

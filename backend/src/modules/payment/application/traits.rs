@@ -42,7 +42,7 @@ pub trait PaymentServiceTrait: Send + Sync {
     async fn record_manual_payment(
         &self,
         db: &DatabaseConnection,
-        invoice_id: i64,
+        invoice_id: Option<i64>,
         customer_id: i64,
         branch_id: i64,
         amount: sea_orm::prelude::Decimal,
@@ -50,7 +50,7 @@ pub trait PaymentServiceTrait: Send + Sync {
         reference_number: Option<String>,
         notes: Option<String>,
         recorded_by: i64,
-    ) -> Result<PaymentLinkModel, AppError>;
+    ) -> Result<crate::modules::payment::application::services::ManualPaymentResult, AppError>;
 
     async fn get_gateway_config(
         &self,

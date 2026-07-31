@@ -73,22 +73,47 @@ pub struct CreatePaymentLinkRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ManualPaymentRequest {
-    /// Invoice ID
-    pub invoice_id: i64,
     /// Customer ID
     pub customer_id: i64,
     /// Branch ID
     pub branch_id: i64,
     /// Payment amount
     pub amount: String,
-    /// Payment method (cash, cheque, bank_transfer)
+    /// Payment method (cash, cheque, bank_transfer, upi)
     pub payment_method: String,
+    /// Optional invoice ID. When omitted, the payment is treated as a pure wallet topup.
+    #[serde(default)]
+    pub invoice_id: Option<i64>,
     /// Reference number
     #[serde(default)]
     pub reference_number: Option<String>,
     /// Payment notes
     #[serde(default)]
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ManualPaymentResponse {
+    /// Billing payment record ID
+    pub payment_id: i64,
+    /// Generated payment number
+    pub payment_number: String,
+    /// Traceability link ID
+    pub link_id: String,
+    /// Settled invoice ID (None for pure topup)
+    pub invoice_id: Option<i64>,
+    /// Payment amount
+    pub amount: String,
+    /// Currency code (e.g. INR)
+    pub currency: String,
+    /// Invoice status after settlement (paid, partial) or None
+    pub invoice_status: Option<String>,
+    /// Whether a wallet credit was applied
+    pub wallet_credited: bool,
+    /// Amount credited to the wallet (overpayment or full topup)
+    pub wallet_credit_amount: String,
+    /// Customer wallet balance after credit
+    pub wallet_balance: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -147,15 +172,16 @@ pub async fn create_payment_link() -> axum::Json<serde_json::Value> {
     unimplemented!()
 }
 
-/// Record a manual (offline) payment
+/// Record a manual (offline) payment — settles an invoice and/or credits the customer wallet
 #[utoipa::path(
     post,
     path = "/api/v1/payments/manual",
     tag = "Payments",
     request_body = ManualPaymentRequest,
     responses(
-        (status = 201, description = "Manual payment recorded", body = PaymentLinkResponse),
+        (status = 201, description = "Manual payment recorded", body = ManualPaymentResponse),
         (status = 403, description = "Insufficient permissions"),
+        (status = 404, description = "Invoice not found"),
         (status = 422, description = "Validation error")
     ),
     security(("bearer_auth" = []))

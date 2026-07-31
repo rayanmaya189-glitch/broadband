@@ -5,6 +5,7 @@ use crate::modules::billing::domain::entities::{
 };
 use crate::modules::billing::domain::rules::tax_service;
 use crate::shared::errors::AppError;
+use crate::shared::utils::business_number::new_business_number;
 use rust_decimal_macros::dec;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
@@ -55,11 +56,7 @@ impl BillingService {
         total_amount: sea_orm::prelude::Decimal,
     ) -> Result<crate::modules::billing::domain::entities::invoice::Model, AppError> {
         let now = chrono::Utc::now();
-        let invoice_number = format!(
-            "INV-{}-{}",
-            now.format("%Y%m"),
-            ulid::Ulid::new()
-        );
+        let invoice_number = new_business_number("INV");
 
         // Determine place of supply from customer state (default: Maharashtra for intra-state)
         let place_of_supply = Self::get_customer_state(db, customer_id).await
@@ -124,11 +121,7 @@ impl BillingService {
     ) -> Result<crate::modules::billing::domain::entities::payment::Model, AppError> {
         let txn = db.begin().await?;
         let now = chrono::Utc::now();
-        let payment_number = format!(
-            "PAY-{}-{}",
-            now.format("%Y%m"),
-            ulid::Ulid::new()
-        );
+        let payment_number = new_business_number("PAY");
         let new_pay = PaymentActiveModel {
             payment_number: Set(payment_number),
             invoice_id: Set(invoice_id),
@@ -253,11 +246,7 @@ impl BillingService {
                 period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
 
             let now = chrono::Utc::now();
-            let invoice_number = format!(
-                "INV-{}-{}",
-                now.format("%Y%m"),
-                ulid::Ulid::new()
-            );
+            let invoice_number = new_business_number("INV");
 
             // Calculate GST for auto-generated invoice
             let place_of_supply = Self::get_customer_state(db, sub.customer_id).await
@@ -360,11 +349,7 @@ impl BillingService {
         requested_by: i64,
     ) -> Result<crate::modules::billing::domain::entities::refund::Model, AppError> {
         let now = chrono::Utc::now();
-        let refund_number = format!(
-            "REF-{}-{}",
-            now.format("%Y%m"),
-            ulid::Ulid::new()
-        );
+        let refund_number = new_business_number("REF");
         let new_refund = RefundActiveModel {
             refund_number: Set(refund_number),
             payment_id: Set(payment_id),
@@ -634,7 +619,7 @@ impl BillingService {
         created_by: i64,
     ) -> Result<crate::modules::billing::domain::entities::credit_debit_note::Model, AppError> {
         let now = chrono::Utc::now();
-        let note_number = format!("CN-{}-{}", now.format("%Y%m"), ulid::Ulid::new());
+        let note_number = new_business_number("CN");
 
         // Get original invoice for GST context
         let inv = Self::get_invoice(db, original_invoice_id).await?;

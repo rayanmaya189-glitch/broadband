@@ -55,11 +55,7 @@ impl TicketService {
         customer_id: Option<i64>,
     ) -> Result<crate::modules::ticket::domain::entities::ticket::Model, AppError> {
         let now = chrono::Utc::now();
-        let ticket_number = format!(
-            "TKT-{}-{}",
-            now.format("%Y%m"),
-            ulid::Ulid::new()
-        );
+        let ticket_number = crate::shared::utils::business_number::new_business_number("TKT");
         let ticket = TicketActiveModel {
             ticket_number: Set(ticket_number),
             branch_id: Set(branch_id),
