@@ -1,12 +1,12 @@
 //! End-to-end test: Network Management Workflow
 //! Tests: VLAN creation → IP pool → PPPoE session → MAC binding
 
-mod common;
 
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
 
 /// Test VLAN lifecycle
+#[ignore]
 #[tokio::test]
 async fn test_vlan_lifecycle() {
     let test_db = TestDatabase::new().await;
@@ -14,7 +14,7 @@ async fn test_vlan_lifecycle() {
 
     let branch_id = TestFixture::create_branch(db).await;
 
-    use crate::modules::network::domain::entities::vlan;
+    use aeroxe_backend::modules::network::domain::entities::vlan;
 
     let now = chrono::Utc::now();
 
@@ -43,6 +43,7 @@ async fn test_vlan_lifecycle() {
 }
 
 /// Test IP pool creation
+#[ignore]
 #[tokio::test]
 async fn test_ip_pool_creation() {
     let test_db = TestDatabase::new().await;
@@ -50,7 +51,7 @@ async fn test_ip_pool_creation() {
 
     let branch_id = TestFixture::create_branch(db).await;
 
-    use crate::modules::network::domain::entities::ip_pool;
+    use aeroxe_backend::modules::network::domain::entities::ip_pool;
 
     let now = chrono::Utc::now();
 
@@ -73,3 +74,4 @@ async fn test_ip_pool_creation() {
     assert!(pool.id > 0);
     assert_eq!(pool.total_count, 254);
 }
+

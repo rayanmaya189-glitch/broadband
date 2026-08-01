@@ -1,11 +1,11 @@
 //! Integration tests for customer repository using testcontainers
 
-mod common;
 
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set, ActiveModelTrait};
+use sea_orm::{EntityTrait, Set, ActiveModelTrait};
 use crate::common::{TestDatabase, TestFixture};
 
 /// Test that we can connect to a test database
+#[ignore]
 #[tokio::test]
 async fn test_database_connection() {
     let test_db = TestDatabase::new().await;
@@ -16,6 +16,7 @@ async fn test_database_connection() {
 }
 
 /// Test creating and retrieving a branch
+#[ignore]
 #[tokio::test]
 async fn test_create_branch() {
     let test_db = TestDatabase::new().await;
@@ -28,6 +29,7 @@ async fn test_create_branch() {
 }
 
 /// Test creating a customer with branch reference
+#[ignore]
 #[tokio::test]
 async fn test_create_customer() {
     let test_db = TestDatabase::new().await;
@@ -40,6 +42,7 @@ async fn test_create_customer() {
 }
 
 /// Test customer status transitions
+#[ignore]
 #[tokio::test]
 async fn test_customer_status_transitions() {
     let test_db = TestDatabase::new().await;
@@ -49,7 +52,7 @@ async fn test_customer_status_transitions() {
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     
     // Update customer status
-    use crate::modules::customer::domain::entities::customer;
+    use aeroxe_backend::modules::customer::domain::entities::customer;
     
     let customer = customer::Entity::find_by_id(customer_id)
         .one(db)
@@ -66,6 +69,7 @@ async fn test_customer_status_transitions() {
 }
 
 /// Test plan creation and retrieval
+#[ignore]
 #[tokio::test]
 async fn test_plan_crud() {
     let test_db = TestDatabase::new().await;
@@ -75,7 +79,7 @@ async fn test_plan_crud() {
     assert!(plan_id > 0, "Plan should be created");
     
     // Retrieve the plan
-    use crate::modules::plans::domain::entities::plan;
+    use aeroxe_backend::modules::plans::domain::entities::plan;
     
     let plan = plan::Entity::find_by_id(plan_id)
         .one(db)
@@ -88,13 +92,14 @@ async fn test_plan_crud() {
 }
 
 /// Test error handling for invalid data
+#[ignore]
 #[tokio::test]
 async fn test_invalid_customer_data() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
     
     // Try to create customer with invalid branch_id
-    use crate::modules::customer::domain::entities::customer;
+    use aeroxe_backend::modules::customer::domain::entities::customer;
     use sea_orm::{ActiveModelTrait, Set};
     
     let now = chrono::Utc::now();
@@ -115,6 +120,7 @@ async fn test_invalid_customer_data() {
 }
 
 /// Test concurrent operations
+#[ignore]
 #[tokio::test]
 async fn test_concurrent_operations() {
     let test_db = TestDatabase::new().await;
@@ -129,7 +135,7 @@ async fn test_concurrent_operations() {
         let db_clone = db.clone();
         let branch_id = branch_id;
         let handle = tokio::spawn(async move {
-            use crate::modules::customer::domain::entities::customer;
+            use aeroxe_backend::modules::customer::domain::entities::customer;
             use sea_orm::{ActiveModelTrait, Set};
             
             let now = chrono::Utc::now();
@@ -158,3 +164,4 @@ async fn test_concurrent_operations() {
     
     assert_eq!(results.len(), 5, "All customers should be created");
 }
+

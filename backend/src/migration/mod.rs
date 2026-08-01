@@ -26,13 +26,126 @@ mod m018_add_2fa_backup_codes;
 
 pub struct Migrator;
 
+/// Split raw SQL text into individual statements, respecting single-quoted
+/// string literals (with `''` escaping), `--` line comments, and `$tag$`-style
+/// dollar-quoted blocks (e.g. `DO $$ ... $$`).
+pub fn split_sql_statements(sql: &str) -> Vec<String> {
+    fn dollar_delim(chars: &[char], i: usize) -> Option<(String, usize)> {
+        if chars.get(i) != Some(&'$') {
+            return None;
+        }
+        let mut j = i + 1;
+        let mut tag = String::new();
+        while j < chars.len() {
+            match chars[j] {
+                '$' => {
+                    let delim = if tag.is_empty() {
+                        "$$".to_string()
+                    } else {
+                        format!("${}$", tag)
+                    };
+                    return Some((delim, j + 1));
+                }
+                c if c.is_ascii_alphanumeric() || c == '_' => {
+                    tag.push(c);
+                    j += 1;
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    let mut statements = Vec::new();
+    let mut current = String::new();
+    let chars: Vec<char> = sql.chars().collect();
+    let n = chars.len();
+    let mut i = 0;
+
+    while i < n {
+        let c = chars[i];
+
+        // `--` line comment
+        if c == '-' && chars.get(i + 1) == Some(&'-') {
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            if i < n {
+                current.push('\n');
+                i += 1;
+            }
+            continue;
+        }
+
+        // Single-quoted string literal with '' escaping
+        if c == '\'' {
+            current.push(c);
+            i += 1;
+            while i < n {
+                current.push(chars[i]);
+                if chars[i] == '\'' {
+                    if chars.get(i + 1) == Some(&'\'') {
+                        current.push(chars[i + 1]);
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        // Dollar-quoted block (e.g. DO $$ ... END $$)
+        if c == '$' {
+            if let Some((delim, end)) = dollar_delim(&chars, i) {
+                current.push_str(&delim);
+                i = end;
+                while i < n {
+                    if let Some((end_delim, end_idx)) = dollar_delim(&chars, i) {
+                        if end_delim == delim {
+                            current.push_str(&delim);
+                            i = end_idx;
+                            break;
+                        }
+                    }
+                    current.push(chars[i]);
+                    i += 1;
+                }
+                continue;
+            }
+        }
+
+        // Statement separator
+        if c == ';' {
+            let stmt = current.trim();
+            if !stmt.is_empty() {
+                statements.push(stmt.to_string());
+            }
+            current.clear();
+            i += 1;
+            continue;
+        }
+
+        current.push(c);
+        i += 1;
+    }
+
+    let stmt = current.trim();
+    if !stmt.is_empty() {
+        statements.push(stmt.to_string());
+    }
+
+    statements
+}
+
 /// Helper to execute raw SQL from a migration file
 pub async fn exec_sql_file(manager: &SchemaManager<'_>, sql: &str) -> Result<(), DbErr> {
     let conn = manager.get_connection();
-    for stmt in sql.split(';') {
+    for stmt in split_sql_statements(sql) {
         let stmt = stmt.trim();
-        // Skip empty statements, comments, and DO $$ blocks (they handle their own execution)
-        if !stmt.is_empty() && !stmt.starts_with("--") && stmt != "DO $$" {
+        if !stmt.is_empty() && !stmt.starts_with("--") {
             conn.execute_unprepared(stmt).await?;
         }
     }

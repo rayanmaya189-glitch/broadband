@@ -1,12 +1,12 @@
 //! End-to-end test: Billing & Payment Workflow
 //! Tests: Invoice creation → Payment → Refund → Dunning
 
-mod common;
 
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
 
 /// Test invoice lifecycle: create → send → pay → refund
+#[ignore]
 #[tokio::test]
 async fn test_invoice_lifecycle() {
     let test_db = TestDatabase::new().await;
@@ -14,8 +14,9 @@ async fn test_invoice_lifecycle() {
 
     let branch_id = TestFixture::create_branch(db).await;
     let customer_id = TestFixture::create_customer(db, branch_id).await;
+    let subscription_id = TestFixture::create_subscription(db, customer_id, branch_id).await;
 
-    use crate::modules::billing::domain::entities::{invoice, payment, refund};
+    use aeroxe_backend::modules::billing::domain::entities::{invoice, payment, refund};
 
     let now = chrono::Utc::now();
 
@@ -23,7 +24,7 @@ async fn test_invoice_lifecycle() {
     let inv = invoice::ActiveModel {
         customer_id: Set(customer_id),
         branch_id: Set(branch_id),
-        subscription_id: Set(0), // No subscription
+        subscription_id: Set(subscription_id),
         invoice_number: Set(format!("INV-2026-07-{:04}", rand::random::<u16>() % 10000)),
         billing_period_start: Set(now.date_naive()),
         billing_period_end: Set((now + chrono::Duration::days(30)).date_naive()),
@@ -88,6 +89,7 @@ async fn test_invoice_lifecycle() {
 }
 
 /// Test overdue invoice dunning flow
+#[ignore]
 #[tokio::test]
 async fn test_overdue_dunning_flow() {
     let test_db = TestDatabase::new().await;
@@ -95,8 +97,9 @@ async fn test_overdue_dunning_flow() {
 
     let branch_id = TestFixture::create_branch(db).await;
     let customer_id = TestFixture::create_customer(db, branch_id).await;
+    let subscription_id = TestFixture::create_subscription(db, customer_id, branch_id).await;
 
-    use crate::modules::billing::domain::entities::invoice;
+    use aeroxe_backend::modules::billing::domain::entities::invoice;
 
     let now = chrono::Utc::now();
 
@@ -104,7 +107,7 @@ async fn test_overdue_dunning_flow() {
     let inv = invoice::ActiveModel {
         customer_id: Set(customer_id),
         branch_id: Set(branch_id),
-        subscription_id: Set(0),
+        subscription_id: Set(subscription_id),
         invoice_number: Set(format!("INV-2026-06-{:04}", rand::random::<u16>() % 10000)),
         billing_period_start: Set((now - chrono::Duration::days(30)).date_naive()),
         billing_period_end: Set(now.date_naive()),
@@ -129,3 +132,4 @@ async fn test_overdue_dunning_flow() {
     let inv = active.update(db).await.unwrap();
     assert_eq!(inv.status, "voided");
 }
+

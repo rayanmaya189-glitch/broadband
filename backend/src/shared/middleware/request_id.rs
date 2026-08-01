@@ -51,8 +51,6 @@ impl RequestId {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_request_id_format() {
         let id = crate::shared::utils::uuid_v7::new_v7_string();

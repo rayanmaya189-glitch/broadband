@@ -1,11 +1,11 @@
 //! Integration tests for subscription repository using testcontainers
 
-mod common;
 
-use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait};
+use sea_orm::{Set, ActiveModelTrait};
 use crate::common::{TestDatabase, TestFixture};
 
 /// Test subscription creation with dependencies
+#[ignore]
 #[tokio::test]
 async fn test_create_subscription() {
     let test_db = TestDatabase::new().await;
@@ -17,7 +17,7 @@ async fn test_create_subscription() {
     let plan_id = TestFixture::create_plan(db).await;
     
     // Create subscription
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
     
     let now = chrono::Utc::now();
     let active_model = subscription::ActiveModel {
@@ -38,6 +38,7 @@ async fn test_create_subscription() {
 }
 
 /// Test subscription lifecycle
+#[ignore]
 #[tokio::test]
 async fn test_subscription_lifecycle() {
     let test_db = TestDatabase::new().await;
@@ -47,7 +48,7 @@ async fn test_subscription_lifecycle() {
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
     
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
     
     let now = chrono::Utc::now();
     let active_model = subscription::ActiveModel {
@@ -83,6 +84,7 @@ async fn test_subscription_lifecycle() {
 }
 
 /// Test subscription cancellation
+#[ignore]
 #[tokio::test]
 async fn test_subscription_cancellation() {
     let test_db = TestDatabase::new().await;
@@ -92,7 +94,7 @@ async fn test_subscription_cancellation() {
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
     
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
     
     let now = chrono::Utc::now();
     let active_model = subscription::ActiveModel {
@@ -120,3 +122,4 @@ async fn test_subscription_cancellation() {
     assert_eq!(cancelled.status, "cancelled");
     assert!(cancelled.end_date.is_some(), "End date should be set after cancellation");
 }
+

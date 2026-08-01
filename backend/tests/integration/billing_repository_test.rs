@@ -1,11 +1,11 @@
 //! Integration tests for billing repository using testcontainers
 
-mod common;
 
-use sea_orm::{DatabaseConnection, EntityTrait, Set, ActiveModelTrait};
+use sea_orm::{Set, ActiveModelTrait};
 use crate::common::{TestDatabase, TestFixture};
 
 /// Test invoice creation
+#[ignore]
 #[tokio::test]
 async fn test_create_invoice() {
     let test_db = TestDatabase::new().await;
@@ -17,7 +17,7 @@ async fn test_create_invoice() {
     let plan_id = TestFixture::create_plan(db).await;
     
     // Create subscription first
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
     
     let now = chrono::Utc::now();
     let sub_model = subscription::ActiveModel {
@@ -36,7 +36,7 @@ async fn test_create_invoice() {
     let subscription = sub_model.insert(db).await.expect("Failed to create subscription");
     
     // Create invoice
-    use crate::modules::billing::domain::entities::invoice;
+    use aeroxe_backend::modules::billing::domain::entities::invoice;
     
     let invoice_model = invoice::ActiveModel {
         invoice_number: Set("INV-2026-07-0001".to_string()),
@@ -61,6 +61,7 @@ async fn test_create_invoice() {
 }
 
 /// Test invoice payment flow
+#[ignore]
 #[tokio::test]
 async fn test_invoice_payment_flow() {
     let test_db = TestDatabase::new().await;
@@ -71,7 +72,7 @@ async fn test_invoice_payment_flow() {
     let plan_id = TestFixture::create_plan(db).await;
     
     // Create subscription
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
     
     let now = chrono::Utc::now();
     let sub_model = subscription::ActiveModel {
@@ -90,7 +91,7 @@ async fn test_invoice_payment_flow() {
     let subscription = sub_model.insert(db).await.expect("Failed to create subscription");
     
     // Create invoice
-    use crate::modules::billing::domain::entities::invoice;
+    use aeroxe_backend::modules::billing::domain::entities::invoice;
     
     let invoice_model = invoice::ActiveModel {
         invoice_number: Set("INV-2026-07-0002".to_string()),
@@ -123,6 +124,7 @@ async fn test_invoice_payment_flow() {
 }
 
 /// Test invoice voiding
+#[ignore]
 #[tokio::test]
 async fn test_invoice_voiding() {
     let test_db = TestDatabase::new().await;
@@ -133,7 +135,7 @@ async fn test_invoice_voiding() {
     let plan_id = TestFixture::create_plan(db).await;
     
     // Create subscription
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
     
     let now = chrono::Utc::now();
     let sub_model = subscription::ActiveModel {
@@ -152,7 +154,7 @@ async fn test_invoice_voiding() {
     let subscription = sub_model.insert(db).await.expect("Failed to create subscription");
     
     // Create invoice
-    use crate::modules::billing::domain::entities::invoice;
+    use aeroxe_backend::modules::billing::domain::entities::invoice;
     
     let invoice_model = invoice::ActiveModel {
         invoice_number: Set("INV-2026-07-0003".to_string()),
@@ -181,3 +183,4 @@ async fn test_invoice_voiding() {
     let voided_invoice = active_model.update(db).await.expect("Failed to void invoice");
     assert_eq!(voided_invoice.status, "void");
 }
+

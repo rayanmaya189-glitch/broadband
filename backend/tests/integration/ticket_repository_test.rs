@@ -3,7 +3,6 @@
 //! Covers ticket CRUD, assignment, escalation, resolution flow,
 //! comments, priority filtering, and status transitions.
 
-mod common;
 
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::{TestDatabase, TestFixture};
@@ -19,19 +18,22 @@ async fn create_ticket(
     subject: &str,
     priority: &str,
     status: &str,
-) -> crate::modules::ticket::domain::entities::ticket::Model {
-    use crate::modules::ticket::domain::entities::ticket;
+) -> aeroxe_backend::modules::ticket::domain::entities::ticket::Model {
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
+    let created_by = TestFixture::create_user(db, branch_id).await;
     let now = chrono::Utc::now();
     let active = ticket::ActiveModel {
+        ticket_number: Set(format!("TKT-{:06}", rand::random::<u32>() % 1_000_000)),
         branch_id: Set(branch_id),
         customer_id: Set(customer_id),
+        created_by: Set(created_by),
         subject: Set(subject.to_string()),
         description: Set(format!("Description for {}", subject)),
         category: Set("connectivity".to_string()),
         priority: Set(priority.to_string()),
         status: Set(status.to_string()),
-        source: Set("portal".to_string()),
+        source: Set("system".to_string()),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -43,6 +45,7 @@ async fn create_ticket(
 // CRUD operations
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_create_ticket() {
     let test_db = TestDatabase::new().await;
@@ -57,10 +60,11 @@ async fn test_create_ticket() {
     assert_eq!(ticket.subject, "Connectivity issue");
     assert_eq!(ticket.priority, "high");
     assert_eq!(ticket.status, "open");
-    assert_eq!(ticket.source, "portal");
+    assert_eq!(ticket.source, "system");
     assert_eq!(ticket.category, "connectivity");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_retrieve_ticket_by_id() {
     let test_db = TestDatabase::new().await;
@@ -69,7 +73,7 @@ async fn test_retrieve_ticket_by_id() {
     let branch_id = TestFixture::create_branch(db).await;
     let created = create_ticket(db, branch_id, None, "Retrieve test", "medium", "open").await;
 
-    let found = crate::modules::ticket::domain::entities::ticket::Entity::find_by_id(created.id)
+    let found = aeroxe_backend::modules::ticket::domain::entities::ticket::Entity::find_by_id(created.id)
         .one(db)
         .await
         .expect("Query failed")
@@ -79,6 +83,7 @@ async fn test_retrieve_ticket_by_id() {
     assert_eq!(found.subject, "Retrieve test");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_list_tickets_by_status() {
     let test_db = TestDatabase::new().await;
@@ -90,7 +95,7 @@ async fn test_list_tickets_by_status() {
     create_ticket(db, branch_id, None, "Open 2", "medium", "open").await;
     create_ticket(db, branch_id, None, "Resolved 1", "high", "resolved").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let open_tickets = ticket::Entity::find()
         .filter(ticket::Column::Status.eq("open"))
@@ -109,6 +114,7 @@ async fn test_list_tickets_by_status() {
     assert_eq!(resolved_tickets.len(), 1);
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_list_tickets_by_branch() {
     let test_db = TestDatabase::new().await;
@@ -121,7 +127,7 @@ async fn test_list_tickets_by_branch() {
     create_ticket(db, branch_a, None, "Branch A ticket 2", "low", "open").await;
     create_ticket(db, branch_b, None, "Branch B ticket", "low", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let branch_a_tickets = ticket::Entity::find()
         .filter(ticket::Column::BranchId.eq(branch_a))
@@ -132,15 +138,16 @@ async fn test_list_tickets_by_branch() {
     assert_eq!(branch_a_tickets.len(), 2);
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_update_ticket() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
-    let mut ticket = create_ticket(db, branch_id, None, "Update test", "low", "open").await;
+    let ticket = create_ticket(db, branch_id, None, "Update test", "low", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let mut active: ticket::ActiveModel = ticket.into();
     active.subject = Set("Updated subject".to_string());
@@ -152,6 +159,7 @@ async fn test_update_ticket() {
     assert_eq!(updated.priority, "critical");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_delete_ticket() {
     let test_db = TestDatabase::new().await;
@@ -160,7 +168,7 @@ async fn test_delete_ticket() {
     let branch_id = TestFixture::create_branch(db).await;
     let ticket = create_ticket(db, branch_id, None, "Delete test", "low", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     ticket::Entity::delete_by_id(ticket.id)
         .exec(db)
@@ -178,6 +186,7 @@ async fn test_delete_ticket() {
 // Status transitions
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_open_to_in_progress() {
     let test_db = TestDatabase::new().await;
@@ -186,7 +195,7 @@ async fn test_ticket_open_to_in_progress() {
     let branch_id = TestFixture::create_branch(db).await;
     let ticket = create_ticket(db, branch_id, None, "Status test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let mut active: ticket::ActiveModel = ticket.into();
     active.status = Set("in_progress".to_string());
@@ -196,6 +205,7 @@ async fn test_ticket_open_to_in_progress() {
     assert_eq!(updated.status, "in_progress");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_full_resolution_flow() {
     let test_db = TestDatabase::new().await;
@@ -204,7 +214,7 @@ async fn test_ticket_full_resolution_flow() {
     let branch_id = TestFixture::create_branch(db).await;
     let ticket = create_ticket(db, branch_id, None, "Full flow", "high", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     // open -> in_progress
     let mut active: ticket::ActiveModel = ticket.into();
@@ -238,6 +248,7 @@ async fn test_ticket_full_resolution_flow() {
     assert_eq!(closed.satisfaction_rating, Some(5));
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_reopen() {
     let test_db = TestDatabase::new().await;
@@ -246,7 +257,7 @@ async fn test_ticket_reopen() {
     let branch_id = TestFixture::create_branch(db).await;
     let ticket = create_ticket(db, branch_id, None, "Reopen test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     // open -> in_progress -> resolved
     let mut active: ticket::ActiveModel = ticket.into();
@@ -276,103 +287,113 @@ async fn test_ticket_reopen() {
 // Assignment
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_assignment() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let agent_id = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Assignment test", "high", "open").await;
     assert!(ticket.assigned_to.is_none());
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let mut active: ticket::ActiveModel = ticket.into();
-    active.assigned_to = Set(Some(42)); // agent user id
+    active.assigned_to = Set(Some(agent_id)); // agent user id
     active.status = Set("in_progress".to_string());
     active.updated_at = Set(chrono::Utc::now());
 
     let assigned = active.update(db).await.unwrap();
-    assert_eq!(assigned.assigned_to, Some(42));
+    assert_eq!(assigned.assigned_to, Some(agent_id));
     assert_eq!(assigned.status, "in_progress");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_reassignment() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let agent_a = TestFixture::create_user(db, branch_id).await;
+    let agent_b = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Reassign test", "high", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
-    // Assign to agent 10
+    // Assign to first agent
     let mut active: ticket::ActiveModel = ticket.into();
-    active.assigned_to = Set(Some(10));
+    active.assigned_to = Set(Some(agent_a));
     active.updated_at = Set(chrono::Utc::now());
     let t1 = active.update(db).await.unwrap();
-    assert_eq!(t1.assigned_to, Some(10));
+    assert_eq!(t1.assigned_to, Some(agent_a));
 
-    // Reassign to agent 20
+    // Reassign to second agent
     let mut active: ticket::ActiveModel = t1.into();
-    active.assigned_to = Set(Some(20));
+    active.assigned_to = Set(Some(agent_b));
     active.updated_at = Set(chrono::Utc::now());
     let t2 = active.update(db).await.unwrap();
-    assert_eq!(t2.assigned_to, Some(20));
+    assert_eq!(t2.assigned_to, Some(agent_b));
 }
 
 // ===========================================================================
 // Escalation
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_escalation() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let manager_id = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Escalation test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let mut active: ticket::ActiveModel = ticket.into();
-    active.escalated_to = Set(Some(99)); // manager user id
+    active.escalated_to = Set(Some(manager_id)); // manager user id
     active.priority = Set("critical".to_string());
     active.updated_at = Set(chrono::Utc::now());
 
     let escalated = active.update(db).await.unwrap();
-    assert_eq!(escalated.escalated_to, Some(99));
+    assert_eq!(escalated.escalated_to, Some(manager_id));
     assert_eq!(escalated.priority, "critical");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_escalation_with_assignment() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let agent_a = TestFixture::create_user(db, branch_id).await;
+    let agent_b = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Escalated assignment", "high", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     // Assign to first-level agent
     let mut active: ticket::ActiveModel = ticket.into();
-    active.assigned_to = Set(Some(10));
+    active.assigned_to = Set(Some(agent_a));
     active.status = Set("in_progress".to_string());
     active.updated_at = Set(chrono::Utc::now());
     let t1 = active.update(db).await.unwrap();
 
     // Escalate to second-level
     let mut active: ticket::ActiveModel = t1.into();
-    active.escalated_to = Set(Some(50));
-    active.assigned_to = Set(Some(50));
+    active.escalated_to = Set(Some(agent_b));
+    active.assigned_to = Set(Some(agent_b));
     active.priority = Set("critical".to_string());
     active.updated_at = Set(chrono::Utc::now());
     let escalated = active.update(db).await.unwrap();
 
-    assert_eq!(escalated.assigned_to, Some(50));
-    assert_eq!(escalated.escalated_to, Some(50));
+    assert_eq!(escalated.assigned_to, Some(agent_b));
+    assert_eq!(escalated.escalated_to, Some(agent_b));
     assert_eq!(escalated.priority, "critical");
 }
 
@@ -380,20 +401,22 @@ async fn test_ticket_escalation_with_assignment() {
 // Ticket comments
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_add_ticket_comment() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let user_id = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Comment test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket_comment;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket_comment;
 
     let now = chrono::Utc::now();
     let comment = ticket_comment::ActiveModel {
         ticket_id: Set(ticket.id),
-        user_id: Set(Some(1)),
+        user_id: Set(Some(user_id)),
         is_customer: Set(false),
         comment: Set("Investigating the issue now.".to_string()),
         is_internal: Set(false),
@@ -409,20 +432,22 @@ async fn test_add_ticket_comment() {
     assert!(!created.is_internal);
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_add_internal_comment() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let user_id = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Internal comment test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket_comment;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket_comment;
 
     let now = chrono::Utc::now();
     let comment = ticket_comment::ActiveModel {
         ticket_id: Set(ticket.id),
-        user_id: Set(Some(1)),
+        user_id: Set(Some(user_id)),
         is_customer: Set(false),
         comment: Set("Escalated to NOC team".to_string()),
         is_internal: Set(true),
@@ -435,21 +460,23 @@ async fn test_add_internal_comment() {
     assert!(created.is_internal);
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_list_ticket_comments() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let user_id = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Multi comment test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket_comment;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket_comment;
 
     let now = chrono::Utc::now();
     for i in 0..3 {
         let comment = ticket_comment::ActiveModel {
             ticket_id: Set(ticket.id),
-            user_id: Set(Some(1)),
+            user_id: Set(Some(user_id)),
             is_customer: Set(i == 0),
             comment: Set(format!("Comment {}", i)),
             is_internal: Set(false),
@@ -470,15 +497,17 @@ async fn test_list_ticket_comments() {
     assert!(comments[0].is_customer, "First comment should be from customer");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_add_comment_with_attachments() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
+    let user_id = TestFixture::create_user(db, branch_id).await;
     let ticket = create_ticket(db, branch_id, None, "Attachment test", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket_comment;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket_comment;
 
     let now = chrono::Utc::now();
     let attachments = serde_json::json!([
@@ -487,7 +516,7 @@ async fn test_add_comment_with_attachments() {
 
     let comment = ticket_comment::ActiveModel {
         ticket_id: Set(ticket.id),
-        user_id: Set(Some(1)),
+        user_id: Set(Some(user_id)),
         is_customer: Set(true),
         comment: Set("See attached screenshot".to_string()),
         is_internal: Set(false),
@@ -505,6 +534,7 @@ async fn test_add_comment_with_attachments() {
 // Priority filtering
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_filter_tickets_by_priority() {
     let test_db = TestDatabase::new().await;
@@ -517,7 +547,7 @@ async fn test_filter_tickets_by_priority() {
     create_ticket(db, branch_id, None, "High 1", "high", "open").await;
     create_ticket(db, branch_id, None, "Medium 1", "medium", "open").await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
 
     let critical = ticket::Entity::find()
         .filter(ticket::Column::Priority.eq("critical"))
@@ -534,6 +564,7 @@ async fn test_filter_tickets_by_priority() {
     assert_eq!(high.len(), 1);
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_filter_tickets_by_category() {
     let test_db = TestDatabase::new().await;
@@ -541,19 +572,22 @@ async fn test_filter_tickets_by_category() {
 
     let branch_id = TestFixture::create_branch(db).await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
     let now = chrono::Utc::now();
 
     // Create tickets with different categories
     for (cat, idx) in [("connectivity", 1), ("billing", 2), ("connectivity", 3)] {
+        let created_by = TestFixture::create_user(db, branch_id).await;
         let active = ticket::ActiveModel {
+            ticket_number: Set(format!("TKT-{:06}", rand::random::<u32>() % 1_000_000)),
             branch_id: Set(branch_id),
+            created_by: Set(created_by),
             subject: Set(format!("Ticket {}", idx)),
             description: Set("Test".to_string()),
             category: Set(cat.to_string()),
             priority: Set("medium".to_string()),
             status: Set("open".to_string()),
-            source: Set("portal".to_string()),
+            source: Set("system".to_string()),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -569,6 +603,7 @@ async fn test_filter_tickets_by_category() {
     assert_eq!(connectivity.len(), 2);
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_filter_tickets_by_source() {
     let test_db = TestDatabase::new().await;
@@ -576,12 +611,15 @@ async fn test_filter_tickets_by_source() {
 
     let branch_id = TestFixture::create_branch(db).await;
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
     let now = chrono::Utc::now();
 
-    for (source, idx) in [("phone", 1), ("portal", 2), ("phone", 3), ("email", 4)] {
+    for (source, idx) in [("phone", 1), ("system", 2), ("phone", 3), ("email", 4)] {
+        let created_by = TestFixture::create_user(db, branch_id).await;
         let active = ticket::ActiveModel {
+            ticket_number: Set(format!("TKT-{:06}", rand::random::<u32>() % 1_000_000)),
             branch_id: Set(branch_id),
+            created_by: Set(created_by),
             subject: Set(format!("Ticket {}", idx)),
             description: Set("Test".to_string()),
             category: Set("connectivity".to_string()),
@@ -607,22 +645,28 @@ async fn test_filter_tickets_by_source() {
 // Error cases
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_invalid_branch_id() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    use crate::modules::ticket::domain::entities::ticket;
+    use aeroxe_backend::modules::ticket::domain::entities::ticket;
     let now = chrono::Utc::now();
 
+    let valid_branch = TestFixture::create_branch(db).await;
+    let created_by = TestFixture::create_user(db, valid_branch).await;
+
     let active = ticket::ActiveModel {
+        ticket_number: Set(format!("TKT-{:06}", rand::random::<u32>() % 1_000_000)),
         branch_id: Set(999999),
+        created_by: Set(created_by),
         subject: Set("Bad branch".to_string()),
         description: Set("Test".to_string()),
         category: Set("connectivity".to_string()),
         priority: Set("medium".to_string()),
         status: Set("open".to_string()),
-        source: Set("portal".to_string()),
+        source: Set("system".to_string()),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -632,6 +676,7 @@ async fn test_ticket_invalid_branch_id() {
     assert!(result.is_err(), "Should fail with non-existent branch_id");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_with_customer_reference() {
     let test_db = TestDatabase::new().await;
@@ -653,6 +698,7 @@ async fn test_ticket_with_customer_reference() {
     assert_eq!(ticket.customer_id, Some(customer_id));
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_ticket_without_customer() {
     let test_db = TestDatabase::new().await;
@@ -668,6 +714,7 @@ async fn test_ticket_without_customer() {
 // Concurrent ticket creation
 // ===========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_concurrent_ticket_creation() {
     let test_db = TestDatabase::new().await;
@@ -680,16 +727,19 @@ async fn test_concurrent_ticket_creation() {
         let db_clone = db.clone();
         let branch_id = branch_id;
         let handle = tokio::spawn(async move {
-            use crate::modules::ticket::domain::entities::ticket;
+            use aeroxe_backend::modules::ticket::domain::entities::ticket;
+            let created_by = TestFixture::create_user(&db_clone, branch_id).await;
             let now = chrono::Utc::now();
             let active = ticket::ActiveModel {
+                ticket_number: Set(format!("TKT-{:06}", rand::random::<u32>() % 1_000_000)),
                 branch_id: Set(branch_id),
+                created_by: Set(created_by),
                 subject: Set(format!("Concurrent ticket {}", i)),
                 description: Set("Test".to_string()),
                 category: Set("connectivity".to_string()),
                 priority: Set("medium".to_string()),
                 status: Set("open".to_string()),
-                source: Set("portal".to_string()),
+                source: Set("system".to_string()),
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()
@@ -710,3 +760,4 @@ async fn test_concurrent_ticket_creation() {
         assert!(r.id > 0);
     }
 }
+

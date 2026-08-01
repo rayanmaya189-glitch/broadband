@@ -75,15 +75,17 @@ ALTER TABLE IF EXISTS branches SET SCHEMA branches;
 ALTER TABLE IF EXISTS branch_working_hours SET SCHEMA branches;
 ALTER TABLE IF EXISTS user_branches SET SCHEMA branches;
 
--- identity schema (users, sessions, roles, permissions)
+-- identity schema (users, sessions)
 ALTER TABLE IF EXISTS users SET SCHEMA identity;
 ALTER TABLE IF EXISTS user_sessions SET SCHEMA identity;
-ALTER TABLE IF EXISTS roles SET SCHEMA identity;
-ALTER TABLE IF EXISTS permissions SET SCHEMA identity;
-ALTER TABLE IF EXISTS role_permissions SET SCHEMA identity;
-ALTER TABLE IF EXISTS user_roles SET SCHEMA identity;
 ALTER TABLE IF EXISTS permission_groups SET SCHEMA identity;
 ALTER TABLE IF EXISTS permission_group_permissions SET SCHEMA identity;
+
+-- security schema (RBAC entities declare schema_name = "security")
+ALTER TABLE IF EXISTS roles SET SCHEMA security;
+ALTER TABLE IF EXISTS permissions SET SCHEMA security;
+ALTER TABLE IF EXISTS role_permissions SET SCHEMA security;
+ALTER TABLE IF EXISTS user_roles SET SCHEMA security;
 
 -- customer schema
 ALTER TABLE IF EXISTS customers SET SCHEMA customer;
@@ -140,6 +142,84 @@ ALTER TABLE IF EXISTS installation_orders SET SCHEMA installation;
 
 -- document schema (table is document_files, not documents)
 ALTER TABLE IF EXISTS document_files SET SCHEMA document;
+ALTER TABLE IF EXISTS document_access_logs SET SCHEMA document;
+
+-- network schema (migration 010 tables)
+ALTER TABLE IF EXISTS vlans SET SCHEMA network;
+ALTER TABLE IF EXISTS vlans_history SET SCHEMA network;
+ALTER TABLE IF EXISTS ip_pools SET SCHEMA network;
+ALTER TABLE IF EXISTS ip_pools_history SET SCHEMA network;
+ALTER TABLE IF EXISTS ip_addresses SET SCHEMA network;
+ALTER TABLE IF EXISTS pppoe_sessions SET SCHEMA network;
+ALTER TABLE IF EXISTS pppoe_sessions_history SET SCHEMA network;
+ALTER TABLE IF EXISTS dhcp_leases SET SCHEMA network;
+ALTER TABLE IF EXISTS mac_bindings SET SCHEMA network;
+ALTER TABLE IF EXISTS customer_sessions SET SCHEMA network;
+
+-- device schema (migration 009 tables)
+ALTER TABLE IF EXISTS device_models SET SCHEMA device;
+ALTER TABLE IF EXISTS network_devices_history SET SCHEMA device;
+ALTER TABLE IF EXISTS device_ports SET SCHEMA device;
+ALTER TABLE IF EXISTS device_logs SET SCHEMA device;
+ALTER TABLE IF EXISTS device_metrics SET SCHEMA device;
+ALTER TABLE IF EXISTS firmware_updates SET SCHEMA device;
+
+-- discovery schema (migration 009 tables)
+ALTER TABLE IF EXISTS discovery_scans SET SCHEMA discovery;
+ALTER TABLE IF EXISTS discovery_results SET SCHEMA discovery;
+ALTER TABLE IF EXISTS discovery_scan_history SET SCHEMA discovery;
+ALTER TABLE IF EXISTS subnet_location_map SET SCHEMA discovery;
+
+-- inventory schema (migration 009 tables)
+ALTER TABLE IF EXISTS inventory_items SET SCHEMA inventory;
+ALTER TABLE IF EXISTS inventory_movements SET SCHEMA inventory;
+
+-- accounting schema (migration 008 tables)
+ALTER TABLE IF EXISTS chart_of_accounts SET SCHEMA accounting;
+ALTER TABLE IF EXISTS journal_entries SET SCHEMA accounting;
+ALTER TABLE IF EXISTS journal_entry_lines SET SCHEMA accounting;
+ALTER TABLE IF EXISTS trial_balances SET SCHEMA accounting;
+ALTER TABLE IF EXISTS gst_returns SET SCHEMA accounting;
+
+-- plans schema (migration 005 tables)
+ALTER TABLE IF EXISTS plans_history SET SCHEMA plans;
+ALTER TABLE IF EXISTS plan_pricing SET SCHEMA plans;
+ALTER TABLE IF EXISTS speed_profiles SET SCHEMA plans;
+ALTER TABLE IF EXISTS service_packages SET SCHEMA plans;
+ALTER TABLE IF EXISTS plan_service_packages SET SCHEMA plans;
+ALTER TABLE IF EXISTS bandwidth_profiles_history SET SCHEMA plans;
+
+-- subscription schema (migration 006 tables)
+ALTER TABLE IF EXISTS subscriptions_history SET SCHEMA subscription;
+ALTER TABLE IF EXISTS service_accounts SET SCHEMA subscription;
+
+-- billing schema (migration 007 tables)
+ALTER TABLE IF EXISTS discounts SET SCHEMA billing;
+ALTER TABLE IF EXISTS invoices_history SET SCHEMA billing;
+ALTER TABLE IF EXISTS refunds_history SET SCHEMA billing;
+ALTER TABLE IF EXISTS discounts_history SET SCHEMA billing;
+
+-- ticket schema (migration 011 tables)
+ALTER TABLE IF EXISTS ticket_escalations SET SCHEMA ticket;
+ALTER TABLE IF EXISTS ticket_attachments SET SCHEMA ticket;
+ALTER TABLE IF EXISTS ticket_status_history SET SCHEMA ticket;
+ALTER TABLE IF EXISTS tickets_history SET SCHEMA ticket;
+
+-- notification schema (migration 012 tables)
+ALTER TABLE IF EXISTS notification_channels SET SCHEMA notification;
+ALTER TABLE IF EXISTS notification_history SET SCHEMA notification;
+
+-- events stay in the public schema (outbox_events entity is schema-less;
+-- events / event_subscriptions have no entities).
+
+-- ============================================================
+-- Step 2b: DEFAULT partitions for monthly-partitioned tables
+-- ============================================================
+-- Partitioned tables only ship a 2026_07 partition. Add a DEFAULT
+-- partition so inserts at any later timestamp succeed.
+CREATE TABLE IF NOT EXISTS audit.audit_logs_default PARTITION OF audit.audit_logs DEFAULT;
+CREATE TABLE IF NOT EXISTS device.device_logs_default PARTITION OF device.device_logs DEFAULT;
+CREATE TABLE IF NOT EXISTS device.device_metrics_default PARTITION OF device.device_metrics DEFAULT;
 
 -- NOTE: monitoring tables (alert_rules, metric_records, monitoring_alerts)
 -- are created in migration 020_create_monitoring_tables.sql and do not exist

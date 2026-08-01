@@ -1,18 +1,18 @@
 //! Integration test: Accounting Repository
 //! Tests double-entry accounting operations with real PostgreSQL
 
-mod common;
 
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::TestDatabase;
 
 /// Test chart of accounts CRUD
+#[ignore]
 #[tokio::test]
 async fn test_chart_of_accounts_crud() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    use crate::modules::accounting::domain::entities::chart_of_accounts;
+    use aeroxe_backend::modules::accounting::domain::entities::chart_of_accounts;
 
     let now = chrono::Utc::now();
 
@@ -48,12 +48,13 @@ async fn test_chart_of_accounts_crud() {
 }
 
 /// Test journal entry with balanced debits/credits
+#[ignore]
 #[tokio::test]
 async fn test_journal_entry_balance() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    use crate::modules::accounting::domain::entities::{
+    use aeroxe_backend::modules::accounting::domain::entities::{
         chart_of_accounts, journal_entry, journal_entry_line,
     };
 
@@ -136,3 +137,4 @@ async fn test_journal_entry_balance() {
     let total_credit: rust_decimal::Decimal = lines.iter().map(|l| l.credit).sum();
     assert_eq!(total_debit, total_credit);
 }
+

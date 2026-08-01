@@ -182,7 +182,7 @@ ALTER TABLE identity.users
     FOREIGN KEY (branch_id) REFERENCES branches.branches(id);
 
 -- notification.delivery_history.notification_id → notification.notifications.id
-ALTER TABLE notification.delivery_history
+ALTER TABLE notification.notification_delivery_history
     ADD CONSTRAINT fk_delivery_history_notification
     FOREIGN KEY (notification_id) REFERENCES notification.notifications(id);
 
@@ -355,7 +355,7 @@ CREATE INDEX IF NOT EXISTS idx_network_devices_branch ON device.network_devices(
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit.audit_logs(user_id, created_at DESC);
 
 -- Outbox: status + created_at (pending event processing)
-CREATE INDEX IF NOT EXISTS idx_outbox_events_status_time ON infrastructure.outbox_events(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_status_time ON outbox_events(status, created_at);
 
 -- Refund: customer_id (refund lookup by customer)
 CREATE INDEX IF NOT EXISTS idx_refunds_customer ON billing.refunds(customer_id);

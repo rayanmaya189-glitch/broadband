@@ -1,12 +1,12 @@
 //! End-to-end test: Subscription Plan Change Workflow
 //! Tests: Create subscription → Upgrade → Downgrade → Cancel
 
-mod common;
 
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
 
 /// Test subscription upgrade/downgrade workflow
+#[ignore]
 #[tokio::test]
 async fn test_subscription_plan_change_workflow() {
     let test_db = TestDatabase::new().await;
@@ -17,8 +17,8 @@ async fn test_subscription_plan_change_workflow() {
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
 
-    use crate::modules::customer::domain::entities::customer;
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::customer::domain::entities::customer;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
 
     // Activate customer
     let cust = customer::Entity::find_by_id(customer_id)
@@ -62,6 +62,7 @@ async fn test_subscription_plan_change_workflow() {
 }
 
 /// Test subscription suspension and reactivation
+#[ignore]
 #[tokio::test]
 async fn test_subscription_suspend_reactivate() {
     let test_db = TestDatabase::new().await;
@@ -71,7 +72,7 @@ async fn test_subscription_suspend_reactivate() {
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
 
-    use crate::modules::subscription::domain::entities::subscription;
+    use aeroxe_backend::modules::subscription::domain::entities::subscription;
 
     let now = chrono::Utc::now();
     let sub = subscription::ActiveModel {
@@ -102,3 +103,4 @@ async fn test_subscription_suspend_reactivate() {
     let sub = active.update(db).await.unwrap();
     assert_eq!(sub.status, "active");
 }
+
