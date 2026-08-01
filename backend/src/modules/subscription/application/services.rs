@@ -7,6 +7,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     Set,
 };
+use tracing::info;
 
 pub struct SubscriptionService;
 
@@ -67,11 +68,6 @@ impl SubscriptionService {
             ..Default::default()
         };
         let new_sub_model = new_sub.insert(db).await?;
-        outbox::insert_outbox_event(
-            db, "subscription.created", "subscription", new_sub_model.id,
-            serde_json::json!({"customer_id": customer_id, "plan_id": plan_id}),
-            None, None, None,
-        ).await.ok();
         Ok(new_sub_model)
     }
 
@@ -289,7 +285,14 @@ impl SubscriptionService {
         db: &DatabaseConnection,
         id: i64,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        let sub = Self::get_subscription(db, id).await?;
+        use crate::modules::plans::domain::entities::{PlanPricing, PlanPricingColumn};
+        use sea_orm::TransactionTrait;
+
+        let txn = db.begin().await?;
+        let sub = Subscription::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
 
         if sub.status == "cancelled" {
             return Err(AppError::Validation(
@@ -298,13 +301,84 @@ impl SubscriptionService {
         }
 
         let now = chrono::Utc::now();
+        let period_start = sub.next_billing_date.unwrap_or_else(|| now.date_naive());
         let next_billing =
             now.date_naive() + chrono::Duration::days((sub.billing_period_months as i64) * 30);
 
-        let mut active: SubscriptionActiveModel = sub.into();
+        let mut active: SubscriptionActiveModel = sub.clone().into();
         active.status = Set("active".to_string());
         active.next_billing_date = Set(Some(next_billing));
         active.updated_at = Set(now);
-        Ok(active.update(db).await?)
+        let updated = active.update(&txn).await?;
+
+        // Generate the next billing-cycle invoice from the active plan pricing
+        // (same transaction as the renewal so the two never drift apart).
+        let mut invoice_id: Option<i64> = None;
+        let pricing = PlanPricing::find()
+            .filter(PlanPricingColumn::PlanId.eq(sub.plan_id))
+            .filter(PlanPricingColumn::BillingPeriodMonths.eq(sub.billing_period_months))
+            .filter(PlanPricingColumn::IsActive.eq(true))
+            .one(&txn)
+            .await?;
+        if let Some(p) = pricing {
+            let inv = crate::modules::billing::application::services::BillingService::create_invoice(
+                &txn,
+                sub.customer_id,
+                sub.branch_id,
+                sub.id,
+                period_start,
+                next_billing,
+                p.price,
+            )
+            .await?;
+            invoice_id = Some(inv.id);
+        }
+
+        // Publish the renewal event once, atomically with the state change above.
+        outbox::insert_outbox_event(
+            &txn,
+            "subscription.renewed",
+            "subscription",
+            updated.id,
+            serde_json::json!({
+                "subscription_id": updated.id,
+                "customer_id": updated.customer_id,
+                "action": "renewed",
+                "next_billing_date": updated.next_billing_date,
+                "invoice_id": invoice_id,
+            }),
+            None,
+            None,
+            Some(updated.branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        // When auto-renew is on and the customer has wallet balance, try to
+        // settle the new invoice immediately. Best effort — if the balance is
+        // insufficient the invoice simply stays pending for the dunning worker.
+        if updated.auto_renew {
+            if let Some(inv_id) = invoice_id {
+                if let Err(e) =
+                    crate::modules::payment::application::services::PaymentService::pay_from_wallet(
+                        db,
+                        inv_id,
+                        updated.customer_id,
+                        None,
+                    )
+                    .await
+                {
+                    info!(
+                        subscription_id = updated.id,
+                        invoice_id = inv_id,
+                        error = %e,
+                        "Auto-renew wallet payment not applied (balance may be insufficient)"
+                    );
+                }
+            }
+        }
+
+        Ok(updated)
     }
 }

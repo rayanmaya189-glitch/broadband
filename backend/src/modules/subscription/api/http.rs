@@ -359,27 +359,6 @@ pub async fn renew_subscription(
     require_permission(&user, "subscription.manage").map_err(|e| AppError::Forbidden(e.1))?;
     let sub = SubscriptionService::renew_subscription(&state.db, id).await?;
 
-    let payload = serde_json::json!({
-        "subscription_id": sub.id,
-        "customer_id": sub.customer_id,
-        "action": "renewed",
-        "next_billing_date": sub.next_billing_date,
-    });
-    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db,
-        "subscription.renewed",
-        "subscription",
-        sub.id,
-        payload,
-        None,
-        Some(user.user_id),
-        user.branch_id,
-    )
-    .await
-    {
-        tracing::error!(subscription_id = sub.id, error = %e, "Failed to publish subscription.renewed event");
-    }
-
     Ok(Json(to_response(sub)))
 }
 
