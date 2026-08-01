@@ -16,6 +16,16 @@ pub struct GatewayPaymentResponse {
     pub currency: String,
 }
 
+/// Gateway response from issuing a refund for a captured payment
+#[derive(Debug, Clone)]
+pub struct GatewayRefundResponse {
+    pub refund_id: String,
+    /// Gateway-reported refund status: `processed`, `pending`, or `failed`
+    pub status: String,
+    pub amount: sea_orm::prelude::Decimal,
+    pub currency: String,
+}
+
 /// Webhook payload from gateway
 #[derive(Debug, Clone)]
 pub struct GatewayWebhookPayload {
@@ -52,6 +62,16 @@ pub trait GatewayAdapter: Send + Sync {
 
     /// Parse webhook payload
     fn parse_webhook(&self, payload: serde_json::Value) -> Result<GatewayWebhookPayload, AppError>;
+
+    /// Issue a refund against an already-captured gateway transaction.
+    /// `payment_id` is the gateway transaction id recorded on the payment.
+    async fn refund_payment(
+        &self,
+        payment_id: &str,
+        amount: sea_orm::prelude::Decimal,
+        currency: &str,
+        reason: Option<&str>,
+    ) -> Result<GatewayRefundResponse, AppError>;
 }
 
 // ============================================================================
@@ -183,6 +203,75 @@ impl GatewayAdapter for RazorpayAdapter {
             payment_method,
             error_reason,
             raw_payload: payload,
+        })
+    }
+
+    async fn refund_payment(
+        &self,
+        payment_id: &str,
+        amount: sea_orm::prelude::Decimal,
+        currency: &str,
+        reason: Option<&str>,
+    ) -> Result<GatewayRefundResponse, AppError> {
+        // Razorpay expects amount in paise (smallest currency unit)
+        let amount_paise = (amount * sea_orm::prelude::Decimal::new(100, 0))
+            .to_string()
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        let mut notes = serde_json::Map::new();
+        if let Some(r) = reason {
+            notes.insert("reason".to_string(), serde_json::Value::String(r.to_string()));
+        }
+
+        let body = serde_json::json!({
+            "amount": amount_paise,
+            "notes": notes,
+        });
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(format!(
+                "https://api.razorpay.com/v1/payments/{}/refund",
+                payment_id
+            ))
+            .basic_auth(&self.key_id, Some(&self.key_secret))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AppError::External(format!("Razorpay refund request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            warn!(status = %status, body = %error_body, "Razorpay refund failed");
+            return Err(AppError::External(format!(
+                "Razorpay refund error ({}): {}",
+                status, error_body
+            )));
+        }
+
+        let refund: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| AppError::External(format!("Failed to parse Razorpay refund response: {}", e)))?;
+
+        let refund_id = refund["id"].as_str().unwrap_or("").to_string();
+        let rz_status = refund["status"].as_str().unwrap_or("pending");
+        let status = match rz_status {
+            "processed" => "processed",
+            "failed" => "failed",
+            _ => "pending",
+        };
+        let amount_paise_resp = refund["amount"].as_i64().unwrap_or(0);
+
+        info!(refund_id = %refund_id, status = %status, amount = %amount, "Razorpay refund issued");
+
+        Ok(GatewayRefundResponse {
+            refund_id,
+            status: status.to_string(),
+            amount: sea_orm::prelude::Decimal::new(amount_paise_resp, 2),
+            currency: refund["currency"].as_str().unwrap_or(currency).to_string(),
         })
     }
 }
@@ -344,6 +433,93 @@ impl GatewayAdapter for PayuAdapter {
             payment_method,
             error_reason,
             raw_payload: payload,
+        })
+    }
+
+    async fn refund_payment(
+        &self,
+        payment_id: &str,
+        amount: sea_orm::prelude::Decimal,
+        currency: &str,
+        _reason: Option<&str>,
+    ) -> Result<GatewayRefundResponse, AppError> {
+        // PayU v3 refund API (cancel_refund_transaction) expects amount in paise.
+        let amount_paise = (amount * sea_orm::prelude::Decimal::new(100, 0))
+            .to_string()
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        let command = "cancel_refund_transaction";
+        let mut vars = vec![String::new(); 20];
+        vars[0] = payment_id.to_string();
+        vars[1] = amount_paise.to_string();
+        vars[2] = currency.to_string();
+
+        // Hash: SHA512(key|command|var1|...|var20|salt)
+        let hash_string = format!(
+            "{}|{}|{}|{}",
+            self.merchant_key,
+            command,
+            vars.join("|"),
+            self.merchant_salt
+        );
+        let hash = {
+            use sha2::{Digest, Sha512};
+            let mut hasher = Sha512::new();
+            hasher.update(hash_string.as_bytes());
+            hex::encode(hasher.finalize())
+        };
+
+        let refund_url = if self.api_endpoint.contains("test.payu.in") {
+            "https://test.payu.in/api/v3/refund"
+        } else {
+            "https://payu.in/api/v3/refund"
+        };
+
+        let body = serde_json::json!({
+            "key": self.merchant_key,
+            "command": command,
+            "var1": vars[0],
+            "var2": vars[1],
+            "var3": vars[2],
+            "hash": hash,
+        });
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(refund_url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AppError::External(format!("PayU refund request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            warn!(status = %status, body = %error_body, "PayU refund failed");
+            return Err(AppError::External(format!(
+                "PayU refund error ({}): {}",
+                status, error_body
+            )));
+        }
+
+        let parsed: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| AppError::External(format!("Failed to parse PayU refund response: {}", e)))?;
+
+        let payu_status = parsed["status"].as_i64().unwrap_or(0);
+        let refund_id = parsed["refund_id"].as_str().unwrap_or("").to_string();
+        let msg = parsed["msg"].as_str().unwrap_or("").to_string();
+        let status = if payu_status == 1 { "processed" } else { "failed" };
+
+        info!(refund_id = %refund_id, status = %status, msg = %msg, "PayU refund issued");
+
+        Ok(GatewayRefundResponse {
+            refund_id,
+            status: status.to_string(),
+            amount,
+            currency: currency.to_string(),
         })
     }
 }
@@ -519,6 +695,66 @@ impl GatewayAdapter for StripeAdapter {
             payment_method: payment_method_type,
             error_reason,
             raw_payload: payload,
+        })
+    }
+
+    async fn refund_payment(
+        &self,
+        payment_id: &str,
+        amount: sea_orm::prelude::Decimal,
+        currency: &str,
+        _reason: Option<&str>,
+    ) -> Result<GatewayRefundResponse, AppError> {
+        // Stripe expects amount in smallest currency unit (paise for INR)
+        let amount_paise = (amount * sea_orm::prelude::Decimal::new(100, 0))
+            .to_string()
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(format!("{}/refunds", self.api_endpoint))
+            .bearer_auth(&self.secret_key)
+            .form(&[
+                ("payment_intent", payment_id.to_string()),
+                ("amount", amount_paise.to_string()),
+                ("reason", "requested_by_customer".to_string()),
+            ])
+            .send()
+            .await
+            .map_err(|e| AppError::External(format!("Stripe refund request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            warn!(status = %status, body = %error_body, "Stripe refund failed");
+            return Err(AppError::External(format!(
+                "Stripe refund error ({}): {}",
+                status, error_body
+            )));
+        }
+
+        let refund: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| AppError::External(format!("Failed to parse Stripe refund response: {}", e)))?;
+
+        let refund_id = refund["id"].as_str().unwrap_or("").to_string();
+        let stripe_status = refund["status"].as_str().unwrap_or("pending");
+        let status = match stripe_status {
+            "succeeded" => "processed",
+            "failed" => "failed",
+            _ => "pending",
+        };
+        let amount_cents = refund["amount"].as_i64().unwrap_or(0);
+
+        info!(refund_id = %refund_id, status = %status, amount = %amount, "Stripe refund issued");
+
+        Ok(GatewayRefundResponse {
+            refund_id,
+            status: status.to_string(),
+            amount: sea_orm::prelude::Decimal::new(amount_cents, 2),
+            currency: refund["currency"].as_str().unwrap_or(currency).to_string(),
         })
     }
 }

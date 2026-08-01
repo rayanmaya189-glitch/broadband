@@ -372,6 +372,9 @@ impl BillingService {
     ) -> Result<crate::modules::billing::domain::entities::refund::Model, AppError> {
         use crate::infrastructure::messaging::outbox;
         use crate::modules::payment::application::services::PaymentService;
+        use crate::modules::payment::infrastructure::gateway_adapter::{
+            GatewayAdapter, PayuAdapter, RazorpayAdapter, StripeAdapter,
+        };
 
         let txn = db.begin().await?;
         let refund = Refund::find_by_id(id)
@@ -383,16 +386,141 @@ impl BillingService {
                 "Refund is not in pending status".to_string(),
             ));
         }
+        let payment = Payment::find_by_id(refund.payment_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Payment {} not found", refund.payment_id)))?;
+
         let refund_id = refund.id;
         let refund_number = refund.refund_number.clone();
         let invoice_id = refund.invoice_id;
         let customer_id = refund.customer_id;
         let amount = refund.amount;
+        let original_review_notes = refund.review_notes.clone();
         let now = chrono::Utc::now();
+
+        let method = payment.payment_method.to_lowercase();
+        let gateway = payment.payment_gateway.clone().unwrap_or_default();
+        let is_wallet = method == "wallet";
+        let gateway_name = if !gateway.is_empty() {
+            gateway.to_lowercase()
+        } else {
+            method.clone()
+        };
+
+        // Execute the refund against the original funding source.
+        let mut gateway_refund_id: Option<String> = None;
+        let mut gateway_refund_status: Option<String> = None;
+
+        if is_wallet {
+            // Money returns to the customer's wallet in the same transaction.
+            PaymentService::credit_wallet(
+                &txn,
+                customer_id,
+                amount,
+                "refund",
+                refund_id,
+                "refund",
+                Some(&format!("Refund {} approved", refund_number)),
+            )
+            .await?;
+        } else {
+            let gateway_txn_id = payment.gateway_transaction_id.clone().ok_or_else(|| {
+                AppError::Validation(format!(
+                    "Payment {} has no gateway transaction id to refund",
+                    payment.id
+                ))
+            })?;
+            let reason = Some(format!("Refund {}", refund_number));
+
+            match gateway_name.as_str() {
+                "razorpay" => {
+                    let adapter = RazorpayAdapter::from_env();
+                    if adapter.key_id.is_empty() || adapter.key_secret.is_empty() {
+                        return Err(AppError::External(
+                            "Razorpay is not configured (set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)"
+                                .into(),
+                        ));
+                    }
+                    let resp = adapter
+                        .refund_payment(&gateway_txn_id, amount, &payment.currency, reason.as_deref())
+                        .await?;
+                    gateway_refund_id = Some(resp.refund_id);
+                    gateway_refund_status = Some(resp.status);
+                }
+                "payu" => {
+                    let adapter = PayuAdapter::from_env();
+                    if adapter.merchant_key.is_empty() || adapter.merchant_salt.is_empty() {
+                        return Err(AppError::External(
+                            "PayU is not configured (set PAYU_MERCHANT_KEY / PAYU_MERCHANT_SALT)"
+                                .into(),
+                        ));
+                    }
+                    let resp = adapter
+                        .refund_payment(&gateway_txn_id, amount, &payment.currency, reason.as_deref())
+                        .await?;
+                    gateway_refund_id = Some(resp.refund_id);
+                    gateway_refund_status = Some(resp.status);
+                }
+                "stripe" => {
+                    let adapter = StripeAdapter::from_env();
+                    if !adapter.is_configured() {
+                        return Err(AppError::External(
+                            "Stripe is not configured (set STRIPE_SECRET_KEY)".into(),
+                        ));
+                    }
+                    let resp = adapter
+                        .refund_payment(&gateway_txn_id, amount, &payment.currency, reason.as_deref())
+                        .await?;
+                    gateway_refund_id = Some(resp.refund_id);
+                    gateway_refund_status = Some(resp.status);
+                }
+                // Offline funding sources are refunded manually (cash back/transfer);
+                // there is no gateway call to make.
+                "cash" | "card" | "upi" | "bank_transfer" | "neft" | "rtgs" | "manual" => {}
+                other => {
+                    return Err(AppError::Validation(format!(
+                        "Refund method '{}' is not supported",
+                        other
+                    )));
+                }
+            }
+        }
+
+        // Determine the final refund status from the funding-source result.
+        let (status, processed_at) = if is_wallet {
+            ("processed".to_string(), Some(now))
+        } else if let Some(g) = &gateway_refund_status {
+            match g.as_str() {
+                "processed" => ("processed".to_string(), Some(now)),
+                "failed" => {
+                    // Gateway declined the refund — keep it pending for retry.
+                    return Err(AppError::External(format!(
+                        "Gateway rejected refund for payment {} ({})",
+                        payment.id, g
+                    )));
+                }
+                _ => ("approved".to_string(), None),
+            }
+        } else {
+            // Offline refund is settled outside the system; record as processed.
+            ("processed".to_string(), Some(now))
+        };
+
         let mut active: RefundActiveModel = refund.into();
-        active.status = Set("approved".to_string());
+        active.status = Set(status.clone());
         active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
+        active.processed_at = Set(processed_at);
+        let review_notes = match (&gateway_refund_id, &original_review_notes) {
+            (Some(gid), Some(existing)) => Some(format!(
+                "{}\ngateway_refund_id: {} ({})",
+                existing, gid, gateway_name
+            )),
+            (Some(gid), None) => Some(format!("gateway_refund_id: {} ({})", gid, gateway_name)),
+            (None, notes) => notes.clone(),
+        };
+        active.review_notes = Set(review_notes);
         let updated = active.update(&txn).await?;
 
         // Create credit note for GST compliance (same transaction).
@@ -409,33 +537,26 @@ impl BillingService {
             .await?;
         }
 
-        // Return the money to the customer's wallet (same transaction).
-        PaymentService::credit_wallet(
-            &txn,
-            customer_id,
-            amount,
-            "refund",
-            refund_id,
-            "refund",
-            Some(&format!("Refund {} approved", refund_number)),
-        )
-        .await?;
-
         // Publish outbox events atomically with the state changes above.
         let payload = serde_json::json!({
             "customer_id": customer_id,
             "amount": amount,
             "invoice_id": invoice_id,
             "refund_number": refund_number,
+            "payment_method": method,
+            "gateway_refund_id": gateway_refund_id,
+            "status": status,
         });
         outbox::insert_outbox_event(
             &txn, "refund.approved", "refund", refund_id,
             payload.clone(), None, None, None,
         ).await?;
-        outbox::insert_outbox_event(
-            &txn, "refund.processed", "refund", refund_id,
-            payload, None, None, None,
-        ).await?;
+        if status == "processed" {
+            outbox::insert_outbox_event(
+                &txn, "refund.processed", "refund", refund_id,
+                payload, None, None, None,
+            ).await?;
+        }
 
         txn.commit().await?;
 
