@@ -5,9 +5,9 @@ use crate::modules::subscription::domain::entities::{
 use crate::shared::errors::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    Set, TransactionTrait,
 };
-use tracing::info;
+use tracing::{error, info};
 
 pub struct SubscriptionService;
 
@@ -50,6 +50,7 @@ impl SubscriptionService {
         plan_id: i64,
         billing_period_months: i32,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
+        let txn = db.begin().await?;
         let now = chrono::Utc::now();
         let start = now.date_naive();
         let next_billing = start + chrono::Duration::days((billing_period_months as i64) * 30);
@@ -67,7 +68,28 @@ impl SubscriptionService {
             updated_at: Set(now),
             ..Default::default()
         };
-        let new_sub_model = new_sub.insert(db).await?;
+        let new_sub_model = new_sub.insert(&txn).await?;
+
+        // Publish the creation event once, atomically with the insert.
+        outbox::insert_outbox_event(
+            &txn,
+            "subscription.created",
+            "subscription",
+            new_sub_model.id,
+            serde_json::json!({
+                "subscription_id": new_sub_model.id,
+                "customer_id": customer_id,
+                "plan_id": plan_id,
+                "branch_id": branch_id,
+                "status": new_sub_model.status,
+            }),
+            None,
+            None,
+            Some(branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(new_sub_model)
     }
 
@@ -76,7 +98,11 @@ impl SubscriptionService {
         db: &DatabaseConnection,
         id: i64,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        let sub = Self::get_subscription(db, id).await?;
+        let txn = db.begin().await?;
+        let sub = Subscription::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
 
         // Only suspended or cancelled subscriptions can be reactivated
         if sub.status != "suspended" && sub.status != "cancelled" {
@@ -94,7 +120,26 @@ impl SubscriptionService {
         active.status = Set("active".to_string());
         active.next_billing_date = Set(Some(next_billing));
         active.updated_at = Set(now);
-        Ok(active.update(db).await?)
+        let updated = active.update(&txn).await?;
+
+        outbox::insert_outbox_event(
+            &txn,
+            "subscription.reactivated",
+            "subscription",
+            updated.id,
+            serde_json::json!({
+                "subscription_id": updated.id,
+                "customer_id": updated.customer_id,
+                "status": updated.status,
+            }),
+            None,
+            None,
+            Some(updated.branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        Ok(updated)
     }
 
     /// Upgrade a subscription to a new plan with mid-cycle proration
@@ -107,7 +152,11 @@ impl SubscriptionService {
         crate::modules::subscription::domain::entities::subscription::Model,
         Option<crate::shared::primitives::ProRataAdjustment>,
     ), AppError> {
-        let sub = Self::get_subscription(db, id).await?;
+        let txn = db.begin().await?;
+        let sub = Subscription::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
 
         if sub.status != "active" {
             return Err(AppError::Validation(format!(
@@ -128,7 +177,7 @@ impl SubscriptionService {
             .filter(PlanPricingColumn::PlanId.eq(sub.plan_id))
             .filter(PlanPricingColumn::BillingPeriodMonths.eq(sub.billing_period_months))
             .filter(PlanPricingColumn::IsActive.eq(true))
-            .one(db)
+            .one(&txn)
             .await?;
         let new_pricing = PlanPricing::find()
             .filter(PlanPricingColumn::PlanId.eq(new_plan_id))
@@ -136,7 +185,7 @@ impl SubscriptionService {
                 new_billing_period_months.unwrap_or(sub.billing_period_months)
             ))
             .filter(PlanPricingColumn::IsActive.eq(true))
-            .one(db)
+            .one(&txn)
             .await?;
 
         let proration = match (old_pricing, new_pricing) {
@@ -164,7 +213,26 @@ impl SubscriptionService {
             active.billing_period_months = Set(period);
         }
         active.updated_at = Set(now);
-        let updated = active.update(db).await?;
+        let updated = active.update(&txn).await?;
+
+        outbox::insert_outbox_event(
+            &txn,
+            "subscription.upgraded",
+            "subscription",
+            updated.id,
+            serde_json::json!({
+                "subscription_id": updated.id,
+                "customer_id": updated.customer_id,
+                "new_plan_id": new_plan_id,
+                "proration_adjustment": proration.as_ref().map(|p| p.adjustment.to_string()).unwrap_or_default(),
+            }),
+            None,
+            None,
+            Some(updated.branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok((updated, proration))
     }
 
@@ -176,7 +244,11 @@ impl SubscriptionService {
         new_plan_id: i64,
         new_billing_period_months: Option<i32>,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        let sub = Self::get_subscription(db, id).await?;
+        let txn = db.begin().await?;
+        let sub = Subscription::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
 
         if sub.status != "active" {
             return Err(AppError::Validation(format!(
@@ -199,7 +271,26 @@ impl SubscriptionService {
             active.billing_period_months = Set(period);
         }
         active.updated_at = Set(now);
-        Ok(active.update(db).await?)
+        let updated = active.update(&txn).await?;
+
+        outbox::insert_outbox_event(
+            &txn,
+            "subscription.downgraded",
+            "subscription",
+            updated.id,
+            serde_json::json!({
+                "subscription_id": updated.id,
+                "customer_id": updated.customer_id,
+                "new_plan_id": new_plan_id,
+            }),
+            None,
+            None,
+            Some(updated.branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        Ok(updated)
     }
 
     pub async fn cancel_subscription(
@@ -207,16 +298,40 @@ impl SubscriptionService {
         id: i64,
         _reason: &str,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        let sub = Self::get_subscription(db, id).await?;
+        let txn = db.begin().await?;
+        let sub = Subscription::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
         let customer_id = sub.customer_id;
         let sub_id = sub.id;
+        let branch_id = sub.branch_id;
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("cancelled".to_string());
         active.updated_at = Set(chrono::Utc::now());
-        let updated = active.update(db).await?;
+        let updated = active.update(&txn).await?;
+
+        outbox::insert_outbox_event(
+            &txn,
+            "subscription.cancelled",
+            "subscription",
+            sub_id,
+            serde_json::json!({
+                "subscription_id": sub_id,
+                "customer_id": customer_id,
+                "status": "cancelled",
+            }),
+            None,
+            None,
+            Some(branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         // Cleanup: release MAC bindings associated with this subscription
-        (async {
+        // (best effort after commit — failure must not fail the cancellation).
+        if let Err(e) = (async {
             use crate::modules::network::domain::entities::{
                 MacBinding, MacBindingActiveModel, MacBindingColumn,
             };
@@ -233,13 +348,10 @@ impl SubscriptionService {
             Ok::<_, sea_orm::DbErr>(())
         })
         .await
-        .ok();
+        {
+            error!(subscription_id = sub_id, error = %e, "Failed to release MAC bindings after cancellation");
+        }
 
-        outbox::insert_outbox_event(
-            db, "subscription.cancelled", "subscription", sub_id,
-            serde_json::json!({"customer_id": customer_id, "status": "cancelled"}),
-            None, None, None,
-        ).await.ok();
         Ok(updated)
     }
 
@@ -248,18 +360,36 @@ impl SubscriptionService {
         id: i64,
         _reason: &str,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        let sub = Self::get_subscription(db, id).await?;
+        let txn = db.begin().await?;
+        let sub = Subscription::find_by_id(id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
         let customer_id = sub.customer_id;
         let sub_id = sub.id;
+        let branch_id = sub.branch_id;
         let mut active: SubscriptionActiveModel = sub.into();
         active.status = Set("suspended".to_string());
         active.updated_at = Set(chrono::Utc::now());
-        let updated = active.update(db).await?;
+        let updated = active.update(&txn).await?;
+
         outbox::insert_outbox_event(
-            db, "subscription.suspended", "subscription", sub_id,
-            serde_json::json!({"customer_id": customer_id, "status": "suspended"}),
-            None, None, None,
-        ).await.ok();
+            &txn,
+            "subscription.suspended",
+            "subscription",
+            sub_id,
+            serde_json::json!({
+                "subscription_id": sub_id,
+                "customer_id": customer_id,
+                "status": "suspended",
+            }),
+            None,
+            None,
+            Some(branch_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -380,5 +510,34 @@ impl SubscriptionService {
         }
 
         Ok(updated)
+    }
+
+    /// Renew every active, auto-renew subscription whose `next_billing_date` has
+    /// arrived. Individual failures are logged and do not stop the sweep.
+    /// Returns the number of subscriptions renewed.
+    pub async fn renew_due_subscriptions(db: &DatabaseConnection) -> Result<usize, AppError> {
+        let today = chrono::Utc::now().date_naive();
+        let due = Subscription::find()
+            .filter(SubscriptionColumn::AutoRenew.eq(true))
+            .filter(SubscriptionColumn::Status.eq("active"))
+            .filter(SubscriptionColumn::NextBillingDate.is_not_null())
+            .filter(SubscriptionColumn::NextBillingDate.lte(today))
+            .all(db)
+            .await?;
+
+        let mut renewed = 0;
+        for sub in due {
+            if let Err(e) = Self::renew_subscription(db, sub.id).await {
+                error!(
+                    subscription_id = sub.id,
+                    error = %e,
+                    "Failed to auto-renew due subscription"
+                );
+                continue;
+            }
+            renewed += 1;
+        }
+        info!(renewed = renewed, "Subscription renewal sweep complete");
+        Ok(renewed)
     }
 }

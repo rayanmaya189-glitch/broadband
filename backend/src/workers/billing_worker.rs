@@ -25,6 +25,7 @@ impl BillingWorker {
     pub async fn run_cycle(&self) -> anyhow::Result<()> {
         info!("Billing worker: starting cycle");
         self.sync_usage_from_sessions().await?;
+        self.renew_due_subscriptions().await?;
         self.check_overdue_invoices().await?;
         self.apply_late_fees_with_gst().await?;
         self.send_dunning_reminders().await?;
@@ -486,6 +487,21 @@ impl BillingWorker {
 
         txn.commit().await?;
         info!(count = claimed, "Billing worker: RCM ITC claims processed");
+        Ok(())
+    }
+
+    /// Renew active auto-renew subscriptions whose `next_billing_date` has arrived.
+    /// Renewals happen before overdue/suspension checks so freshly-billed customers
+    /// are not immediately treated as overdue.
+    pub async fn renew_due_subscriptions(&self) -> anyhow::Result<()> {
+        use crate::modules::subscription::application::services::SubscriptionService;
+
+        info!("Billing worker: checking due subscription renewals");
+        let renewed =
+            SubscriptionService::renew_due_subscriptions(&self.db)
+                .await
+                .map_err(|e| anyhow::anyhow!("Renewal sweep failed: {}", e))?;
+        info!(renewed = renewed, "Billing worker: subscription renewals processed");
         Ok(())
     }
 }

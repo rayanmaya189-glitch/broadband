@@ -229,6 +229,18 @@ async fn execute_job(
                 "status": "completed"
             }))
         }
+        "subscription" => {
+            tracing::info!(action = %action, "Scheduler: running subscription renewal sweep");
+            let renewed = crate::modules::subscription::application::services::SubscriptionService::renew_due_subscriptions(db)
+                .await
+                .map_err(|e| anyhow::anyhow!("Subscription renewal sweep failed: {}", e))?;
+            Ok(serde_json::json!({
+                "module": "subscription",
+                "action": action,
+                "status": "completed",
+                "renewed": renewed
+            }))
+        }
         "cleanup" => {
             tracing::info!(action = %action, "Scheduler: running cleanup");
             crate::infrastructure::messaging::outbox::cleanup_published_events(db, 24).await?;
