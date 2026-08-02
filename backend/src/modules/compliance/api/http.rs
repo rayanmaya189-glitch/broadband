@@ -77,7 +77,7 @@ pub async fn create_kyc_verification(
     .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
-        "compliance.kyc.created",
+        "customer.kyc.submitted",
         "kyc_verification",
         kyc.id,
         serde_json::json!({"kyc_id": kyc.id, "customer_id": kyc.customer_id, "status": kyc.status}),
@@ -87,7 +87,7 @@ pub async fn create_kyc_verification(
     )
     .await
     {
-        tracing::error!(error = %e, "Failed to publish compliance.kyc.created event");
+        tracing::error!(error = %e, "Failed to publish customer.kyc.submitted event");
     }
     Ok((
         StatusCode::CREATED,
@@ -117,19 +117,28 @@ pub async fn update_kyc_status(
         req.provider_reference,
     )
     .await?;
+    let event_type = if kyc.status == "verified" {
+        "customer.kyc.verified"
+    } else {
+        "customer.kyc.status.updated"
+    };
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
-        "compliance.kyc.status.updated",
+        event_type,
         "kyc_verification",
         kyc.id,
-        serde_json::json!({"kyc_id": kyc.id, "status": kyc.status}),
+        serde_json::json!({
+            "kyc_id": kyc.id,
+            "customer_id": kyc.customer_id,
+            "status": kyc.status
+        }),
         None,
         Some(user.user_id),
         user.branch_id,
     )
     .await
     {
-        tracing::error!(error = %e, "Failed to publish compliance.kyc.status.updated event");
+        tracing::error!(event_type, error = %e, "Failed to publish KYC status event");
     }
     Ok(Json(KycResponse {
         id: kyc.id,

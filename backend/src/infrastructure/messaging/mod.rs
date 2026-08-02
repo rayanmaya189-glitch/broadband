@@ -226,20 +226,27 @@ impl EventPublisher {
         Ok(())
     }
 
-    /// Publish raw JSON payload to NATS (for outbox worker).
+    /// Publish a stored outbox event to NATS, preserving the original event
+    /// provenance (event_id, occurred_at, producer) instead of rebuilding the
+    /// envelope at relay time.
     pub async fn publish_raw(
         &self,
         subject: &str,
-        event_type: &str,
-        payload: &serde_json::Value,
+        event: &outbox_entity::Model,
     ) -> anyhow::Result<()> {
+        let producer = event
+            .event_type
+            .split('.')
+            .next()
+            .unwrap_or("outbox")
+            .to_string();
         let envelope = serde_json::json!({
-            "event_id": crate::shared::utils::uuid_v7::new_v7_string(),
-            "event_type": event_type,
+            "event_id": event.event_id,
+            "event_type": event.event_type,
             "version": 1,
-            "occurred_at": Utc::now().to_rfc3339(),
-            "producer": "outbox-worker",
-            "payload": payload,
+            "occurred_at": event.created_at.to_rfc3339(),
+            "producer": producer,
+            "payload": event.payload,
         });
 
         let json = serde_json::to_vec(&envelope)?;

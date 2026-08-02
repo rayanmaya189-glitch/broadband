@@ -80,11 +80,7 @@ impl OutboxWorker {
         for event in &events {
             let subject = format!("events.{}", event.event_type);
 
-            match self
-                .publisher
-                .publish_raw(&subject, &event.event_type, &event.payload)
-                .await
-            {
+            match self.publisher.publish_raw(&subject, event).await {
                 Ok(_) => {
                     outbox::mark_event_published(&txn, &event.event_id).await?;
                     published_count += 1;
