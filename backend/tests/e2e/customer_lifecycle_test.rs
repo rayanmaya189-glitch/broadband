@@ -90,7 +90,7 @@ async fn test_customer_full_lifecycle() {
     use aeroxe_backend::modules::billing::domain::entities::payment;
     let pay_active = payment::ActiveModel {
         payment_number: Set(format!("PAY-202607-{:04}", rand::random::<u16>() % 10000)),
-        invoice_id: Set(inv.id),
+        invoice_id: Set(Some(inv.id)),
         customer_id: Set(customer_id),
         branch_id: Set(branch_id),
         amount: Set(rust_decimal::Decimal::from(708)),

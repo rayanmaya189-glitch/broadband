@@ -17,7 +17,7 @@ use crate::shared::middleware::auth::{require_permission, UserContext};
 pub struct PaymentLinkResponse {
     pub id: i64,
     pub link_id: String,
-    pub invoice_id: i64,
+    pub invoice_id: Option<i64>,
     pub amount: String,
     pub currency: String,
     pub gateway_id: String,

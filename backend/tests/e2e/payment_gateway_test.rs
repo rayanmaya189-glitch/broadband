@@ -44,7 +44,7 @@ async fn test_payment_gateway_flow() {
     // Simulate webhook: payment completed
     let pay = payment::ActiveModel {
         payment_number: Set(format!("PAY-202607-{:04}", rand::random::<u16>() % 10000)),
-        invoice_id: Set(inv.id),
+        invoice_id: Set(Some(inv.id)),
         customer_id: Set(customer_id),
         branch_id: Set(branch_id),
         amount: Set(rust_decimal::Decimal::from(696)),
@@ -109,7 +109,7 @@ async fn test_payment_failure_flow() {
     // Simulate failed payment
     let pay = payment::ActiveModel {
         payment_number: Set(format!("PAY-202607-{:04}", rand::random::<u16>() % 10000)),
-        invoice_id: Set(inv.id),
+        invoice_id: Set(Some(inv.id)),
         customer_id: Set(customer_id),
         branch_id: Set(branch_id),
         amount: Set(rust_decimal::Decimal::from(590)),

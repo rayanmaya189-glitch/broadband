@@ -7,7 +7,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub link_id: String,
-    pub invoice_id: i64,
+    pub invoice_id: Option<i64>,
     pub customer_id: i64,
     pub branch_id: i64,
     pub amount: sea_orm::prelude::Decimal,

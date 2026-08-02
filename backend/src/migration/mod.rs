@@ -29,6 +29,7 @@ mod m021_create_missing_tables;
 mod m022_add_fk_constraints_and_indexes;
 mod m023_add_gst_tax_breakdown;
 mod m024_widen_status_checks;
+mod m025_make_payment_invoice_nullable;
 
 pub struct Migrator;
 
@@ -202,6 +203,7 @@ impl MigratorTrait for Migrator {
             Box::new(m022_add_fk_constraints_and_indexes::Migration),
             Box::new(m023_add_gst_tax_breakdown::Migration),
             Box::new(m024_widen_status_checks::Migration),
+            Box::new(m025_make_payment_invoice_nullable::Migration),
         ]
     }
 }

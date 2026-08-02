@@ -119,7 +119,7 @@ impl PaymentService {
 
         let model = payment_link::ActiveModel {
             link_id: Set(link_id.clone()),
-            invoice_id: Set(invoice_id),
+            invoice_id: Set(Some(invoice_id)),
             customer_id: Set(customer_id),
             branch_id: Set(branch_id),
             amount: Set(amount),
@@ -247,29 +247,34 @@ impl PaymentService {
             AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e))
         })?;
 
-        // 3. Settle the invoice and credit any excess to the wallet.
-        let total_paid = payment_entity::Entity::find()
-            .filter(payment_entity::Column::InvoiceId.eq(link.invoice_id))
-            .filter(payment_entity::Column::Status.eq("completed"))
-            .all(&txn)
-            .await
-            .map_err(|e| {
-                AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e))
-            })?
-            .into_iter()
-            .fold(zero, |acc, p| acc + p.amount);
-
-        Self::settle_invoice(&txn, link.invoice_id, link.customer_id, total_paid, &method).await?;
-
+        // 3. Settle the invoice and credit any excess to the wallet. Links
+        // without an invoice (e.g. manual deposits) skip settlement entirely.
         let mut wallet_credit = zero;
-        if let Some(inv) =
-            crate::modules::billing::domain::entities::invoice::Entity::find_by_id(link.invoice_id)
-                .one(&txn)
+        if let Some(invoice_id) = link.invoice_id {
+            let total_paid = payment_entity::Entity::find()
+                .filter(payment_entity::Column::InvoiceId.eq(invoice_id))
+                .filter(payment_entity::Column::Status.eq("completed"))
+                .all(&txn)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load invoice: {}", e)))?
-        {
-            if total_paid > inv.total_amount {
-                wallet_credit = total_paid - inv.total_amount;
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e))
+                })?
+                .into_iter()
+                .fold(zero, |acc, p| acc + p.amount);
+
+            Self::settle_invoice(&txn, invoice_id, link.customer_id, total_paid, &method).await?;
+
+            if let Some(inv) =
+                crate::modules::billing::domain::entities::invoice::Entity::find_by_id(invoice_id)
+                    .one(&txn)
+                    .await
+                    .map_err(|e| {
+                        AppError::Internal(anyhow::anyhow!("Failed to load invoice: {}", e))
+                    })?
+            {
+                if total_paid > inv.total_amount {
+                    wallet_credit = total_paid - inv.total_amount;
+                }
             }
         }
         if wallet_credit > zero {
@@ -316,7 +321,7 @@ impl PaymentService {
         info!(
             link_id = %updated.link_id,
             payment_id = payment.id,
-            invoice_id = link.invoice_id,
+            invoice_id = link.invoice_id.unwrap_or_default(),
             amount = %amount,
             gateway = %gateway_id,
             transaction_id = %gateway_transaction_id,
@@ -456,7 +461,7 @@ impl PaymentService {
         let payment_number = crate::shared::utils::business_number::new_business_number("PAY");
         let payment_model = payment_entity::ActiveModel {
             payment_number: Set(payment_number.clone()),
-            invoice_id: Set(invoice_id.unwrap_or(0)),
+            invoice_id: Set(invoice_id),
             customer_id: Set(customer_id),
             branch_id: Set(branch_id),
             amount: Set(amount),
@@ -485,7 +490,7 @@ impl PaymentService {
         });
         let link_model = payment_link::ActiveModel {
             link_id: Set(link_id.clone()),
-            invoice_id: Set(invoice_id.unwrap_or(0)),
+            invoice_id: Set(invoice_id),
             customer_id: Set(customer_id),
             branch_id: Set(branch_id),
             amount: Set(amount),
@@ -691,7 +696,7 @@ impl PaymentService {
         let payment_number = crate::shared::utils::business_number::new_business_number("PAY");
         let payment = payment_entity::ActiveModel {
             payment_number: Set(payment_number.clone()),
-            invoice_id: Set(invoice_id),
+            invoice_id: Set(Some(invoice_id)),
             customer_id: Set(customer_id),
             branch_id: Set(inv.branch_id),
             amount: Set(pay_amount),

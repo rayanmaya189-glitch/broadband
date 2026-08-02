@@ -125,7 +125,7 @@ impl BillingService {
         let payment_number = new_business_number("PAY");
         let new_pay = PaymentActiveModel {
             payment_number: Set(payment_number),
-            invoice_id: Set(invoice_id),
+            invoice_id: Set(Some(invoice_id)),
             customer_id: Set(customer_id),
             branch_id: Set(branch_id),
             amount: Set(amount),

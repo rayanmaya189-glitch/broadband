@@ -8,7 +8,7 @@ pub struct Model {
     pub id: i64,
     pub payment_number: String,
     #[sea_orm(index)]
-    pub invoice_id: i64,
+    pub invoice_id: Option<i64>,
     #[sea_orm(index)]
     pub customer_id: i64,
     #[sea_orm(index)]

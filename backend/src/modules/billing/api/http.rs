@@ -32,7 +32,7 @@ pub struct InvoiceResponse {
 pub struct PaymentResponse {
     pub id: i64,
     pub payment_number: String,
-    pub invoice_id: i64,
+    pub invoice_id: Option<i64>,
     pub amount: String,
     pub payment_method: String,
     pub status: String,
