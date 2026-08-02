@@ -160,7 +160,7 @@ impl BillingWorker {
             active.late_fee_subtotal = Set(late_fee_gst.late_fee_subtotal);
             active.late_fee_gst = Set(late_fee_gst.gst.total_tax);
             active.total_amount =
-                Set(inv.subtotal + inv.discount_amount + inv.tax_amount + total_late_fee);
+                Set(inv.subtotal - inv.discount_amount + inv.tax_amount + total_late_fee);
             active.updated_at = Set(chrono::Utc::now());
 
             if let Err(e) = active.update(&txn).await {
