@@ -80,8 +80,10 @@ pub struct AlertStatsResponse {
 /// GET /api/v1/monitoring/metrics
 pub async fn list_metrics(
     State(state): State<SharedState>,
+    user: UserContext,
     Query(query): Query<MetricsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_permission(&user, "monitoring.metrics.view").map_err(|e| AppError::Forbidden(e.1))?;
     let mut q = metric_record::Entity::find();
     if let Some(did) = query.device_id {
         q = q.filter(metric_record::Column::DeviceId.eq(did));
@@ -116,9 +118,11 @@ pub async fn list_metrics(
 /// GET /api/v1/monitoring/metrics/:device_id
 pub async fn get_device_metrics(
     State(state): State<SharedState>,
+    user: UserContext,
     Path(device_id): Path<i64>,
     Query(query): Query<MetricsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_permission(&user, "monitoring.metrics.view").map_err(|e| AppError::Forbidden(e.1))?;
     let mut q = metric_record::Entity::find().filter(metric_record::Column::DeviceId.eq(device_id));
     if let Some(ref name) = query.metric_name {
         q = q.filter(metric_record::Column::MetricName.eq(name.as_str()));
@@ -149,8 +153,10 @@ pub async fn get_device_metrics(
 /// GET /api/v1/monitoring/alerts
 pub async fn list_alerts(
     State(state): State<SharedState>,
+    user: UserContext,
     Query(query): Query<AlertsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_permission(&user, "monitoring.alert.view").map_err(|e| AppError::Forbidden(e.1))?;
     let mut q = monitoring_alert::Entity::find();
     if let Some(ref sev) = query.severity {
         q = q.filter(monitoring_alert::Column::Severity.eq(sev.as_str()));
@@ -158,7 +164,11 @@ pub async fn list_alerts(
     if let Some(ref st) = query.status {
         q = q.filter(monitoring_alert::Column::Status.eq(st.as_str()));
     }
-    if let Some(bid) = query.branch_id {
+    if user.is_company_wide {
+        if let Some(bid) = query.branch_id {
+            q = q.filter(monitoring_alert::Column::BranchId.eq(bid));
+        }
+    } else if let Some(bid) = user.branch_id {
         q = q.filter(monitoring_alert::Column::BranchId.eq(bid));
     }
     let records = q
@@ -191,11 +201,17 @@ pub async fn list_alerts(
 /// GET /api/v1/monitoring/alerts/stats
 pub async fn get_alert_stats(
     State(state): State<SharedState>,
+    user: UserContext,
 ) -> Result<impl IntoResponse, AppError> {
-    let active = monitoring_alert::Entity::find()
-        .filter(monitoring_alert::Column::Status.is_in(vec!["firing", "acknowledged"]))
-        .all(&state.db)
-        .await?;
+    require_permission(&user, "monitoring.alert.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let mut q = monitoring_alert::Entity::find()
+        .filter(monitoring_alert::Column::Status.is_in(vec!["firing", "acknowledged"]));
+    if !user.is_company_wide {
+        if let Some(bid) = user.branch_id {
+            q = q.filter(monitoring_alert::Column::BranchId.eq(bid));
+        }
+    }
+    let active = q.all(&state.db).await?;
     let total_active = active.len() as i64;
     let critical = active.iter().filter(|a| a.severity == "critical").count() as i64;
     let high = active.iter().filter(|a| a.severity == "high").count() as i64;
