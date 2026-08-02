@@ -182,8 +182,8 @@ impl GatewayAdapter for RazorpayAdapter {
         let status = entity["status"].as_str().unwrap_or("unknown");
         let payment_method = entity["method"].as_str().map(|s| s.to_string());
 
-        // Razorpay sends amount in paise (smallest currency unit)
-        let amount_decimal = sea_orm::prelude::Decimal::new(amount_paise, 0);
+        // Razorpay sends amount in paise (smallest currency unit): scale 2 -> rupees
+        let amount_decimal = sea_orm::prelude::Decimal::new(amount_paise, 2);
 
         let error_reason = if event == "payment.failed" {
             entity["error_description"].as_str().map(|s| s.to_string())
@@ -404,11 +404,12 @@ impl GatewayAdapter for PayuAdapter {
         let status = payload["status"].as_str().unwrap_or("unknown");
         let transaction_id = payload["txnid"].as_str().unwrap_or("").to_string();
         let order_id = payload["order_id"].as_str().map(|s| s.to_string());
+        // PayU sends amount as a string in rupees (may include decimals, e.g. "1050.50")
         let amount_str = payload["amount"].as_str().unwrap_or("0");
-        let amount = amount_str.parse::<i64>().unwrap_or(0);
+        let amount_decimal = amount_str
+            .parse::<sea_orm::prelude::Decimal>()
+            .unwrap_or_else(|_| sea_orm::prelude::Decimal::new(0, 0));
         let payment_method = payload["payment_source"].as_str().map(|s| s.to_string());
-
-        let amount_decimal = sea_orm::prelude::Decimal::new(amount, 0);
 
         let error_reason = if status == "failure" || status == "drop" {
             payload["error"].as_str().map(|s| s.to_string())
@@ -676,7 +677,8 @@ impl GatewayAdapter for StripeAdapter {
         let transaction_id = data["id"].as_str().unwrap_or("").to_string();
         let order_id = data["metadata"]["receipt"].as_str().map(|s| s.to_string());
         let amount_raw = data["amount"].as_i64().unwrap_or(0);
-        let amount_decimal = sea_orm::prelude::Decimal::new(amount_raw, 0);
+        // Stripe sends amount in smallest currency unit (cents/paise): scale 2 -> rupees
+        let amount_decimal = sea_orm::prelude::Decimal::new(amount_raw, 2);
 
         let stripe_status = data["status"].as_str().unwrap_or("unknown");
         let status = match stripe_status {
@@ -772,5 +774,83 @@ impl GatewayAdapter for StripeAdapter {
             amount: sea_orm::prelude::Decimal::new(amount_cents, 2),
             currency: refund["currency"].as_str().unwrap_or(currency).to_string(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::prelude::Decimal;
+
+    fn assert_amount_eq(actual: Decimal, expected: &str) {
+        let expected: Decimal = expected.parse().unwrap();
+        assert_eq!(
+            actual, expected,
+            "amount {} != expected {}",
+            actual, expected
+        );
+    }
+
+    #[test]
+    fn razorpay_webhook_amount_is_in_rupees_not_paise() {
+        let adapter = RazorpayAdapter {
+            key_id: "k".into(),
+            key_secret: "s".into(),
+            webhook_secret: "w".into(),
+        };
+        let payload = serde_json::json!({
+            "event": "payment.captured",
+            "payload": { "payment": { "entity": {
+                "id": "pay_123", "order_id": "order_1", "amount": 1050,
+                "status": "captured", "method": "upi"
+            } } }
+        });
+        let parsed = adapter.parse_webhook(payload).unwrap();
+        assert_amount_eq(parsed.amount, "10.50");
+    }
+
+    #[test]
+    fn stripe_webhook_amount_is_in_cents_not_dollars() {
+        let adapter = StripeAdapter {
+            secret_key: "k".into(),
+            webhook_signing_secret: "w".into(),
+            api_endpoint: "https://api.stripe.com/v1".into(),
+        };
+        let payload = serde_json::json!({
+            "type": "payment_intent.succeeded",
+            "data": { "object": { "id": "pi_123", "amount": 1050, "status": "succeeded" } }
+        });
+        let parsed = adapter.parse_webhook(payload).unwrap();
+        assert_amount_eq(parsed.amount, "10.50");
+    }
+
+    #[test]
+    fn payu_webhook_amount_supports_decimal_string() {
+        let adapter = PayuAdapter {
+            merchant_key: "k".into(),
+            merchant_salt: "s".into(),
+            api_endpoint: "https://test.payu.in".into(),
+        };
+        let payload = serde_json::json!({
+            "status": "success", "txnid": "pay_123", "order_id": "order_1",
+            "amount": "1050.50", "payment_source": "netbanking"
+        });
+        let parsed = adapter.parse_webhook(payload).unwrap();
+        assert_amount_eq(parsed.amount, "1050.50");
+    }
+
+    #[test]
+    fn payu_webhook_amount_whole_rupees() {
+        let adapter = PayuAdapter {
+            merchant_key: "k".into(),
+            merchant_salt: "s".into(),
+            api_endpoint: "https://test.payu.in".into(),
+        };
+        let payload = serde_json::json!({
+            "status": "success", "txnid": "pay_123", "order_id": "order_1",
+            "amount": "500", "payment_source": "cc"
+        });
+        let parsed = adapter.parse_webhook(payload).unwrap();
+        assert_amount_eq(parsed.amount, "500.00");
     }
 }
