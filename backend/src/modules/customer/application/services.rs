@@ -13,8 +13,8 @@ impl CustomerService {
     pub async fn list_customers(
         db: &DatabaseConnection,
         branch_id: Option<i64>,
-        _page: u64,
-        _limit: u64,
+        page: u64,
+        limit: u64,
     ) -> Result<
         (
             Vec<crate::modules::customer::domain::entities::customer::Model>,
@@ -26,8 +26,9 @@ impl CustomerService {
         if let Some(bid) = branch_id {
             query = query.filter(CustomerColumn::BranchId.eq(bid));
         }
-        let total = query.clone().count(db).await?;
-        let customers = query.all(db).await?;
+        let paginator = query.paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let customers = paginator.fetch_page(page.saturating_sub(1)).await?;
         Ok((customers, total))
     }
 

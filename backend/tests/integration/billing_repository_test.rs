@@ -197,12 +197,12 @@ async fn test_invoice_voiding() {
 
     // Void invoice
     let mut active_model: invoice::ActiveModel = invoice.into();
-    active_model.status = Set("void".to_string());
+    active_model.status = Set("voided".to_string());
     active_model.updated_at = Set(chrono::Utc::now());
 
     let voided_invoice = active_model
         .update(db)
         .await
         .expect("Failed to void invoice");
-    assert_eq!(voided_invoice.status, "void");
+    assert_eq!(voided_invoice.status, "voided");
 }

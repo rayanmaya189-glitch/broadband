@@ -15,8 +15,8 @@ impl SubscriptionService {
     pub async fn list_subscriptions(
         db: &DatabaseConnection,
         branch_id: Option<i64>,
-        _page: u64,
-        _limit: u64,
+        page: u64,
+        limit: u64,
     ) -> Result<
         (
             Vec<crate::modules::subscription::domain::entities::subscription::Model>,
@@ -28,8 +28,9 @@ impl SubscriptionService {
         if let Some(bid) = branch_id {
             query = query.filter(SubscriptionColumn::BranchId.eq(bid));
         }
-        let total = query.clone().count(db).await?;
-        let items = query.all(db).await?;
+        let paginator = query.paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
         Ok((items, total))
     }
 

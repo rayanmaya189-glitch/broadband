@@ -191,14 +191,15 @@ impl BillingService {
         Ok((items, total))
     }
 
-    /// List invoices that are overdue (due_date < today and status is pending)
+    /// List invoices that are overdue (due_date < today and not yet paid/voided).
+    /// Covers 'pending'/'sent' (awaiting the worker's status flip) and 'overdue'.
     pub async fn list_overdue_invoices(
         db: &DatabaseConnection,
         branch_id: Option<i64>,
     ) -> Result<Vec<crate::modules::billing::domain::entities::invoice::Model>, AppError> {
         let today = chrono::Utc::now().date_naive();
         let mut query = Invoice::find()
-            .filter(InvoiceColumn::Status.eq("pending"))
+            .filter(InvoiceColumn::Status.is_in(vec!["pending", "sent", "overdue"]))
             .filter(InvoiceColumn::DueDate.lt(today));
 
         if let Some(bid) = branch_id {
@@ -224,10 +225,17 @@ impl BillingService {
 
         let mut count = 0u64;
         for sub in due_subscriptions {
-            // Check if an invoice already exists for this subscription and billing period
+            let period_start = sub.next_billing_date.unwrap_or(today);
+            let period_end =
+                period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
+
+            // Dedupe on the actual billing period (subscription + period start),
+            // not on `today`: the generated invoice's period_end is derived from
+            // next_billing_date and will rarely equal the run date, which would
+            // otherwise cause a duplicate invoice every run.
             let existing = Invoice::find()
                 .filter(InvoiceColumn::SubscriptionId.eq(sub.id))
-                .filter(InvoiceColumn::BillingPeriodEnd.eq(today))
+                .filter(InvoiceColumn::BillingPeriodStart.eq(period_start))
                 .one(db)
                 .await?;
 
@@ -247,10 +255,6 @@ impl BillingService {
             let plan_price = pricing
                 .map(|p| p.price)
                 .unwrap_or(sea_orm::prelude::Decimal::ZERO);
-
-            let period_start = sub.next_billing_date.unwrap_or(today);
-            let period_end =
-                period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
 
             let now = chrono::Utc::now();
             let invoice_number = new_business_number("INV");
@@ -340,7 +344,7 @@ impl BillingService {
             ));
         }
         let mut active: InvoiceActiveModel = inv.into();
-        active.status = Set("void".to_string());
+        active.status = Set("voided".to_string());
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
     }
@@ -671,17 +675,14 @@ impl BillingService {
     pub async fn get_dunning_config(
         _db: &DatabaseConnection,
     ) -> Result<crate::modules::billing::api::http::DunningConfigResponse, AppError> {
+        use crate::shared::config::dunning;
         Ok(crate::modules::billing::api::http::DunningConfigResponse {
-            reminder_days: vec![3, 7],
-            suspension_day: 10,
-            termination_day: 30,
-            late_fee_percent: "2.0".to_string(),
-            late_fee_cap_percent: "10.0".to_string(),
-            channels: vec![
-                "sms".to_string(),
-                "email".to_string(),
-                "whatsapp".to_string(),
-            ],
+            reminder_days: dunning::REMINDER_DAYS.to_vec(),
+            suspension_day: dunning::SUSPENSION_DAY,
+            termination_day: dunning::TERMINATION_DAY,
+            late_fee_percent: dunning::LATE_FEE_PERCENT.to_string(),
+            late_fee_cap_percent: dunning::LATE_FEE_CAP_PERCENT.to_string(),
+            channels: dunning::CHANNELS.iter().map(|c| c.to_string()).collect(),
         })
     }
 
@@ -733,6 +734,14 @@ impl BillingService {
         let default_hsn =
             hsn_sac_code.unwrap_or_else(|| tax_service::SAC_INTERNET_ACCESS.to_string());
 
+        // Avoid dividing by zero when the line item has zero amount (qty or
+        // price of 0): there is no tax rate to derive from a zero base.
+        let tax_rate = if amount.is_zero() {
+            sea_orm::prelude::Decimal::ZERO
+        } else {
+            (gst.total_tax / amount * dec!(100)).round_dp(2)
+        };
+
         let now = chrono::Utc::now();
         let item = InvoiceLineItemActiveModel {
             invoice_id: Set(invoice_id),
@@ -740,7 +749,7 @@ impl BillingService {
             quantity: Set(quantity),
             unit_price: Set(unit_price),
             amount: Set(amount),
-            tax_rate: Set(gst.total_tax / amount * dec!(100)),
+            tax_rate: Set(tax_rate),
             tax_amount: Set(gst.total_tax),
             created_at: Set(now),
             hsn_sac_code: Set(Some(default_hsn)),

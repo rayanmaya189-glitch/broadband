@@ -297,10 +297,12 @@ impl BillingWorker {
         use crate::modules::subscription::domain::entities::subscription;
 
         let today = chrono::Utc::now().date_naive();
-        let grace_period_days = 30; // Configurable
+
+        // Honor the dunning policy configured in the API (suspension_day).
+        let grace_period_days = crate::shared::config::dunning::SUSPENSION_DAY;
 
         // Find invoices overdue beyond grace period
-        let cutoff_date = today - chrono::Duration::days(grace_period_days);
+        let cutoff_date = today - chrono::Duration::days(grace_period_days as i64);
 
         let overdue_invoices = invoice::Entity::find()
             .filter(invoice::Column::DueDate.lt(cutoff_date))

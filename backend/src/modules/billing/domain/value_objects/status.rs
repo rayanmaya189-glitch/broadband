@@ -18,7 +18,7 @@ impl InvoiceStatus {
             "paid" => Some(Self::Paid),
             "overdue" => Some(Self::Overdue),
             "cancelled" => Some(Self::Cancelled),
-            "void" => Some(Self::Void),
+            "voided" => Some(Self::Void),
             "partially_paid" => Some(Self::PartiallyPaid),
             _ => None,
         }
@@ -30,7 +30,7 @@ impl InvoiceStatus {
             Self::Paid => "paid",
             Self::Overdue => "overdue",
             Self::Cancelled => "cancelled",
-            Self::Void => "void",
+            Self::Void => "voided",
             Self::PartiallyPaid => "partially_paid",
         }
     }

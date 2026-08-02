@@ -255,7 +255,7 @@ pub async fn list_payments(
 }
 
 /// GET /api/v1/billing/invoices/overdue
-/// List overdue invoices (due_date < today, status = pending)
+/// List overdue invoices (due_date < today, unpaid/not voided)
 pub async fn list_overdue_invoices(
     State(state): State<Arc<AppState>>,
     user: UserContext,

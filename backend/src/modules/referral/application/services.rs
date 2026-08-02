@@ -14,8 +14,8 @@ pub struct ReferralService;
 impl ReferralService {
     pub async fn list_referrals(
         db: &DatabaseConnection,
-        _page: u64,
-        _limit: u64,
+        page: u64,
+        limit: u64,
     ) -> Result<
         (
             Vec<crate::modules::referral::domain::entities::referral_tracking::Model>,
@@ -23,11 +23,10 @@ impl ReferralService {
         ),
         AppError,
     > {
-        {
-            let q = ReferralTracking::find();
-            let t = q.clone().count(db).await?;
-            Ok((q.all(db).await?, t))
-        }
+        let paginator = ReferralTracking::find().paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((items, total))
     }
 
     pub async fn create_referral(
