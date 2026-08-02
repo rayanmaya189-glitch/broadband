@@ -63,6 +63,8 @@ impl CustomerService {
         let uuid = crate::shared::utils::uuid_v7::new_v7_compact();
         let customer_code = format!("AX-CUST-{}", &uuid[uuid.len() - 12..]);
 
+        let referee_phone = phone.clone();
+
         let new_customer = CustomerActiveModel {
             customer_code: Set(customer_code),
             branch_id: Set(branch_id),
@@ -75,7 +77,18 @@ impl CustomerService {
             updated_at: Set(now),
             ..Default::default()
         };
-        Ok(new_customer.insert(db).await?)
+        let customer = new_customer.insert(db).await?;
+
+        // Link this new customer to any pending referral that was shared with
+        // their phone number so the reward can be paid out once they activate.
+        crate::modules::referral::application::services::ReferralService::register_referee(
+            db,
+            &referee_phone,
+            customer.id,
+        )
+        .await?;
+
+        Ok(customer)
     }
 
     pub async fn update_customer_status(

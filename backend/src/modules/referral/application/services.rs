@@ -5,8 +5,8 @@ use crate::modules::referral::domain::entities::{
 };
 use crate::shared::errors::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 pub struct ReferralService;
@@ -54,7 +54,7 @@ impl ReferralService {
     }
 
     pub async fn get_or_create_wallet(
-        db: &DatabaseConnection,
+        db: &impl ConnectionTrait,
         customer_id: i64,
     ) -> Result<crate::modules::referral::domain::entities::customer_wallet::Model, AppError> {
         let wallet = CustomerWallet::find()
@@ -80,6 +80,147 @@ impl ReferralService {
             };
             Ok(w.insert(db).await?)
         }
+    }
+
+    /// Link a newly-registered customer to their pending referral, matched by
+    /// referee phone number. Returns `None` when no qualifying referral exists.
+    pub async fn register_referee(
+        db: &impl ConnectionTrait,
+        referee_phone: &str,
+        referee_id: i64,
+    ) -> Result<Option<ReferralTrackingModel>, AppError> {
+        use crate::modules::referral::domain::entities::referral_tracking::Column;
+        let referral = ReferralTracking::find()
+            .filter(Column::RefereePhone.eq(referee_phone))
+            .filter(Column::Status.eq("pending"))
+            .order_by_asc(Column::CreatedAt)
+            .one(db)
+            .await?;
+
+        let Some(referral) = referral else {
+            return Ok(None);
+        };
+
+        let now = chrono::Utc::now();
+        let mut active: ReferralTrackingActiveModel = referral.into();
+        active.referee_id = Set(Some(referee_id));
+        active.status = Set("registered".to_string());
+        active.registered_at = Set(Some(now));
+        active.updated_at = Set(now);
+        Ok(Some(active.update(db).await?))
+    }
+
+    /// Reward the referrer(s) once a referee becomes an active paying customer
+    /// (i.e. after their first subscription is created). Idempotent: referrals
+    /// that are already rewarded or not yet registered are left untouched.
+    pub async fn reward_activated_referee(
+        db: &DatabaseConnection,
+        referee_id: i64,
+    ) -> Result<(), AppError> {
+        use crate::modules::referral::domain::entities::referral_tracking::Column;
+        let referrals = ReferralTracking::find()
+            .filter(Column::RefereeId.eq(Some(referee_id)))
+            .filter(Column::Status.eq("registered"))
+            .all(db)
+            .await?;
+
+        for referral in referrals {
+            Self::reward_referral(db, referral.id).await?;
+        }
+        Ok(())
+    }
+
+    async fn reward_referral(db: &DatabaseConnection, referral_id: i64) -> Result<(), AppError> {
+        use crate::modules::referral::domain::entities::referral_tracking::Column;
+        use sea_orm::sea_query::{LockBehavior, LockType};
+
+        let txn = db.begin().await?;
+
+        let referral = ReferralTracking::find()
+            .filter(Column::Id.eq(referral_id))
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Referral {} not found", referral_id)))?;
+
+        // Idempotency guard: only reward a registered referral once.
+        if referral.status != "registered" {
+            return Ok(());
+        }
+
+        let referral_id = referral.id;
+        let referrer_id = referral.referrer_id;
+
+        let program = ReferralProgram::find_by_id(referral.program_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Referral program not found".to_string()))?;
+
+        if !program.is_active {
+            return Ok(());
+        }
+
+        let now = chrono::Utc::now();
+        let reward = program.reward_value;
+
+        // Credit the referrer's wallet and record the transaction.
+        let wallet = Self::get_or_create_wallet(&txn, referrer_id).await?;
+        let wallet_id = wallet.id;
+        let wallet_balance = wallet.balance;
+        let wallet_earned = wallet.total_earned;
+        let mut wallet_active: CustomerWalletActiveModel = wallet.into();
+        wallet_active.balance = Set(wallet_balance + reward);
+        wallet_active.total_earned = Set(wallet_earned + reward);
+        wallet_active.updated_at = Set(now);
+        wallet_active.update(&txn).await?;
+
+        WalletTransactionActiveModel {
+            wallet_id: Set(wallet_id),
+            transaction_type: Set("referral_reward".to_string()),
+            amount: Set(reward),
+            reference_id: Set(Some(referral_id)),
+            reference_type: Set(Some("referral".to_string())),
+            description: Set(Some(format!(
+                "Referral reward for program '{}'",
+                program.name
+            ))),
+            created_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+
+        // Mark the referral rewarded.
+        let mut referral_active: ReferralTrackingActiveModel = referral.into();
+        referral_active.status = Set("rewarded".to_string());
+        referral_active.referrer_reward_status = Set(Some("credited".to_string()));
+        referral_active.referrer_reward_amount = Set(Some(reward));
+        referral_active.referee_reward_status = Set(Some("applied".to_string()));
+        referral_active.rewarded_at = Set(Some(now));
+        referral_active.updated_at = Set(now);
+        referral_active.update(&txn).await?;
+
+        // Publish the reward event within the same transaction.
+        let event = crate::shared::event_contracts::referral::ReferralRewardedV1 {
+            referral_id,
+            referrer_reward: reward,
+            referee_reward: sea_orm::prelude::Decimal::ZERO,
+        };
+        crate::infrastructure::messaging::outbox::insert_outbox_event(
+            &txn,
+            "referral.rewarded",
+            "referral",
+            referral_id,
+            serde_json::to_value(event)
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Event serialization: {}", e)))?,
+            None,
+            Some(referrer_id),
+            None,
+        )
+        .await?;
+
+        txn.commit().await?;
+        Ok(())
     }
 
     pub async fn get_referral_code(

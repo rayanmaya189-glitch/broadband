@@ -90,6 +90,15 @@ impl SubscriptionService {
         .await?;
 
         txn.commit().await?;
+
+        // A new active subscription means the customer is now a paying
+        // subscriber: settle any pending referral rewards for them.
+        crate::modules::referral::application::services::ReferralService::reward_activated_referee(
+            db,
+            customer_id,
+        )
+        .await?;
+
         Ok(new_sub_model)
     }
 
