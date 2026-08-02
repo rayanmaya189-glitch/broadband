@@ -23,6 +23,11 @@ mod m015_create_documents;
 mod m016_seed_roles_permissions;
 mod m017_seed_initial_plans;
 mod m018_add_2fa_backup_codes;
+mod m019_create_schemas;
+mod m020_move_tables_to_schemas;
+mod m021_create_missing_tables;
+mod m022_add_fk_constraints_and_indexes;
+mod m023_add_gst_tax_breakdown;
 
 pub struct Migrator;
 
@@ -190,6 +195,65 @@ impl MigratorTrait for Migrator {
             Box::new(m016_seed_roles_permissions::Migration),
             Box::new(m017_seed_initial_plans::Migration),
             Box::new(m018_add_2fa_backup_codes::Migration),
+            Box::new(m019_create_schemas::Migration),
+            Box::new(m020_move_tables_to_schemas::Migration),
+            Box::new(m021_create_missing_tables::Migration),
+            Box::new(m022_add_fk_constraints_and_indexes::Migration),
+            Box::new(m023_add_gst_tax_breakdown::Migration),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_sql_statements;
+
+    #[test]
+    fn splits_on_semicolons() {
+        let sql = "CREATE TABLE a (id INT);\nCREATE TABLE b (id INT);";
+        let stmts = split_sql_statements(sql);
+        assert_eq!(stmts.len(), 2);
+        assert!(stmts[0].starts_with("CREATE TABLE a"));
+        assert!(stmts[1].starts_with("CREATE TABLE b"));
+    }
+
+    #[test]
+    fn ignores_line_comments() {
+        let sql = "-- header comment\nSELECT 1;\n-- trailing\nSELECT 2;";
+        let stmts = split_sql_statements(sql);
+        assert_eq!(stmts.len(), 2);
+        assert!(!stmts[0].contains("--"));
+    }
+
+    #[test]
+    fn keeps_escaped_quotes_intact() {
+        let sql = "INSERT INTO t (v) VALUES ('it''s fine');";
+        let stmts = split_sql_statements(sql);
+        assert_eq!(stmts.len(), 1);
+        assert!(stmts[0].contains("it''s fine"));
+    }
+
+    #[test]
+    fn captures_dollar_quoted_do_block_as_one_statement() {
+        let sql = "SELECT 1;\nDO $$\nDECLARE\n  x TEXT;\nBEGIN\n  EXECUTE format('GRANT USAGE ON SCHEMA %I TO CURRENT_USER', x);\nEND $$;\nSELECT 2;";
+        let stmts = split_sql_statements(sql);
+        assert_eq!(stmts.len(), 3);
+        assert!(stmts[1].starts_with("DO $$"));
+        assert!(stmts[1].contains("GRANT USAGE"));
+        assert!(stmts[1].ends_with("$$"));
+    }
+
+    #[test]
+    fn split_migration_019_do_block() {
+        let sql = include_str!("../../migrations/sql/019_move_tables_to_schemas.sql");
+        let stmts = split_sql_statements(sql);
+        let do_stmts: Vec<&String> = stmts.iter().filter(|s| s.starts_with("DO $$")).collect();
+        assert_eq!(do_stmts.len(), 1, "expected exactly one DO block in 019");
+        assert!(do_stmts[0].contains("GRANT USAGE ON SCHEMA"));
+        let partition_defaults = stmts
+            .iter()
+            .filter(|s| s.contains("PARTITION OF"))
+            .collect::<Vec<_>>();
+        assert_eq!(partition_defaults.len(), 3);
     }
 }

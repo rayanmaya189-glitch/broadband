@@ -6,10 +6,7 @@
 pub fn swagger_routes() -> axum::Router<crate::shared::app_state::SharedState> {
     use axum::routing::get;
 
-    let is_prod = std::env::var("APP_ENV")
-        .unwrap_or_default()
-        .to_lowercase()
-        == "production";
+    let is_prod = std::env::var("APP_ENV").unwrap_or_default().to_lowercase() == "production";
 
     if is_prod {
         return axum::Router::new();

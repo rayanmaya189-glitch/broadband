@@ -262,7 +262,9 @@ pub async fn create_journal_entry(
         .collect::<Result<Vec<_>, AppError>>()?;
 
     if lines.is_empty() {
-        return Err(AppError::Validation("At least one journal line is required".into()));
+        return Err(AppError::Validation(
+            "At least one journal line is required".into(),
+        ));
     }
 
     let total_debits: sea_orm::prelude::Decimal = lines.iter().map(|l| l.debit).sum();
@@ -393,17 +395,25 @@ pub async fn gst_return(
         let csv = gst_return_to_csv(&data);
         Ok((
             StatusCode::OK,
-            [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
-             (axum::http::header::CONTENT_DISPOSITION, "attachment; filename=\"gst_return.csv\"")],
+            [
+                (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+                (
+                    axum::http::header::CONTENT_DISPOSITION,
+                    "attachment; filename=\"gst_return.csv\"",
+                ),
+            ],
             csv,
-        ).into_response())
+        )
+            .into_response())
     } else {
         Ok(Json(serde_json::to_value(data).unwrap_or_default()).into_response())
     }
 }
 
 /// Convert GSTR-1/3B data to CSV format for GST portal upload
-fn gst_return_to_csv(data: &crate::modules::accounting::application::services::GstReturnData) -> String {
+fn gst_return_to_csv(
+    data: &crate::modules::accounting::application::services::GstReturnData,
+) -> String {
     let mut csv = String::with_capacity(1024);
 
     // Header row
@@ -470,8 +480,14 @@ pub async fn reconcile_account(
     Path(account_id): Path<i64>,
     Query(q): Query<ReconciliationQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let start: chrono::NaiveDate = q.period_start.parse().map_err(|_| AppError::Validation("Invalid period_start".into()))?;
-    let end: chrono::NaiveDate = q.period_end.parse().map_err(|_| AppError::Validation("Invalid period_end".into()))?;
+    let start: chrono::NaiveDate = q
+        .period_start
+        .parse()
+        .map_err(|_| AppError::Validation("Invalid period_start".into()))?;
+    let end: chrono::NaiveDate = q
+        .period_end
+        .parse()
+        .map_err(|_| AppError::Validation("Invalid period_end".into()))?;
     let result = AccountingService::reconcile_account(&state.db, account_id, start, end).await?;
     Ok(Json(serde_json::to_value(result).unwrap_or_default()))
 }

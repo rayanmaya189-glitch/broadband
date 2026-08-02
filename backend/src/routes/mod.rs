@@ -6,10 +6,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::shared::app_state::SharedState;
 
 pub fn health_routes() -> Router<SharedState> {
-    let swagger_ui = if std::env::var("APP_ENV")
-        .unwrap_or_default()
-        .to_lowercase()
-        != "production"
+    let swagger_ui = if std::env::var("APP_ENV").unwrap_or_default().to_lowercase() != "production"
     {
         Router::new().merge(
             SwaggerUi::new("/swagger-ui")
@@ -62,8 +59,8 @@ async fn readiness_check(
     axum::extract::State(state): axum::extract::State<SharedState>,
 ) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
     use crate::modules::branches::domain::entities::branch;
-    use sea_orm::{EntityTrait, QuerySelect};
     use redis::RedisResult;
+    use sea_orm::{EntityTrait, QuerySelect};
 
     let mut checks = serde_json::Map::new();
     let mut is_ready = true;
@@ -71,9 +68,12 @@ async fn readiness_check(
     // Check database connectivity
     match branch::Entity::find().limit(1).all(&state.db).await {
         Ok(_) => {
-            checks.insert("database".to_string(), serde_json::json!({
-                "status": "ok",
-            }));
+            checks.insert(
+                "database".to_string(),
+                serde_json::json!({
+                    "status": "ok",
+                }),
+            );
         }
         Err(e) => {
             checks.insert(
@@ -88,15 +88,16 @@ async fn readiness_check(
     {
         let start = std::time::Instant::now();
         let mut conn = state.redis.clone();
-        let ping_result: RedisResult<String> = redis::cmd("PING")
-            .query_async(&mut conn)
-            .await;
+        let ping_result: RedisResult<String> = redis::cmd("PING").query_async(&mut conn).await;
         match ping_result {
             Ok(_) => {
-                checks.insert("redis".to_string(), serde_json::json!({
-                    "status": "ok",
-                    "latency_ms": start.elapsed().as_millis(),
-                }));
+                checks.insert(
+                    "redis".to_string(),
+                    serde_json::json!({
+                        "status": "ok",
+                        "latency_ms": start.elapsed().as_millis(),
+                    }),
+                );
             }
             Err(e) => {
                 checks.insert(
@@ -110,29 +111,35 @@ async fn readiness_check(
 
     // Check NATS connectivity (optional — degraded if unavailable)
     if let Some(ref nats) = state.nats {
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            nats.flush(),
-        ).await {
+        match tokio::time::timeout(std::time::Duration::from_secs(3), nats.flush()).await {
             Ok(Ok(_)) => {
                 checks.insert("nats".to_string(), serde_json::json!({"status": "ok"}));
             }
             Ok(Err(e)) => {
-                checks.insert("nats".to_string(), serde_json::json!({
-                    "status": "degraded",
-                    "error": e.to_string(),
-                }));
+                checks.insert(
+                    "nats".to_string(),
+                    serde_json::json!({
+                        "status": "degraded",
+                        "error": e.to_string(),
+                    }),
+                );
                 // NATS failure is non-critical but worth noting
             }
             Err(_) => {
-                checks.insert("nats".to_string(), serde_json::json!({
-                    "status": "degraded",
-                    "error": "flush timed out (3s)",
-                }));
+                checks.insert(
+                    "nats".to_string(),
+                    serde_json::json!({
+                        "status": "degraded",
+                        "error": "flush timed out (3s)",
+                    }),
+                );
             }
         }
     } else {
-        checks.insert("nats".to_string(), serde_json::json!({"status": "unavailable", "note": "non-critical"}));
+        checks.insert(
+            "nats".to_string(),
+            serde_json::json!({"status": "unavailable", "note": "non-critical"}),
+        );
     }
 
     let status = if is_ready { "ready" } else { "not_ready" };
@@ -196,14 +203,8 @@ fn audit_history_routes() -> Router<SharedState> {
             "/entity-types",
             axum::routing::get(audit_http::list_entity_types),
         )
-        .route(
-            "/compare",
-            axum::routing::get(audit_http::compare_history),
-        )
-        .route(
-            "/export",
-            axum::routing::get(audit_http::export_history),
-        )
+        .route("/compare", axum::routing::get(audit_http::compare_history))
+        .route("/export", axum::routing::get(audit_http::export_history))
         .route(
             "/:entity_type",
             axum::routing::get(audit_http::search_history),
@@ -238,10 +239,7 @@ fn auth_routes() -> Router<SharedState> {
             "/password-reset/confirm",
             axum::routing::post(id_http::confirm_password_reset),
         )
-        .route(
-            "/sessions",
-            axum::routing::get(id_http::list_sessions),
-        )
+        .route("/sessions", axum::routing::get(id_http::list_sessions))
         .route(
             "/sessions/:session_id",
             axum::routing::delete(id_http::revoke_session),
@@ -283,7 +281,10 @@ fn branch_routes() -> Router<SharedState> {
         )
         .route("/:id/stats", axum::routing::get(http::get_branch_stats))
         .route("/:id/users", axum::routing::post(http::assign_branch_user))
-        .route("/:id/users/:uid", axum::routing::delete(http::remove_branch_user))
+        .route(
+            "/:id/users/:uid",
+            axum::routing::delete(http::remove_branch_user),
+        )
         .route(
             "/:id",
             axum::routing::get(http::get_branch)
@@ -299,7 +300,10 @@ fn customer_routes() -> Router<SharedState> {
         .route("/create", axum::routing::post(http::create_customer))
         .route("/get", axum::routing::post(http::get_customer))
         .route("/update", axum::routing::patch(http::update_customer))
-        .route("/update-status", axum::routing::post(http::update_customer_status))
+        .route(
+            "/update-status",
+            axum::routing::post(http::update_customer_status),
+        )
         .route("/delete", axum::routing::delete(http::delete_customer))
         .route("/search", axum::routing::post(http::search_customers))
         .route("/addresses/list", axum::routing::post(http::list_addresses))
@@ -345,10 +349,7 @@ fn subscription_routes() -> Router<SharedState> {
             "/:id",
             axum::routing::get(http::get_subscription).put(http::update_subscription),
         )
-        .route(
-            "/:id/renew",
-            axum::routing::post(http::renew_subscription),
-        )
+        .route("/:id/renew", axum::routing::post(http::renew_subscription))
         .route(
             "/:id/history",
             axum::routing::get(http::get_subscription_history),
@@ -390,10 +391,7 @@ fn billing_routes() -> Router<SharedState> {
             "/invoices/auto-generate",
             axum::routing::post(http::auto_generate_invoices),
         )
-        .route(
-            "/invoices/:id",
-            axum::routing::get(http::get_invoice),
-        )
+        .route("/invoices/:id", axum::routing::get(http::get_invoice))
         .route(
             "/invoices/:id/send",
             axum::routing::post(http::send_invoice),
@@ -406,10 +404,7 @@ fn billing_routes() -> Router<SharedState> {
             "/payments",
             axum::routing::get(http::list_payments).post(http::record_payment),
         )
-        .route(
-            "/refunds",
-            axum::routing::post(http::request_refund),
-        )
+        .route("/refunds", axum::routing::post(http::request_refund))
         .route(
             "/refunds/:id/approve",
             axum::routing::put(http::approve_refund),
@@ -426,10 +421,7 @@ fn billing_routes() -> Router<SharedState> {
             "/dunning/config",
             axum::routing::get(http::get_dunning_config),
         )
-        .route(
-            "/tax/config",
-            axum::routing::get(http::get_tax_config),
-        )
+        .route("/tax/config", axum::routing::get(http::get_tax_config))
         .route(
             "/invoices/:id/items",
             axum::routing::get(http::list_invoice_items).post(http::add_invoice_item),
@@ -438,10 +430,7 @@ fn billing_routes() -> Router<SharedState> {
             "/invoices/:id/items/:item_id",
             axum::routing::delete(http::remove_invoice_item),
         )
-        .route(
-            "/tds/calculate",
-            axum::routing::post(http::calculate_tds),
-        )
+        .route("/tds/calculate", axum::routing::post(http::calculate_tds))
         .route(
             "/tds/quarterly-return",
             axum::routing::post(http::generate_tds_quarterly_return),
@@ -551,10 +540,7 @@ fn network_routes() -> Router<SharedState> {
             "/ip-pools",
             axum::routing::get(http::list_ip_pools).post(http::create_ip_pool),
         )
-        .route(
-            "/ip-pools/:id",
-            axum::routing::put(http::update_ip_pool),
-        )
+        .route("/ip-pools/:id", axum::routing::put(http::update_ip_pool))
         .route(
             "/ip-pools/:id/addresses",
             axum::routing::get(http::list_pool_addresses),
@@ -567,10 +553,7 @@ fn network_routes() -> Router<SharedState> {
             "/ip-pools/:id/release",
             axum::routing::post(http::release_ip),
         )
-        .route(
-            "/dhcp/leases",
-            axum::routing::get(http::list_dhcp_leases),
-        )
+        .route("/dhcp/leases", axum::routing::get(http::list_dhcp_leases))
         .route(
             "/sessions",
             axum::routing::get(http::list_customer_sessions),
@@ -601,30 +584,15 @@ fn device_routes() -> Router<SharedState> {
             "/:id/status",
             axum::routing::put(http::update_device_status),
         )
-        .route(
-            "/:id/restart",
-            axum::routing::post(http::restart_device),
-        )
-        .route(
-            "/:id/shutdown",
-            axum::routing::post(http::shutdown_device),
-        )
-        .route(
-            "/:id/configure",
-            axum::routing::put(http::configure_device),
-        )
-        .route(
-            "/:id/ports",
-            axum::routing::get(http::list_device_ports),
-        )
+        .route("/:id/restart", axum::routing::post(http::restart_device))
+        .route("/:id/shutdown", axum::routing::post(http::shutdown_device))
+        .route("/:id/configure", axum::routing::put(http::configure_device))
+        .route("/:id/ports", axum::routing::get(http::list_device_ports))
         .route(
             "/:id/ports/:pid",
             axum::routing::put(http::update_device_port),
         )
-        .route(
-            "/:id/logs",
-            axum::routing::get(http::list_device_logs),
-        )
+        .route("/:id/logs", axum::routing::get(http::list_device_logs))
         .route(
             "/:id/metrics",
             axum::routing::get(http::list_device_metrics),
@@ -648,7 +616,9 @@ fn bandwidth_routes() -> Router<SharedState> {
         )
         .route(
             "/profiles/:id",
-            axum::routing::get(http::get_profile).put(http::update_profile).delete(http::delete_profile),
+            axum::routing::get(http::get_profile)
+                .put(http::update_profile)
+                .delete(http::delete_profile),
         )
         .route(
             "/profiles/:id/apply",
@@ -684,15 +654,27 @@ fn ticket_routes() -> Router<SharedState> {
             axum::routing::get(http::list_tickets).post(http::create_ticket),
         )
         .route("/metrics", axum::routing::get(http::get_ticket_metrics))
-        .route("/my-assignments", axum::routing::get(http::list_my_assignments))
-        .route("/:id", axum::routing::get(http::get_ticket).put(http::update_ticket))
+        .route(
+            "/my-assignments",
+            axum::routing::get(http::list_my_assignments),
+        )
+        .route(
+            "/:id",
+            axum::routing::get(http::get_ticket).put(http::update_ticket),
+        )
         .route("/:id/assign", axum::routing::post(http::assign_ticket))
         .route("/:id/resolve", axum::routing::post(http::resolve_ticket))
         .route("/:id/escalate", axum::routing::post(http::escalate_ticket))
         .route("/:id/close", axum::routing::post(http::close_ticket))
         .route("/:id/reopen", axum::routing::post(http::reopen_ticket))
-        .route("/:id/comments", axum::routing::get(http::list_ticket_comments).post(http::add_ticket_comment))
-        .route("/:id/satisfaction", axum::routing::post(http::rate_ticket_satisfaction))
+        .route(
+            "/:id/comments",
+            axum::routing::get(http::list_ticket_comments).post(http::add_ticket_comment),
+        )
+        .route(
+            "/:id/satisfaction",
+            axum::routing::post(http::rate_ticket_satisfaction),
+        )
 }
 
 fn notification_routes() -> Router<SharedState> {
@@ -708,15 +690,9 @@ fn notification_routes() -> Router<SharedState> {
         )
         .route("/send", axum::routing::post(http::send_notification))
         .route("/list", axum::routing::get(http::list_notifications))
-        .route(
-            "/:id/retry",
-            axum::routing::post(http::retry_notification),
-        )
+        .route("/:id/retry", axum::routing::post(http::retry_notification))
         .route("/channels", axum::routing::get(http::list_channels))
-        .route(
-            "/channels/:id",
-            axum::routing::put(http::update_channel),
-        )
+        .route("/channels/:id", axum::routing::put(http::update_channel))
         .route("/history", axum::routing::get(http::list_delivery_history))
         .route(
             "/retry",
@@ -754,7 +730,10 @@ fn lead_routes() -> Router<SharedState> {
         )
         .route("/pipeline", axum::routing::get(http::get_pipeline))
         .route("/stats", axum::routing::get(http::get_stats))
-        .route("/:id", axum::routing::get(http::get_lead).put(http::update_lead))
+        .route(
+            "/:id",
+            axum::routing::get(http::get_lead).put(http::update_lead),
+        )
         .route("/:id/status", axum::routing::put(http::update_lead_status))
         .route("/:id/assign", axum::routing::post(http::assign_lead))
         .route(
@@ -773,16 +752,40 @@ fn referral_routes() -> Router<SharedState> {
         )
         .route("/wallet", axum::routing::get(http::get_wallet))
         // Customer-facing
-        .route("/customer/referrals/my-code", axum::routing::get(http::get_my_referral_code))
-        .route("/customer/referrals/my-referrals", axum::routing::get(http::list_my_referrals))
-        .route("/customer/referrals/stats", axum::routing::get(http::get_referral_stats))
-        .route("/customer/referrals/share", axum::routing::post(http::share_referral))
+        .route(
+            "/customer/referrals/my-code",
+            axum::routing::get(http::get_my_referral_code),
+        )
+        .route(
+            "/customer/referrals/my-referrals",
+            axum::routing::get(http::list_my_referrals),
+        )
+        .route(
+            "/customer/referrals/stats",
+            axum::routing::get(http::get_referral_stats),
+        )
+        .route(
+            "/customer/referrals/share",
+            axum::routing::post(http::share_referral),
+        )
         // Admin-facing
-        .route("/admin/referral-programs", axum::routing::get(http::list_programs).post(http::create_program))
-        .route("/admin/referral-programs/:id", axum::routing::put(http::update_program).delete(http::delete_program))
-        .route("/admin/referrals/analytics", axum::routing::get(http::get_analytics))
+        .route(
+            "/admin/referral-programs",
+            axum::routing::get(http::list_programs).post(http::create_program),
+        )
+        .route(
+            "/admin/referral-programs/:id",
+            axum::routing::put(http::update_program).delete(http::delete_program),
+        )
+        .route(
+            "/admin/referrals/analytics",
+            axum::routing::get(http::get_analytics),
+        )
         .route("/admin/wallets", axum::routing::get(http::list_wallets))
-        .route("/admin/wallets/:id/adjust", axum::routing::post(http::adjust_wallet))
+        .route(
+            "/admin/wallets/:id/adjust",
+            axum::routing::post(http::adjust_wallet),
+        )
 }
 
 fn coverage_routes() -> Router<SharedState> {
@@ -801,7 +804,10 @@ fn document_routes() -> Router<SharedState> {
         .route("/", axum::routing::get(http::list_documents))
         .route("/presign-upload", axum::routing::post(http::presign_upload))
         .route("/confirm", axum::routing::post(http::confirm_upload))
-        .route("/entity/:type/:id", axum::routing::get(http::list_entity_documents))
+        .route(
+            "/entity/:type/:id",
+            axum::routing::get(http::list_entity_documents),
+        )
         .route("/:id/download", axum::routing::get(http::get_download_url))
         .route("/:id", axum::routing::get(http::get_document))
         .route("/:id", axum::routing::delete(http::delete_document))
@@ -845,10 +851,7 @@ fn installation_routes() -> Router<SharedState> {
             "/my-assignments",
             axum::routing::get(http::list_my_installation_assignments),
         )
-        .route(
-            "/:id",
-            axum::routing::get(http::get_installation),
-        )
+        .route("/:id", axum::routing::get(http::get_installation))
         .route(
             "/:id/schedule",
             axum::routing::post(http::schedule_installation),
@@ -857,10 +860,7 @@ fn installation_routes() -> Router<SharedState> {
             "/:id/reschedule",
             axum::routing::post(http::reschedule_installation),
         )
-        .route(
-            "/:id/start",
-            axum::routing::post(http::start_installation),
-        )
+        .route("/:id/start", axum::routing::post(http::start_installation))
         .route(
             "/:id/complete",
             axum::routing::post(http::complete_installation),
@@ -946,8 +946,7 @@ fn approval_routes() -> Router<SharedState> {
 
 fn admin_routes() -> Router<SharedState> {
     use crate::modules::admin::api::http as admin_http;
-    Router::new()
-        .route("/seed", axum::routing::post(admin_http::seed_data))
+    Router::new().route("/seed", axum::routing::post(admin_http::seed_data))
 }
 
 fn compliance_routes() -> Router<SharedState> {
@@ -958,19 +957,13 @@ fn compliance_routes() -> Router<SharedState> {
             "/kyc",
             axum::routing::get(http::list_kyc_verifications).post(http::create_kyc_verification),
         )
-        .route(
-            "/kyc/:id",
-            axum::routing::put(http::update_kyc_status),
-        )
+        .route("/kyc/:id", axum::routing::put(http::update_kyc_status))
         .route(
             "/kyc/customer/:customer_id",
             axum::routing::get(http::get_customer_kyc),
         )
         // Consent management
-        .route(
-            "/consents",
-            axum::routing::post(http::grant_consent),
-        )
+        .route("/consents", axum::routing::post(http::grant_consent))
         .route(
             "/consents/revoke",
             axum::routing::post(http::revoke_consent),
@@ -986,8 +979,7 @@ fn compliance_routes() -> Router<SharedState> {
         // Data retention policies
         .route(
             "/retention",
-            axum::routing::get(http::list_retention_policies)
-                .post(http::create_retention_policy),
+            axum::routing::get(http::list_retention_policies).post(http::create_retention_policy),
         )
         .route(
             "/retention/:id",
@@ -1001,8 +993,7 @@ fn gateway_routes() -> Router<SharedState> {
         // Rate limit rules
         .route(
             "/rate-limits",
-            axum::routing::get(http::list_rate_limit_rules)
-                .post(http::create_rate_limit_rule),
+            axum::routing::get(http::list_rate_limit_rules).post(http::create_rate_limit_rule),
         )
         .route(
             "/rate-limits/:id",
@@ -1013,17 +1004,8 @@ fn gateway_routes() -> Router<SharedState> {
             "/api-keys",
             axum::routing::get(http::list_api_keys).post(http::create_api_key),
         )
-        .route(
-            "/api-keys/:id",
-            axum::routing::delete(http::revoke_api_key),
-        )
+        .route("/api-keys/:id", axum::routing::delete(http::revoke_api_key))
         // Request logs & stats
-        .route(
-            "/logs",
-            axum::routing::get(http::list_request_logs),
-        )
-        .route(
-            "/stats",
-            axum::routing::get(http::get_request_stats),
-        )
+        .route("/logs", axum::routing::get(http::list_request_logs))
+        .route("/stats", axum::routing::get(http::get_request_stats))
 }

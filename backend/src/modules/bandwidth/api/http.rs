@@ -54,7 +54,9 @@ pub async fn create_profile(
 ) -> Result<(StatusCode, Json<BandwidthProfileResponse>), AppError> {
     require_permission(&user, "bandwidth.profile.create").map_err(|e| AppError::Forbidden(e.1))?;
     if req.download_kbps <= 0 || req.upload_kbps <= 0 {
-        return Err(AppError::Validation("Bandwidth values must be positive".into()));
+        return Err(AppError::Validation(
+            "Bandwidth values must be positive".into(),
+        ));
     }
     let p =
         BandwidthService::create_profile(&state.db, req.name, req.download_kbps, req.upload_kbps)
@@ -196,14 +198,19 @@ pub async fn list_policies(
     _user: UserContext,
 ) -> Result<Json<Vec<BandwidthPolicyResponse>>, AppError> {
     let items = BandwidthService::list_policies(&state.db).await?;
-    Ok(Json(items.into_iter().map(|p| BandwidthPolicyResponse {
-        id: p.id,
-        name: p.name,
-        policy_type: p.policy_type,
-        config: p.config,
-        priority: p.priority,
-        is_active: p.is_active,
-    }).collect()))
+    Ok(Json(
+        items
+            .into_iter()
+            .map(|p| BandwidthPolicyResponse {
+                id: p.id,
+                name: p.name,
+                policy_type: p.policy_type,
+                config: p.config,
+                priority: p.priority,
+                is_active: p.is_active,
+            })
+            .collect(),
+    ))
 }
 
 /// POST /api/v1/bandwidth/policies
@@ -321,8 +328,8 @@ pub async fn apply_to_subscription(
     Json(req): Json<ApplyProfileRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
     require_permission(&user, "bandwidth.profile.update").map_err(|e| AppError::Forbidden(e.1))?;
-    let app = BandwidthService::apply_to_subscription(&state.db, subscription_id, req.profile_id)
-        .await?;
+    let app =
+        BandwidthService::apply_to_subscription(&state.db, subscription_id, req.profile_id).await?;
     Ok((
         StatusCode::CREATED,
         Json(serde_json::json!({

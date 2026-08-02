@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS events (
     aggregate_id BIGINT NOT NULL,
     payload JSONB NOT NULL,
     metadata JSONB,
-    caused_by_user_id BIGINT REFERENCES users(id),
-    caused_by_branch_id BIGINT REFERENCES branches(id),
+    caused_by_user_id BIGINT,
+    caused_by_branch_id BIGINT,
     sequence_number BIGSERIAL,
     published_at TIMESTAMPTZ DEFAULT NOW(),
     processed BOOLEAN DEFAULT FALSE,
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS event_subscriptions (
 );
 
 -- Outbox pattern for reliable event publishing
+-- Columns mirror the OutboxEvent SeaORM entity (src/infrastructure/messaging/outbox_entity.rs)
 CREATE TABLE IF NOT EXISTS outbox_events (
     id BIGSERIAL PRIMARY KEY,
     event_id VARCHAR(255) NOT NULL UNIQUE,
@@ -44,9 +45,16 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     aggregate_type VARCHAR(50) NOT NULL,
     aggregate_id BIGINT NOT NULL,
     payload JSONB NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    published_at TIMESTAMPTZ,
-    is_published BOOLEAN DEFAULT FALSE
+    metadata JSONB,
+    caused_by_user_id BIGINT,
+    caused_by_branch_id BIGINT,
+    published BOOLEAN NOT NULL DEFAULT FALSE,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    dead_letter BOOLEAN NOT NULL DEFAULT FALSE,
+    dead_letter_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_outbox_events_unpublished ON outbox_events(is_published, created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_unpublished ON outbox_events(published, created_at);

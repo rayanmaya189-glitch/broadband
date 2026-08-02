@@ -64,7 +64,12 @@ fn test_tampered_token_rejection() {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() == 3 {
         // Corrupt the signature by appending a character
-        token = format!("{}.{}{}X", parts[0], parts[1], parts[2].chars().next().unwrap());
+        token = format!(
+            "{}.{}{}X",
+            parts[0],
+            parts[1],
+            parts[2].chars().next().unwrap()
+        );
     }
 
     let result = key_pair.verify(&token);
@@ -94,8 +99,7 @@ fn test_argon2id_password_hashing() {
     assert!(result.is_ok(), "Password verification should succeed");
 
     // Verify wrong password fails
-    let wrong_result = Argon2::default()
-        .verify_password("WrongPassword".as_bytes(), &parsed);
+    let wrong_result = Argon2::default().verify_password("WrongPassword".as_bytes(), &parsed);
 
     assert!(wrong_result.is_err(), "Wrong password should fail");
 }
@@ -122,6 +126,8 @@ fn test_password_hash_uniqueness() {
         .to_string();
 
     // Same password should produce different hashes due to random salt
-    assert_ne!(hash1, hash2, "Same password should produce different hashes");
+    assert_ne!(
+        hash1, hash2,
+        "Same password should produce different hashes"
+    );
 }
-

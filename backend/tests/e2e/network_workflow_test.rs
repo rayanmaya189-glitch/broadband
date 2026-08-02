@@ -1,9 +1,8 @@
 //! End-to-end test: Network Management Workflow
 //! Tests: VLAN creation → IP pool → PPPoE session → MAC binding
 
-
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 /// Test VLAN lifecycle
 #[ignore]
@@ -34,10 +33,7 @@ async fn test_vlan_lifecycle() {
     assert_eq!(v.vlan_id, 200);
 
     // Verify VLAN exists
-    let found = vlan::Entity::find_by_id(v.id)
-        .one(db)
-        .await
-        .unwrap();
+    let found = vlan::Entity::find_by_id(v.id).one(db).await.unwrap();
     assert!(found.is_some());
     assert_eq!(found.unwrap().name, "Customer Residential");
 }
@@ -74,4 +70,3 @@ async fn test_ip_pool_creation() {
     assert!(pool.id > 0);
     assert_eq!(pool.total_count, 254);
 }
-

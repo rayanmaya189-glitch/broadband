@@ -174,13 +174,7 @@ pub async fn update_lead(
 ) -> Result<Json<LeadResponse>, AppError> {
     require_permission(&user, "lead.update").map_err(|e| AppError::Forbidden(e.1))?;
     let l = LeadService::update_lead(
-        &state.db,
-        id,
-        req.name,
-        req.phone,
-        req.email,
-        req.source,
-        req.notes,
+        &state.db, id, req.name, req.phone, req.email, req.source, req.notes,
     )
     .await?;
     Ok(Json(LeadResponse {

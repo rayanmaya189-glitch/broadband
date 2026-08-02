@@ -121,7 +121,8 @@ pub async fn update_device_status(
     Path(id): Path<i64>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<DeviceResponse>, AppError> {
-    require_permission(&user, "device.router.update_status").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "device.router.update_status")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let d = DeviceService::update_device_status(&state.db, id, &req.status).await?;
     // Publish event to outbox
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
@@ -193,8 +194,7 @@ pub async fn shutdown_device(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "device.router.shutdown")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "device.router.shutdown").map_err(|e| AppError::Forbidden(e.1))?;
     let d = DeviceService::update_device_status(&state.db, id, "offline").await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
@@ -231,8 +231,7 @@ pub async fn configure_device(
     Path(id): Path<i64>,
     Json(req): Json<ConfigureDeviceRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "device.router.configure")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "device.router.configure").map_err(|e| AppError::Forbidden(e.1))?;
     let d = DeviceService::get_device(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,

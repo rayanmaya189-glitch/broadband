@@ -109,7 +109,7 @@ impl User {
 
     pub fn can_login(&self) -> bool {
         self.status == UserStatus::Active
-            && self.locked_until.map_or(true, |t| t < chrono::Utc::now())
+            && self.locked_until.is_none_or(|t| t < chrono::Utc::now())
     }
 
     pub fn enable_two_factor(&mut self) -> Result<(), UserDomainError> {

@@ -1,15 +1,13 @@
+use crate::modules::integrations::radius::adapter::{
+    AccountingRequest, AccountingStatusType, RadiusAdapter, RadiusClient,
+};
 use crate::modules::network::domain::entities::{
     DhcpLease, DhcpLeaseColumn, IpPool, IpPoolActiveModel, IpPoolColumn, MacBinding,
     MacBindingActiveModel, MacBindingColumn, PppoeSession, PppoeSessionActiveModel,
     PppoeSessionColumn, Vlan, VlanActiveModel, VlanColumn,
 };
-use crate::modules::integrations::radius::adapter::{
-    AccountingRequest, AccountingStatusType, RadiusAdapter, RadiusClient,
-};
 use crate::shared::errors::AppError;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
 pub struct NetworkService;
 
@@ -290,10 +288,7 @@ impl NetworkService {
 
             let acct = AccountingRequest {
                 username: session.username.clone(),
-                session_id: session
-                    .nas_session_id
-                    .clone()
-                    .unwrap_or_default(),
+                session_id: session.nas_session_id.clone().unwrap_or_default(),
                 status_type: AccountingStatusType::Stop,
                 nas_ip,
                 nas_port,
@@ -350,7 +345,10 @@ impl NetworkService {
         Ok(binding.insert(db).await?)
     }
 
-    pub async fn get_topology(db: &DatabaseConnection, branch_id: Option<i64>) -> Result<serde_json::Value, AppError> {
+    pub async fn get_topology(
+        db: &DatabaseConnection,
+        branch_id: Option<i64>,
+    ) -> Result<serde_json::Value, AppError> {
         let vlans = Self::list_vlans(db, branch_id).await?;
         let pools = Self::list_ip_pools(db, branch_id).await?;
         let sessions = Self::list_pppoe_sessions(db, branch_id).await?;

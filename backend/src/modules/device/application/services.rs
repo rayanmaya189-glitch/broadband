@@ -119,7 +119,10 @@ impl DeviceService {
         AppError,
     > {
         let query = DeviceLog::find()
-            .filter(crate::modules::device::domain::entities::device_log::Column::DeviceId.eq(device_id))
+            .filter(
+                crate::modules::device::domain::entities::device_log::Column::DeviceId
+                    .eq(device_id),
+            )
             .order_by_desc(crate::modules::device::domain::entities::device_log::Column::CreatedAt);
         let total = query.clone().count(db).await?;
         let items = query.paginate(db, limit).fetch_page(page).await?;
@@ -139,8 +142,13 @@ impl DeviceService {
         AppError,
     > {
         let query = DeviceMetric::find()
-            .filter(crate::modules::device::domain::entities::device_metric::Column::DeviceId.eq(device_id))
-            .order_by_desc(crate::modules::device::domain::entities::device_metric::Column::RecordedAt);
+            .filter(
+                crate::modules::device::domain::entities::device_metric::Column::DeviceId
+                    .eq(device_id),
+            )
+            .order_by_desc(
+                crate::modules::device::domain::entities::device_metric::Column::RecordedAt,
+            );
         let total = query.clone().count(db).await?;
         let items = query.paginate(db, limit).fetch_page(page).await?;
         Ok((items, total))

@@ -25,15 +25,19 @@ CREATE INDEX IF NOT EXISTS idx_document_files_entity ON document_files(entity_ty
 CREATE INDEX IF NOT EXISTS idx_document_files_uploaded ON document_files(uploaded_by);
 
 -- Document access logs
+-- NOTE: no inline FKs - PostgreSQL requires FK columns on a partitioned table
+-- to include the partition key (accessed_at), which is impossible here.
+-- Enforced at the application layer.
 CREATE TABLE IF NOT EXISTS document_access_logs (
-    id BIGSERIAL PRIMARY KEY,
-    document_id BIGINT NOT NULL REFERENCES document_files(id),
-    accessed_by BIGINT REFERENCES users(id),
+    id BIGSERIAL,
+    document_id BIGINT NOT NULL,
+    accessed_by BIGINT,
     access_type VARCHAR(20) NOT NULL
         CHECK (access_type IN ('upload', 'download', 'view', 'delete')),
     ip_address INET,
     user_agent TEXT,
-    accessed_at TIMESTAMPTZ DEFAULT NOW()
+    accessed_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, accessed_at)
 ) PARTITION BY RANGE (accessed_at);
 
 CREATE TABLE IF NOT EXISTS document_access_logs_2026_07 PARTITION OF document_access_logs

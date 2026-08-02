@@ -1,7 +1,6 @@
 //! Security abuse case tests per OWASP ASVS v4.0 §11.1
 //! Tests for SQL injection, XSS, JWT manipulation, and privilege escalation
 
-
 use sea_orm::{ActiveModelTrait, Set};
 
 /// Test that SQL injection attempts are safely handled by SeaORM
@@ -28,7 +27,10 @@ async fn test_sql_injection_in_customer_name() {
 
     // Should insert safely without executing SQL
     let result = customer.insert(db).await;
-    assert!(result.is_ok(), "SQL injection should be safely handled by SeaORM");
+    assert!(
+        result.is_ok(),
+        "SQL injection should be safely handled by SeaORM"
+    );
 
     // Verify the malicious string is stored as literal text, not executed
     let inserted = result.unwrap();
@@ -63,7 +65,10 @@ async fn test_xss_in_ticket_description() {
     };
 
     let result = ticket.insert(db).await;
-    assert!(result.is_ok(), "XSS payload should be safely stored as text");
+    assert!(
+        result.is_ok(),
+        "XSS payload should be safely stored as text"
+    );
 
     let inserted = result.unwrap();
     assert_eq!(inserted.description, xss_payload);
@@ -120,13 +125,22 @@ async fn test_special_characters_in_search() {
         // Use SeaORM query builder (parameterized) - should be safe
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
         let result = aeroxe_backend::modules::customer::domain::entities::customer::Entity::find()
-            .filter(aeroxe_backend::modules::customer::domain::entities::customer::Column::Name.contains(pattern))
+            .filter(
+                aeroxe_backend::modules::customer::domain::entities::customer::Column::Name
+                    .contains(pattern),
+            )
             .all(db)
             .await;
 
         // Should return empty results, not crash or leak data
-        assert!(result.is_ok(), "Search with pattern '{}' should not crash", pattern);
-        assert!(result.unwrap().is_empty(), "No results for malicious pattern");
+        assert!(
+            result.is_ok(),
+            "Search with pattern '{}' should not crash",
+            pattern
+        );
+        assert!(
+            result.unwrap().is_empty(),
+            "No results for malicious pattern"
+        );
     }
 }
-

@@ -76,7 +76,16 @@ pub async fn metrics_summary_handler(
         worker_cycles: {
             let counter = &m.worker_cycles_total;
             let mut total = 0u64;
-            for name in &["billing", "notification", "device_sync", "bandwidth", "radius", "scheduler", "monitoring", "partition"] {
+            for name in &[
+                "billing",
+                "notification",
+                "device_sync",
+                "bandwidth",
+                "radius",
+                "scheduler",
+                "monitoring",
+                "partition",
+            ] {
                 if let Ok(c) = counter.get_metric_with_label_values(&[name]) {
                     total += c.get();
                 }
@@ -86,7 +95,16 @@ pub async fn metrics_summary_handler(
         worker_errors: {
             let counter = &m.worker_errors_total;
             let mut total = 0u64;
-            for name in &["billing", "notification", "device_sync", "bandwidth", "radius", "scheduler", "monitoring", "partition"] {
+            for name in &[
+                "billing",
+                "notification",
+                "device_sync",
+                "bandwidth",
+                "radius",
+                "scheduler",
+                "monitoring",
+                "partition",
+            ] {
                 if let Ok(c) = counter.get_metric_with_label_values(&[name]) {
                     total += c.get();
                 }

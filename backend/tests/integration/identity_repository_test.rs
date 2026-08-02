@@ -3,9 +3,8 @@
 //! Tests user registration, authentication flows, session management,
 //! two-factor authentication setup, and account lockout mechanics.
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::TestDatabase;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -149,8 +148,14 @@ async fn test_user_login_updates_last_login_at() {
     active.last_login_at = Set(Some(chrono::Utc::now()));
     active.updated_at = Set(chrono::Utc::now());
 
-    let updated = active.update(db).await.expect("Failed to update login time");
-    assert!(updated.last_login_at.is_some(), "last_login_at should be set");
+    let updated = active
+        .update(db)
+        .await
+        .expect("Failed to update login time");
+    assert!(
+        updated.last_login_at.is_some(),
+        "last_login_at should be set"
+    );
 }
 
 #[ignore]
@@ -194,14 +199,15 @@ async fn test_account_lockout_after_failed_attempts() {
     // Simulate 5 failed attempts then lockout
     let mut active: user::ActiveModel = created.into();
     active.failed_login_attempts = Set(5);
-    active.locked_until = Set(Some(
-        chrono::Utc::now() + chrono::Duration::minutes(15),
-    ));
+    active.locked_until = Set(Some(chrono::Utc::now() + chrono::Duration::minutes(15)));
     active.updated_at = Set(chrono::Utc::now());
 
     let locked = active.update(db).await.expect("Failed to lock account");
     assert_eq!(locked.failed_login_attempts, 5);
-    assert!(locked.locked_until.is_some(), "Account should have locked_until set");
+    assert!(
+        locked.locked_until.is_some(),
+        "Account should have locked_until set"
+    );
 }
 
 #[ignore]
@@ -217,9 +223,7 @@ async fn test_account_unlock_after_timeout() {
     // Lock the account
     let mut active: user::ActiveModel = created.into();
     active.failed_login_attempts = Set(5);
-    active.locked_until = Set(Some(
-        chrono::Utc::now() + chrono::Duration::seconds(1),
-    ));
+    active.locked_until = Set(Some(chrono::Utc::now() + chrono::Duration::seconds(1)));
     active.updated_at = Set(chrono::Utc::now());
     let locked = active.update(db).await.unwrap();
 
@@ -286,8 +290,7 @@ async fn test_enable_two_factor_authentication() {
     active.two_factor_enabled = Set(true);
     active.two_factor_secret = Set(Some("JBSWY3DPEHPK3PXP".to_string()));
     active.two_factor_backup_codes = Set(Some(
-        serde_json::to_string(&vec!["ABCD-EFGH", "IJKL-MNOP"])
-            .unwrap(),
+        serde_json::to_string(&vec!["ABCD-EFGH", "IJKL-MNOP"]).unwrap(),
     ));
     active.updated_at = Set(chrono::Utc::now());
 
@@ -573,11 +576,12 @@ async fn test_user_update_avatar() {
     use aeroxe_backend::modules::identity::domain::entities::user;
 
     let mut active: user::ActiveModel = created.into();
-    active.avatar_url = Set(Some("https://storage.aeroxe.com/avatars/uma.jpg".to_string()));
+    active.avatar_url = Set(Some(
+        "https://storage.aeroxe.com/avatars/uma.jpg".to_string(),
+    ));
     active.updated_at = Set(chrono::Utc::now());
 
     let updated = active.update(db).await.unwrap();
     assert!(updated.avatar_url.is_some());
     assert!(updated.avatar_url.unwrap().contains("uma.jpg"));
 }
-

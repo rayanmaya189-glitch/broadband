@@ -1,7 +1,7 @@
 use crate::modules::notification::domain::entities::{
     DeliveryHistory, DeliveryHistoryColumn, Notification, NotificationActiveModel,
-    NotificationColumn,     NotificationChannel, NotificationChannelActiveModel,
-    NotificationTemplate, NotificationTemplateActiveModel,
+    NotificationChannel, NotificationChannelActiveModel, NotificationColumn, NotificationTemplate,
+    NotificationTemplateActiveModel,
 };
 use crate::shared::errors::AppError;
 use sea_orm::{
@@ -105,7 +105,10 @@ impl NotificationService {
         subject: Option<String>,
         body: Option<String>,
         channel: Option<String>,
-    ) -> Result<crate::modules::notification::domain::entities::notification_template::Model, AppError> {
+    ) -> Result<
+        crate::modules::notification::domain::entities::notification_template::Model,
+        AppError,
+    > {
         let tmpl = NotificationTemplate::find_by_id(id)
             .one(db)
             .await?
@@ -126,8 +129,10 @@ impl NotificationService {
 
     pub async fn list_channels(
         db: &DatabaseConnection,
-    ) -> Result<Vec<crate::modules::notification::domain::entities::notification_channel::Model>, AppError>
-    {
+    ) -> Result<
+        Vec<crate::modules::notification::domain::entities::notification_channel::Model>,
+        AppError,
+    > {
         Ok(NotificationChannel::find().all(db).await?)
     }
 
@@ -136,7 +141,8 @@ impl NotificationService {
         id: i64,
         is_active: Option<bool>,
         config: Option<serde_json::Value>,
-    ) -> Result<crate::modules::notification::domain::entities::notification_channel::Model, AppError> {
+    ) -> Result<crate::modules::notification::domain::entities::notification_channel::Model, AppError>
+    {
         let ch = NotificationChannel::find_by_id(id)
             .one(db)
             .await?
@@ -206,10 +212,7 @@ impl NotificationService {
         Ok(retried)
     }
 
-    pub async fn delete_template(
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_template(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
         let tmpl = NotificationTemplate::find_by_id(id)
             .one(db)
             .await?

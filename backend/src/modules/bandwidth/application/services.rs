@@ -1,6 +1,4 @@
-use crate::modules::bandwidth::domain::entities::{
-    BandwidthProfile, BandwidthProfileActiveModel,
-};
+use crate::modules::bandwidth::domain::entities::{BandwidthProfile, BandwidthProfileActiveModel};
 use crate::shared::errors::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -94,9 +92,10 @@ impl BandwidthService {
 
     pub async fn list_policies(
         db: &DatabaseConnection,
-    ) -> Result<Vec<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model>, AppError> {
-        use crate::modules::bandwidth::domain::entities::BandwidthPolicy;
+    ) -> Result<Vec<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model>, AppError>
+    {
         use crate::modules::bandwidth::domain::entities::bandwidth_policy::Column;
+        use crate::modules::bandwidth::domain::entities::BandwidthPolicy;
         let items = BandwidthPolicy::find()
             .order_by_desc(Column::Priority)
             .all(db)
@@ -110,7 +109,8 @@ impl BandwidthService {
         policy_type: String,
         config: serde_json::Value,
         priority: i32,
-    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model, AppError> {
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model, AppError>
+    {
         use crate::modules::bandwidth::domain::entities::BandwidthPolicyActiveModel;
         let now = chrono::Utc::now();
         let policy = BandwidthPolicyActiveModel {
@@ -134,23 +134,32 @@ impl BandwidthService {
         config: Option<serde_json::Value>,
         priority: Option<i32>,
         is_active: Option<bool>,
-    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model, AppError> {
-        use crate::modules::bandwidth::domain::entities::{BandwidthPolicy, bandwidth_policy};
+    ) -> Result<crate::modules::bandwidth::domain::entities::bandwidth_policy::Model, AppError>
+    {
+        use crate::modules::bandwidth::domain::entities::{bandwidth_policy, BandwidthPolicy};
         let existing = BandwidthPolicy::find_by_id(id)
             .one(db)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Policy {} not found", id)))?;
         let mut active: bandwidth_policy::ActiveModel = existing.into();
-        if let Some(n) = name { active.name = Set(n); }
-        if let Some(c) = config { active.config = Set(c); }
-        if let Some(p) = priority { active.priority = Set(p); }
-        if let Some(a) = is_active { active.is_active = Set(a); }
+        if let Some(n) = name {
+            active.name = Set(n);
+        }
+        if let Some(c) = config {
+            active.config = Set(c);
+        }
+        if let Some(p) = priority {
+            active.priority = Set(p);
+        }
+        if let Some(a) = is_active {
+            active.is_active = Set(a);
+        }
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
     }
 
     pub async fn delete_policy(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
-        use crate::modules::bandwidth::domain::entities::{BandwidthPolicy, bandwidth_policy};
+        use crate::modules::bandwidth::domain::entities::{bandwidth_policy, BandwidthPolicy};
         let existing = BandwidthPolicy::find_by_id(id)
             .one(db)
             .await?
@@ -164,18 +173,16 @@ impl BandwidthService {
 
     // ─── Apply Profile ──────────────────────────────────────────────────
 
-    pub async fn apply_profile(
-        db: &DatabaseConnection,
-        profile_id: i64,
-    ) -> Result<u64, AppError> {
+    pub async fn apply_profile(db: &DatabaseConnection, profile_id: i64) -> Result<u64, AppError> {
         Self::get_profile(db, profile_id).await?;
-        let applications = crate::modules::bandwidth::domain::entities::BandwidthApplication::find()
-            .filter(
-                crate::modules::bandwidth::domain::entities::bandwidth_application::Column::ProfileId
-                    .eq(profile_id),
-            )
-            .all(db)
-            .await?;
+        let applications = crate::modules::bandwidth::domain::entities::BandwidthApplication::find(
+        )
+        .filter(
+            crate::modules::bandwidth::domain::entities::bandwidth_application::Column::ProfileId
+                .eq(profile_id),
+        )
+        .all(db)
+        .await?;
         let now = chrono::Utc::now();
         let mut updated = 0u64;
         for app in applications {
@@ -196,16 +203,16 @@ impl BandwidthService {
     {
         Self::get_profile(db, profile_id).await?;
         let now = chrono::Utc::now();
-        let active = crate::modules::bandwidth::domain::entities::bandwidth_application::ActiveModel
-        {
-            profile_id: Set(profile_id),
-            subscription_id: Set(subscription_id),
-            status: Set("applied".to_string()),
-            applied_at: Set(Some(now)),
-            retry_count: Set(0),
-            created_at: Set(now),
-            ..Default::default()
-        };
+        let active =
+            crate::modules::bandwidth::domain::entities::bandwidth_application::ActiveModel {
+                profile_id: Set(profile_id),
+                subscription_id: Set(subscription_id),
+                status: Set("applied".to_string()),
+                applied_at: Set(Some(now)),
+                retry_count: Set(0),
+                created_at: Set(now),
+                ..Default::default()
+            };
         let result = active.insert(db).await?;
         Ok(result)
     }

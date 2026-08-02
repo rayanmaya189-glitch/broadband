@@ -1,9 +1,8 @@
 //! End-to-end test: Subscription Plan Change Workflow
 //! Tests: Create subscription → Upgrade → Downgrade → Cancel
 
-
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 /// Test subscription upgrade/downgrade workflow
 #[ignore]
@@ -22,7 +21,10 @@ async fn test_subscription_plan_change_workflow() {
 
     // Activate customer
     let cust = customer::Entity::find_by_id(customer_id)
-        .one(db).await.unwrap().unwrap();
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
     let mut active: customer::ActiveModel = cust.into();
     active.status = Set("active".to_string());
     active.updated_at = Set(chrono::Utc::now());
@@ -103,4 +105,3 @@ async fn test_subscription_suspend_reactivate() {
     let sub = active.update(db).await.unwrap();
     assert_eq!(sub.status, "active");
 }
-

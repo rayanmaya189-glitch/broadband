@@ -129,7 +129,7 @@ pub async fn create_payment_link(
     let gateway_id = req.gateway_id.unwrap_or_else(|| "razorpay".to_string());
     let idempotency_key = req
         .idempotency_key
-        .unwrap_or_else(|| crate::shared::utils::uuid_v7::new_v7_string());
+        .unwrap_or_else(crate::shared::utils::uuid_v7::new_v7_string);
     let expires_in_hours = req.expires_in_hours.unwrap_or(24);
 
     let link = PaymentService::create_payment_link(
@@ -185,7 +185,9 @@ pub async fn record_manual_payment(
         .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
     if amount <= sea_orm::prelude::Decimal::ZERO {
-        return Err(AppError::Validation("Payment amount must be positive".into()));
+        return Err(AppError::Validation(
+            "Payment amount must be positive".into(),
+        ));
     }
 
     let result = PaymentService::record_manual_payment(
@@ -238,8 +240,8 @@ pub async fn pay_from_wallet(
         None => None,
     };
 
-    let result = PaymentService::pay_from_wallet(&state.db, req.invoice_id, req.customer_id, amount)
-        .await?;
+    let result =
+        PaymentService::pay_from_wallet(&state.db, req.invoice_id, req.customer_id, amount).await?;
 
     Ok((
         StatusCode::CREATED,
@@ -310,7 +312,9 @@ pub async fn handle_razorpay_webhook(
     let gateway = match PaymentService::get_gateway_config(&state.db, "razorpay").await {
         Ok(g) => g,
         Err(_) => {
-            tracing::error!("Razorpay gateway config not found — webhook signature cannot be verified");
+            tracing::error!(
+                "Razorpay gateway config not found — webhook signature cannot be verified"
+            );
             return Err(AppError::Internal(anyhow::anyhow!(
                 "Payment gateway config not configured. Set RAZORPAY_WEBHOOK_SECRET env or configure in DB."
             )));
@@ -425,7 +429,14 @@ pub async fn handle_payu_webhook(
 
     let verify_string = format!(
         "{}|{}|||||||{}|{}|{}|{}|{}|{}",
-        adapter.merchant_salt, status, adapter.merchant_key, txnid, amount, productinfo, firstname, email
+        adapter.merchant_salt,
+        status,
+        adapter.merchant_key,
+        txnid,
+        amount,
+        productinfo,
+        firstname,
+        email
     );
     use sha2::{Digest, Sha512};
     let mut hasher = Sha512::new();
@@ -516,9 +527,9 @@ pub async fn handle_stripe_webhook(
     let payload: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| AppError::Validation(format!("Invalid JSON: {}", e)))?;
 
-    let webhook = adapter
-        .parse_webhook(payload.clone())
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to parse Stripe webhook: {}", e)))?;
+    let webhook = adapter.parse_webhook(payload.clone()).map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("Failed to parse Stripe webhook: {}", e))
+    })?;
 
     // Idempotency check
     let already_processed = PaymentService::log_webhook(

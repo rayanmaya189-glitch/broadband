@@ -11,14 +11,23 @@ pub enum ApiKeyStatus {
 impl ApiKeyStatus {
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
-            "active" => Some(Self::Active), "revoked" => Some(Self::Revoked), "expired" => Some(Self::Expired), _ => None,
+            "active" => Some(Self::Active),
+            "revoked" => Some(Self::Revoked),
+            "expired" => Some(Self::Expired),
+            _ => None,
         }
     }
     pub fn as_str(&self) -> &'static str {
-        match self { Self::Active => "active", Self::Revoked => "revoked", Self::Expired => "expired" }
+        match self {
+            Self::Active => "active",
+            Self::Revoked => "revoked",
+            Self::Expired => "expired",
+        }
     }
 }
 
 impl fmt::Display for ApiKeyStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }

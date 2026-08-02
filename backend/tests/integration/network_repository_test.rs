@@ -3,9 +3,8 @@
 //! Covers VLAN CRUD, IP pool management, MAC binding, PPPoE session lifecycle,
 //! and IP address allocation tracking.
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 // ===========================================================================
 // VLAN tests
@@ -414,7 +413,10 @@ async fn test_mac_binding_crud() {
         ..Default::default()
     };
 
-    let binding = active.insert(db).await.expect("Failed to create MAC binding");
+    let binding = active
+        .insert(db)
+        .await
+        .expect("Failed to create MAC binding");
     assert!(binding.id > 0);
     assert_eq!(binding.mac_address, "AA:BB:CC:DD:EE:FF");
     assert_eq!(binding.assigned_ip, "10.0.200.10");
@@ -472,7 +474,11 @@ async fn test_mac_binding_filter_by_customer() {
     use aeroxe_backend::modules::network::domain::entities::mac_binding;
     let now = chrono::Utc::now();
 
-    for (cust, mac) in [(customer_a, "AA:AA:AA:AA:AA:01"), (customer_a, "AA:AA:AA:AA:AA:02"), (customer_b, "BB:BB:BB:BB:BB:01")] {
+    for (cust, mac) in [
+        (customer_a, "AA:AA:AA:AA:AA:01"),
+        (customer_a, "AA:AA:AA:AA:AA:02"),
+        (customer_b, "BB:BB:BB:BB:BB:01"),
+    ] {
         mac_binding::ActiveModel {
             branch_id: Set(branch_id),
             customer_id: Set(cust),
@@ -537,7 +543,10 @@ async fn test_pppoe_session_crud() {
         ..Default::default()
     };
 
-    let session = active.insert(db).await.expect("Failed to create PPPoE session");
+    let session = active
+        .insert(db)
+        .await
+        .expect("Failed to create PPPoE session");
     assert!(session.id > 0);
     assert_eq!(session.status, "active");
     assert!(session.session_start.is_some());
@@ -646,7 +655,11 @@ async fn test_pppoe_session_filter_by_customer() {
     use aeroxe_backend::modules::network::domain::entities::pppoe_session;
     let now = chrono::Utc::now();
 
-    for (cust, user) in [(customer_a, "user_a"), (customer_a, "user_a2"), (customer_b, "user_b")] {
+    for (cust, user) in [
+        (customer_a, "user_a"),
+        (customer_a, "user_a2"),
+        (customer_b, "user_b"),
+    ] {
         pppoe_session::ActiveModel {
             branch_id: Set(branch_id),
             customer_id: Set(cust),
@@ -709,4 +722,3 @@ async fn test_pppoe_session_with_nas_info() {
     assert_eq!(session.nas_ip_address.as_deref(), Some("192.168.1.1"));
     assert_eq!(session.nas_session_id.as_deref(), Some("sess-abc-123"));
 }
-

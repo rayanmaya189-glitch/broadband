@@ -1,9 +1,8 @@
 //! End-to-end test: Customer Lifecycle
 //! Tests the full flow: Create customer → KYC → Subscription → Invoice → Payment
 
-
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 /// Full customer lifecycle: registration → KYC → subscription → invoice → payment
 #[ignore]
@@ -171,4 +170,3 @@ async fn test_customer_suspension_reactivation() {
     let cust = active.update(db).await.unwrap();
     assert_eq!(cust.status, "active");
 }
-

@@ -89,7 +89,9 @@ impl InstallationService {
 
         // Activate linked subscription
         if let Some(sub_id) = updated.subscription_id {
-            use crate::modules::subscription::domain::entities::{Subscription, SubscriptionActiveModel};
+            use crate::modules::subscription::domain::entities::{
+                Subscription, SubscriptionActiveModel,
+            };
             if let Some(sub) = Subscription::find_by_id(sub_id).one(db).await? {
                 let mut sub_active: SubscriptionActiveModel = sub.into();
                 sub_active.status = Set("active".to_string());
@@ -128,9 +130,12 @@ impl InstallationService {
     pub async fn list_equipment(
         db: &DatabaseConnection,
         order_id: i64,
-    ) -> Result<Vec<crate::modules::installation::domain::entities::installation_equipment::Model>, AppError> {
-        use crate::modules::installation::domain::entities::InstallationEquipment;
+    ) -> Result<
+        Vec<crate::modules::installation::domain::entities::installation_equipment::Model>,
+        AppError,
+    > {
         use crate::modules::installation::domain::entities::installation_equipment::Column;
+        use crate::modules::installation::domain::entities::InstallationEquipment;
         let items = InstallationEquipment::find()
             .filter(Column::InstallationOrderId.eq(order_id))
             .all(db)
@@ -146,7 +151,10 @@ impl InstallationService {
         serial_number: Option<String>,
         quantity: i32,
         notes: Option<String>,
-    ) -> Result<crate::modules::installation::domain::entities::installation_equipment::Model, AppError> {
+    ) -> Result<
+        crate::modules::installation::domain::entities::installation_equipment::Model,
+        AppError,
+    > {
         use crate::modules::installation::domain::entities::installation_equipment;
         let now = chrono::Utc::now();
         let item = installation_equipment::ActiveModel {
@@ -168,8 +176,13 @@ impl InstallationService {
         db: &DatabaseConnection,
         equipment_id: i64,
         status: &str,
-    ) -> Result<crate::modules::installation::domain::entities::installation_equipment::Model, AppError> {
-        use crate::modules::installation::domain::entities::{InstallationEquipment, installation_equipment};
+    ) -> Result<
+        crate::modules::installation::domain::entities::installation_equipment::Model,
+        AppError,
+    > {
+        use crate::modules::installation::domain::entities::{
+            installation_equipment, InstallationEquipment,
+        };
         let item = InstallationEquipment::find_by_id(equipment_id)
             .one(db)
             .await?
@@ -261,8 +274,8 @@ impl InstallationService {
         AppError,
     > {
         use crate::modules::installation::domain::entities::installation_order::Column;
-        let query = InstallationOrder::find()
-            .filter(Column::AssignedTechnicianId.eq(technician_id));
+        let query =
+            InstallationOrder::find().filter(Column::AssignedTechnicianId.eq(technician_id));
         let t = query.clone().count(db).await?;
         Ok((query.all(db).await?, t))
     }

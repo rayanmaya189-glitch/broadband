@@ -85,14 +85,18 @@ CREATE TABLE IF NOT EXISTS device_ports (
 CREATE INDEX IF NOT EXISTS idx_device_ports_device ON device_ports(device_id);
 
 -- Device Logs (will be partitioned by created_at)
+-- NOTE: device_id has NO FK to network_devices(id): PostgreSQL requires FK
+-- columns on a partitioned table to include the partition key (created_at),
+-- which is impossible here. Enforced at the application layer.
 CREATE TABLE IF NOT EXISTS device_logs (
-    id BIGSERIAL PRIMARY KEY,
-    device_id BIGINT NOT NULL REFERENCES network_devices(id),
+    id BIGSERIAL,
+    device_id BIGINT NOT NULL,
     level VARCHAR(10) NOT NULL CHECK (level IN ('info', 'warning', 'error', 'critical')),
     message TEXT NOT NULL,
     source VARCHAR(50),
     metadata JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 -- Create initial partition for current month
@@ -100,13 +104,17 @@ CREATE TABLE IF NOT EXISTS device_logs_2026_07 PARTITION OF device_logs
     FOR VALUES FROM ('2026-07-01') TO ('2026-08-01');
 
 -- Device Metrics (will be partitioned by recorded_at)
+-- NOTE: device_id has NO FK to network_devices(id): PostgreSQL requires FK
+-- columns on a partitioned table to include the partition key (recorded_at),
+-- which is impossible here. Enforced at the application layer.
 CREATE TABLE IF NOT EXISTS device_metrics (
-    id BIGSERIAL PRIMARY KEY,
-    device_id BIGINT NOT NULL REFERENCES network_devices(id),
+    id BIGSERIAL,
+    device_id BIGINT NOT NULL,
     metric_name VARCHAR(100) NOT NULL,
     metric_value DECIMAL(15,4) NOT NULL,
     unit VARCHAR(20),
-    recorded_at TIMESTAMPTZ DEFAULT NOW()
+    recorded_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, recorded_at)
 ) PARTITION BY RANGE (recorded_at);
 
 CREATE TABLE IF NOT EXISTS device_metrics_2026_07 PARTITION OF device_metrics

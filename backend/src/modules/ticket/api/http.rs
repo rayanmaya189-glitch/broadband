@@ -300,7 +300,8 @@ pub async fn update_ticket(
     Json(req): Json<UpdateTicketRequest>,
 ) -> Result<Json<TicketResponse>, AppError> {
     require_permission(&user, "ticket.update").map_err(|e| AppError::Forbidden(e.1))?;
-    let t = TicketService::update_ticket(&state.db, id, req.subject, req.priority, req.category).await?;
+    let t = TicketService::update_ticket(&state.db, id, req.subject, req.priority, req.category)
+        .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
         "ticket.updated",
@@ -367,7 +368,9 @@ pub async fn rate_ticket_satisfaction(
 ) -> Result<StatusCode, AppError> {
     require_permission(&user, "ticket.resolve").map_err(|e| AppError::Forbidden(e.1))?;
     if req.rating < 1 || req.rating > 5 {
-        return Err(AppError::Validation("Rating must be between 1 and 5".into()));
+        return Err(AppError::Validation(
+            "Rating must be between 1 and 5".into(),
+        ));
     }
     TicketService::rate_satisfaction(&state.db, id, req.rating, req.feedback).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
@@ -393,7 +396,8 @@ pub async fn list_my_assignments(
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "ticket.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let (tickets, total) = TicketService::list_my_assignments(&state.db, user.user_id, p.page(), p.limit()).await?;
+    let (tickets, total) =
+        TicketService::list_my_assignments(&state.db, user.user_id, p.page(), p.limit()).await?;
     let items: Vec<TicketResponse> = tickets
         .into_iter()
         .map(|t| TicketResponse {

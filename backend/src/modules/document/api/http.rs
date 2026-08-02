@@ -190,13 +190,9 @@ pub async fn get_download_url(
     let url = storage
         .presign_download(Some(&d.storage_bucket), &d.storage_key, 3600)
         .await?;
-    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1))
-        .to_rfc3339();
+    let expires_at = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
 
-    Ok(Json(DownloadUrlResponse {
-        url,
-        expires_at,
-    }))
+    Ok(Json(DownloadUrlResponse { url, expires_at }))
 }
 
 pub async fn list_entity_documents(

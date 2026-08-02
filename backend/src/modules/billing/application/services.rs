@@ -1,7 +1,7 @@
 use crate::modules::billing::domain::entities::{
     Discount, DiscountActiveModel, DiscountColumn, Invoice, InvoiceActiveModel, InvoiceColumn,
-    InvoiceLineItem, InvoiceLineItemActiveModel, InvoiceLineItemColumn, Payment, PaymentActiveModel,
-    PaymentColumn, Refund, RefundActiveModel,
+    InvoiceLineItem, InvoiceLineItemActiveModel, InvoiceLineItemColumn, Payment,
+    PaymentActiveModel, PaymentColumn, Refund, RefundActiveModel,
 };
 use crate::modules::billing::domain::rules::tax_service;
 use crate::shared::errors::AppError;
@@ -59,15 +59,16 @@ impl BillingService {
         let invoice_number = new_business_number("INV");
 
         // Determine place of supply from customer state (default: Maharashtra for intra-state)
-        let place_of_supply = Self::get_customer_state(db, customer_id).await
+        let place_of_supply = Self::get_customer_state(db, customer_id)
+            .await
             .unwrap_or_else(|| "Maharashtra".to_string());
-        let supplier_state = std::env::var("SUPPLIER_STATE")
-            .unwrap_or_else(|_| "Maharashtra".to_string());
+        let supplier_state =
+            std::env::var("SUPPLIER_STATE").unwrap_or_else(|_| "Maharashtra".to_string());
         let is_intra_state = tax_service::is_intra_state(&supplier_state, &place_of_supply);
         let gst = tax_service::calculate_gst_breakdown(total_amount, is_intra_state);
 
-        let supplier_gstin = std::env::var("SUPPLIER_GSTIN")
-            .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string());
+        let supplier_gstin =
+            std::env::var("SUPPLIER_GSTIN").unwrap_or_else(|_| "27AABCA1234H1Z5".to_string());
 
         let new_inv = InvoiceActiveModel {
             invoice_number: Set(invoice_number),
@@ -142,8 +143,14 @@ impl BillingService {
         if let Some(i) = inv {
             let total_amount = i.total_amount;
             let total_paid = crate::modules::billing::domain::entities::payment::Entity::find()
-                .filter(crate::modules::billing::domain::entities::payment::Column::InvoiceId.eq(invoice_id))
-                .filter(crate::modules::billing::domain::entities::payment::Column::Status.eq("completed"))
+                .filter(
+                    crate::modules::billing::domain::entities::payment::Column::InvoiceId
+                        .eq(invoice_id),
+                )
+                .filter(
+                    crate::modules::billing::domain::entities::payment::Column::Status
+                        .eq("completed"),
+                )
                 .all(&txn)
                 .await?
                 .iter()
@@ -249,14 +256,15 @@ impl BillingService {
             let invoice_number = new_business_number("INV");
 
             // Calculate GST for auto-generated invoice
-            let place_of_supply = Self::get_customer_state(db, sub.customer_id).await
+            let place_of_supply = Self::get_customer_state(db, sub.customer_id)
+                .await
                 .unwrap_or_else(|| "Maharashtra".to_string());
-            let supplier_state = std::env::var("SUPPLIER_STATE")
-                .unwrap_or_else(|_| "Maharashtra".to_string());
+            let supplier_state =
+                std::env::var("SUPPLIER_STATE").unwrap_or_else(|_| "Maharashtra".to_string());
             let is_intra_state = tax_service::is_intra_state(&supplier_state, &place_of_supply);
             let gst = tax_service::calculate_gst_breakdown(plan_price, is_intra_state);
-            let supplier_gstin = std::env::var("SUPPLIER_GSTIN")
-                .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string());
+            let supplier_gstin =
+                std::env::var("SUPPLIER_GSTIN").unwrap_or_else(|_| "27AABCA1234H1Z5".to_string());
 
             let new_inv = InvoiceActiveModel {
                 invoice_number: Set(invoice_number),
@@ -389,7 +397,9 @@ impl BillingService {
         let payment = Payment::find_by_id(refund.payment_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("Payment {} not found", refund.payment_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Payment {} not found", refund.payment_id))
+            })?;
 
         let refund_id = refund.id;
         let refund_number = refund.refund_number.clone();
@@ -443,7 +453,12 @@ impl BillingService {
                         ));
                     }
                     let resp = adapter
-                        .refund_payment(&gateway_txn_id, amount, &payment.currency, reason.as_deref())
+                        .refund_payment(
+                            &gateway_txn_id,
+                            amount,
+                            &payment.currency,
+                            reason.as_deref(),
+                        )
                         .await?;
                     gateway_refund_id = Some(resp.refund_id);
                     gateway_refund_status = Some(resp.status);
@@ -457,7 +472,12 @@ impl BillingService {
                         ));
                     }
                     let resp = adapter
-                        .refund_payment(&gateway_txn_id, amount, &payment.currency, reason.as_deref())
+                        .refund_payment(
+                            &gateway_txn_id,
+                            amount,
+                            &payment.currency,
+                            reason.as_deref(),
+                        )
                         .await?;
                     gateway_refund_id = Some(resp.refund_id);
                     gateway_refund_status = Some(resp.status);
@@ -470,7 +490,12 @@ impl BillingService {
                         ));
                     }
                     let resp = adapter
-                        .refund_payment(&gateway_txn_id, amount, &payment.currency, reason.as_deref())
+                        .refund_payment(
+                            &gateway_txn_id,
+                            amount,
+                            &payment.currency,
+                            reason.as_deref(),
+                        )
                         .await?;
                     gateway_refund_id = Some(resp.refund_id);
                     gateway_refund_status = Some(resp.status);
@@ -548,14 +573,28 @@ impl BillingService {
             "status": status,
         });
         outbox::insert_outbox_event(
-            &txn, "refund.approved", "refund", refund_id,
-            payload.clone(), None, None, None,
-        ).await?;
+            &txn,
+            "refund.approved",
+            "refund",
+            refund_id,
+            payload.clone(),
+            None,
+            None,
+            None,
+        )
+        .await?;
         if status == "processed" {
             outbox::insert_outbox_event(
-                &txn, "refund.processed", "refund", refund_id,
-                payload, None, None, None,
-            ).await?;
+                &txn,
+                "refund.processed",
+                "refund",
+                refund_id,
+                payload,
+                None,
+                None,
+                None,
+            )
+            .await?;
         }
 
         txn.commit().await?;
@@ -667,7 +706,8 @@ impl BillingService {
     pub async fn list_line_items(
         db: &DatabaseConnection,
         invoice_id: i64,
-    ) -> Result<Vec<crate::modules::billing::domain::entities::invoice_line_item::Model>, AppError> {
+    ) -> Result<Vec<crate::modules::billing::domain::entities::invoice_line_item::Model>, AppError>
+    {
         let items = InvoiceLineItem::find()
             .filter(InvoiceLineItemColumn::InvoiceId.eq(invoice_id))
             .all(db)
@@ -690,7 +730,8 @@ impl BillingService {
         let is_intra_state = inv.place_of_supply_state.to_lowercase() == "maharashtra";
         let gst = tax_service::calculate_gst_breakdown(amount, is_intra_state);
         let tax_type = if is_intra_state { "CGST_SGST" } else { "IGST" };
-        let default_hsn = hsn_sac_code.unwrap_or_else(|| tax_service::SAC_INTERNET_ACCESS.to_string());
+        let default_hsn =
+            hsn_sac_code.unwrap_or_else(|| tax_service::SAC_INTERNET_ACCESS.to_string());
 
         let now = chrono::Utc::now();
         let item = InvoiceLineItemActiveModel {
@@ -727,7 +768,9 @@ impl BillingService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Line item {} not found", item_id)))?;
         if item.invoice_id != invoice_id {
-            return Err(AppError::Validation("Line item does not belong to this invoice".into()));
+            return Err(AppError::Validation(
+                "Line item does not belong to this invoice".into(),
+            ));
         }
         InvoiceLineItem::delete_by_id(item_id).exec(db).await?;
         Self::recalculate_invoice_totals(db, invoice_id).await?;
@@ -806,7 +849,9 @@ impl BillingService {
         let note = credit_debit_note::Entity::find_by_id(note_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("Credit/debit note {} not found", note_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Credit/debit note {} not found", note_id))
+            })?;
         if note.status != "pending" {
             return Err(AppError::Validation("Note is not in pending status".into()));
         }

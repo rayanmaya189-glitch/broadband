@@ -84,12 +84,23 @@ impl ComplianceService {
         }
 
         // Publish outbox event
-        let evt_type = if status == "verified" { "kyc.verified" } else { "kyc.rejected" };
+        let evt_type = if status == "verified" {
+            "kyc.verified"
+        } else {
+            "kyc.rejected"
+        };
         crate::infrastructure::messaging::outbox::insert_outbox_event(
-            db, evt_type, "kyc", kyc_id,
+            db,
+            evt_type,
+            "kyc",
+            kyc_id,
             serde_json::json!({"customer_id": customer_id, "status": status}),
-            None, None, None,
-        ).await.ok();
+            None,
+            None,
+            None,
+        )
+        .await
+        .ok();
 
         Ok(updated)
     }

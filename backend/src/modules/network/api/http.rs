@@ -612,7 +612,11 @@ pub async fn get_topology(
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "network.vlan.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let bid = if user.is_company_wide { None } else { user.branch_id };
+    let bid = if user.is_company_wide {
+        None
+    } else {
+        user.branch_id
+    };
     let topology = NetworkService::get_topology(&state.db, bid).await?;
     Ok(Json(topology))
 }

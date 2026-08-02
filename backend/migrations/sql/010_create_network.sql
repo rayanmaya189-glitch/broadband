@@ -181,18 +181,21 @@ CREATE INDEX IF NOT EXISTS idx_mac_bindings_customer ON mac_bindings(customer_id
 CREATE INDEX IF NOT EXISTS idx_mac_bindings_mac ON mac_bindings(mac_address);
 
 -- Customer Sessions (active online sessions)
+-- NOTE: no inline FKs - PostgreSQL requires FK columns on a partitioned table
+-- to include the partition key (created_at), which is impossible here.
+-- Enforced at the application layer.
 CREATE TABLE IF NOT EXISTS customer_sessions (
-    id BIGSERIAL PRIMARY KEY,
-    branch_id BIGINT NOT NULL REFERENCES branches(id),
+    id BIGSERIAL,
+    branch_id BIGINT NOT NULL,
     customer_id BIGINT NOT NULL,
     subscription_id BIGINT NOT NULL,
-    pppoe_session_id BIGINT REFERENCES pppoe_sessions(id),
-    dhcp_lease_id BIGINT REFERENCES dhcp_leases(id),
+    pppoe_session_id BIGINT,
+    dhcp_lease_id BIGINT,
     mac_address MACADDR NOT NULL,
     ip_address INET NOT NULL,
-    device_id BIGINT REFERENCES network_devices(id),
+    device_id BIGINT,
     port_id BIGINT,
-    vlan_id BIGINT REFERENCES vlans(id),
+    vlan_id BIGINT,
     connected_at TIMESTAMPTZ DEFAULT NOW(),
     disconnected_at TIMESTAMPTZ,
     last_activity_at TIMESTAMPTZ DEFAULT NOW(),
@@ -201,7 +204,8 @@ CREATE TABLE IF NOT EXISTS customer_sessions (
     is_online BOOLEAN DEFAULT TRUE,
     latency_ms DECIMAL(7,2),
     packet_loss_percent DECIMAL(5,2) DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 CREATE TABLE IF NOT EXISTS customer_sessions_2026_07 PARTITION OF customer_sessions

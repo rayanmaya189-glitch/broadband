@@ -340,7 +340,11 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Respo
 /// SECURITY: Branch JWT tokens without user context fall back to IP-based limiting.
 fn extract_client_id(request: &Request) -> String {
     // 1. Check for API key in X-API-Key header — use hash for rate limit key
-    if let Some(api_key) = request.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
+    if let Some(api_key) = request
+        .headers()
+        .get("x-api-key")
+        .and_then(|v| v.to_str().ok())
+    {
         // Use first 16 chars as identifier (not the full key)
         let prefix: String = api_key.chars().take(16).collect();
         return format!("apikey:{}", prefix);

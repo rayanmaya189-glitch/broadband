@@ -443,8 +443,7 @@ pub async fn request_refund(
     user: UserContext,
     Json(req): Json<RequestRefundRequest>,
 ) -> Result<(StatusCode, Json<RefundResponse>), AppError> {
-    require_permission(&user, "billing.invoice.refund")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "billing.invoice.refund").map_err(|e| AppError::Forbidden(e.1))?;
     let amt: sea_orm::prelude::Decimal = req
         .amount
         .parse()
@@ -452,8 +451,16 @@ pub async fn request_refund(
     if amt <= sea_orm::prelude::Decimal::ZERO {
         return Err(AppError::Validation("Amount must be positive".into()));
     }
-    let refund =
-        BillingService::request_refund(&state.db, req.payment_id, req.invoice_id, req.customer_id, amt, req.reason, user.user_id).await?;
+    let refund = BillingService::request_refund(
+        &state.db,
+        req.payment_id,
+        req.invoice_id,
+        req.customer_id,
+        amt,
+        req.reason,
+        user.user_id,
+    )
+    .await?;
     Ok((
         StatusCode::CREATED,
         Json(RefundResponse {
@@ -474,8 +481,7 @@ pub async fn approve_refund(
     user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<RefundResponse>, AppError> {
-    require_permission(&user, "billing.invoice.refund")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "billing.invoice.refund").map_err(|e| AppError::Forbidden(e.1))?;
     let refund = BillingService::approve_refund(&state.db, id, user.user_id).await?;
     Ok(Json(RefundResponse {
         id: refund.id,
@@ -495,8 +501,7 @@ pub async fn reject_refund(
     Path(id): Path<i64>,
     Json(req): Json<VoidInvoiceRequest>,
 ) -> Result<Json<RefundResponse>, AppError> {
-    require_permission(&user, "billing.invoice.refund")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "billing.invoice.refund").map_err(|e| AppError::Forbidden(e.1))?;
     let refund = BillingService::reject_refund(&state.db, id, user.user_id, &req.reason).await?;
     Ok(Json(RefundResponse {
         id: refund.id,
@@ -563,8 +568,7 @@ pub async fn create_discount(
     user: UserContext,
     Json(req): Json<CreateDiscountRequest>,
 ) -> Result<(StatusCode, Json<DiscountResponse>), AppError> {
-    require_permission(&user, "billing.discount.create")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "billing.discount.create").map_err(|e| AppError::Forbidden(e.1))?;
     let val: sea_orm::prelude::Decimal = req
         .value
         .parse()
@@ -681,20 +685,23 @@ pub async fn list_invoice_items(
 ) -> Result<Json<Vec<LineItemResponse>>, AppError> {
     let items = BillingService::list_line_items(&state.db, id).await?;
     Ok(Json(
-        items.into_iter().map(|i| LineItemResponse {
-            id: i.id,
-            invoice_id: i.invoice_id,
-            description: i.description,
-            quantity: i.quantity.to_string(),
-            unit_price: i.unit_price.to_string(),
-            amount: i.amount.to_string(),
-            tax_rate: i.tax_rate.to_string(),
-            tax_amount: i.tax_amount.to_string(),
-            hsn_sac_code: i.hsn_sac_code,
-            cgst_amount: i.cgst_amount.to_string(),
-            sgst_amount: i.sgst_amount.to_string(),
-            igst_amount: i.igst_amount.to_string(),
-        }).collect(),
+        items
+            .into_iter()
+            .map(|i| LineItemResponse {
+                id: i.id,
+                invoice_id: i.invoice_id,
+                description: i.description,
+                quantity: i.quantity.to_string(),
+                unit_price: i.unit_price.to_string(),
+                amount: i.amount.to_string(),
+                tax_rate: i.tax_rate.to_string(),
+                tax_amount: i.tax_amount.to_string(),
+                hsn_sac_code: i.hsn_sac_code,
+                cgst_amount: i.cgst_amount.to_string(),
+                sgst_amount: i.sgst_amount.to_string(),
+                igst_amount: i.igst_amount.to_string(),
+            })
+            .collect(),
     ))
 }
 
@@ -706,9 +713,17 @@ pub async fn add_invoice_item(
     Json(req): Json<AddLineItemRequest>,
 ) -> Result<(StatusCode, Json<LineItemResponse>), AppError> {
     require_permission(&user, "billing.invoice.create").map_err(|e| AppError::Forbidden(e.1))?;
-    let qty: sea_orm::prelude::Decimal = req.quantity.parse().map_err(|_| AppError::Validation("Invalid quantity".into()))?;
-    let price: sea_orm::prelude::Decimal = req.unit_price.parse().map_err(|_| AppError::Validation("Invalid unit_price".into()))?;
-    let item = BillingService::add_line_item(&state.db, id, req.description, qty, price, req.hsn_sac_code).await?;
+    let qty: sea_orm::prelude::Decimal = req
+        .quantity
+        .parse()
+        .map_err(|_| AppError::Validation("Invalid quantity".into()))?;
+    let price: sea_orm::prelude::Decimal = req
+        .unit_price
+        .parse()
+        .map_err(|_| AppError::Validation("Invalid unit_price".into()))?;
+    let item =
+        BillingService::add_line_item(&state.db, id, req.description, qty, price, req.hsn_sac_code)
+            .await?;
     Ok((
         StatusCode::CREATED,
         Json(LineItemResponse {
@@ -768,7 +783,9 @@ pub async fn calculate_tds(
 ) -> Result<Json<TdsCalculationResponse>, AppError> {
     require_permission(&user, "billing.tds.calculate").map_err(|e| AppError::Forbidden(e.1))?;
 
-    let amount: sea_orm::prelude::Decimal = req.amount.parse()
+    let amount: sea_orm::prelude::Decimal = req
+        .amount
+        .parse()
         .map_err(|_| AppError::Validation("Invalid amount".into()))?;
 
     let section = match req.section.as_str() {
@@ -776,7 +793,12 @@ pub async fn calculate_tds(
         "194J" => crate::modules::billing::domain::rules::tds_service::TdsSection::Professional,
         "194H" => crate::modules::billing::domain::rules::tds_service::TdsSection::Commission,
         "194A" => crate::modules::billing::domain::rules::tds_service::TdsSection::Interest,
-        _ => return Err(AppError::Validation(format!("Invalid TDS section: {}", req.section))),
+        _ => {
+            return Err(AppError::Validation(format!(
+                "Invalid TDS section: {}",
+                req.section
+            )))
+        }
     };
 
     let result = crate::modules::billing::domain::rules::tds_service::calculate_tds(
@@ -800,7 +822,7 @@ pub async fn calculate_tds(
 
 #[derive(Debug, Deserialize)]
 pub struct TdsQuarterlyReturnRequest {
-    pub quarter: String, // Q1, Q2, Q3, Q4
+    pub quarter: String,        // Q1, Q2, Q3, Q4
     pub financial_year: String, // e.g. "2025-26"
     pub entries: Vec<TdsReturnEntryRequest>,
 }
@@ -838,10 +860,11 @@ pub async fn generate_tds_quarterly_return(
 
     let tds_pan = std::env::var("TDS_PAN").unwrap_or_default();
 
-    let entries: Vec<crate::modules::billing::domain::rules::tds_service::TdsReturnEntry> =
-        req.entries
-            .into_iter()
-            .map(|e| crate::modules::billing::domain::rules::tds_service::TdsReturnEntry {
+    let entries: Vec<crate::modules::billing::domain::rules::tds_service::TdsReturnEntry> = req
+        .entries
+        .into_iter()
+        .map(
+            |e| crate::modules::billing::domain::rules::tds_service::TdsReturnEntry {
                 deductee_name: e.deductee_name,
                 deductee_pan: e.deductee_pan,
                 section: e.section,
@@ -851,8 +874,9 @@ pub async fn generate_tds_quarterly_return(
                 tds_amount: e.tds_amount.parse().unwrap_or_default(),
                 tds_deposited: e.tds_deposited.parse().unwrap_or_default(),
                 status: "deposited".to_string(),
-            })
-            .collect();
+            },
+        )
+        .collect();
 
     let data = crate::modules::billing::domain::rules::tds_service::generate_quarterly_tds_return(
         entries,

@@ -50,7 +50,8 @@ async fn main() -> anyhow::Result<()> {
         settings.db_min_connections,
         settings.db_connect_timeout_secs,
         settings.db_idle_timeout_secs,
-    ).await?;
+    )
+    .await?;
     tracing::info!("Database pool created");
 
     // Create Redis pool
@@ -92,7 +93,11 @@ async fn main() -> anyhow::Result<()> {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
                 loop {
                     interval.tick().await;
-                    match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(&nats_url).await {
+                    match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(
+                        &nats_url,
+                    )
+                    .await
+                    {
                         Ok(_client) => {
                             tracing::info!("NATS reconnection successful");
                             // Note: can't easily hot-swap into AppState, but at least we know it's back
@@ -212,8 +217,7 @@ async fn main() -> anyhow::Result<()> {
                 async move {
                     let mut req = req;
                     req.extensions_mut().insert(db);
-                    aeroxe_backend::shared::middleware::audit::audit_middleware(req, next)
-                        .await
+                    aeroxe_backend::shared::middleware::audit::audit_middleware(req, next).await
                 }
             }
         }))
@@ -459,7 +463,8 @@ async fn main() -> anyhow::Result<()> {
             let db = worker_db.clone();
             let wm = worker_metrics.clone();
             let poll = worker_settings.worker_radius_poll_interval_secs;
-            let worker = aeroxe_backend::workers::radius_accounting_worker::RadiusAccountingWorker::new(db);
+            let worker =
+                aeroxe_backend::workers::radius_accounting_worker::RadiusAccountingWorker::new(db);
             let mut rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll));
@@ -673,10 +678,7 @@ async fn main() -> anyhow::Result<()> {
             tracing::error!(error = %e, "Server task panicked during shutdown");
         }
         Err(_) => {
-            tracing::warn!(
-                drain_secs = 30,
-                "Server drain timed out — forcing shutdown"
-            );
+            tracing::warn!(drain_secs = 30, "Server drain timed out — forcing shutdown");
         }
     }
 

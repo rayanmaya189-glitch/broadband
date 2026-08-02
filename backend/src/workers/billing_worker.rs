@@ -1,9 +1,9 @@
+use rust_decimal_macros::dec;
+use sea_orm::sea_query::{LockBehavior, LockType};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
-use sea_orm::sea_query::{LockBehavior, LockType};
-use rust_decimal_macros::dec;
 use tracing::{error, info};
 
 use crate::infrastructure::messaging::outbox;
@@ -128,7 +128,10 @@ impl BillingWorker {
 
         // Find overdue invoices that haven't had late fees applied yet
         let overdue_invoices = invoice::Entity::find()
-            .filter(invoice::Column::DueDate.lt(today - chrono::Duration::days(late_fee_threshold_days)))
+            .filter(
+                invoice::Column::DueDate
+                    .lt(today - chrono::Duration::days(late_fee_threshold_days)),
+            )
             .filter(invoice::Column::Status.is_in(vec!["overdue"]))
             .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
             .all(&txn)
@@ -149,13 +152,15 @@ impl BillingWorker {
 
             // Determine intra/inter state for GST on late fee
             let is_intra_state = inv.place_of_supply_state.to_lowercase() == "maharashtra";
-            let late_fee_gst = tax_service::calculate_late_fee_with_gst(late_fee_base, is_intra_state);
+            let late_fee_gst =
+                tax_service::calculate_late_fee_with_gst(late_fee_base, is_intra_state);
             let total_late_fee = late_fee_gst.late_fee_subtotal + late_fee_gst.gst.total_tax;
 
             let mut active: invoice::ActiveModel = inv.clone().into();
             active.late_fee_subtotal = Set(late_fee_gst.late_fee_subtotal);
             active.late_fee_gst = Set(late_fee_gst.gst.total_tax);
-            active.total_amount = Set(inv.subtotal + inv.discount_amount + inv.tax_amount + total_late_fee);
+            active.total_amount =
+                Set(inv.subtotal + inv.discount_amount + inv.tax_amount + total_late_fee);
             active.updated_at = Set(chrono::Utc::now());
 
             if let Err(e) = active.update(&txn).await {
@@ -389,7 +394,8 @@ impl BillingWorker {
                 .await;
             let Ok(Some(sub)) = sub else { continue };
 
-            let bytes_used = Some(sub.bytes_used.unwrap_or(0) + session.bytes_in + session.bytes_out);
+            let bytes_used =
+                Some(sub.bytes_used.unwrap_or(0) + session.bytes_in + session.bytes_out);
             let mut active: subscription::ActiveModel = sub.into();
             active.bytes_used = Set(bytes_used);
             active.last_session_duration = Set(Some(session.session_duration_seconds));
@@ -402,7 +408,10 @@ impl BillingWorker {
             synced += 1;
         }
 
-        info!(count = synced, "Billing worker: usage synced from PPPoE sessions");
+        info!(
+            count = synced,
+            "Billing worker: usage synced from PPPoE sessions"
+        );
         Ok(())
     }
 
@@ -428,11 +437,16 @@ impl BillingWorker {
 
             let new_recognized = entry.recognized_amount + entry.monthly_recognition_amount;
             let new_deferred = entry.total_amount - new_recognized;
-            let (final_recognized, final_deferred, new_status) = if new_deferred <= rust_decimal::Decimal::ZERO {
-                (entry.total_amount, rust_decimal::Decimal::ZERO, "fully_recognized".to_string())
-            } else {
-                (new_recognized, new_deferred, "active".to_string())
-            };
+            let (final_recognized, final_deferred, new_status) =
+                if new_deferred <= rust_decimal::Decimal::ZERO {
+                    (
+                        entry.total_amount,
+                        rust_decimal::Decimal::ZERO,
+                        "fully_recognized".to_string(),
+                    )
+                } else {
+                    (new_recognized, new_deferred, "active".to_string())
+                };
 
             let mut active: deferred_revenue::ActiveModel = entry.clone().into();
             active.recognized_amount = Set(final_recognized);
@@ -448,7 +462,10 @@ impl BillingWorker {
         }
 
         txn.commit().await?;
-        info!(count = recognized_count, "Billing worker: deferred revenue recognized");
+        info!(
+            count = recognized_count,
+            "Billing worker: deferred revenue recognized"
+        );
         Ok(())
     }
 
@@ -497,11 +514,13 @@ impl BillingWorker {
         use crate::modules::subscription::application::services::SubscriptionService;
 
         info!("Billing worker: checking due subscription renewals");
-        let renewed =
-            SubscriptionService::renew_due_subscriptions(&self.db)
-                .await
-                .map_err(|e| anyhow::anyhow!("Renewal sweep failed: {}", e))?;
-        info!(renewed = renewed, "Billing worker: subscription renewals processed");
+        let renewed = SubscriptionService::renew_due_subscriptions(&self.db)
+            .await
+            .map_err(|e| anyhow::anyhow!("Renewal sweep failed: {}", e))?;
+        info!(
+            renewed = renewed,
+            "Billing worker: subscription renewals processed"
+        );
         Ok(())
     }
 }

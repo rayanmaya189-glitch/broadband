@@ -1,8 +1,8 @@
+use sea_orm::sea_query::{LockBehavior, LockType};
 use sea_orm::{
     prelude::Expr, ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
 };
-use sea_orm::sea_query::{LockBehavior, LockType};
 use serde_json::Value;
 use tracing::{debug, warn};
 
@@ -79,7 +79,10 @@ pub async fn fetch_unpublished_events(
 }
 
 /// Mark an event as published in the outbox.
-pub async fn mark_event_published(db: &impl ConnectionTrait, event_id: &str) -> Result<(), AppError> {
+pub async fn mark_event_published(
+    db: &impl ConnectionTrait,
+    event_id: &str,
+) -> Result<(), AppError> {
     let result = OutboxEventEntity::update_many()
         .col_expr(outbox_entity::Column::Published, Expr::value(true))
         .filter(outbox_entity::Column::EventId.eq(event_id))

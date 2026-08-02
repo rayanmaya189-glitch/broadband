@@ -221,8 +221,7 @@ pub async fn create_alert(
     user: UserContext,
     Json(request): Json<CreateAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_permission(&user, "monitoring.alert.create")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "monitoring.alert.create").map_err(|e| AppError::Forbidden(e.1))?;
     let now = chrono::Utc::now();
     let active = monitoring_alert::ActiveModel {
         device_id: Set(request.device_id),
@@ -276,8 +275,7 @@ pub async fn resolve_alert(
     Path(alert_id): Path<i64>,
     Json(request): Json<ResolveAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_permission(&user, "monitoring.alert.resolve")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "monitoring.alert.resolve").map_err(|e| AppError::Forbidden(e.1))?;
     let alert = monitoring_alert::Entity::find_by_id(alert_id)
         .one(&state.db)
         .await?

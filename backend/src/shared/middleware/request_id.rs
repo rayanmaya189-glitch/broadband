@@ -22,9 +22,7 @@ pub async fn request_id_middleware(mut req: Request, next: Next) -> Response {
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            crate::shared::utils::uuid_v7::new_v7_string()
-        });
+        .unwrap_or_else(crate::shared::utils::uuid_v7::new_v7_string);
 
     // Insert into request extensions so handlers can access it
     req.extensions_mut().insert(RequestId(request_id.clone()));

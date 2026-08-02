@@ -221,7 +221,10 @@ impl GatewayAdapter for RazorpayAdapter {
 
         let mut notes = serde_json::Map::new();
         if let Some(r) = reason {
-            notes.insert("reason".to_string(), serde_json::Value::String(r.to_string()));
+            notes.insert(
+                "reason".to_string(),
+                serde_json::Value::String(r.to_string()),
+            );
         }
 
         let body = serde_json::json!({
@@ -251,10 +254,9 @@ impl GatewayAdapter for RazorpayAdapter {
             )));
         }
 
-        let refund: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| AppError::External(format!("Failed to parse Razorpay refund response: {}", e)))?;
+        let refund: serde_json::Value = response.json().await.map_err(|e| {
+            AppError::External(format!("Failed to parse Razorpay refund response: {}", e))
+        })?;
 
         let refund_id = refund["id"].as_str().unwrap_or("").to_string();
         let rz_status = refund["status"].as_str().unwrap_or("pending");
@@ -503,15 +505,18 @@ impl GatewayAdapter for PayuAdapter {
             )));
         }
 
-        let parsed: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| AppError::External(format!("Failed to parse PayU refund response: {}", e)))?;
+        let parsed: serde_json::Value = response.json().await.map_err(|e| {
+            AppError::External(format!("Failed to parse PayU refund response: {}", e))
+        })?;
 
         let payu_status = parsed["status"].as_i64().unwrap_or(0);
         let refund_id = parsed["refund_id"].as_str().unwrap_or("").to_string();
         let msg = parsed["msg"].as_str().unwrap_or("").to_string();
-        let status = if payu_status == 1 { "processed" } else { "failed" };
+        let status = if payu_status == 1 {
+            "processed"
+        } else {
+            "failed"
+        };
 
         info!(refund_id = %refund_id, status = %status, msg = %msg, "PayU refund issued");
 
@@ -537,15 +542,11 @@ pub struct StripeAdapter {
 
 impl StripeAdapter {
     pub fn from_env() -> Self {
-        let is_live = std::env::var("STRIPE_LIVE").unwrap_or_default() == "true";
         Self {
             secret_key: std::env::var("STRIPE_SECRET_KEY").unwrap_or_default(),
             webhook_signing_secret: std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
-            api_endpoint: if is_live {
-                "https://api.stripe.com/v1".to_string()
-            } else {
-                "https://api.stripe.com/v1".to_string() // same API, test mode via key prefix
-            },
+            // Same API endpoint; test vs live mode is chosen via key prefix.
+            api_endpoint: "https://api.stripe.com/v1".to_string(),
         }
     }
 
@@ -577,9 +578,25 @@ impl GatewayAdapter for StripeAdapter {
             .form(&[
                 ("amount", amount_paise.to_string()),
                 ("currency", currency.to_lowercase()),
-                ("receipt_email", metadata["customer_email"].as_str().unwrap_or("").to_string()),
-                ("description", format!("{}: {}", receipt, metadata["customer_name"].as_str().unwrap_or("Customer"))),
-                ("metadata[customer_id]", metadata["customer_id"].as_str().unwrap_or("").to_string()),
+                (
+                    "receipt_email",
+                    metadata["customer_email"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
+                ),
+                (
+                    "description",
+                    format!(
+                        "{}: {}",
+                        receipt,
+                        metadata["customer_name"].as_str().unwrap_or("Customer")
+                    ),
+                ),
+                (
+                    "metadata[customer_id]",
+                    metadata["customer_id"].as_str().unwrap_or("").to_string(),
+                ),
                 ("metadata[receipt]", receipt.to_string()),
             ])
             .send()
@@ -734,10 +751,9 @@ impl GatewayAdapter for StripeAdapter {
             )));
         }
 
-        let refund: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| AppError::External(format!("Failed to parse Stripe refund response: {}", e)))?;
+        let refund: serde_json::Value = response.json().await.map_err(|e| {
+            AppError::External(format!("Failed to parse Stripe refund response: {}", e))
+        })?;
 
         let refund_id = refund["id"].as_str().unwrap_or("").to_string();
         let stripe_status = refund["status"].as_str().unwrap_or("pending");

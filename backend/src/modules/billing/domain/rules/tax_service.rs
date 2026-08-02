@@ -65,10 +65,7 @@ pub fn is_intra_state(supplier_state: &str, place_of_supply: &str) -> bool {
 }
 
 /// Calculate GST on a taxable amount
-pub fn calculate_gst_breakdown(
-    taxable_amount: Decimal,
-    is_intra_state: bool,
-) -> GstBreakdown {
+pub fn calculate_gst_breakdown(taxable_amount: Decimal, is_intra_state: bool) -> GstBreakdown {
     let cgst_rate = CGST_RATE / dec!(100);
     let sgst_rate = SGST_RATE / dec!(100);
     let igst_rate = IGST_RATE / dec!(100);
@@ -94,7 +91,11 @@ pub fn calculate_gst_breakdown(
         taxable_amount,
         cgst_rate: CGST_RATE,
         sgst_rate: SGST_RATE,
-        igst_rate: if is_intra_state { Decimal::ZERO } else { IGST_RATE },
+        igst_rate: if is_intra_state {
+            Decimal::ZERO
+        } else {
+            IGST_RATE
+        },
         cgst_amount,
         sgst_amount,
         igst_amount,
@@ -103,10 +104,7 @@ pub fn calculate_gst_breakdown(
 }
 
 /// Calculate late fee with GST
-pub fn calculate_late_fee_with_gst(
-    late_fee_base: Decimal,
-    is_intra_state: bool,
-) -> LateFeeGst {
+pub fn calculate_late_fee_with_gst(late_fee_base: Decimal, is_intra_state: bool) -> LateFeeGst {
     let gst = calculate_gst_breakdown(late_fee_base, is_intra_state);
     LateFeeGst {
         late_fee_subtotal: late_fee_base,

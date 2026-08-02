@@ -1,9 +1,8 @@
 //! End-to-end test: Device Management Workflow
 //! Tests: Device registration → Status update → Port management
 
-
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 /// Test device registration and status lifecycle
 #[ignore]
@@ -103,4 +102,3 @@ async fn test_device_maintenance() {
     assert_eq!(device.status, "online");
     assert_eq!(device.health_score, Some(95));
 }
-

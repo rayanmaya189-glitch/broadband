@@ -4,11 +4,11 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::modules::gateway::application::services::GatewayService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use crate::modules::gateway::application::services::GatewayService;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 // ── Rate Limit Rules ──
 
@@ -40,15 +40,20 @@ pub async fn list_rate_limit_rules(
     _user: UserContext,
 ) -> Result<Json<Vec<RateLimitRuleResponse>>, AppError> {
     let rules = GatewayService::list_rate_limit_rules(&state.db).await?;
-    Ok(Json(rules.into_iter().map(|r| RateLimitRuleResponse {
-        id: r.id,
-        route_pattern: r.route_pattern,
-        methods: r.methods,
-        max_requests: r.max_requests,
-        window_seconds: r.window_seconds,
-        role: r.role,
-        is_active: r.is_active,
-    }).collect()))
+    Ok(Json(
+        rules
+            .into_iter()
+            .map(|r| RateLimitRuleResponse {
+                id: r.id,
+                route_pattern: r.route_pattern,
+                methods: r.methods,
+                max_requests: r.max_requests,
+                window_seconds: r.window_seconds,
+                role: r.role,
+                is_active: r.is_active,
+            })
+            .collect(),
+    ))
 }
 
 pub async fn create_rate_limit_rule(
@@ -58,21 +63,41 @@ pub async fn create_rate_limit_rule(
 ) -> Result<(StatusCode, Json<RateLimitRuleResponse>), AppError> {
     require_permission(&user, "gateway.ratelimit.create").map_err(|e| AppError::Forbidden(e.1))?;
     let rule = GatewayService::create_rate_limit_rule(
-        &state.db, req.route_pattern, req.methods, req.max_requests,
-        req.window_seconds, req.role, req.branch_id,
-    ).await?;
+        &state.db,
+        req.route_pattern,
+        req.methods,
+        req.max_requests,
+        req.window_seconds,
+        req.role,
+        req.branch_id,
+    )
+    .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "gateway.ratelimit.created", "rate_limit_rule", rule.id,
-        serde_json::json!({"rule_id": rule.id, "route_pattern": rule.route_pattern}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "gateway.ratelimit.created",
+        "rate_limit_rule",
+        rule.id,
+        serde_json::json!({"rule_id": rule.id, "route_pattern": rule.route_pattern}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish gateway.ratelimit.created event");
     }
-    Ok((StatusCode::CREATED, Json(RateLimitRuleResponse {
-        id: rule.id, route_pattern: rule.route_pattern, methods: rule.methods,
-        max_requests: rule.max_requests, window_seconds: rule.window_seconds,
-        role: rule.role, is_active: rule.is_active,
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(RateLimitRuleResponse {
+            id: rule.id,
+            route_pattern: rule.route_pattern,
+            methods: rule.methods,
+            max_requests: rule.max_requests,
+            window_seconds: rule.window_seconds,
+            role: rule.role,
+            is_active: rule.is_active,
+        }),
+    ))
 }
 
 pub async fn delete_rate_limit_rule(
@@ -83,10 +108,17 @@ pub async fn delete_rate_limit_rule(
     require_permission(&user, "gateway.ratelimit.delete").map_err(|e| AppError::Forbidden(e.1))?;
     GatewayService::delete_rate_limit_rule(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "gateway.ratelimit.deleted", "rate_limit_rule", id,
-        serde_json::json!({"rule_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "gateway.ratelimit.deleted",
+        "rate_limit_rule",
+        id,
+        serde_json::json!({"rule_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish gateway.ratelimit.deleted event");
     }
     Ok(StatusCode::NO_CONTENT)
@@ -119,11 +151,18 @@ pub async fn list_api_keys(
     _user: UserContext,
 ) -> Result<Json<Vec<ApiKeyResponse>>, AppError> {
     let keys = GatewayService::list_api_keys(&state.db).await?;
-    Ok(Json(keys.into_iter().map(|k| ApiKeyResponse {
-        id: k.id, name: k.name, key_prefix: k.key_prefix,
-        permissions: k.permissions, is_active: k.is_active,
-        expires_at: k.expires_at.map(|e| e.to_rfc3339()),
-    }).collect()))
+    Ok(Json(
+        keys.into_iter()
+            .map(|k| ApiKeyResponse {
+                id: k.id,
+                name: k.name,
+                key_prefix: k.key_prefix,
+                permissions: k.permissions,
+                is_active: k.is_active,
+                expires_at: k.expires_at.map(|e| e.to_rfc3339()),
+            })
+            .collect(),
+    ))
 }
 
 pub async fn create_api_key(
@@ -132,31 +171,55 @@ pub async fn create_api_key(
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<(StatusCode, Json<ApiKeyResponse>), AppError> {
     require_permission(&user, "gateway.apikey.create").map_err(|e| AppError::Forbidden(e.1))?;
-    let raw_key = format!("ax_{}_{}", crate::shared::utils::uuid_v7::new_v7_compact(), chrono::Utc::now().timestamp());
+    let raw_key = format!(
+        "ax_{}_{}",
+        crate::shared::utils::uuid_v7::new_v7_compact(),
+        chrono::Utc::now().timestamp()
+    );
     let key_hash = format!("{:x}", Sha256::digest(raw_key.as_bytes()));
     let key_prefix = raw_key[..12].to_string();
 
-    let expires_at = req.expires_at
+    let expires_at = req
+        .expires_at
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
         .map(|dt| dt.with_timezone(&chrono::Utc));
 
     let key = GatewayService::create_api_key(
-        &state.db, req.name, key_hash, key_prefix,
-        req.branch_id, req.permissions, expires_at,
-    ).await?;
+        &state.db,
+        req.name,
+        key_hash,
+        key_prefix,
+        req.branch_id,
+        req.permissions,
+        expires_at,
+    )
+    .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "gateway.apikey.created", "api_key", key.id,
-        serde_json::json!({"key_id": key.id, "name": key.name}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "gateway.apikey.created",
+        "api_key",
+        key.id,
+        serde_json::json!({"key_id": key.id, "name": key.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish gateway.apikey.created event");
     }
 
-    Ok((StatusCode::CREATED, Json(ApiKeyResponse {
-        id: key.id, name: key.name, key_prefix: key.key_prefix,
-        permissions: key.permissions, is_active: key.is_active,
-        expires_at: key.expires_at.map(|e| e.to_rfc3339()),
-    })))
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiKeyResponse {
+            id: key.id,
+            name: key.name,
+            key_prefix: key.key_prefix,
+            permissions: key.permissions,
+            is_active: key.is_active,
+            expires_at: key.expires_at.map(|e| e.to_rfc3339()),
+        }),
+    ))
 }
 
 pub async fn revoke_api_key(
@@ -167,10 +230,17 @@ pub async fn revoke_api_key(
     require_permission(&user, "gateway.apikey.revoke").map_err(|e| AppError::Forbidden(e.1))?;
     GatewayService::revoke_api_key(&state.db, id).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
-        &state.db, "gateway.apikey.revoked", "api_key", id,
-        serde_json::json!({"key_id": id}), None,
-        Some(user.user_id), user.branch_id,
-    ).await {
+        &state.db,
+        "gateway.apikey.revoked",
+        "api_key",
+        id,
+        serde_json::json!({"key_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
         tracing::error!(error = %e, "Failed to publish gateway.apikey.revoked event");
     }
     Ok(StatusCode::NO_CONTENT)
@@ -194,11 +264,19 @@ pub async fn list_request_logs(
     _user: UserContext,
 ) -> Result<Json<Vec<RequestLogResponse>>, AppError> {
     let logs = GatewayService::list_request_logs(&state.db, 100).await?;
-    Ok(Json(logs.into_iter().map(|l| RequestLogResponse {
-        id: l.id, method: l.method, path: l.path,
-        status_code: l.status_code, response_time_ms: l.response_time_ms,
-        rate_limited: l.rate_limited, created_at: l.created_at.to_rfc3339(),
-    }).collect()))
+    Ok(Json(
+        logs.into_iter()
+            .map(|l| RequestLogResponse {
+                id: l.id,
+                method: l.method,
+                path: l.path,
+                status_code: l.status_code,
+                response_time_ms: l.response_time_ms,
+                rate_limited: l.rate_limited,
+                created_at: l.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
 }
 
 pub async fn get_request_stats(

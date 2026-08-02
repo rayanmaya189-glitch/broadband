@@ -1,9 +1,8 @@
 //! Integration test: Accounting Repository
 //! Tests double-entry accounting operations with real PostgreSQL
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::TestDatabase;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 /// Test chart of accounts CRUD
 #[ignore]
@@ -35,7 +34,9 @@ async fn test_chart_of_accounts_crud() {
 
     // Read account
     let found = chart_of_accounts::Entity::find_by_id(account.id)
-        .one(db).await.unwrap();
+        .one(db)
+        .await
+        .unwrap();
     assert!(found.is_some());
     assert_eq!(found.unwrap().name, "Cash");
 
@@ -130,11 +131,12 @@ async fn test_journal_entry_balance() {
     // Verify lines balance
     let lines = journal_entry_line::Entity::find()
         .filter(journal_entry_line::Column::JournalEntryId.eq(entry.id))
-        .all(db).await.unwrap();
+        .all(db)
+        .await
+        .unwrap();
     assert_eq!(lines.len(), 2);
 
     let total_debit: rust_decimal::Decimal = lines.iter().map(|l| l.debit).sum();
     let total_credit: rust_decimal::Decimal = lines.iter().map(|l| l.credit).sum();
     assert_eq!(total_debit, total_credit);
 }
-

@@ -27,9 +27,12 @@ CREATE TABLE IF NOT EXISTS notification_channels (
 );
 
 -- Notifications (sent notifications)
+-- NOTE: template_id has NO FK - PostgreSQL requires FK columns on a partitioned
+-- table to include the partition key (created_at), which is impossible here.
+-- Enforced at the application layer.
 CREATE TABLE IF NOT EXISTS notifications (
-    id BIGSERIAL PRIMARY KEY,
-    template_id BIGINT REFERENCES notification_templates(id),
+    id BIGSERIAL,
+    template_id BIGINT,
     channel VARCHAR(20) NOT NULL,
     recipient_type VARCHAR(20) NOT NULL,
     recipient_id BIGINT NOT NULL,
@@ -44,7 +47,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     last_error TEXT,
     sent_at TIMESTAMPTZ,
     delivered_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 CREATE TABLE IF NOT EXISTS notifications_2026_07 PARTITION OF notifications
@@ -52,11 +56,12 @@ CREATE TABLE IF NOT EXISTS notifications_2026_07 PARTITION OF notifications
 
 -- Notification History (delivery tracking)
 CREATE TABLE IF NOT EXISTS notification_history (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL,
     notification_id BIGINT NOT NULL,
     event VARCHAR(50) NOT NULL,
     details JSONB,
-    recorded_at TIMESTAMPTZ DEFAULT NOW()
+    recorded_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (id, recorded_at)
 ) PARTITION BY RANGE (recorded_at);
 
 CREATE TABLE IF NOT EXISTS notification_history_2026_07 PARTITION OF notification_history

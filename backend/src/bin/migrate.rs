@@ -8,10 +8,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        let is_prod = std::env::var("APP_ENV")
-            .unwrap_or_default()
-            .to_lowercase()
-            == "production";
+        let is_prod = std::env::var("APP_ENV").unwrap_or_default().to_lowercase() == "production";
         if is_prod {
             panic!("DATABASE_URL must be set in production");
         }
@@ -43,6 +40,7 @@ async fn main() -> anyhow::Result<()> {
         }
         "fresh" => {
             tracing::info!("Dropping all tables and re-running migrations...");
+            drop_module_schemas(&db).await?;
             Migrator::fresh(&db).await?;
             tracing::info!("Fresh migration completed successfully");
         }
@@ -52,5 +50,52 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Drop all per-module schemas so `fresh` produces a clean database. sea-orm's
+/// `Migrator::fresh` only drops tables in the default (public) schema, but the
+/// module schemas created by migration 019 own tables moved out of public.
+async fn drop_module_schemas(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    use sea_orm::ConnectionTrait;
+
+    const SCHEMAS: [&str; 28] = [
+        "identity",
+        "customer",
+        "subscription",
+        "billing",
+        "payment",
+        "network",
+        "device",
+        "bandwidth",
+        "branches",
+        "plans",
+        "audit",
+        "compliance",
+        "ticket",
+        "notification",
+        "coverage",
+        "discovery",
+        "document",
+        "inventory",
+        "installation",
+        "lead",
+        "referral",
+        "gateway",
+        "security",
+        "workflow",
+        "accounting",
+        "scheduler",
+        "monitoring",
+        "integrations",
+    ];
+    for schema in SCHEMAS {
+        let stmt = format!("DROP SCHEMA IF EXISTS {schema} CASCADE");
+        db.execute(sea_orm::Statement::from_string(
+            db.get_database_backend(),
+            stmt,
+        ))
+        .await?;
+    }
     Ok(())
 }

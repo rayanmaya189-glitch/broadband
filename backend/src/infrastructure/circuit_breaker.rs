@@ -17,7 +17,7 @@ pub struct CircuitBreaker {
     name: String,
     failure_threshold: u64,
     reset_timeout: Duration,
-    state: AtomicU64,       // 0=closed, 1=open, 2=half-open
+    state: AtomicU64, // 0=closed, 1=open, 2=half-open
     failure_count: AtomicU64,
     last_failure: Mutex<Option<Instant>>,
 }

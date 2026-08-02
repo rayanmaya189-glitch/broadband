@@ -22,9 +22,10 @@ pub async fn seed_data(
     user: UserContext,
 ) -> Result<(StatusCode, Json<SeedResponse>), AppError> {
     // Require explicit permission — prevents accidental or malicious data seeding
-    require_permission(&user, "admin.data.manage")
-        .map_err(|(_, msg)| AppError::Forbidden(msg))?;
-    use crate::modules::security::domain::entities::{Permission, PermissionColumn, Role, RoleColumn};
+    require_permission(&user, "admin.data.manage").map_err(|(_, msg)| AppError::Forbidden(msg))?;
+    use crate::modules::security::domain::entities::{
+        Permission, PermissionColumn, Role, RoleColumn,
+    };
 
     let default_roles = vec![
         ("Super Administrator", "super_admin", "Full system access"),
@@ -81,7 +82,12 @@ pub async fn seed_data(
         ("branch", "branch", "update", "Update branches"),
         ("branch", "branch", "delete", "Delete branches"),
         ("subscription", "subscription", "view", "View subscriptions"),
-        ("subscription", "subscription", "manage", "Manage subscriptions"),
+        (
+            "subscription",
+            "subscription",
+            "manage",
+            "Manage subscriptions",
+        ),
         ("device", "device", "view", "View devices"),
         ("device", "device", "manage", "Manage devices"),
         ("network", "vlan", "view", "View VLANs"),
@@ -94,9 +100,24 @@ pub async fn seed_data(
         ("network", "pppoe", "terminate", "Terminate PPPoE sessions"),
         ("network", "mac_binding", "view", "View MAC bindings"),
         ("network", "mac_binding", "create", "Create MAC bindings"),
-        ("bandwidth", "profile", "create", "Create bandwidth profiles"),
-        ("bandwidth", "profile", "update", "Update bandwidth profiles"),
-        ("bandwidth", "profile", "delete", "Delete bandwidth profiles"),
+        (
+            "bandwidth",
+            "profile",
+            "create",
+            "Create bandwidth profiles",
+        ),
+        (
+            "bandwidth",
+            "profile",
+            "update",
+            "Update bandwidth profiles",
+        ),
+        (
+            "bandwidth",
+            "profile",
+            "delete",
+            "Delete bandwidth profiles",
+        ),
         ("ticket", "ticket", "view", "View tickets"),
         ("ticket", "ticket", "create", "Create tickets"),
         ("ticket", "ticket", "manage", "Manage tickets"),
@@ -112,8 +133,18 @@ pub async fn seed_data(
         ("document", "document", "delete", "Delete documents"),
         ("installation", "order", "view", "View installations"),
         ("installation", "order", "create", "Create installations"),
-        ("installation", "order", "schedule", "Schedule installations"),
-        ("installation", "order", "complete", "Complete installations"),
+        (
+            "installation",
+            "order",
+            "schedule",
+            "Schedule installations",
+        ),
+        (
+            "installation",
+            "order",
+            "complete",
+            "Complete installations",
+        ),
         ("installation", "order", "cancel", "Cancel installations"),
         ("installation", "order", "update", "Update installations"),
         ("monitoring", "alert", "create", "Create alerts"),

@@ -187,9 +187,8 @@ pub fn init_jwt_keys(
     private_pem: &Option<String>,
     public_pem: &Option<String>,
 ) -> Result<JwtKeyPair> {
-    let is_production = std::env::var("APP_ENV")
-        .unwrap_or_else(|_| "development".to_string())
-        == "production";
+    let is_production =
+        std::env::var("APP_ENV").unwrap_or_else(|_| "development".to_string()) == "production";
 
     match (private_pem, public_pem) {
         (Some(priv_pem), Some(pub_pem)) => {

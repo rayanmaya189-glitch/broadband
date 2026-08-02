@@ -1,7 +1,9 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use tracing::{error, info, warn};
 
-use crate::modules::integrations::radius::adapter::{AccountingRequest, AccountingStatusType, RadiusAdapter, RadiusClient};
+use crate::modules::integrations::radius::adapter::{
+    AccountingRequest, AccountingStatusType, RadiusAdapter, RadiusClient,
+};
 use crate::modules::network::domain::entities::pppoe_session;
 
 /// Background worker for RADIUS accounting sync:
@@ -47,8 +49,7 @@ impl RadiusAccountingWorker {
         for session in &active_sessions {
             // Detect stale sessions: active but no activity for > 30 minutes
             if let Some(last_activity) = session.last_activity_at {
-                let elapsed = chrono::Utc::now()
-                    .signed_duration_since(last_activity);
+                let elapsed = chrono::Utc::now().signed_duration_since(last_activity);
                 if elapsed.num_minutes() > 30 {
                     // Session is stale — mark as terminated
                     warn!(
@@ -79,10 +80,7 @@ impl RadiusAccountingWorker {
 
                             let acct_request = AccountingRequest {
                                 username: session.username.clone(),
-                                session_id: session
-                                    .nas_session_id
-                                    .clone()
-                                    .unwrap_or_default(),
+                                session_id: session.nas_session_id.clone().unwrap_or_default(),
                                 status_type: AccountingStatusType::Stop,
                                 nas_ip,
                                 nas_port,
@@ -105,7 +103,11 @@ impl RadiusAccountingWorker {
             }
         }
 
-        info!(synced = synced, stale = stale, "RADIUS accounting: session sync complete");
+        info!(
+            synced = synced,
+            stale = stale,
+            "RADIUS accounting: session sync complete"
+        );
         Ok(())
     }
 
@@ -146,10 +148,7 @@ impl RadiusAccountingWorker {
 
             let acct_request = AccountingRequest {
                 username: session.username.clone(),
-                session_id: session
-                    .nas_session_id
-                    .clone()
-                    .unwrap_or_default(),
+                session_id: session.nas_session_id.clone().unwrap_or_default(),
                 status_type: AccountingStatusType::InterimUpdate,
                 nas_ip,
                 nas_port,
@@ -179,7 +178,11 @@ impl RadiusAccountingWorker {
             }
         }
 
-        info!(sent = sent, total = active_sessions.len(), "RADIUS accounting: interim updates sent");
+        info!(
+            sent = sent,
+            total = active_sessions.len(),
+            "RADIUS accounting: interim updates sent"
+        );
         Ok(())
     }
 }

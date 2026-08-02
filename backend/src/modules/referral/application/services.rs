@@ -128,15 +128,10 @@ impl ReferralService {
             .iter()
             .filter(|r| r.status == "active" || r.status == "rewarded")
             .count() as i64;
-        let total_rewarded = refs
-            .iter()
-            .filter(|r| r.status == "rewarded")
-            .count() as i64;
+        let total_rewarded = refs.iter().filter(|r| r.status == "rewarded").count() as i64;
 
-        let total_reward_amount: sea_orm::prelude::Decimal = refs
-            .iter()
-            .filter_map(|r| r.referrer_reward_amount)
-            .sum();
+        let total_reward_amount: sea_orm::prelude::Decimal =
+            refs.iter().filter_map(|r| r.referrer_reward_amount).sum();
 
         let wallet = Self::get_or_create_wallet(db, user_id).await?;
 
@@ -176,8 +171,7 @@ impl ReferralService {
         page: u64,
         limit: u64,
     ) -> Result<(Vec<ReferralProgramModel>, u64), AppError> {
-        let q = ReferralProgram::find()
-            .order_by_desc(ReferralProgramColumn::CreatedAt);
+        let q = ReferralProgram::find().order_by_desc(ReferralProgramColumn::CreatedAt);
         let t = q.clone().count(db).await?;
         let items = q.paginate(db, limit).fetch_page(page).await?;
         Ok((items, t))
@@ -223,12 +217,24 @@ impl ReferralService {
             .await?
             .ok_or_else(|| AppError::NotFound("Referral program not found".into()))?;
         let mut active: ReferralProgramActiveModel = m.into();
-        if let Some(v) = name { active.name = Set(v); }
-        if let Some(v) = reward_type { active.reward_type = Set(v); }
-        if let Some(v) = reward_value { active.reward_value = Set(v); }
-        if let Some(v) = max_referrals_per_user { active.max_referrals_per_user = Set(v); }
-        if let Some(v) = valid_from { active.valid_from = Set(v); }
-        if let Some(v) = valid_until { active.valid_until = Set(v); }
+        if let Some(v) = name {
+            active.name = Set(v);
+        }
+        if let Some(v) = reward_type {
+            active.reward_type = Set(v);
+        }
+        if let Some(v) = reward_value {
+            active.reward_value = Set(v);
+        }
+        if let Some(v) = max_referrals_per_user {
+            active.max_referrals_per_user = Set(v);
+        }
+        if let Some(v) = valid_from {
+            active.valid_from = Set(v);
+        }
+        if let Some(v) = valid_until {
+            active.valid_until = Set(v);
+        }
         active.updated_at = Set(chrono::Utc::now());
         Ok(active.update(db).await?)
     }
@@ -247,24 +253,26 @@ impl ReferralService {
 
     // --- Analytics ---
 
-    pub async fn get_analytics(
-        db: &DatabaseConnection,
-    ) -> Result<ReferralAnalytics, AppError> {
+    pub async fn get_analytics(db: &DatabaseConnection) -> Result<ReferralAnalytics, AppError> {
         let total_referrals = ReferralTracking::find().count(db).await?;
         let all = ReferralTracking::find().all(db).await?;
 
-        let total_active = all.iter().filter(|r| r.status == "active" || r.status == "rewarded").count() as i64;
+        let total_active = all
+            .iter()
+            .filter(|r| r.status == "active" || r.status == "rewarded")
+            .count() as i64;
         let total_rewarded = all.iter().filter(|r| r.status == "rewarded").count() as i64;
-        let total_shared = all.iter().filter(|r| r.status == "pending" || r.status == "shared").count() as i64;
+        let total_shared = all
+            .iter()
+            .filter(|r| r.status == "pending" || r.status == "shared")
+            .count() as i64;
         let conversion_rate = if total_referrals > 0 {
             (total_rewarded as f64 / total_referrals as f64) * 100.0
         } else {
             0.0
         };
-        let total_rewards_paid: sea_orm::prelude::Decimal = all
-            .iter()
-            .filter_map(|r| r.referrer_reward_amount)
-            .sum();
+        let total_rewards_paid: sea_orm::prelude::Decimal =
+            all.iter().filter_map(|r| r.referrer_reward_amount).sum();
 
         Ok(ReferralAnalytics {
             total_referrals: total_referrals as i64,
@@ -283,8 +291,7 @@ impl ReferralService {
         page: u64,
         limit: u64,
     ) -> Result<(Vec<CustomerWalletModel>, u64), AppError> {
-        let q = CustomerWallet::find()
-            .order_by_desc(CustomerWalletColumn::CreatedAt);
+        let q = CustomerWallet::find().order_by_desc(CustomerWalletColumn::CreatedAt);
         let t = q.clone().count(db).await?;
         let items = q.paginate(db, limit).fetch_page(page).await?;
         Ok((items, t))

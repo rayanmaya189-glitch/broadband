@@ -3,7 +3,9 @@ use crate::modules::security::domain::entities::{
     RolePermissionColumn, UserRole, UserRoleActiveModel, UserRoleColumn,
 };
 use crate::shared::errors::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, Set,
+};
 
 pub struct SecurityService;
 
@@ -99,10 +101,17 @@ impl SecurityService {
         };
         let new_role = role.insert(db).await?;
         crate::infrastructure::messaging::outbox::insert_outbox_event(
-            db, "role.created", "role", new_role.id,
+            db,
+            "role.created",
+            "role",
+            new_role.id,
             serde_json::json!({"role_name": new_role.name, "slug": new_role.slug}),
-            None, None, None,
-        ).await.ok();
+            None,
+            None,
+            None,
+        )
+        .await
+        .ok();
         Ok(new_role)
     }
 
@@ -126,10 +135,7 @@ impl SecurityService {
         Ok(active.update(db).await?)
     }
 
-    pub async fn delete_role(
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn delete_role(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
         let role = Self::get_role(db, id).await?;
         if role.is_system {
             return Err(AppError::Conflict("Cannot delete system role".to_string()));
@@ -140,10 +146,17 @@ impl SecurityService {
         active.updated_at = Set(chrono::Utc::now());
         active.update(db).await?;
         crate::infrastructure::messaging::outbox::insert_outbox_event(
-            db, "role.deleted", "role", role_id,
+            db,
+            "role.deleted",
+            "role",
+            role_id,
             serde_json::json!({"role_id": role_id}),
-            None, None, None,
-        ).await.ok();
+            None,
+            None,
+            None,
+        )
+        .await
+        .ok();
         Ok(())
     }
 
@@ -225,10 +238,17 @@ impl SecurityService {
             new_ur.insert(db).await?;
         }
         crate::infrastructure::messaging::outbox::insert_outbox_event(
-            db, "role.assigned", "user_role", user_id,
+            db,
+            "role.assigned",
+            "user_role",
+            user_id,
             serde_json::json!({"user_id": user_id, "role_id": role_id, "assigned_by": assigned_by}),
-            None, None, None,
-        ).await.ok();
+            None,
+            None,
+            None,
+        )
+        .await
+        .ok();
         crate::modules::identity::application::services::IdentityService::invalidate_permissions(
             redis, user_id,
         )

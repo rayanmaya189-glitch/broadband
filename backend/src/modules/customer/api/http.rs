@@ -9,8 +9,8 @@ use crate::modules::customer::application::services::CustomerService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
-use crate::shared::protobuf::proto::customer::*;
 use crate::shared::protobuf::proto as pb;
+use crate::shared::protobuf::proto::customer::*;
 use crate::shared::protobuf::{proto_response, PROTOBUF_CONTENT_TYPE};
 
 async fn decode_proto<T: Message + Default>(req: Request) -> Result<T, AppError> {
@@ -44,7 +44,8 @@ fn wrap_created<T: Message>(data: &T) -> Result<Response<Body>, AppError> {
         meta: None,
     };
     let mut envelope_buf = bytes::BytesMut::with_capacity(envelope.encoded_len());
-    envelope.encode(&mut envelope_buf)
+    envelope
+        .encode(&mut envelope_buf)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Protobuf encode failed: {}", e)))?;
     Ok(Response::builder()
         .status(StatusCode::CREATED)
@@ -74,7 +75,9 @@ fn model_to_proto(c: &crate::modules::customer::domain::entities::customer::Mode
     }
 }
 
-fn address_to_proto(a: &crate::modules::customer::domain::entities::address::Model) -> CustomerAddress {
+fn address_to_proto(
+    a: &crate::modules::customer::domain::entities::address::Model,
+) -> CustomerAddress {
     CustomerAddress {
         id: a.id,
         customer_id: a.customer_id,
@@ -102,8 +105,16 @@ pub async fn list_customers(
         user.branch_id
     };
     let pagination = proto_req.pagination.unwrap_or_default();
-    let page = if pagination.page == 0 { 1 } else { pagination.page as u64 };
-    let limit = if pagination.page_size == 0 { 20 } else { pagination.page_size as u64 };
+    let page = if pagination.page == 0 {
+        1
+    } else {
+        pagination.page as u64
+    };
+    let limit = if pagination.page_size == 0 {
+        20
+    } else {
+        pagination.page_size as u64
+    };
     let (customers, total) =
         CustomerService::list_customers(&state.db, branch_id, page, limit).await?;
     let proto_customers: Vec<Customer> = customers.iter().map(model_to_proto).collect();
@@ -197,7 +208,8 @@ pub async fn update_customer_status(
     user: UserContext,
     req: Request,
 ) -> Result<Response<Body>, AppError> {
-    require_permission(&user, "customer.account.update_status").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "customer.account.update_status")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let proto_req: UpdateCustomerStatusRequest = decode_proto(req).await?;
     let id = proto_req.customer_id;
     let status = proto_req.status;
@@ -293,7 +305,8 @@ pub async fn add_address(
     let addr = CustomerService::add_address(
         &state.db,
         proto_req.customer_id,
-        proto_req.address_type
+        proto_req
+            .address_type
             .unwrap_or_else(|| "installation".to_string()),
         proto_req.line1,
         proto_req.line2,

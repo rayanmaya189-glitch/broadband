@@ -1,9 +1,12 @@
-use sea_orm::{ActiveModelTrait, IntoActiveModel, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, QueryOrder, QuerySelect, PaginatorTrait, Set};
-use chrono::Utc;
-use crate::shared::errors::AppError;
-use crate::modules::gateway::domain::entities::rate_limit_rule;
 use crate::modules::gateway::domain::entities::api_key;
+use crate::modules::gateway::domain::entities::rate_limit_rule;
 use crate::modules::gateway::domain::entities::request_log;
+use crate::shared::errors::AppError;
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+};
 
 /// Gateway service providing rate limiting, API key validation, and request logging.
 pub struct GatewayService;
@@ -11,7 +14,9 @@ pub struct GatewayService;
 impl GatewayService {
     // ── Rate Limit Rules ──
 
-    pub async fn list_rate_limit_rules(db: &DatabaseConnection) -> Result<Vec<rate_limit_rule::Model>, AppError> {
+    pub async fn list_rate_limit_rules(
+        db: &DatabaseConnection,
+    ) -> Result<Vec<rate_limit_rule::Model>, AppError> {
         Ok(rate_limit_rule::Entity::find().all(db).await?)
     }
 
@@ -46,7 +51,9 @@ impl GatewayService {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Rate limit rule {} not found", id)))?;
         let active_model = rule.into_active_model();
-        rate_limit_rule::Entity::delete(active_model).exec(db).await?;
+        rate_limit_rule::Entity::delete(active_model)
+            .exec(db)
+            .await?;
         Ok(())
     }
 
@@ -126,7 +133,10 @@ impl GatewayService {
         Ok(log.insert(db).await?)
     }
 
-    pub async fn list_request_logs(db: &DatabaseConnection, limit: u64) -> Result<Vec<request_log::Model>, AppError> {
+    pub async fn list_request_logs(
+        db: &DatabaseConnection,
+        limit: u64,
+    ) -> Result<Vec<request_log::Model>, AppError> {
         Ok(request_log::Entity::find()
             .order_by_desc(request_log::Column::CreatedAt)
             .limit(limit)

@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod permission_tests {
     use crate::shared::middleware::auth::{has_permission, require_permission, UserContext};
 
     // ── Permission Tests ──

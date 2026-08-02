@@ -1,8 +1,7 @@
 //! Integration tests for billing repository using testcontainers
 
-
-use sea_orm::{Set, ActiveModelTrait};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, Set};
 
 /// Test invoice creation
 #[ignore]
@@ -10,15 +9,15 @@ use crate::common::{TestDatabase, TestFixture};
 async fn test_create_invoice() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
-    
+
     // Create prerequisite data
     let branch_id = TestFixture::create_branch(db).await;
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
-    
+
     // Create subscription first
     use aeroxe_backend::modules::subscription::domain::entities::subscription;
-    
+
     let now = chrono::Utc::now();
     let sub_model = subscription::ActiveModel {
         customer_id: Set(customer_id),
@@ -32,12 +31,15 @@ async fn test_create_invoice() {
         updated_at: Set(now),
         ..Default::default()
     };
-    
-    let subscription = sub_model.insert(db).await.expect("Failed to create subscription");
-    
+
+    let subscription = sub_model
+        .insert(db)
+        .await
+        .expect("Failed to create subscription");
+
     // Create invoice
     use aeroxe_backend::modules::billing::domain::entities::invoice;
-    
+
     let invoice_model = invoice::ActiveModel {
         invoice_number: Set("INV-2026-07-0001".to_string()),
         customer_id: Set(customer_id),
@@ -54,8 +56,11 @@ async fn test_create_invoice() {
         updated_at: Set(now),
         ..Default::default()
     };
-    
-    let invoice = invoice_model.insert(db).await.expect("Failed to create invoice");
+
+    let invoice = invoice_model
+        .insert(db)
+        .await
+        .expect("Failed to create invoice");
     assert!(invoice.id > 0, "Invoice should be created");
     assert_eq!(invoice.invoice_number, "INV-2026-07-0001");
 }
@@ -66,14 +71,14 @@ async fn test_create_invoice() {
 async fn test_invoice_payment_flow() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
-    
+
     let branch_id = TestFixture::create_branch(db).await;
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
-    
+
     // Create subscription
     use aeroxe_backend::modules::subscription::domain::entities::subscription;
-    
+
     let now = chrono::Utc::now();
     let sub_model = subscription::ActiveModel {
         customer_id: Set(customer_id),
@@ -87,12 +92,15 @@ async fn test_invoice_payment_flow() {
         updated_at: Set(now),
         ..Default::default()
     };
-    
-    let subscription = sub_model.insert(db).await.expect("Failed to create subscription");
-    
+
+    let subscription = sub_model
+        .insert(db)
+        .await
+        .expect("Failed to create subscription");
+
     // Create invoice
     use aeroxe_backend::modules::billing::domain::entities::invoice;
-    
+
     let invoice_model = invoice::ActiveModel {
         invoice_number: Set("INV-2026-07-0002".to_string()),
         customer_id: Set(customer_id),
@@ -109,16 +117,22 @@ async fn test_invoice_payment_flow() {
         updated_at: Set(now),
         ..Default::default()
     };
-    
-    let invoice = invoice_model.insert(db).await.expect("Failed to create invoice");
-    
+
+    let invoice = invoice_model
+        .insert(db)
+        .await
+        .expect("Failed to create invoice");
+
     // Mark invoice as paid
     let mut active_model: invoice::ActiveModel = invoice.into();
     active_model.status = Set("paid".to_string());
     active_model.paid_at = Set(Some(chrono::Utc::now()));
     active_model.updated_at = Set(chrono::Utc::now());
-    
-    let paid_invoice = active_model.update(db).await.expect("Failed to mark invoice as paid");
+
+    let paid_invoice = active_model
+        .update(db)
+        .await
+        .expect("Failed to mark invoice as paid");
     assert_eq!(paid_invoice.status, "paid");
     assert!(paid_invoice.paid_at.is_some(), "Paid_at should be set");
 }
@@ -129,14 +143,14 @@ async fn test_invoice_payment_flow() {
 async fn test_invoice_voiding() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
-    
+
     let branch_id = TestFixture::create_branch(db).await;
     let customer_id = TestFixture::create_customer(db, branch_id).await;
     let plan_id = TestFixture::create_plan(db).await;
-    
+
     // Create subscription
     use aeroxe_backend::modules::subscription::domain::entities::subscription;
-    
+
     let now = chrono::Utc::now();
     let sub_model = subscription::ActiveModel {
         customer_id: Set(customer_id),
@@ -150,12 +164,15 @@ async fn test_invoice_voiding() {
         updated_at: Set(now),
         ..Default::default()
     };
-    
-    let subscription = sub_model.insert(db).await.expect("Failed to create subscription");
-    
+
+    let subscription = sub_model
+        .insert(db)
+        .await
+        .expect("Failed to create subscription");
+
     // Create invoice
     use aeroxe_backend::modules::billing::domain::entities::invoice;
-    
+
     let invoice_model = invoice::ActiveModel {
         invoice_number: Set("INV-2026-07-0003".to_string()),
         customer_id: Set(customer_id),
@@ -172,15 +189,20 @@ async fn test_invoice_voiding() {
         updated_at: Set(now),
         ..Default::default()
     };
-    
-    let invoice = invoice_model.insert(db).await.expect("Failed to create invoice");
-    
+
+    let invoice = invoice_model
+        .insert(db)
+        .await
+        .expect("Failed to create invoice");
+
     // Void invoice
     let mut active_model: invoice::ActiveModel = invoice.into();
     active_model.status = Set("void".to_string());
     active_model.updated_at = Set(chrono::Utc::now());
-    
-    let voided_invoice = active_model.update(db).await.expect("Failed to void invoice");
+
+    let voided_invoice = active_model
+        .update(db)
+        .await
+        .expect("Failed to void invoice");
     assert_eq!(voided_invoice.status, "void");
 }
-

@@ -542,21 +542,24 @@ impl AccountingService {
         let total_igst: sea_orm::prelude::Decimal = invoices.iter().map(|i| i.igst_amount).sum();
 
         // Per-invoice detail for GSTR-1 Table 7 (B2C / B2B)
-        let invoice_details: Vec<GstInvoiceDetail> = invoices.iter().map(|inv| {
-            GstInvoiceDetail {
-                invoice_number: inv.invoice_number.clone(),
-                invoice_date: inv.created_at.format("%d-%m-%Y").to_string(),
-                place_of_supply: inv.place_of_supply_state.clone(),
-                taxable_value: inv.subtotal,
-                cgst_amount: inv.cgst_amount,
-                sgst_amount: inv.sgst_amount,
-                igst_amount: inv.igst_amount,
-                total_tax: inv.tax_amount,
-                hsn_sac_code: "998421".to_string(), // Default ISP SAC
-                is_intra_state: inv.igst_amount == sea_orm::prelude::Decimal::ZERO,
-                reverse_charge: inv.reverse_charge,
-            }
-        }).collect();
+        let invoice_details: Vec<GstInvoiceDetail> = invoices
+            .iter()
+            .map(|inv| {
+                GstInvoiceDetail {
+                    invoice_number: inv.invoice_number.clone(),
+                    invoice_date: inv.created_at.format("%d-%m-%Y").to_string(),
+                    place_of_supply: inv.place_of_supply_state.clone(),
+                    taxable_value: inv.subtotal,
+                    cgst_amount: inv.cgst_amount,
+                    sgst_amount: inv.sgst_amount,
+                    igst_amount: inv.igst_amount,
+                    total_tax: inv.tax_amount,
+                    hsn_sac_code: "998421".to_string(), // Default ISP SAC
+                    is_intra_state: inv.igst_amount == sea_orm::prelude::Decimal::ZERO,
+                    reverse_charge: inv.reverse_charge,
+                }
+            })
+            .collect();
 
         Ok(GstReturnData {
             return_type,
@@ -568,7 +571,8 @@ impl AccountingService {
             total_igst,
             total_tax,
             invoice_count: invoices.len() as i64,
-            supplier_gstin: invoices.first()
+            supplier_gstin: invoices
+                .first()
                 .and_then(|i| i.supplier_gstin.clone())
                 .unwrap_or_default(),
             invoices: invoice_details,
@@ -589,21 +593,40 @@ impl AccountingService {
 
         // Revenue from subscription invoices
         let invoices = crate::modules::billing::domain::entities::Invoice::find()
-            .filter(crate::modules::billing::domain::entities::invoice::Column::Status.is_in(vec!["paid", "partial"]))
-            .filter(crate::modules::billing::domain::entities::invoice::Column::BillingPeriodStart.gte(period_start))
-            .filter(crate::modules::billing::domain::entities::invoice::Column::BillingPeriodEnd.lte(period_end))
+            .filter(
+                crate::modules::billing::domain::entities::invoice::Column::Status
+                    .is_in(vec!["paid", "partial"]),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::invoice::Column::BillingPeriodStart
+                    .gte(period_start),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::invoice::Column::BillingPeriodEnd
+                    .lte(period_end),
+            )
             .all(db)
             .await?;
 
         let total_revenue: sea_orm::prelude::Decimal = invoices.iter().map(|i| i.subtotal).sum();
-        let total_gst_collected: sea_orm::prelude::Decimal = invoices.iter().map(|i| i.tax_amount).sum();
-        let total_revenue_with_gst: sea_orm::prelude::Decimal = invoices.iter().map(|i| i.total_amount).sum();
+        let total_gst_collected: sea_orm::prelude::Decimal =
+            invoices.iter().map(|i| i.tax_amount).sum();
+        let total_revenue_with_gst: sea_orm::prelude::Decimal =
+            invoices.iter().map(|i| i.total_amount).sum();
 
         // Payment collection
         let payments = crate::modules::billing::domain::entities::Payment::find()
-            .filter(crate::modules::billing::domain::entities::payment::Column::Status.eq("completed"))
-            .filter(crate::modules::billing::domain::entities::payment::Column::CreatedAt.gte(period_start))
-            .filter(crate::modules::billing::domain::entities::payment::Column::CreatedAt.lte(period_end.and_hms_opt(23, 59, 59).unwrap().and_utc()))
+            .filter(
+                crate::modules::billing::domain::entities::payment::Column::Status.eq("completed"),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::payment::Column::CreatedAt
+                    .gte(period_start),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::payment::Column::CreatedAt
+                    .lte(period_end.and_hms_opt(23, 59, 59).unwrap().and_utc()),
+            )
             .all(db)
             .await?;
 
@@ -612,9 +635,18 @@ impl AccountingService {
 
         // Refund totals
         let refunds = crate::modules::billing::domain::entities::Refund::find()
-            .filter(crate::modules::billing::domain::entities::refund::Column::Status.is_in(vec!["approved", "processed"]))
-            .filter(crate::modules::billing::domain::entities::refund::Column::CreatedAt.gte(period_start))
-            .filter(crate::modules::billing::domain::entities::refund::Column::CreatedAt.lte(period_end.and_hms_opt(23, 59, 59).unwrap().and_utc()))
+            .filter(
+                crate::modules::billing::domain::entities::refund::Column::Status
+                    .is_in(vec!["approved", "processed"]),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::refund::Column::CreatedAt
+                    .gte(period_start),
+            )
+            .filter(
+                crate::modules::billing::domain::entities::refund::Column::CreatedAt
+                    .lte(period_end.and_hms_opt(23, 59, 59).unwrap().and_utc()),
+            )
             .all(db)
             .await?;
 
@@ -622,18 +654,36 @@ impl AccountingService {
 
         // Subscription metrics
         let start_subs = crate::modules::subscription::domain::entities::Subscription::find()
-            .filter(crate::modules::subscription::domain::entities::subscription::Column::Status.is_in(vec!["active", "suspended"]))
-            .filter(crate::modules::subscription::domain::entities::subscription::Column::CreatedAt.lte(period_start))
+            .filter(
+                crate::modules::subscription::domain::entities::subscription::Column::Status
+                    .is_in(vec!["active", "suspended"]),
+            )
+            .filter(
+                crate::modules::subscription::domain::entities::subscription::Column::CreatedAt
+                    .lte(period_start),
+            )
             .count(db)
             .await? as i64;
         let new_subs = crate::modules::subscription::domain::entities::Subscription::find()
-            .filter(crate::modules::subscription::domain::entities::subscription::Column::CreatedAt.gte(period_start))
-            .filter(crate::modules::subscription::domain::entities::subscription::Column::CreatedAt.lte(period_end))
+            .filter(
+                crate::modules::subscription::domain::entities::subscription::Column::CreatedAt
+                    .gte(period_start),
+            )
+            .filter(
+                crate::modules::subscription::domain::entities::subscription::Column::CreatedAt
+                    .lte(period_end),
+            )
             .count(db)
             .await? as i64;
         let end_subs = crate::modules::subscription::domain::entities::Subscription::find()
-            .filter(crate::modules::subscription::domain::entities::subscription::Column::Status.is_in(vec!["active", "suspended"]))
-            .filter(crate::modules::subscription::domain::entities::subscription::Column::CreatedAt.lte(period_end))
+            .filter(
+                crate::modules::subscription::domain::entities::subscription::Column::Status
+                    .is_in(vec!["active", "suspended"]),
+            )
+            .filter(
+                crate::modules::subscription::domain::entities::subscription::Column::CreatedAt
+                    .lte(period_end),
+            )
             .count(db)
             .await? as i64;
 

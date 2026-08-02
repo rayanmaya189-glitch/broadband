@@ -2,8 +2,8 @@
 //! Provides testcontainers setup for PostgreSQL (with PostGIS, required by migration 001)
 //! and applies the full migration chain (001-022) so tests run against the real schema.
 
-use sea_orm::{DatabaseConnection, Database};
-use sea_orm_migration::prelude::*;
+use sea_orm::{Database, DatabaseConnection};
+use sea_orm_migration::migrator::MigratorTrait;
 use testcontainers::core::{IntoContainerPort, WaitFor};
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
 
@@ -54,41 +54,13 @@ impl TestDatabase {
         }
     }
 
-    /// Apply the sea-orm Migrator chain (001-018) plus the raw SQL migrations
-    /// 019-022 (schema movement + missing tables + FKs/indexes + GST columns).
+    /// Apply the full sea-orm Migrator chain (001-023), which includes the
+    /// raw SQL migrations 018-022 (schemas, schema moves, missing tables,
+    /// FKs/indexes, GST columns) as m019-m023.
     async fn apply_migrations(db: &DatabaseConnection) {
         aeroxe_backend::migration::Migrator::up(db, None)
             .await
-            .expect("Failed to apply sea-orm migrations 001-018");
-
-        let manager = SchemaManager::new(db);
-        let raw: [(&str, &str); 5] = [
-            (
-                "018_create_schemas",
-                include_str!("../../migrations/sql/018_create_schemas.sql"),
-            ),
-            (
-                "019_move_tables_to_schemas",
-                include_str!("../../migrations/sql/019_move_tables_to_schemas.sql"),
-            ),
-            (
-                "020_create_missing_tables",
-                include_str!("../../migrations/sql/020_create_missing_tables.sql"),
-            ),
-            (
-                "021_add_missing_fk_constraints_and_indexes",
-                include_str!("../../migrations/sql/021_add_missing_fk_constraints_and_indexes.sql"),
-            ),
-            (
-                "022_add_gst_tax_breakdown",
-                include_str!("../../migrations/sql/022_add_gst_tax_breakdown.sql"),
-            ),
-        ];
-        for (name, sql) in raw {
-            aeroxe_backend::migration::exec_sql_file(&manager, sql)
-                .await
-                .unwrap_or_else(|e| panic!("Raw migration {} failed: {}", name, e));
-        }
+            .expect("Failed to apply sea-orm migrations");
 
         Self::seed_system_users(db).await;
     }
@@ -128,7 +100,7 @@ impl TestFixture {
         use sea_orm::{ConnectionTrait, Statement};
 
         let now = chrono::Utc::now();
-        let result = db
+        db
             .execute(Statement::from_string(
                 db.get_database_backend(),
                 format!(
@@ -145,10 +117,9 @@ impl TestFixture {
             .expect("Failed to create test branch");
 
         // Extract the ID from the result
-        match result.rows_affected() {
-            _ => {
-                // For simplicity, query the branch we just created
-                let row = db
+        {
+            // For simplicity, query the branch we just created
+            let row = db
                     .query_one(Statement::from_string(
                         db.get_database_backend(),
                         "SELECT id FROM branches.branches WHERE slug LIKE 'test-branch-%' ORDER BY id DESC LIMIT 1"
@@ -157,9 +128,8 @@ impl TestFixture {
                     .await
                     .expect("Failed to query branch");
 
-                row.and_then(|r| r.try_get::<i64>("", "id").ok())
-                    .unwrap_or(1)
-            }
+            row.and_then(|r| r.try_get::<i64>("", "id").ok())
+                .unwrap_or(1)
         }
     }
 
@@ -170,7 +140,7 @@ impl TestFixture {
         let now = chrono::Utc::now();
         let customer_code = format!("AX-TST-202607-{:04}", rand::random::<u16>() % 10000);
 
-        let result = db
+        db
             .execute(Statement::from_string(
                 db.get_database_backend(),
                 format!(
@@ -186,22 +156,20 @@ impl TestFixture {
             .await
             .expect("Failed to create test customer");
 
-        match result.rows_affected() {
-            _ => {
-                let row = db
-                    .query_one(Statement::from_string(
-                        db.get_database_backend(),
-                        format!(
-                            "SELECT id FROM customer.customers WHERE customer_code = '{}' LIMIT 1",
-                            customer_code
-                        ),
-                    ))
-                    .await
-                    .expect("Failed to query customer");
+        {
+            let row = db
+                .query_one(Statement::from_string(
+                    db.get_database_backend(),
+                    format!(
+                        "SELECT id FROM customer.customers WHERE customer_code = '{}' LIMIT 1",
+                        customer_code
+                    ),
+                ))
+                .await
+                .expect("Failed to query customer");
 
-                row.and_then(|r| r.try_get::<i64>("", "id").ok())
-                    .unwrap_or(1)
-            }
+            row.and_then(|r| r.try_get::<i64>("", "id").ok())
+                .unwrap_or(1)
         }
     }
 
@@ -212,7 +180,7 @@ impl TestFixture {
         let now = chrono::Utc::now();
         let slug = format!("test-plan-{}", rand::random::<u32>());
 
-        let result = db
+        db
             .execute(Statement::from_string(
                 db.get_database_backend(),
                 format!(
@@ -227,22 +195,17 @@ impl TestFixture {
             .await
             .expect("Failed to create test plan");
 
-        match result.rows_affected() {
-            _ => {
-                let row = db
-                    .query_one(Statement::from_string(
-                        db.get_database_backend(),
-                        format!(
-                            "SELECT id FROM plans.plans WHERE slug = '{}' LIMIT 1",
-                            slug
-                        ),
-                    ))
-                    .await
-                    .expect("Failed to query plan");
+        {
+            let row = db
+                .query_one(Statement::from_string(
+                    db.get_database_backend(),
+                    format!("SELECT id FROM plans.plans WHERE slug = '{}' LIMIT 1", slug),
+                ))
+                .await
+                .expect("Failed to query plan");
 
-                row.and_then(|r| r.try_get::<i64>("", "id").ok())
-                    .unwrap_or(1)
-            }
+            row.and_then(|r| r.try_get::<i64>("", "id").ok())
+                .unwrap_or(1)
         }
     }
 
@@ -259,7 +222,7 @@ impl TestFixture {
         let now = chrono::Utc::now();
         let today = now.date_naive();
 
-        let result = db
+        db
             .execute(Statement::from_string(
                 db.get_database_backend(),
                 format!(
@@ -278,9 +241,8 @@ impl TestFixture {
             .await
             .expect("Failed to create test subscription");
 
-        match result.rows_affected() {
-            _ => {
-                let row = db
+        {
+            let row = db
                     .query_one(Statement::from_string(
                         db.get_database_backend(),
                         format!(
@@ -291,9 +253,8 @@ impl TestFixture {
                     .await
                     .expect("Failed to query subscription");
 
-                row.and_then(|r| r.try_get::<i64>("", "id").ok())
-                    .unwrap_or(1)
-            }
+            row.and_then(|r| r.try_get::<i64>("", "id").ok())
+                .unwrap_or(1)
         }
     }
 
@@ -305,7 +266,7 @@ impl TestFixture {
         let email = format!("user-{}@aeroxe.test", rand::random::<u32>());
         let phone = format!("+91{:010}", rand::random::<u64>() % 10_000_000_000);
 
-        let result = db
+        db
             .execute(Statement::from_string(
                 db.get_database_backend(),
                 format!(
@@ -322,19 +283,20 @@ impl TestFixture {
             .await
             .expect("Failed to create test user");
 
-        match result.rows_affected() {
-            _ => {
-                let row = db
-                    .query_one(Statement::from_string(
-                        db.get_database_backend(),
-                        format!("SELECT id FROM identity.users WHERE email = '{}' LIMIT 1", email),
-                    ))
-                    .await
-                    .expect("Failed to query user");
+        {
+            let row = db
+                .query_one(Statement::from_string(
+                    db.get_database_backend(),
+                    format!(
+                        "SELECT id FROM identity.users WHERE email = '{}' LIMIT 1",
+                        email
+                    ),
+                ))
+                .await
+                .expect("Failed to query user");
 
-                row.and_then(|r| r.try_get::<i64>("", "id").ok())
-                    .unwrap_or(1)
-            }
+            row.and_then(|r| r.try_get::<i64>("", "id").ok())
+                .unwrap_or(1)
         }
     }
 
@@ -346,22 +308,20 @@ impl TestFixture {
         let vendor = format!("vendor-{}", rand::random::<u32>());
         let model = format!("model-{}", rand::random::<u32>());
 
-        let result = db
-            .execute(Statement::from_string(
-                db.get_database_backend(),
-                format!(
-                    "INSERT INTO device.device_models (vendor, model, device_type, management_protocol)
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            format!(
+                "INSERT INTO device.device_models (vendor, model, device_type, management_protocol)
                      VALUES ('{}', '{}', 'olt', 'ssh')
                      RETURNING id",
-                    vendor, model
-                ),
-            ))
-            .await
-            .expect("Failed to create test device model");
+                vendor, model
+            ),
+        ))
+        .await
+        .expect("Failed to create test device model");
 
-        match result.rows_affected() {
-            _ => {
-                let row = db
+        {
+            let row = db
                     .query_one(Statement::from_string(
                         db.get_database_backend(),
                         format!(
@@ -372,9 +332,8 @@ impl TestFixture {
                     .await
                     .expect("Failed to query device model");
 
-                row.and_then(|r| r.try_get::<i64>("", "id").ok())
-                    .unwrap_or(1)
-            }
+            row.and_then(|r| r.try_get::<i64>("", "id").ok())
+                .unwrap_or(1)
         }
     }
 }

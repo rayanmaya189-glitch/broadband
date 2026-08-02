@@ -186,8 +186,7 @@ impl MikrotikAdapter {
         let scheme = if config.use_ssl { "https" } else { "http" };
         let base_url = format!("{}://{}:{}/rest", scheme, config.host, config.port);
 
-        let mut builder = Client::builder()
-            .timeout(std::time::Duration::from_secs(30));
+        let mut builder = Client::builder().timeout(std::time::Duration::from_secs(30));
 
         if config.accept_invalid_certs {
             tracing::warn!(
@@ -556,13 +555,24 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
         let cmd_path = match cmd_lower.split_whitespace().next() {
             Some(cmd) => {
                 // Map command to REST API path
-                if cmd.starts_with("/system") { "/system" }
-                else if cmd.starts_with("/interface") { "/interface" }
-                else if cmd.starts_with("/ip") { "/ip" }
-                else if cmd.starts_with("/queue") { "/queue/simple" }
-                else if cmd.starts_with("/ppp") { "/ppp/secret" }
-                else if cmd.starts_with("/log") { "/log" }
-                else { return Err(AppError::Forbidden(format!("Unsupported command: {}", command))); }
+                if cmd.starts_with("/system") {
+                    "/system"
+                } else if cmd.starts_with("/interface") {
+                    "/interface"
+                } else if cmd.starts_with("/ip") {
+                    "/ip"
+                } else if cmd.starts_with("/queue") {
+                    "/queue/simple"
+                } else if cmd.starts_with("/ppp") {
+                    "/ppp/secret"
+                } else if cmd.starts_with("/log") {
+                    "/log"
+                } else {
+                    return Err(AppError::Forbidden(format!(
+                        "Unsupported command: {}",
+                        command
+                    )));
+                }
             }
             None => return Err(AppError::Validation("Empty command".to_string())),
         };

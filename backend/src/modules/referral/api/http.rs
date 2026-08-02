@@ -126,18 +126,20 @@ pub async fn list_my_referrals(
     let refs = ReferralService::list_my_referrals(&state.db, user.user_id).await?;
     let items: Vec<serde_json::Value> = refs
         .into_iter()
-        .map(|r| serde_json::json!({
-            "id": r.id,
-            "referral_code": r.referral_code,
-            "status": r.status,
-            "referee_phone": r.referee_phone,
-            "shared_at": r.shared_at,
-            "registered_at": r.registered_at,
-            "activated_at": r.activated_at,
-            "rewarded_at": r.rewarded_at,
-            "referrer_reward_status": r.referrer_reward_status,
-            "referrer_reward_amount": r.referrer_reward_amount,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "referral_code": r.referral_code,
+                "status": r.status,
+                "referee_phone": r.referee_phone,
+                "shared_at": r.shared_at,
+                "registered_at": r.registered_at,
+                "activated_at": r.activated_at,
+                "rewarded_at": r.rewarded_at,
+                "referrer_reward_status": r.referrer_reward_status,
+                "referrer_reward_amount": r.referrer_reward_amount,
+            })
+        })
         .collect();
     Ok(Json(serde_json::json!({"items": items})))
 }
@@ -156,11 +158,7 @@ pub async fn share_referral(
     require_permission(&user, "referral.create").map_err(|e| AppError::Forbidden(e.1))?;
     let referral_code = ReferralService::get_referral_code(&state.db, user.user_id).await?;
     let programs = ReferralService::list_programs(&state.db, 0, 1).await?;
-    let program_id = programs
-        .0
-        .first()
-        .map(|p| p.id)
-        .unwrap_or(1);
+    let program_id = programs.0.first().map(|p| p.id).unwrap_or(1);
     let r = ReferralService::create_referral(
         &state.db,
         program_id,
@@ -237,20 +235,24 @@ pub async fn list_programs(
     let (programs, total) = ReferralService::list_programs(&state.db, p.page(), p.limit()).await?;
     let items: Vec<serde_json::Value> = programs
         .into_iter()
-        .map(|p| serde_json::json!({
-            "id": p.id,
-            "name": p.name,
-            "reward_type": p.reward_type,
-            "reward_value": p.reward_value,
-            "max_referrals_per_user": p.max_referrals_per_user,
-            "valid_from": p.valid_from,
-            "valid_until": p.valid_until,
-            "is_active": p.is_active,
-            "created_at": p.created_at,
-            "updated_at": p.updated_at,
-        }))
+        .map(|p| {
+            serde_json::json!({
+                "id": p.id,
+                "name": p.name,
+                "reward_type": p.reward_type,
+                "reward_value": p.reward_value,
+                "max_referrals_per_user": p.max_referrals_per_user,
+                "valid_from": p.valid_from,
+                "valid_until": p.valid_until,
+                "is_active": p.is_active,
+                "created_at": p.created_at,
+                "updated_at": p.updated_at,
+            })
+        })
         .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 pub async fn create_program(
@@ -349,17 +351,21 @@ pub async fn list_wallets(
     let (wallets, total) = ReferralService::list_wallets(&state.db, p.page(), p.limit()).await?;
     let items: Vec<serde_json::Value> = wallets
         .into_iter()
-        .map(|w| serde_json::json!({
-            "id": w.id,
-            "customer_id": w.customer_id,
-            "balance": w.balance,
-            "total_earned": w.total_earned,
-            "total_used": w.total_used,
-            "currency": w.currency,
-            "created_at": w.created_at,
-        }))
+        .map(|w| {
+            serde_json::json!({
+                "id": w.id,
+                "customer_id": w.customer_id,
+                "balance": w.balance,
+                "total_earned": w.total_earned,
+                "total_used": w.total_used,
+                "currency": w.currency,
+                "created_at": w.created_at,
+            })
+        })
         .collect();
-    Ok(Json(serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()})))
+    Ok(Json(
+        serde_json::json!({"items": items, "total": total, "page": p.page(), "limit": p.limit()}),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -378,14 +384,8 @@ pub async fn adjust_wallet(
     if req.amount <= Decimal::ZERO {
         return Err(AppError::Validation("Amount must be positive".into()));
     }
-    let tx = ReferralService::adjust_wallet(
-        &state.db,
-        id,
-        req.amount,
-        req.reason,
-        user.user_id,
-    )
-    .await?;
+    let tx =
+        ReferralService::adjust_wallet(&state.db, id, req.amount, req.reason, user.user_id).await?;
     Ok((
         StatusCode::CREATED,
         Json(serde_json::json!({

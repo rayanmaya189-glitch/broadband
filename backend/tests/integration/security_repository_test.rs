@@ -1,8 +1,7 @@
 //! Integration tests for security/RBAC module
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 /// Test role creation and hierarchy
 #[ignore]
@@ -27,7 +26,10 @@ async fn test_role_crud() {
         updated_at: Set(now),
         ..Default::default()
     };
-    let parent = parent.insert(db).await.expect("Failed to create parent role");
+    let parent = parent
+        .insert(db)
+        .await
+        .expect("Failed to create parent role");
     assert!(parent.id > 0);
 
     // Create child role
@@ -122,7 +124,10 @@ async fn test_role_permission_assignment() {
         created_at: Set(now),
         ..Default::default()
     };
-    let assignment = assignment.insert(db).await.expect("Failed to assign permission");
+    let assignment = assignment
+        .insert(db)
+        .await
+        .expect("Failed to assign permission");
     assert_eq!(assignment.role_id, role.id);
     assert_eq!(assignment.permission_id, perm.id);
 
@@ -169,9 +174,11 @@ async fn test_user_role_assignment() {
         created_at: Set(now),
         ..Default::default()
     };
-    let assignment = user_role.insert(db).await.expect("Failed to assign user role");
+    let assignment = user_role
+        .insert(db)
+        .await
+        .expect("Failed to assign user role");
     assert_eq!(assignment.user_id, user_id);
     assert_eq!(assignment.role_id, role.id);
     assert!(assignment.is_active);
 }
-

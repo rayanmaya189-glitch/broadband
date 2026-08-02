@@ -161,15 +161,11 @@ ALTER TABLE device.device_ports
     ADD CONSTRAINT fk_device_ports_customer
     FOREIGN KEY (customer_id) REFERENCES customer.customers(id);
 
--- device.device_metrics.device_id → device.network_devices.id
-ALTER TABLE device.device_metrics
-    ADD CONSTRAINT fk_device_metrics_device
-    FOREIGN KEY (device_id) REFERENCES device.network_devices(id);
-
--- device.device_logs.device_id → device.network_devices.id
-ALTER TABLE device.device_logs
-    ADD CONSTRAINT fk_device_logs_device
-    FOREIGN KEY (device_id) REFERENCES device.network_devices(id);
+-- NOTE: device_metrics.device_id / device_logs.device_id do NOT get FKs here.
+-- Both tables are RANGE-partitioned (by recorded_at / created_at), and
+-- PostgreSQL requires FK columns on a partitioned table to include the
+-- partition key, which is impossible for these columns. Referential
+-- integrity for device metrics/logs is enforced at the application layer.
 
 -- identity.user_sessions.user_id → identity.users.id
 ALTER TABLE identity.user_sessions
@@ -181,10 +177,101 @@ ALTER TABLE identity.users
     ADD CONSTRAINT fk_users_branch
     FOREIGN KEY (branch_id) REFERENCES branches.branches(id);
 
+-- branches.user_branches.branch_id → branches.branches.id
+ALTER TABLE branches.user_branches
+    ADD CONSTRAINT fk_user_branches_branch
+    FOREIGN KEY (branch_id) REFERENCES branches.branches(id);
+
+-- branches.user_branches.user_id → identity.users.id
+ALTER TABLE branches.user_branches
+    ADD CONSTRAINT fk_user_branches_user
+    FOREIGN KEY (user_id) REFERENCES identity.users(id);
+
+-- security.user_roles.user_id → identity.users.id
+ALTER TABLE security.user_roles
+    ADD CONSTRAINT fk_user_roles_user
+    FOREIGN KEY (user_id) REFERENCES identity.users(id);
+
+-- security.user_roles.role_id → security.roles.id
+ALTER TABLE security.user_roles
+    ADD CONSTRAINT fk_user_roles_role
+    FOREIGN KEY (role_id) REFERENCES security.roles(id);
+
+-- security.role_permissions.role_id → security.roles.id
+ALTER TABLE security.role_permissions
+    ADD CONSTRAINT fk_role_permissions_role
+    FOREIGN KEY (role_id) REFERENCES security.roles(id);
+
+-- security.role_permissions.permission_id → security.permissions.id
+ALTER TABLE security.role_permissions
+    ADD CONSTRAINT fk_role_permissions_permission
+    FOREIGN KEY (permission_id) REFERENCES security.permissions(id);
+
+-- identity.permission_group_permissions.group_id → identity.permission_groups.id
+ALTER TABLE identity.permission_group_permissions
+    ADD CONSTRAINT fk_pgp_group
+    FOREIGN KEY (group_id) REFERENCES identity.permission_groups(id);
+
+-- identity.permission_group_permissions.permission_id → security.permissions.id
+ALTER TABLE identity.permission_group_permissions
+    ADD CONSTRAINT fk_pgp_permission
+    FOREIGN KEY (permission_id) REFERENCES security.permissions(id);
+
+-- workflow.approval_requests.workflow_id → workflow.approval_workflows.id
+ALTER TABLE workflow.approval_requests
+    ADD CONSTRAINT fk_approval_requests_workflow
+    FOREIGN KEY (workflow_id) REFERENCES workflow.approval_workflows(id);
+
+-- workflow.approval_requests.requested_by → identity.users.id
+ALTER TABLE workflow.approval_requests
+    ADD CONSTRAINT fk_approval_requests_requested_by
+    FOREIGN KEY (requested_by) REFERENCES identity.users(id);
+
+-- workflow.approval_requests.reviewed_by → identity.users.id
+ALTER TABLE workflow.approval_requests
+    ADD CONSTRAINT fk_approval_requests_reviewed_by
+    FOREIGN KEY (reviewed_by) REFERENCES identity.users(id);
+
+-- customer.customers.referred_by → customer.customers.id
+ALTER TABLE customer.customers
+    ADD CONSTRAINT fk_customers_referred_by
+    FOREIGN KEY (referred_by) REFERENCES customer.customers(id);
+
+-- billing.invoice_line_items.invoice_id → billing.invoices.id
+ALTER TABLE billing.invoice_line_items
+    ADD CONSTRAINT fk_invoice_line_items_invoice
+    FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id);
+
+-- billing.payment_reminders.invoice_id → billing.invoices.id
+ALTER TABLE billing.payment_reminders
+    ADD CONSTRAINT fk_payment_reminders_invoice
+    FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id);
+
+-- bandwidth.bandwidth_profiles.customer_id → customer.customers.id
+ALTER TABLE bandwidth.bandwidth_profiles
+    ADD CONSTRAINT fk_bandwidth_profiles_customer
+    FOREIGN KEY (customer_id) REFERENCES customer.customers(id);
+
+-- bandwidth.bandwidth_applications.customer_id → customer.customers.id
+ALTER TABLE bandwidth.bandwidth_applications
+    ADD CONSTRAINT fk_bandwidth_applications_customer
+    FOREIGN KEY (customer_id) REFERENCES customer.customers(id);
+
+-- document.document_files.uploaded_by → identity.users.id
+ALTER TABLE document.document_files
+    ADD CONSTRAINT fk_document_files_uploaded_by
+    FOREIGN KEY (uploaded_by) REFERENCES identity.users(id);
+
+-- NOTE: audit_logs.user_id does NOT get a FK here. audit_logs is
+-- RANGE-partitioned (by created_at) and PostgreSQL requires FK columns on a
+-- partitioned table to include the partition key, which is impossible for
+-- user_id. Attribution integrity is enforced at the application layer.
+
 -- notification.delivery_history.notification_id → notification.notifications.id
-ALTER TABLE notification.notification_delivery_history
-    ADD CONSTRAINT fk_delivery_history_notification
-    FOREIGN KEY (notification_id) REFERENCES notification.notifications(id);
+-- OMITTED: notification.notifications is RANGE-partitioned (by created_at), so
+-- its primary key is (id, created_at). PostgreSQL cannot reference only
+-- notifications(id) without the partition key. The delivery history link is
+-- enforced at the application layer.
 
 -- inventory.inventory_items.branch_id → branches.branches.id
 ALTER TABLE inventory.inventory_items
@@ -354,8 +441,8 @@ CREATE INDEX IF NOT EXISTS idx_network_devices_branch ON device.network_devices(
 -- Audit log: user_id + created_at (user activity audit)
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit.audit_logs(user_id, created_at DESC);
 
--- Outbox: status + created_at (pending event processing)
-CREATE INDEX IF NOT EXISTS idx_outbox_events_status_time ON outbox_events(status, created_at);
+-- Outbox: published + created_at (pending event processing)
+CREATE INDEX IF NOT EXISTS idx_outbox_events_status_time ON outbox_events(published, created_at);
 
 -- Refund: customer_id (refund lookup by customer)
 CREATE INDEX IF NOT EXISTS idx_refunds_customer ON billing.refunds(customer_id);

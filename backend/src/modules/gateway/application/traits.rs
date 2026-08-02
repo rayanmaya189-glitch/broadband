@@ -1,6 +1,6 @@
-use async_trait::async_trait;
-use sea_orm::{DatabaseConnection};
 use crate::shared::errors::AppError;
+use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 
 pub type RateLimitRuleModel = crate::modules::gateway::domain::entities::rate_limit_rule::Model;
 pub type ApiKeyModel = crate::modules::gateway::domain::entities::api_key::Model;
@@ -27,10 +27,7 @@ pub trait GatewayServiceTrait: Send + Sync {
         id: i64,
     ) -> Result<(), AppError>;
 
-    async fn list_api_keys(
-        &self,
-        db: &DatabaseConnection,
-    ) -> Result<Vec<ApiKeyModel>, AppError>;
+    async fn list_api_keys(&self, db: &DatabaseConnection) -> Result<Vec<ApiKeyModel>, AppError>;
 
     async fn create_api_key(
         &self,
@@ -39,11 +36,7 @@ pub trait GatewayServiceTrait: Send + Sync {
         permissions: serde_json::Value,
     ) -> Result<ApiKeyModel, AppError>;
 
-    async fn revoke_api_key(
-        &self,
-        db: &DatabaseConnection,
-        id: i64,
-    ) -> Result<(), AppError>;
+    async fn revoke_api_key(&self, db: &DatabaseConnection, id: i64) -> Result<(), AppError>;
 
     async fn list_request_logs(
         &self,

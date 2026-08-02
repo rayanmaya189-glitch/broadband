@@ -213,9 +213,7 @@ pub async fn delete_branch(
 
     // Cleanup: close open tickets at this branch with note "Branch deactivated"
     (async {
-        use crate::modules::ticket::domain::entities::{
-            Ticket, TicketActiveModel, TicketColumn,
-        };
+        use crate::modules::ticket::domain::entities::{Ticket, TicketActiveModel, TicketColumn};
         use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
         let tickets = Ticket::find()
             .filter(TicketColumn::BranchId.eq(id))
@@ -295,7 +293,9 @@ pub async fn get_working_hours(
 ) -> Result<Json<Vec<WorkingHoursResponse>>, AppError> {
     require_permission(&user, "branch.view").map_err(|e| AppError::Forbidden(e.1))?;
     let hours = BranchService::get_working_hours(&state.db, id).await?;
-    Ok(Json(hours.into_iter().map(WorkingHoursResponse::from).collect()))
+    Ok(Json(
+        hours.into_iter().map(WorkingHoursResponse::from).collect(),
+    ))
 }
 
 /// PUT /api/v1/branches/:id/working-hours
@@ -311,7 +311,9 @@ pub async fn update_working_hours(
         .map(|e| (e.day_of_week, e.open_time, e.close_time, e.is_closed))
         .collect();
     let hours = BranchService::update_working_hours(&state.db, id, tuples).await?;
-    Ok(Json(hours.into_iter().map(WorkingHoursResponse::from).collect()))
+    Ok(Json(
+        hours.into_iter().map(WorkingHoursResponse::from).collect(),
+    ))
 }
 
 // ─── Branch Stats ───────────────────────────────────────────────────────

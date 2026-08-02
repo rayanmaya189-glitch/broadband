@@ -240,7 +240,7 @@ impl SagaCoordinator {
 
             // Execute with retries
             let result = self
-                .execute_step_with_retry(db, handler, step, &last_output)
+                .execute_step_with_retry(db, handler.as_ref(), step, &last_output)
                 .await;
 
             match result {
@@ -331,7 +331,7 @@ impl SagaCoordinator {
     async fn execute_step_with_retry(
         &self,
         db: &DatabaseConnection,
-        handler: &Box<dyn StepHandler>,
+        handler: &dyn StepHandler,
         step: &workflow_step::Model,
         previous_output: &Option<serde_json::Value>,
     ) -> Result<serde_json::Value, AppError> {

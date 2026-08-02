@@ -234,16 +234,21 @@ pub async fn list_equipment(
 ) -> Result<Json<Vec<EquipmentResponse>>, AppError> {
     require_permission(&user, "installation.order.view").map_err(|e| AppError::Forbidden(e.1))?;
     let items = InstallationService::list_equipment(&state.db, id).await?;
-    Ok(Json(items.into_iter().map(|e| EquipmentResponse {
-        id: e.id,
-        installation_order_id: e.installation_order_id,
-        equipment_type: e.equipment_type,
-        model_name: e.model_name,
-        serial_number: e.serial_number,
-        quantity: e.quantity,
-        status: e.status,
-        notes: e.notes,
-    }).collect()))
+    Ok(Json(
+        items
+            .into_iter()
+            .map(|e| EquipmentResponse {
+                id: e.id,
+                installation_order_id: e.installation_order_id,
+                equipment_type: e.equipment_type,
+                model_name: e.model_name,
+                serial_number: e.serial_number,
+                quantity: e.quantity,
+                status: e.status,
+                notes: e.notes,
+            })
+            .collect(),
+    ))
 }
 
 /// POST /api/v1/installations/:id/equipment
@@ -287,8 +292,8 @@ pub async fn update_equipment_status(
     Json(req): Json<UpdateEquipmentStatusRequest>,
 ) -> Result<Json<EquipmentResponse>, AppError> {
     require_permission(&user, "installation.order.update").map_err(|e| AppError::Forbidden(e.1))?;
-    let item = InstallationService::update_equipment_status(&state.db, equipment_id, &req.status)
-        .await?;
+    let item =
+        InstallationService::update_equipment_status(&state.db, equipment_id, &req.status).await?;
     Ok(Json(EquipmentResponse {
         id: item.id,
         installation_order_id: item.installation_order_id,

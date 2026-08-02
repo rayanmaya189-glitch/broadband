@@ -38,10 +38,14 @@ pub struct HuaweiOltConfig {
 fn sanitize_cli_input(input: &str) -> Result<String, AppError> {
     let trimmed = input.trim().to_string();
     if trimmed.is_empty() {
-        return Err(AppError::Validation("CLI input cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "CLI input cannot be empty".to_string(),
+        ));
     }
     // Reject shell metacharacters and control characters
-    let forbidden = [';', '|', '&', '$', '`', '(', ')', '{', '}', '<', '>', '\n', '\r', '\0'];
+    let forbidden = [
+        ';', '|', '&', '$', '`', '(', ')', '{', '}', '<', '>', '\n', '\r', '\0',
+    ];
     if trimmed.chars().any(|c| forbidden.contains(&c)) || trimmed.contains("..") {
         return Err(AppError::Validation(format!(
             "CLI input contains forbidden characters: {}",
@@ -285,7 +289,9 @@ impl HuaweiOltSshAdapter {
         };
 
         Ok(CliResult {
-            success: !output.contains("Error") && !output.contains("Failure") && !output.contains("error"),
+            success: !output.contains("Error")
+                && !output.contains("Failure")
+                && !output.contains("error"),
             output,
             error: None,
         })
@@ -525,12 +531,16 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
                     let mut pir_kbps = 0u32;
                     for part in &parts {
                         if part.contains("CIR:") {
-                            cir_kbps = part.split(':').nth(1)
+                            cir_kbps = part
+                                .split(':')
+                                .nth(1)
                                 .and_then(|v| v.trim_end_matches("Kbps").trim().parse().ok())
                                 .unwrap_or(0);
                         }
                         if part.contains("PIR:") {
-                            pir_kbps = part.split(':').nth(1)
+                            pir_kbps = part
+                                .split(':')
+                                .nth(1)
                                 .and_then(|v| v.trim_end_matches("Kbps").trim().parse().ok())
                                 .unwrap_or(0);
                         }

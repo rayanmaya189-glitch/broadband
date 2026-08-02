@@ -37,7 +37,7 @@ mod tests {
         let n = new_business_number("INV");
         assert_eq!(n.len(), 20);
         assert!(n.starts_with("INV-"));
-        assert_eq!(n.chars().nth(4).unwrap().is_ascii_digit(), true);
+        assert!(n.chars().nth(4).unwrap().is_ascii_digit());
     }
 
     #[test]

@@ -498,7 +498,8 @@ pub async fn confirm_password_reset(
     Json(req): Json<PasswordResetConfirmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let mut redis = state.redis.clone();
-    IdentityService::confirm_password_reset(&state.db, &mut redis, &req.token, &req.new_password).await?;
+    IdentityService::confirm_password_reset(&state.db, &mut redis, &req.token, &req.new_password)
+        .await?;
     Ok(Json(serde_json::json!({ "status": "password_reset" })))
 }
 

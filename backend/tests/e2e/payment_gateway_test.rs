@@ -1,9 +1,8 @@
 //! End-to-end test: Payment Gateway Workflow
 //! Tests: Payment link creation → Webhook processing → Invoice update
 
-
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
 /// Test payment gateway flow: invoice → payment link → payment record
 #[ignore]
@@ -133,4 +132,3 @@ async fn test_payment_failure_flow() {
         .unwrap();
     assert_eq!(inv.status, "sent");
 }
-

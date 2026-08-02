@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    Set,
 };
 use tracing::{debug, info, warn};
 
@@ -46,8 +47,12 @@ impl PaymentService {
             .filter(gateway_config::Column::IsActive.eq(true))
             .one(db)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load gateway config: {}", e)))?
-            .ok_or_else(|| AppError::Validation(format!("Payment gateway '{}' is not active", gateway_id)))?;
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to load gateway config: {}", e))
+            })?
+            .ok_or_else(|| {
+                AppError::Validation(format!("Payment gateway '{}' is not active", gateway_id))
+            })?;
 
         // Create the real gateway order so the webhook can match by order ID.
         let receipt = format!("{}-{}", invoice_id, idempotency_key);
@@ -69,7 +74,8 @@ impl PaymentService {
                 let adapter = RazorpayAdapter::from_env();
                 if adapter.key_id.is_empty() || adapter.key_secret.is_empty() {
                     return Err(AppError::External(
-                        "Razorpay is not configured (set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)".into(),
+                        "Razorpay is not configured (set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)"
+                            .into(),
                     ));
                 }
                 adapter
@@ -80,7 +86,8 @@ impl PaymentService {
                 let adapter = PayuAdapter::from_env();
                 if adapter.merchant_key.is_empty() || adapter.merchant_salt.is_empty() {
                     return Err(AppError::External(
-                        "PayU is not configured (set PAYU_MERCHANT_KEY / PAYU_MERCHANT_SALT)".into(),
+                        "PayU is not configured (set PAYU_MERCHANT_KEY / PAYU_MERCHANT_SALT)"
+                            .into(),
                     ));
                 }
                 adapter
@@ -157,13 +164,14 @@ impl PaymentService {
         use sea_orm::TransactionTrait;
 
         if amount <= sea_orm::prelude::Decimal::ZERO {
-            return Err(AppError::Validation("Payment amount must be positive".into()));
+            return Err(AppError::Validation(
+                "Payment amount must be positive".into(),
+            ));
         }
 
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to begin transaction: {}", e)))?;
+        let txn = db.begin().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to begin transaction: {}", e))
+        })?;
         let now = Utc::now();
         let zero = sea_orm::prelude::Decimal::ZERO;
 
@@ -175,7 +183,9 @@ impl PaymentService {
                 .filter(payment_link::Column::GatewayOrderId.eq(oid))
                 .one(&txn)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e))
+                })?
         } else {
             None
         };
@@ -185,7 +195,9 @@ impl PaymentService {
                 .filter(payment_link::Column::GatewayOrderId.eq(gateway_transaction_id))
                 .one(&txn)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e))
+                })?
                 .ok_or_else(|| AppError::NotFound("Payment link not found".to_string()))?,
         };
 
@@ -231,10 +243,9 @@ impl PaymentService {
         active.status = Set("completed".to_string());
         active.paid_at = Set(Some(now));
         active.updated_at = Set(now);
-        let updated = active
-            .update(&txn)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e)))?;
+        let updated = active.update(&txn).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to update payment link: {}", e))
+        })?;
 
         // 3. Settle the invoice and credit any excess to the wallet.
         let total_paid = payment_entity::Entity::find()
@@ -242,7 +253,9 @@ impl PaymentService {
             .filter(payment_entity::Column::Status.eq("completed"))
             .all(&txn)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e)))?
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e))
+            })?
             .into_iter()
             .fold(zero, |acc, p| acc + p.amount);
 
@@ -296,9 +309,9 @@ impl PaymentService {
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to queue payment event: {}", e)))?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to commit transaction: {}", e)))?;
+        txn.commit().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to commit transaction: {}", e))
+        })?;
 
         info!(
             link_id = %updated.link_id,
@@ -332,7 +345,9 @@ impl PaymentService {
                 .filter(payment_link::Column::GatewayOrderId.eq(oid))
                 .one(db)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e))
+                })?
         } else {
             None
         };
@@ -342,7 +357,9 @@ impl PaymentService {
                 .filter(payment_link::Column::GatewayOrderId.eq(gateway_transaction_id))
                 .one(db)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to find payment link: {}", e))
+                })?
                 .ok_or_else(|| AppError::NotFound("Payment link not found".to_string()))?,
         };
 
@@ -418,17 +435,20 @@ impl PaymentService {
         recorded_by: i64,
     ) -> Result<ManualPaymentResult, AppError> {
         use crate::infrastructure::messaging::outbox;
-        use crate::modules::billing::domain::entities::{invoice as invoice_entity, payment as payment_entity};
+        use crate::modules::billing::domain::entities::{
+            invoice as invoice_entity, payment as payment_entity,
+        };
         use sea_orm::TransactionTrait;
 
         if amount <= sea_orm::prelude::Decimal::ZERO {
-            return Err(AppError::Validation("Payment amount must be positive".into()));
+            return Err(AppError::Validation(
+                "Payment amount must be positive".into(),
+            ));
         }
 
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to begin transaction: {}", e)))?;
+        let txn = db.begin().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to begin transaction: {}", e))
+        })?;
         let now = Utc::now();
         let zero = sea_orm::prelude::Decimal::ZERO;
 
@@ -449,10 +469,9 @@ impl PaymentService {
             created_at: Set(now),
             ..Default::default()
         };
-        let payment = payment_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record manual payment: {}", e)))?;
+        let payment = payment_model.insert(&txn).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to record manual payment: {}", e))
+        })?;
 
         // 2. Keep a payment_link record for traceability.
         let link_id = crate::shared::utils::uuid_v7::new_v7_string().to_string();
@@ -483,10 +502,9 @@ impl PaymentService {
             updated_at: Set(now),
             ..Default::default()
         };
-        let link = link_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record payment link: {}", e)))?;
+        let link = link_model.insert(&txn).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to record payment link: {}", e))
+        })?;
 
         // 3. Settle the invoice and determine any wallet credit.
         let mut invoice_status: Option<String> = None;
@@ -499,11 +517,15 @@ impl PaymentService {
                 .filter(payment_entity::Column::Status.eq("completed"))
                 .all(&txn)
                 .await
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e))
+                })?
                 .into_iter()
                 .fold(zero, |acc, p| acc + p.amount);
 
-            invoice_status = Self::settle_invoice(&txn, inv_id, customer_id, total_paid, &payment_method).await?;
+            invoice_status =
+                Self::settle_invoice(&txn, inv_id, customer_id, total_paid, &payment_method)
+                    .await?;
 
             if let Some(inv) = invoice_entity::Entity::find_by_id(inv_id)
                 .one(&txn)
@@ -566,9 +588,9 @@ impl PaymentService {
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to queue payment event: {}", e)))?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to commit transaction: {}", e)))?;
+        txn.commit().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to commit transaction: {}", e))
+        })?;
 
         info!(
             link_id = %link_id,
@@ -609,10 +631,9 @@ impl PaymentService {
         };
         use sea_orm::TransactionTrait;
 
-        let txn = db
-            .begin()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to begin transaction: {}", e)))?;
+        let txn = db.begin().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to begin transaction: {}", e))
+        })?;
         let now = Utc::now();
         let zero = sea_orm::prelude::Decimal::ZERO;
 
@@ -643,7 +664,9 @@ impl PaymentService {
             .filter(payment_entity::Column::Status.eq("completed"))
             .all(&txn)
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e)))?
+            .map_err(|e| {
+                AppError::Internal(anyhow::anyhow!("Failed to load invoice payments: {}", e))
+            })?
             .into_iter()
             .fold(zero, |acc, p| acc + p.amount);
 
@@ -653,7 +676,9 @@ impl PaymentService {
         }
         let pay_amount = amount.unwrap_or(remaining);
         if pay_amount <= zero {
-            return Err(AppError::Validation("Payment amount must be positive".into()));
+            return Err(AppError::Validation(
+                "Payment amount must be positive".into(),
+            ));
         }
         if pay_amount > remaining {
             return Err(AppError::Validation(format!(
@@ -681,7 +706,9 @@ impl PaymentService {
         }
         .insert(&txn)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record wallet payment: {}", e)))?;
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to record wallet payment: {}", e))
+        })?;
 
         // 4. Debit the wallet (fails on insufficient balance).
         let (wallet_balance, _wallet_id) = Self::debit_wallet(
@@ -729,9 +756,9 @@ impl PaymentService {
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to queue payment event: {}", e)))?;
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to commit transaction: {}", e)))?;
+        txn.commit().await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to commit transaction: {}", e))
+        })?;
 
         info!(
             payment_id = payment.id,
@@ -870,7 +897,9 @@ impl PaymentService {
             .ok_or_else(|| AppError::NotFound(format!("Invoice {} not found", invoice_id)))?;
 
         if inv.customer_id != customer_id {
-            return Err(AppError::Validation("Invoice does not belong to this customer".into()));
+            return Err(AppError::Validation(
+                "Invoice does not belong to this customer".into(),
+            ));
         }
         if inv.status == "paid" {
             return Err(AppError::Validation("Invoice is already paid".into()));
@@ -961,7 +990,12 @@ impl PaymentService {
         }
         .insert(txn)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record wallet transaction: {}", e)))?;
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!(
+                "Failed to record wallet transaction: {}",
+                e
+            ))
+        })?;
 
         Ok((old_balance + amount, wallet.id))
     }
@@ -1020,7 +1054,12 @@ impl PaymentService {
         }
         .insert(txn)
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record wallet transaction: {}", e)))?;
+        .map_err(|e| {
+            AppError::Internal(anyhow::anyhow!(
+                "Failed to record wallet transaction: {}",
+                e
+            ))
+        })?;
 
         Ok((old_balance - amount, wallet.id))
     }

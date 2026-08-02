@@ -59,7 +59,7 @@ impl ApiKey {
     pub fn is_valid(&self) -> bool {
         self.is_active
             && self.status == ApiKeyStatus::Active
-            && self.expires_at.map_or(true, |t| t > chrono::Utc::now())
+            && self.expires_at.is_none_or(|t| t > chrono::Utc::now())
     }
 
     pub fn has_permission(&self, permission: &str) -> bool {
@@ -73,13 +73,23 @@ mod tests {
 
     #[test]
     fn test_new_api_key() {
-        let key = ApiKey::new("Test".to_string(), "hash".to_string(), "ak_".to_string(), "device.*".to_string());
+        let key = ApiKey::new(
+            "Test".to_string(),
+            "hash".to_string(),
+            "ak_".to_string(),
+            "device.*".to_string(),
+        );
         assert!(key.is_valid());
     }
 
     #[test]
     fn test_revoke_key() {
-        let mut key = ApiKey::new("Test".to_string(), "hash".to_string(), "ak_".to_string(), "*".to_string());
+        let mut key = ApiKey::new(
+            "Test".to_string(),
+            "hash".to_string(),
+            "ak_".to_string(),
+            "*".to_string(),
+        );
         key.revoke();
         assert!(!key.is_valid());
     }

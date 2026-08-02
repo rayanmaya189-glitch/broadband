@@ -114,7 +114,8 @@ impl BranchService {
             .await?;
 
         // Group by state to form hierarchy regions
-        let mut regions: std::collections::HashMap<String, Vec<serde_json::Value>> = std::collections::HashMap::new();
+        let mut regions: std::collections::HashMap<String, Vec<serde_json::Value>> =
+            std::collections::HashMap::new();
         for b in branches {
             let node = serde_json::json!({
                 "id": b.id,
@@ -255,7 +256,12 @@ impl BranchService {
             .filter(branch_user::Column::UserId.eq(user_id))
             .one(db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("User {} not assigned to branch {}", user_id, branch_id)))?;
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "User {} not assigned to branch {}",
+                    user_id, branch_id
+                ))
+            })?;
         record.delete(db).await?;
         Ok(())
     }

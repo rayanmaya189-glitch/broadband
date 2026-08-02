@@ -195,7 +195,8 @@ impl NetworkDeviceAdapter for CircuitBreakerAdapter {
                 self.cb.name()
             )));
         }
-        match self.inner
+        match self
+            .inner
             .apply_bandwidth(queue_name, target, download_kbps, upload_kbps)
             .await
         {

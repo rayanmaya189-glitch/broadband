@@ -148,10 +148,13 @@ impl SubscriptionService {
         id: i64,
         new_plan_id: i64,
         new_billing_period_months: Option<i32>,
-    ) -> Result<(
-        crate::modules::subscription::domain::entities::subscription::Model,
-        Option<crate::shared::primitives::ProRataAdjustment>,
-    ), AppError> {
+    ) -> Result<
+        (
+            crate::modules::subscription::domain::entities::subscription::Model,
+            Option<crate::shared::primitives::ProRataAdjustment>,
+        ),
+        AppError,
+    > {
         let txn = db.begin().await?;
         let sub = Subscription::find_by_id(id)
             .one(&txn)
@@ -181,9 +184,10 @@ impl SubscriptionService {
             .await?;
         let new_pricing = PlanPricing::find()
             .filter(PlanPricingColumn::PlanId.eq(new_plan_id))
-            .filter(PlanPricingColumn::BillingPeriodMonths.eq(
-                new_billing_period_months.unwrap_or(sub.billing_period_months)
-            ))
+            .filter(
+                PlanPricingColumn::BillingPeriodMonths
+                    .eq(new_billing_period_months.unwrap_or(sub.billing_period_months)),
+            )
             .filter(PlanPricingColumn::IsActive.eq(true))
             .one(&txn)
             .await?;
@@ -451,16 +455,17 @@ impl SubscriptionService {
             .one(&txn)
             .await?;
         if let Some(p) = pricing {
-            let inv = crate::modules::billing::application::services::BillingService::create_invoice(
-                &txn,
-                sub.customer_id,
-                sub.branch_id,
-                sub.id,
-                period_start,
-                next_billing,
-                p.price,
-            )
-            .await?;
+            let inv =
+                crate::modules::billing::application::services::BillingService::create_invoice(
+                    &txn,
+                    sub.customer_id,
+                    sub.branch_id,
+                    sub.id,
+                    period_start,
+                    next_billing,
+                    p.price,
+                )
+                .await?;
             invoice_id = Some(inv.id);
         }
 

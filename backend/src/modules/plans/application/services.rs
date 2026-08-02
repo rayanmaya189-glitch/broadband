@@ -1,9 +1,9 @@
+use crate::modules::bandwidth::domain::entities::{
+    BandwidthProfile, BandwidthProfileActiveModel, BandwidthProfileColumn,
+};
 use crate::modules::plans::domain::entities::{
     Plan, PlanActiveModel, PlanColumn, PlanPricing, PlanPricingActiveModel, PlanPricingColumn,
     SpeedProfile, SpeedProfileActiveModel, SpeedProfileColumn,
-};
-use crate::modules::bandwidth::domain::entities::{
-    BandwidthProfile, BandwidthProfileActiveModel, BandwidthProfileColumn,
 };
 use crate::shared::errors::AppError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};

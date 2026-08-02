@@ -93,19 +93,22 @@ pub async fn audit_middleware(request: Request, next: Next) -> Response {
         let request_id_clone = request_id.clone();
         let action_clone = action.clone();
         tokio::spawn(async move {
-            if let Err(e) = crate::modules::audit::application::services::AuditService::record_action(
-                &db,
-                user_id,
-                user_email,
-                user_role,
-                action_clone,
-                resource_type,
-                resource_id,
-                Some(ip_address),
-                result.to_string(),
-                None,
-                None,
-            ).await {
+            if let Err(e) =
+                crate::modules::audit::application::services::AuditService::record_action(
+                    &db,
+                    user_id,
+                    user_email,
+                    user_role,
+                    action_clone,
+                    resource_type,
+                    resource_id,
+                    Some(ip_address),
+                    result.to_string(),
+                    None,
+                    None,
+                )
+                .await
+            {
                 error!(
                     request_id = ?request_id_clone,
                     error = %e,

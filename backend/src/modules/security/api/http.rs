@@ -135,7 +135,9 @@ pub async fn update_role(
     Json(req): Json<UpdateRoleRequest>,
 ) -> Result<Json<RoleResponse>, AppError> {
     require_permission(&user, "rbac.role.update").map_err(|e| AppError::Forbidden(e.1))?;
-    let role = SecurityService::update_role(&state.db, id, req.name, req.description, req.parent_role_id).await?;
+    let role =
+        SecurityService::update_role(&state.db, id, req.name, req.description, req.parent_role_id)
+            .await?;
     Ok(Json(RoleResponse {
         id: role.id,
         name: role.name,
@@ -184,7 +186,8 @@ pub async fn assign_permission(
     Path(role_id): Path<i64>,
     Json(req): Json<AssignPermissionRequest>,
 ) -> Result<StatusCode, AppError> {
-    require_permission(&user, "rbac.role.permission.assign").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "rbac.role.permission.assign")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     SecurityService::assign_permission(&state.db, role_id, req.permission_id).await?;
     Ok(StatusCode::CREATED)
 }
@@ -195,7 +198,8 @@ pub async fn revoke_permission(
     user: UserContext,
     Path((role_id, perm_id)): Path<(i64, i64)>,
 ) -> Result<StatusCode, AppError> {
-    require_permission(&user, "rbac.role.permission.revoke").map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "rbac.role.permission.revoke")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     SecurityService::revoke_permission(&state.db, role_id, perm_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

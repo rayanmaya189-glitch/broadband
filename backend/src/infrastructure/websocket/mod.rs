@@ -283,7 +283,7 @@ async fn handle_socket(
     loop {
         tokio::select! {
             _ = heartbeat.tick() => {
-                if sender.send(axum::extract::ws::Message::Ping(vec![].into())).await.is_err() {
+                if sender.send(axum::extract::ws::Message::Ping(vec![])).await.is_err() {
                     warn!(user_id = user_id, "WebSocket heartbeat ping failed, closing");
                     break;
                 }

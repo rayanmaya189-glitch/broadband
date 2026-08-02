@@ -1,8 +1,8 @@
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait};
-use crate::shared::errors::AppError;
-use crate::modules::gateway::domain::entities::rate_limit_rule;
 use crate::modules::gateway::domain::entities::api_key;
+use crate::modules::gateway::domain::entities::rate_limit_rule;
 use crate::modules::gateway::domain::entities::request_log;
+use crate::shared::errors::AppError;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 
 /// Gateway repository for database queries.
 pub struct GatewayRepository;

@@ -1,6 +1,6 @@
+use crate::shared::errors::AppError;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
-use crate::shared::errors::AppError;
 
 /// Redis-based sliding window rate limiter.
 pub struct RateLimiter {
@@ -44,10 +44,8 @@ impl RateLimiter {
 
         if count >= max_requests as i64 {
             // Get the oldest entry to calculate retry_after
-            let oldest: Option<Vec<(String, f64)>> = redis
-                .zrange_withscores(&redis_key, 0, 0)
-                .await
-                .ok();
+            let oldest: Option<Vec<(String, f64)>> =
+                redis.zrange_withscores(&redis_key, 0, 0).await.ok();
 
             let retry_after = oldest
                 .and_then(|v| v.into_iter().next())

@@ -1,8 +1,8 @@
+use sea_orm::sea_query::{LockBehavior, LockType};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
 };
-use sea_orm::sea_query::{LockBehavior, LockType};
 use tracing::{error, info, warn};
 
 use crate::infrastructure::messaging::outbox;
@@ -171,7 +171,9 @@ impl BandwidthWorker {
         let mut reapplied = 0;
 
         for app in &applied {
-            let Some(device_id) = app.device_id else { continue };
+            let Some(device_id) = app.device_id else {
+                continue;
+            };
 
             let device = match network_device::Entity::find_by_id(device_id)
                 .one(&self.db)

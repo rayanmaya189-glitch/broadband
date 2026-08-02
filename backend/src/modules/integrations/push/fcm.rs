@@ -243,9 +243,9 @@ impl FcmAdapter {
         // Build JWT claims for OAuth2 token exchange using jsonwebtoken directly
 
         // Extract private key PEM from service account JSON
-        let private_key_pem = sa_key["private_key"]
-            .as_str()
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing private_key in service account")))?;
+        let private_key_pem = sa_key["private_key"].as_str().ok_or_else(|| {
+            AppError::Internal(anyhow::anyhow!("Missing private_key in service account"))
+        })?;
 
         // Parse PEM to DER if PEM-wrapped
         let der_key = if private_key_pem.contains("BEGIN") {
@@ -256,12 +256,16 @@ impl FcmAdapter {
             use base64::Engine;
             base64::engine::general_purpose::STANDARD
                 .decode(&pem_lines)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode PEM key: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to decode PEM key: {}", e))
+                })?
         } else {
             use base64::Engine;
             base64::engine::general_purpose::STANDARD
                 .decode(private_key_pem)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to decode base64 key: {}", e)))?
+                .map_err(|e| {
+                    AppError::Internal(anyhow::anyhow!("Failed to decode base64 key: {}", e))
+                })?
         };
 
         // Build proper JWT using jsonwebtoken (no manual header+claims+signature assembly)

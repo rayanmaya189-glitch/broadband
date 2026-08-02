@@ -75,7 +75,15 @@ pub async fn set_history_context(
 fn sanitize_ip_address(ip: &str) -> String {
     let sanitized: String = ip
         .chars()
-        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == ':' || *c == 'a' || *c == 'f' || *c == 'A' || *c == 'F')
+        .filter(|c| {
+            c.is_ascii_digit()
+                || *c == '.'
+                || *c == ':'
+                || *c == 'a'
+                || *c == 'f'
+                || *c == 'A'
+                || *c == 'F'
+        })
         .take(45) // IPv6 max length
         .collect();
     if sanitized.is_empty() {

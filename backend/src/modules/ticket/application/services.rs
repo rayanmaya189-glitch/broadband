@@ -103,10 +103,17 @@ impl TicketService {
         active.updated_at = Set(chrono::Utc::now());
         let updated = active.update(db).await?;
         crate::infrastructure::messaging::outbox::insert_outbox_event(
-            db, "ticket.resolved", "ticket", ticket_id,
+            db,
+            "ticket.resolved",
+            "ticket",
+            ticket_id,
             serde_json::json!({"customer_id": customer_id, "resolution_notes": resolution_notes}),
-            None, None, None,
-        ).await.ok();
+            None,
+            None,
+            None,
+        )
+        .await
+        .ok();
         Ok(updated)
     }
 

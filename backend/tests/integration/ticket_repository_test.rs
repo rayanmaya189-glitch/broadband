@@ -3,9 +3,8 @@
 //! Covers ticket CRUD, assignment, escalation, resolution flow,
 //! comments, priority filtering, and status transitions.
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,7 +53,15 @@ async fn test_create_ticket() {
     let branch_id = TestFixture::create_branch(db).await;
     let customer_id = TestFixture::create_customer(db, branch_id).await;
 
-    let ticket = create_ticket(db, branch_id, Some(customer_id), "Connectivity issue", "high", "open").await;
+    let ticket = create_ticket(
+        db,
+        branch_id,
+        Some(customer_id),
+        "Connectivity issue",
+        "high",
+        "open",
+    )
+    .await;
 
     assert!(ticket.id > 0, "Ticket should have positive ID");
     assert_eq!(ticket.subject, "Connectivity issue");
@@ -73,11 +80,12 @@ async fn test_retrieve_ticket_by_id() {
     let branch_id = TestFixture::create_branch(db).await;
     let created = create_ticket(db, branch_id, None, "Retrieve test", "medium", "open").await;
 
-    let found = aeroxe_backend::modules::ticket::domain::entities::ticket::Entity::find_by_id(created.id)
-        .one(db)
-        .await
-        .expect("Query failed")
-        .expect("Ticket not found");
+    let found =
+        aeroxe_backend::modules::ticket::domain::entities::ticket::Entity::find_by_id(created.id)
+            .one(db)
+            .await
+            .expect("Query failed")
+            .expect("Ticket not found");
 
     assert_eq!(found.id, created.id);
     assert_eq!(found.subject, "Retrieve test");
@@ -228,7 +236,9 @@ async fn test_ticket_full_resolution_flow() {
     // in_progress -> resolved
     let mut active: ticket::ActiveModel = in_progress.into();
     active.status = Set("resolved".to_string());
-    active.resolution_notes = Set(Some("Issue was caused by a misconfigured VLAN. Fixed.".to_string()));
+    active.resolution_notes = Set(Some(
+        "Issue was caused by a misconfigured VLAN. Fixed.".to_string(),
+    ));
     active.resolved_at = Set(Some(chrono::Utc::now()));
     active.updated_at = Set(chrono::Utc::now());
     let resolved = active.update(db).await.unwrap();
@@ -440,7 +450,15 @@ async fn test_add_internal_comment() {
 
     let branch_id = TestFixture::create_branch(db).await;
     let user_id = TestFixture::create_user(db, branch_id).await;
-    let ticket = create_ticket(db, branch_id, None, "Internal comment test", "medium", "open").await;
+    let ticket = create_ticket(
+        db,
+        branch_id,
+        None,
+        "Internal comment test",
+        "medium",
+        "open",
+    )
+    .await;
 
     use aeroxe_backend::modules::ticket::domain::entities::ticket_comment;
 
@@ -494,7 +512,10 @@ async fn test_list_ticket_comments() {
         .expect("Failed to query comments");
 
     assert_eq!(comments.len(), 3);
-    assert!(comments[0].is_customer, "First comment should be from customer");
+    assert!(
+        comments[0].is_customer,
+        "First comment should be from customer"
+    );
 }
 
 #[ignore]
@@ -725,7 +746,6 @@ async fn test_concurrent_ticket_creation() {
     let mut handles = Vec::new();
     for i in 0..5 {
         let db_clone = db.clone();
-        let branch_id = branch_id;
         let handle = tokio::spawn(async move {
             use aeroxe_backend::modules::ticket::domain::entities::ticket;
             let created_by = TestFixture::create_user(&db_clone, branch_id).await;
@@ -744,7 +764,10 @@ async fn test_concurrent_ticket_creation() {
                 updated_at: Set(now),
                 ..Default::default()
             };
-            active.insert(&db_clone).await.expect("Failed to create ticket")
+            active
+                .insert(&db_clone)
+                .await
+                .expect("Failed to create ticket")
         });
         handles.push(handle);
     }
@@ -760,4 +783,3 @@ async fn test_concurrent_ticket_creation() {
         assert!(r.id > 0);
     }
 }
-

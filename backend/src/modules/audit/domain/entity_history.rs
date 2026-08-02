@@ -202,10 +202,7 @@ impl EntityHistoryService {
         };
 
         // Get total count
-        let count_query = format!(
-            "SELECT COUNT(*) as count FROM {} h {}",
-            table, where_clause
-        );
+        let count_query = format!("SELECT COUNT(*) as count FROM {} h {}", table, where_clause);
         let count_result = db
             .query_one(Statement::from_sql_and_values(
                 db.get_database_backend(),
@@ -335,8 +332,12 @@ impl EntityHistoryService {
             ));
         }
 
-        let data_a = entry_a.new_data.unwrap_or_else(|| Value::Object(Default::default()));
-        let data_b = entry_b.new_data.unwrap_or_else(|| Value::Object(Default::default()));
+        let data_a = entry_a
+            .new_data
+            .unwrap_or_else(|| Value::Object(Default::default()));
+        let data_b = entry_b
+            .new_data
+            .unwrap_or_else(|| Value::Object(Default::default()));
 
         let mut changes = Vec::new();
         if let (Some(obj_a), Some(obj_b)) = (data_a.as_object(), data_b.as_object()) {

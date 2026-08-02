@@ -3,7 +3,10 @@
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use chrono::NaiveDate;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -126,8 +129,7 @@ pub async fn compare_history(
     Query(query): Query<CompareQuery>,
     user: UserContext,
 ) -> Result<Json<crate::modules::audit::domain::entity_history::HistoryDiff>, AppError> {
-    require_permission(&user, "audit.history.view")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "audit.history.view").map_err(|e| AppError::Forbidden(e.1))?;
 
     let diff = EntityHistoryService::compare_history(
         &state.db,
@@ -154,15 +156,11 @@ pub async fn export_history(
     Query(query): Query<ExportHistoryQuery>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "audit.history.export")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "audit.history.export").map_err(|e| AppError::Forbidden(e.1))?;
 
-    let export = EntityHistoryService::export_history(
-        &state.db,
-        &query.entity_type,
-        &query.entity_id,
-    )
-    .await?;
+    let export =
+        EntityHistoryService::export_history(&state.db, &query.entity_type, &query.entity_id)
+            .await?;
 
     Ok(Json(serde_json::json!({
         "entity_type": export.entity_type,
@@ -306,8 +304,7 @@ pub async fn list_events(
     Query(query): Query<EventQuery>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "audit.event.view")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "audit.event.view").map_err(|e| AppError::Forbidden(e.1))?;
 
     let page = pagination.page();
     let limit = pagination.limit();
@@ -337,9 +334,10 @@ pub async fn list_events(
         }
     }
 
-    let total = stmt.clone().count(&state.db).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to count outbox events: {}", e))
-    })?;
+    let total =
+        stmt.clone().count(&state.db).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to count outbox events: {}", e))
+        })?;
 
     let events = stmt
         .order_by_desc(outbox_entity::Column::CreatedAt)
@@ -347,9 +345,7 @@ pub async fn list_events(
         .limit(limit)
         .all(&state.db)
         .await
-        .map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Failed to fetch outbox events: {}", e))
-        })?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to fetch outbox events: {}", e)))?;
 
     Ok(Json(serde_json::json!({
         "data": events,
@@ -368,8 +364,7 @@ pub async fn export_events(
     Query(query): Query<EventExportQuery>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "audit.event.export")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "audit.event.export").map_err(|e| AppError::Forbidden(e.1))?;
 
     let mut stmt = OutboxEventEntity::find();
 
@@ -405,16 +400,13 @@ pub async fn replay_event(
     Path(id): Path<i64>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&user, "audit.event.replay")
-        .map_err(|e| AppError::Forbidden(e.1))?;
+    require_permission(&user, "audit.event.replay").map_err(|e| AppError::Forbidden(e.1))?;
 
     let event = OutboxEventEntity::find()
         .filter(outbox_entity::Column::Id.eq(id))
         .one(&state.db)
         .await
-        .map_err(|e| {
-            AppError::Internal(anyhow::anyhow!("Failed to find outbox event: {}", e))
-        })?
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to find outbox event: {}", e)))?
         .ok_or_else(|| AppError::NotFound(format!("Outbox event {} not found", id)))?;
 
     let mut active: outbox_entity::ActiveModel = event.into();
@@ -424,9 +416,10 @@ pub async fn replay_event(
     active.dead_letter_at = sea_orm::Set(None);
     active.last_error = sea_orm::Set(None);
     active.updated_at = sea_orm::Set(chrono::Utc::now());
-    active.update(&state.db).await.map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("Failed to replay outbox event: {}", e))
-    })?;
+    active
+        .update(&state.db)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to replay outbox event: {}", e)))?;
 
     Ok(Json(serde_json::json!({
         "status": "replayed",

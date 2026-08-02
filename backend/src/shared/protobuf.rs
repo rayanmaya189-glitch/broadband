@@ -50,9 +50,9 @@ impl<T: Message + Default + Send + 'static> FromRequest<AppState> for Proto<T> {
         }
 
         // Read body bytes
-        let body_bytes = axum::body::to_bytes(body, usize::MAX)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to read request body: {}", e)))?;
+        let body_bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|e| {
+            AppError::Internal(anyhow::anyhow!("Failed to read request body: {}", e))
+        })?;
 
         // Decode protobuf
         let message = T::decode(&body_bytes[..])
@@ -65,7 +65,8 @@ impl<T: Message + Default + Send + 'static> FromRequest<AppState> for Proto<T> {
 // Helper function to create protobuf response
 pub fn proto_response<T: Message>(data: T) -> Response<Body> {
     let mut buf = BytesMut::with_capacity(data.encoded_len());
-    data.encode(&mut buf).expect("protobuf encode should not fail for valid message");
+    data.encode(&mut buf)
+        .expect("protobuf encode should not fail for valid message");
 
     Response::builder()
         .header("content-type", PROTOBUF_CONTENT_TYPE)
@@ -83,38 +84,99 @@ pub fn proto_response_from_bytes(data: Bytes) -> Response<Body> {
 
 // Include generated protobuf code
 pub mod proto {
-    #![allow(non_snake_case, non_camel_case_types, non_upper_case_globals, dead_code)]
+    #![allow(
+        non_snake_case,
+        non_camel_case_types,
+        non_upper_case_globals,
+        dead_code
+    )]
 
     // Common types (Response, ResponseStatus, PaginationRequest, etc.)
     include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.rs"));
 
     // Module-specific types
-    pub mod accounting { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.accounting.rs")); }
-    pub mod admin { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.admin.rs")); }
-    pub mod audit { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.audit.rs")); }
-    pub mod bandwidth { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.bandwidth.rs")); }
-    pub mod billing { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.billing.rs")); }
-    pub mod branches { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.branches.rs")); }
-    pub mod compliance { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.compliance.rs")); }
-    pub mod coverage { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.coverage.rs")); }
-    pub mod customer { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.customer.rs")); }
-    pub mod device { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.device.rs")); }
-    pub mod discovery { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.discovery.rs")); }
-    pub mod document { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.document.rs")); }
-    pub mod gateway { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.gateway.rs")); }
-    pub mod identity { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.identity.rs")); }
-    pub mod installation { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.installation.rs")); }
-    pub mod inventory { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.inventory.rs")); }
-    pub mod lead { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.lead.rs")); }
-    pub mod monitoring { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.monitoring.rs")); }
-    pub mod network { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.network.rs")); }
-    pub mod notification { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.notification.rs")); }
-    pub mod payment { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.payment.rs")); }
-    pub mod plans { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.plans.rs")); }
-    pub mod referral { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.referral.rs")); }
-    pub mod scheduler { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.scheduler.rs")); }
-    pub mod security { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.security.rs")); }
-    pub mod subscription { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.subscription.rs")); }
-    pub mod ticket { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.ticket.rs")); }
-    pub mod workflow { include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.workflow.rs")); }
+    pub mod accounting {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.accounting.rs"));
+    }
+    pub mod admin {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.admin.rs"));
+    }
+    pub mod audit {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.audit.rs"));
+    }
+    pub mod bandwidth {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.bandwidth.rs"));
+    }
+    pub mod billing {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.billing.rs"));
+    }
+    pub mod branches {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.branches.rs"));
+    }
+    pub mod compliance {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.compliance.rs"));
+    }
+    pub mod coverage {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.coverage.rs"));
+    }
+    pub mod customer {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.customer.rs"));
+    }
+    pub mod device {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.device.rs"));
+    }
+    pub mod discovery {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.discovery.rs"));
+    }
+    pub mod document {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.document.rs"));
+    }
+    pub mod gateway {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.gateway.rs"));
+    }
+    pub mod identity {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.identity.rs"));
+    }
+    pub mod installation {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.installation.rs"));
+    }
+    pub mod inventory {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.inventory.rs"));
+    }
+    pub mod lead {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.lead.rs"));
+    }
+    pub mod monitoring {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.monitoring.rs"));
+    }
+    pub mod network {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.network.rs"));
+    }
+    pub mod notification {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.notification.rs"));
+    }
+    pub mod payment {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.payment.rs"));
+    }
+    pub mod plans {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.plans.rs"));
+    }
+    pub mod referral {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.referral.rs"));
+    }
+    pub mod scheduler {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.scheduler.rs"));
+    }
+    pub mod security {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.security.rs"));
+    }
+    pub mod subscription {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.subscription.rs"));
+    }
+    pub mod ticket {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.ticket.rs"));
+    }
+    pub mod workflow {
+        include!(concat!(env!("OUT_DIR"), "/aeroxe.v1.workflow.rs"));
+    }
 }

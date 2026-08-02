@@ -536,7 +536,10 @@ impl RadiusAdapter {
                     last_error = Some(format!("Receive failed on attempt {}: {}", attempt, e));
                 }
                 Err(_) => {
-                    last_error = Some(format!("Request timed out on attempt {}/{}", attempt, max_retries));
+                    last_error = Some(format!(
+                        "Request timed out on attempt {}/{}",
+                        attempt, max_retries
+                    ));
                 }
             }
 

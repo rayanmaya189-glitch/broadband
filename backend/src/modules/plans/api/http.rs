@@ -454,7 +454,11 @@ pub async fn get_plan_history(
     State(state): State<Arc<AppState>>,
     Path(id): Path<i64>,
 ) -> Result<
-    Json<crate::modules::audit::domain::entity_history::PaginatedResult<crate::modules::audit::domain::entity_history::HistoryEntry>>,
+    Json<
+        crate::modules::audit::domain::entity_history::PaginatedResult<
+            crate::modules::audit::domain::entity_history::HistoryEntry,
+        >,
+    >,
     AppError,
 > {
     let history = PlanService::get_plan_history(&state.db, id).await?;

@@ -686,7 +686,8 @@ impl IdentityService {
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
 
-        let email = email.ok_or_else(|| AppError::BadRequest("Invalid or expired reset token".to_string()))?;
+        let email = email
+            .ok_or_else(|| AppError::BadRequest("Invalid or expired reset token".to_string()))?;
 
         let _: () = redis
             .del(&key)

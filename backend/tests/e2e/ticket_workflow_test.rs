@@ -1,9 +1,8 @@
 //! End-to-end test: Support Ticket Workflow
 //! Tests: Create ticket → Assign → Escalate → Resolve → Close
 
-
-use sea_orm::{ActiveModelTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, Set};
 
 /// Test full ticket lifecycle
 #[ignore]
@@ -73,4 +72,3 @@ async fn test_ticket_lifecycle() {
     let tkt = active.update(db).await.unwrap();
     assert_eq!(tkt.status, "closed");
 }
-

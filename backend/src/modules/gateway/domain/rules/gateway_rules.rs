@@ -22,9 +22,14 @@ impl GatewayRules {
 
     /// Get rate limit for endpoint type
     pub fn rate_limit_for_endpoint(is_write: bool, is_auth: bool, is_upload: bool) -> u32 {
-        if is_auth { Self::AUTH_ENDPOINT_LIMIT }
-        else if is_upload { Self::UPLOAD_LIMIT }
-        else if is_write { Self::WRITE_LIMIT }
-        else { Self::AUTHENTICATED_LIMIT }
+        if is_auth {
+            Self::AUTH_ENDPOINT_LIMIT
+        } else if is_upload {
+            Self::UPLOAD_LIMIT
+        } else if is_write {
+            Self::WRITE_LIMIT
+        } else {
+            Self::AUTHENTICATED_LIMIT
+        }
     }
 }

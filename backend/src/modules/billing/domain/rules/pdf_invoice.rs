@@ -2,6 +2,19 @@ use printpdf::*;
 
 use crate::modules::billing::domain::entities::invoice;
 
+/// A single printable invoice line item.
+/// (description, hsn_sac, taxable, total, tax_type, cgst, sgst, igst)
+type LineItem = (
+    String,
+    String,
+    rust_decimal::Decimal,
+    rust_decimal::Decimal,
+    String,
+    rust_decimal::Decimal,
+    rust_decimal::Decimal,
+    rust_decimal::Decimal,
+);
+
 /// Generate a GST-compliant tax invoice PDF.
 /// Returns the raw PDF bytes ready for storage or download.
 pub fn generate_invoice_pdf(
@@ -12,7 +25,7 @@ pub fn generate_invoice_pdf(
     customer_name: &str,
     customer_address: &str,
     customer_gstin: &Option<String>,
-    line_items: &[(String, String, rust_decimal::Decimal, rust_decimal::Decimal, String, rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal)],
+    line_items: &[LineItem],
 ) -> Result<Vec<u8>, String> {
     let (doc, page1, layer1) = PdfDocument::new(
         format!("Tax Invoice - {}", inv.invoice_number),
@@ -24,8 +37,12 @@ pub fn generate_invoice_pdf(
     let current_layer = doc.get_page(page1).get_layer(layer1);
 
     // Use built-in Helvetica font
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica).map_err(|e| e.to_string())?;
-    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).map_err(|e| e.to_string())?;
+    let font = doc
+        .add_builtin_font(BuiltinFont::Helvetica)
+        .map_err(|e| e.to_string())?;
+    let font_bold = doc
+        .add_builtin_font(BuiltinFont::HelveticaBold)
+        .map_err(|e| e.to_string())?;
 
     let mut y = 260.0;
 
@@ -38,15 +55,49 @@ pub fn generate_invoice_pdf(
     y -= 5.0;
     current_layer.use_text(company_address, 9.0, Mm(10.0), Mm(y), &font);
     y -= 5.0;
-    current_layer.use_text(&format!("GSTIN: {}", company_gstin), 9.0, Mm(10.0), Mm(y), &font);
+    current_layer.use_text(
+        format!("GSTIN: {}", company_gstin),
+        9.0,
+        Mm(10.0),
+        Mm(y),
+        &font,
+    );
     y -= 12.0;
 
     // Invoice details
-    current_layer.use_text(&format!("Invoice No: {}", inv.invoice_number), 10.0, Mm(10.0), Mm(y), &font);
-    current_layer.use_text(&format!("Date: {}", inv.created_at.format("%d-%m-%Y")), 10.0, Mm(110.0), Mm(y), &font);
+    current_layer.use_text(
+        format!("Invoice No: {}", inv.invoice_number),
+        10.0,
+        Mm(10.0),
+        Mm(y),
+        &font,
+    );
+    current_layer.use_text(
+        format!("Date: {}", inv.created_at.format("%d-%m-%Y")),
+        10.0,
+        Mm(110.0),
+        Mm(y),
+        &font,
+    );
     y -= 6.0;
-    current_layer.use_text(&format!("Due Date: {}", inv.due_date.format("%d-%m-%Y")), 10.0, Mm(10.0), Mm(y), &font);
-    current_layer.use_text(&format!("Period: {} to {}", inv.billing_period_start.format("%d-%m-%Y"), inv.billing_period_end.format("%d-%m-%Y")), 10.0, Mm(110.0), Mm(y), &font);
+    current_layer.use_text(
+        format!("Due Date: {}", inv.due_date.format("%d-%m-%Y")),
+        10.0,
+        Mm(10.0),
+        Mm(y),
+        &font,
+    );
+    current_layer.use_text(
+        format!(
+            "Period: {} to {}",
+            inv.billing_period_start.format("%d-%m-%Y"),
+            inv.billing_period_end.format("%d-%m-%Y")
+        ),
+        10.0,
+        Mm(110.0),
+        Mm(y),
+        &font,
+    );
     y -= 12.0;
 
     // Bill To
@@ -57,7 +108,7 @@ pub fn generate_invoice_pdf(
     current_layer.use_text(customer_address, 9.0, Mm(10.0), Mm(y), &font);
     y -= 5.0;
     if let Some(gstin) = customer_gstin {
-        current_layer.use_text(&format!("GSTIN: {}", gstin), 9.0, Mm(10.0), Mm(y), &font);
+        current_layer.use_text(format!("GSTIN: {}", gstin), 9.0, Mm(10.0), Mm(y), &font);
     }
     y -= 10.0;
 
@@ -74,62 +125,132 @@ pub fn generate_invoice_pdf(
     y -= 5.0;
 
     // Table rows
-    for (i, (desc, hsn, taxable, total, _tax_type, cgst, sgst, igst)) in line_items.iter().enumerate() {
+    for (i, (desc, hsn, taxable, total, _tax_type, cgst, sgst, igst)) in
+        line_items.iter().enumerate()
+    {
         if y < 40.0 {
             break;
         }
         y -= 5.0;
         let row_y = y;
-        current_layer.use_text(&(i + 1).to_string(), 8.0, Mm(10.0), Mm(row_y), &font);
+        current_layer.use_text((i + 1).to_string(), 8.0, Mm(10.0), Mm(row_y), &font);
         current_layer.use_text(desc, 8.0, Mm(25.0), Mm(row_y), &font);
         current_layer.use_text(hsn, 8.0, Mm(110.0), Mm(row_y), &font);
-        current_layer.use_text(&format!("₹{}", taxable), 8.0, Mm(130.0), Mm(row_y), &font);
-        current_layer.use_text(&format!("₹{}", cgst), 8.0, Mm(150.0), Mm(row_y), &font);
-        current_layer.use_text(&format!("₹{}", sgst), 8.0, Mm(165.0), Mm(row_y), &font);
-        current_layer.use_text(&format!("₹{}", igst), 8.0, Mm(180.0), Mm(row_y), &font);
-        current_layer.use_text(&format!("₹{}", total), 8.0, Mm(195.0), Mm(row_y), &font);
+        current_layer.use_text(format!("₹{}", taxable), 8.0, Mm(130.0), Mm(row_y), &font);
+        current_layer.use_text(format!("₹{}", cgst), 8.0, Mm(150.0), Mm(row_y), &font);
+        current_layer.use_text(format!("₹{}", sgst), 8.0, Mm(165.0), Mm(row_y), &font);
+        current_layer.use_text(format!("₹{}", igst), 8.0, Mm(180.0), Mm(row_y), &font);
+        current_layer.use_text(format!("₹{}", total), 8.0, Mm(195.0), Mm(row_y), &font);
     }
 
     y -= 10.0;
 
     // Totals
-    current_layer.use_text(&format!("Subtotal: ₹{}", inv.subtotal), 9.0, Mm(130.0), Mm(y), &font);
+    current_layer.use_text(
+        format!("Subtotal: ₹{}", inv.subtotal),
+        9.0,
+        Mm(130.0),
+        Mm(y),
+        &font,
+    );
     y -= 5.0;
-    current_layer.use_text(&format!("Discount: ₹{}", inv.discount_amount), 9.0, Mm(130.0), Mm(y), &font);
+    current_layer.use_text(
+        format!("Discount: ₹{}", inv.discount_amount),
+        9.0,
+        Mm(130.0),
+        Mm(y),
+        &font,
+    );
     y -= 5.0;
 
-    if inv.cgst_amount > rust_decimal::Decimal::ZERO || inv.sgst_amount > rust_decimal::Decimal::ZERO {
-        current_layer.use_text(&format!("CGST: ₹{}", inv.cgst_amount), 9.0, Mm(130.0), Mm(y), &font);
+    if inv.cgst_amount > rust_decimal::Decimal::ZERO
+        || inv.sgst_amount > rust_decimal::Decimal::ZERO
+    {
+        current_layer.use_text(
+            format!("CGST: ₹{}", inv.cgst_amount),
+            9.0,
+            Mm(130.0),
+            Mm(y),
+            &font,
+        );
         y -= 5.0;
-        current_layer.use_text(&format!("SGST: ₹{}", inv.sgst_amount), 9.0, Mm(130.0), Mm(y), &font);
+        current_layer.use_text(
+            format!("SGST: ₹{}", inv.sgst_amount),
+            9.0,
+            Mm(130.0),
+            Mm(y),
+            &font,
+        );
         y -= 5.0;
     }
     if inv.igst_amount > rust_decimal::Decimal::ZERO {
-        current_layer.use_text(&format!("IGST: ₹{}", inv.igst_amount), 9.0, Mm(130.0), Mm(y), &font);
+        current_layer.use_text(
+            format!("IGST: ₹{}", inv.igst_amount),
+            9.0,
+            Mm(130.0),
+            Mm(y),
+            &font,
+        );
         y -= 5.0;
     }
 
     if inv.late_fee_subtotal > rust_decimal::Decimal::ZERO {
-        current_layer.use_text(&format!("Late Fee: ₹{}", inv.late_fee_subtotal), 9.0, Mm(130.0), Mm(y), &font);
+        current_layer.use_text(
+            format!("Late Fee: ₹{}", inv.late_fee_subtotal),
+            9.0,
+            Mm(130.0),
+            Mm(y),
+            &font,
+        );
         y -= 5.0;
-        current_layer.use_text(&format!("Late Fee GST: ₹{}", inv.late_fee_gst), 9.0, Mm(130.0), Mm(y), &font);
+        current_layer.use_text(
+            format!("Late Fee GST: ₹{}", inv.late_fee_gst),
+            9.0,
+            Mm(130.0),
+            Mm(y),
+            &font,
+        );
         y -= 5.0;
     }
 
     y -= 3.0;
-    current_layer.use_text(&format!("Total Amount: ₹{}", inv.total_amount), 12.0, Mm(130.0), Mm(y), &font_bold);
+    current_layer.use_text(
+        format!("Total Amount: ₹{}", inv.total_amount),
+        12.0,
+        Mm(130.0),
+        Mm(y),
+        &font_bold,
+    );
     y -= 12.0;
 
     // Footer
-    current_layer.use_text(&format!("Place of Supply: {}", inv.place_of_supply_state), 8.0, Mm(10.0), Mm(y), &font);
+    current_layer.use_text(
+        format!("Place of Supply: {}", inv.place_of_supply_state),
+        8.0,
+        Mm(10.0),
+        Mm(y),
+        &font,
+    );
     if inv.reverse_charge {
         current_layer.use_text("Reverse Charge: Yes", 8.0, Mm(10.0), Mm(y - 5.0), &font);
     }
 
     y -= 12.0;
-    current_layer.use_text("Terms: Payment due within 30 days. Late fee of 2% applies after grace period.", 7.0, Mm(10.0), Mm(y), &font);
+    current_layer.use_text(
+        "Terms: Payment due within 30 days. Late fee of 2% applies after grace period.",
+        7.0,
+        Mm(10.0),
+        Mm(y),
+        &font,
+    );
     y -= 5.0;
-    current_layer.use_text("This is a computer-generated invoice. No signature required.", 7.0, Mm(10.0), Mm(y), &font);
+    current_layer.use_text(
+        "This is a computer-generated invoice. No signature required.",
+        7.0,
+        Mm(10.0),
+        Mm(y),
+        &font,
+    );
 
     // Save to bytes
     let pdf_bytes = doc.save_to_bytes().map_err(|e| e.to_string())?;
@@ -173,18 +294,16 @@ mod tests {
             late_fee_gst: dec!(0),
         };
 
-        let line_items = vec![
-            (
-                "Broadband 100 Mbps - Monthly".to_string(),
-                "998421".to_string(),
-                dec!(999.00),
-                dec!(1178.82),
-                "CGST_SGST".to_string(),
-                dec!(89.91),
-                dec!(89.91),
-                dec!(0),
-            ),
-        ];
+        let line_items = vec![(
+            "Broadband 100 Mbps - Monthly".to_string(),
+            "998421".to_string(),
+            dec!(999.00),
+            dec!(1178.82),
+            "CGST_SGST".to_string(),
+            dec!(89.91),
+            dec!(89.91),
+            dec!(0),
+        )];
 
         let result = generate_invoice_pdf(
             &inv,

@@ -1,9 +1,8 @@
 //! End-to-end test: Billing & Payment Workflow
 //! Tests: Invoice creation → Payment → Refund → Dunning
 
-
-use sea_orm::{ActiveModelTrait, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, Set};
 
 /// Test invoice lifecycle: create → send → pay → refund
 #[ignore]
@@ -132,4 +131,3 @@ async fn test_overdue_dunning_flow() {
     let inv = active.update(db).await.unwrap();
     assert_eq!(inv.status, "voided");
 }
-

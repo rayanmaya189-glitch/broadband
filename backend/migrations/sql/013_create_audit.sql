@@ -1,9 +1,12 @@
 -- AeroXe Backend Migration 013: Create Audit Tables
 -- Immutable audit trail for security compliance and incident investigation
+-- NOTE: user_id has NO FK to users(id): PostgreSQL requires FK columns on a
+-- partitioned table to include the partition key (created_at), which is
+-- impossible here. Referential integrity is enforced at the application layer.
 
 CREATE TABLE IF NOT EXISTS audit_logs (
     id BIGSERIAL,
-    user_id BIGINT REFERENCES users(id),
+    user_id BIGINT,
     user_email VARCHAR(255),
     user_role VARCHAR(100),
     action VARCHAR(255) NOT NULL,

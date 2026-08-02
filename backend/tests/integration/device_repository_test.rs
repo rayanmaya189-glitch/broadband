@@ -3,9 +3,8 @@
 //! Covers network device registration, status updates, health scoring,
 //! device port management, and hierarchical device topology.
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::{TestDatabase, TestFixture};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -68,13 +67,14 @@ async fn test_device_retrieval() {
     let branch_id = TestFixture::create_branch(db).await;
     let created = insert_device(db, branch_id, "SW-01", "SN-SW-001", "10.0.0.20", "online").await;
 
-    let found = aeroxe_backend::modules::device::domain::entities::network_device::Entity::find_by_id(
-        created.id,
-    )
-    .one(db)
-    .await
-    .expect("Query failed")
-    .expect("Device not found");
+    let found =
+        aeroxe_backend::modules::device::domain::entities::network_device::Entity::find_by_id(
+            created.id,
+        )
+        .one(db)
+        .await
+        .expect("Query failed")
+        .expect("Device not found");
 
     assert_eq!(found.id, created.id);
     assert_eq!(found.name, "SW-01");
@@ -121,7 +121,15 @@ async fn test_device_status_transitions() {
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
-    let device = insert_device(db, branch_id, "OLT-STATUS", "SN-STATUS", "10.0.0.30", "online").await;
+    let device = insert_device(
+        db,
+        branch_id,
+        "OLT-STATUS",
+        "SN-STATUS",
+        "10.0.0.30",
+        "online",
+    )
+    .await;
 
     use aeroxe_backend::modules::device::domain::entities::network_device;
 
@@ -154,7 +162,15 @@ async fn test_device_health_score_update() {
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
-    let device = insert_device(db, branch_id, "OLT-HEALTH", "SN-HEALTH", "10.0.0.40", "online").await;
+    let device = insert_device(
+        db,
+        branch_id,
+        "OLT-HEALTH",
+        "SN-HEALTH",
+        "10.0.0.40",
+        "online",
+    )
+    .await;
     assert!(device.health_score.is_none());
 
     use aeroxe_backend::modules::device::domain::entities::network_device;
@@ -240,7 +256,15 @@ async fn test_device_parent_child_hierarchy() {
     let branch_id = TestFixture::create_branch(db).await;
 
     // Register parent OLT
-    let parent = insert_device(db, branch_id, "Parent-OLT", "SN-PARENT", "10.0.0.1", "online").await;
+    let parent = insert_device(
+        db,
+        branch_id,
+        "Parent-OLT",
+        "SN-PARENT",
+        "10.0.0.1",
+        "online",
+    )
+    .await;
 
     // Register child ONU
     use aeroxe_backend::modules::device::domain::entities::network_device;
@@ -285,7 +309,15 @@ async fn test_device_review_status() {
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
-    let device = insert_device(db, branch_id, "OLT-REVIEW", "SN-REVIEW", "10.0.0.70", "online").await;
+    let device = insert_device(
+        db,
+        branch_id,
+        "OLT-REVIEW",
+        "SN-REVIEW",
+        "10.0.0.70",
+        "online",
+    )
+    .await;
 
     use aeroxe_backend::modules::device::domain::entities::network_device;
 
@@ -343,7 +375,15 @@ async fn test_device_port_status_update() {
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
-    let device = insert_device(db, branch_id, "SW-PSTATUS", "SN-PSTATUS", "10.0.0.81", "online").await;
+    let device = insert_device(
+        db,
+        branch_id,
+        "SW-PSTATUS",
+        "SN-PSTATUS",
+        "10.0.0.81",
+        "online",
+    )
+    .await;
 
     use aeroxe_backend::modules::device::domain::entities::device_port;
 
@@ -377,7 +417,15 @@ async fn test_device_port_list() {
     let db = test_db.connection();
 
     let branch_id = TestFixture::create_branch(db).await;
-    let device = insert_device(db, branch_id, "SW-MULTIPORT", "SN-MP", "10.0.0.82", "online").await;
+    let device = insert_device(
+        db,
+        branch_id,
+        "SW-MULTIPORT",
+        "SN-MP",
+        "10.0.0.82",
+        "online",
+    )
+    .await;
 
     use aeroxe_backend::modules::device::domain::entities::device_port;
 
@@ -486,4 +534,3 @@ async fn test_device_duplicate_serial() {
     // The test verifies the constraint exists
     let _ = result;
 }
-

@@ -69,7 +69,7 @@ impl DiscoveryScan {
     }
 
     pub fn is_due(&self) -> bool {
-        self.is_active && self.next_scan_at.map_or(true, |t| t <= chrono::Utc::now())
+        self.is_active && self.next_scan_at.is_none_or(|t| t <= chrono::Utc::now())
     }
 }
 

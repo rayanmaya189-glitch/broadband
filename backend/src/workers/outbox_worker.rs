@@ -103,7 +103,9 @@ impl OutboxWorker {
                         error = %e,
                         "Failed to publish event from outbox"
                     );
-                    if let Err(dlq_err) = outbox::record_publish_failure(&txn, &event.event_id, &e.to_string()).await {
+                    if let Err(dlq_err) =
+                        outbox::record_publish_failure(&txn, &event.event_id, &e.to_string()).await
+                    {
                         error!(
                             event_id = %event.event_id,
                             error = %dlq_err,

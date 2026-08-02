@@ -45,10 +45,10 @@ impl TdsSection {
     /// TDS rate (for non-corporate deductees without PAN: higher rate applies)
     pub fn rate_without_pan(&self) -> Decimal {
         match self {
-            Self::Contractor => dec!(0.05),    // 5% (double of 2%)
-            Self::Professional => dec!(0.20),  // 20% (double of 10%)
-            Self::Commission => dec!(0.10),    // 10% (double of 5%)
-            Self::Interest => dec!(0.20),      // 20% (double of 10%)
+            Self::Contractor => dec!(0.05),   // 5% (double of 2%)
+            Self::Professional => dec!(0.20), // 20% (double of 10%)
+            Self::Commission => dec!(0.10),   // 10% (double of 5%)
+            Self::Interest => dec!(0.20),     // 20% (double of 10%)
         }
     }
 }
@@ -74,7 +74,8 @@ pub fn calculate_tds(
     deductee_pan: Option<&str>,
     aggregate_ytd: Decimal,
 ) -> TdsDeduction {
-    let pan_available = deductee_pan.is_some() && !deductee_pan.unwrap_or("").is_empty()
+    let pan_available = deductee_pan.is_some()
+        && !deductee_pan.unwrap_or("").is_empty()
         && deductee_pan.unwrap_or("").len() == 10;
 
     // Check if aggregate threshold is exceeded
@@ -89,10 +90,10 @@ pub fn calculate_tds(
 
     let tds_rate = if pan_available {
         match section {
-            TdsSection::Contractor => dec!(0.02),     // 2%
-            TdsSection::Professional => dec!(0.10),    // 10%
-            TdsSection::Commission => dec!(0.05),      // 5%
-            TdsSection::Interest => dec!(0.10),        // 10%
+            TdsSection::Contractor => dec!(0.02),   // 2%
+            TdsSection::Professional => dec!(0.10), // 10%
+            TdsSection::Commission => dec!(0.05),   // 5%
+            TdsSection::Interest => dec!(0.10),     // 10%
         }
     } else {
         section.rate_without_pan()
@@ -161,7 +162,11 @@ pub fn get_financial_quarter(month: u32) -> &'static str {
 
 /// Determine financial year start year from a calendar month
 pub fn get_financial_year_start(month: u32, year: i32) -> i32 {
-    if month >= 4 { year } else { year - 1 }
+    if month >= 4 {
+        year
+    } else {
+        year - 1
+    }
 }
 
 /// Generate a quarterly TDS return summary (Form 26Q format)
@@ -215,7 +220,12 @@ mod tests {
 
     #[test]
     fn test_contractor_tds_with_pan() {
-        let result = calculate_tds(dec!(100000), TdsSection::Contractor, Some("ABCDE1234F"), Decimal::ZERO);
+        let result = calculate_tds(
+            dec!(100000),
+            TdsSection::Contractor,
+            Some("ABCDE1234F"),
+            Decimal::ZERO,
+        );
         assert_eq!(result.tds_rate, dec!(0.02));
         assert_eq!(result.tds_amount, dec!(2000));
         assert_eq!(result.net_payable, dec!(98000));
@@ -233,14 +243,24 @@ mod tests {
 
     #[test]
     fn test_professional_tds_below_threshold() {
-        let result = calculate_tds(dec!(20000), TdsSection::Professional, Some("ABCDE1234F"), Decimal::ZERO);
+        let result = calculate_tds(
+            dec!(20000),
+            TdsSection::Professional,
+            Some("ABCDE1234F"),
+            Decimal::ZERO,
+        );
         assert_eq!(result.tds_amount, Decimal::ZERO);
         assert!(!result.requires_filing);
     }
 
     #[test]
     fn test_professional_tds_above_threshold() {
-        let result = calculate_tds(dec!(50000), TdsSection::Professional, Some("ABCDE1234F"), Decimal::ZERO);
+        let result = calculate_tds(
+            dec!(50000),
+            TdsSection::Professional,
+            Some("ABCDE1234F"),
+            Decimal::ZERO,
+        );
         assert_eq!(result.tds_rate, dec!(0.10));
         assert_eq!(result.tds_amount, dec!(5000));
         assert_eq!(result.net_payable, dec!(45000));
@@ -249,7 +269,12 @@ mod tests {
     #[test]
     fn test_aggregate_threshold_crossed() {
         // Previous YTD is ₹90,000, now paying ₹25,000 → already past ₹100,000 aggregate
-        let result = calculate_tds(dec!(25000), TdsSection::Contractor, Some("ABCDE1234F"), dec!(90000));
+        let result = calculate_tds(
+            dec!(25000),
+            TdsSection::Contractor,
+            Some("ABCDE1234F"),
+            dec!(90000),
+        );
         assert_eq!(result.tds_amount, dec!(500)); // 2% of ₹25,000
         assert!(result.requires_filing);
     }

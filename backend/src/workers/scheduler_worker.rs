@@ -221,7 +221,8 @@ async fn execute_job(
         }
         "radius" => {
             tracing::info!(action = %action, "Scheduler: running RADIUS accounting worker cycle");
-            let worker = crate::workers::radius_accounting_worker::RadiusAccountingWorker::new(db.clone());
+            let worker =
+                crate::workers::radius_accounting_worker::RadiusAccountingWorker::new(db.clone());
             worker.run_cycle().await?;
             Ok(serde_json::json!({
                 "module": "radius",

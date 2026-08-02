@@ -3,9 +3,8 @@
 //! Covers audit log insertion, searching by various dimensions (action,
 //! resource type, user, result), JSON data storage, and ordering.
 
-
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use crate::common::TestDatabase;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -150,7 +149,14 @@ async fn test_search_by_action_pattern() {
     insert_audit_log(db, Some(1), "CUSTOMER_CREATE", Some("customer"), "granted").await;
     insert_audit_log(db, Some(1), "CUSTOMER_UPDATE", Some("customer"), "granted").await;
     insert_audit_log(db, Some(1), "CUSTOMER_DELETE", Some("customer"), "denied").await;
-    insert_audit_log(db, Some(1), "SUBSCRIPTION_CREATE", Some("subscription"), "granted").await;
+    insert_audit_log(
+        db,
+        Some(1),
+        "SUBSCRIPTION_CREATE",
+        Some("subscription"),
+        "granted",
+    )
+    .await;
 
     use aeroxe_backend::modules::audit::domain::entities::audit_log;
 
@@ -342,7 +348,14 @@ async fn test_bulk_audit_log_insertion() {
     let db = test_db.connection();
 
     for i in 0..100 {
-        insert_audit_log(db, Some((i % 5) + 1), "BULK_ACTION", Some("test"), "granted").await;
+        insert_audit_log(
+            db,
+            Some((i % 5) + 1),
+            "BULK_ACTION",
+            Some("test"),
+            "granted",
+        )
+        .await;
     }
 
     use aeroxe_backend::modules::audit::domain::entities::audit_log;
@@ -533,4 +546,3 @@ async fn test_audit_log_ordering_by_created_at() {
     assert!(logs[0].created_at <= logs[1].created_at);
     assert!(logs[1].created_at <= logs[2].created_at);
 }
-

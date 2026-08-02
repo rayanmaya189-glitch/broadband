@@ -247,8 +247,7 @@ pub async fn update_channel(
 ) -> Result<Json<ChannelResponse>, AppError> {
     require_permission(&user, "notification.channel.update")
         .map_err(|e| AppError::Forbidden(e.1))?;
-    let ch =
-        NotificationService::update_channel(&state.db, id, req.is_active, req.config).await?;
+    let ch = NotificationService::update_channel(&state.db, id, req.is_active, req.config).await?;
     Ok(Json(ChannelResponse {
         id: ch.id,
         name: ch.name,
