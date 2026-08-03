@@ -5,23 +5,18 @@ use chrono::{Datelike, NaiveDate, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use tracing::{debug, info, warn};
 
-/// Tables that require monthly partitioning per §32 docs.
+/// Tables that actually use RANGE partitioning and require monthly partitions.
+/// Schema-qualified. History/audit tables without PARTITION BY RANGE are plain
+/// tables and are pruned via `run_cleanup` instead.
 const PARTITIONED_TABLES: &[&str] = &[
-    "customers_history",
-    "subscriptions_history",
-    "plans_history",
-    "invoices_history",
-    "refunds_history",
-    "journal_entries_history",
-    "manual_payments_history",
-    "network_devices_history",
-    "payment_gateways_history",
-    "discounts_history",
-    "approval_requests_history",
-    "bandwidth_profiles_history",
-    "audit_logs",
-    "notifications",
     "events",
+    "audit.audit_logs",
+    "notification.notifications",
+    "notification.notification_history",
+    "device.device_metrics",
+    "device.device_logs",
+    "document.document_access_logs",
+    "network.customer_sessions",
 ];
 
 /// Create monthly partitions for all partitioned tables.
@@ -67,7 +62,8 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
     let mut skipped = 0u32;
 
     for table in PARTITIONED_TABLES {
-        let partition_name = format!("{}_{}", table, partition_name_suffix);
+        // Partition name derived from the qualified table name (dots → underscores).
+        let partition_name = format!("{}_{}", table.replace('.', "_"), partition_name_suffix);
         let query = format!(
             "CREATE TABLE IF NOT EXISTS {} PARTITION OF {} FOR VALUES FROM ('{}') TO ('{}')",
             partition_name, table, partition_start, partition_end
@@ -116,14 +112,13 @@ pub async fn create_monthly_partitions(db: &DatabaseConnection) -> Result<(), an
 pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> {
     let mut total_deleted: u64 = 0;
 
-    // Cleanup queries - best effort, skip missing tables
+    // Cleanup queries - schema-qualified, columns verified against migrations.
     let cleanup_queries: Vec<(&str, &str)> = vec![
-        ("otp_codes", "DELETE FROM otp_codes WHERE expires_at < NOW()"),
-        ("user_sessions", "DELETE FROM user_sessions WHERE expires_at < NOW()"),
-        ("refresh_tokens", "DELETE FROM refresh_tokens WHERE expires_at < NOW()"),
-        ("device_metrics", "DELETE FROM device_metrics WHERE recorded_at < NOW() - INTERVAL '90 days'"),
-        ("device_logs", "DELETE FROM device_logs WHERE recorded_at < NOW() - INTERVAL '30 days'"),
-        ("notifications", "DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '90 days'"),
+        ("identity.otp_codes", "DELETE FROM identity.otp_codes WHERE expires_at < NOW()"),
+        ("identity.user_sessions", "DELETE FROM identity.user_sessions WHERE expires_at < NOW()"),
+        ("device.device_metrics", "DELETE FROM device.device_metrics WHERE recorded_at < NOW() - INTERVAL '90 days'"),
+        ("device.device_logs", "DELETE FROM device.device_logs WHERE created_at < NOW() - INTERVAL '30 days'"),
+        ("notification.notifications", "DELETE FROM notification.notifications WHERE created_at < NOW() - INTERVAL '90 days'"),
         ("outbox_events", "DELETE FROM outbox_events WHERE published = true AND created_at < NOW() - INTERVAL '24 hours'"),
     ];
 
@@ -160,25 +155,22 @@ pub async fn run_cleanup(db: &DatabaseConnection) -> Result<u64, anyhow::Error> 
         }
     }
 
-    // History cleanup per retention policies
+    // History cleanup per retention policies.
+    // Schema-qualified; history tables timestamp column is `performed_at`.
     let retention_policies: Vec<(&str, i64)> = vec![
-        ("customers_history", 2555),
-        ("subscriptions_history", 2555),
-        ("plans_history", 2555),
-        ("invoices_history", 2555),
-        ("refunds_history", 2555),
-        ("journal_entries_history", 2555),
-        ("manual_payments_history", 2555),
-        ("network_devices_history", 1095),
-        ("payment_gateways_history", 1095),
-        ("discounts_history", 1095),
-        ("approval_requests_history", 1095),
-        ("bandwidth_profiles_history", 730),
+        ("customer.customers_history", 2555),
+        ("subscription.subscriptions_history", 2555),
+        ("plans.plans_history", 2555),
+        ("billing.invoices_history", 2555),
+        ("billing.refunds_history", 2555),
+        ("device.network_devices_history", 1095),
+        ("billing.discounts_history", 1095),
+        ("plans.bandwidth_profiles_history", 730),
     ];
 
     for (table, retention_days) in retention_policies {
         let query = format!(
-            "DELETE FROM {} WHERE created_at < NOW() - INTERVAL '{} days'",
+            "DELETE FROM {} WHERE performed_at < NOW() - INTERVAL '{} days'",
             table, retention_days
         );
         if let Ok(result) = db

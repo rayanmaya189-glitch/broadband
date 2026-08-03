@@ -38,12 +38,11 @@ pub mod test_db {
     pub async fn clean_database(db: &DatabaseConnection) {
         let tables = vec![
             "outbox_events",
-            "otp_codes",
-            "refresh_tokens",
-            "user_sessions",
-            "device_metrics",
-            "device_logs",
-            "notifications",
+            "identity.otp_codes",
+            "identity.user_sessions",
+            "device.device_metrics",
+            "device.device_logs",
+            "notification.notifications",
         ];
 
         for table in tables {
