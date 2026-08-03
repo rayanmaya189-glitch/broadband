@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
             panic!("DATABASE_URL must be set in production");
         }
         eprintln!("WARNING: Using default dev DATABASE_URL. Set DATABASE_URL for real databases.");
-        "postgres://aeroxe:aeroxe@localhost:5432/aeroxe".to_string()
+        "postgresql://aeroxe:secret@localhost:5432/aeroxe".to_string()
     });
 
     let db = sea_orm::Database::connect(&database_url).await?;

@@ -1,3 +1,4 @@
+pub mod otp;
 pub mod services;
 pub mod traits;
 pub mod two_factor;

@@ -39,6 +39,7 @@ pids/
 skills-lock.json
 
 target/
-Cargo.lock
+
+# Cargo.lock is committed for the backend binary (reproducible builds)
 
 google-service-*.json

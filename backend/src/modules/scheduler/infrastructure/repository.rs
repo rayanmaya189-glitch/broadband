@@ -24,8 +24,15 @@ impl<'a> SchedulerRepository<'a> {
 
     // ── Job Definitions ──
 
-    pub async fn list_job_definitions(&self) -> Result<Vec<job_definition::Model>, AppError> {
-        Ok(JobDefinition::find().all(self.db).await?)
+    pub async fn list_job_definitions(
+        &self,
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<job_definition::Model>, u64), AppError> {
+        let paginator = JobDefinition::find().paginate(self.db, limit);
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((items, total))
     }
 
     pub async fn get_job_definition(&self, id: i64) -> Result<job_definition::Model, AppError> {
@@ -265,8 +272,10 @@ impl SchedulerRepositoryTrait for SchedulerRepository<'_> {
     async fn list_job_definitions(
         &self,
         _db: &DatabaseConnection,
-    ) -> Result<Vec<job_definition::Model>, AppError> {
-        self.list_job_definitions().await
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<job_definition::Model>, u64), AppError> {
+        self.list_job_definitions(page, limit).await
     }
 
     async fn get_job_definition(

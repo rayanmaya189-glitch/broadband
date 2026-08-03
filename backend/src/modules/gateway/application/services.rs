@@ -5,7 +5,7 @@ use crate::shared::errors::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
 /// Gateway service providing rate limiting, API key validation, and request logging.
@@ -135,13 +135,15 @@ impl GatewayService {
 
     pub async fn list_request_logs(
         db: &DatabaseConnection,
+        page: u64,
         limit: u64,
-    ) -> Result<Vec<request_log::Model>, AppError> {
-        Ok(request_log::Entity::find()
+    ) -> Result<(Vec<request_log::Model>, u64), AppError> {
+        let paginator = request_log::Entity::find()
             .order_by_desc(request_log::Column::CreatedAt)
-            .limit(limit)
-            .all(db)
-            .await?)
+            .paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let logs = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((logs, total))
     }
 
     pub async fn get_request_stats(db: &DatabaseConnection) -> Result<serde_json::Value, AppError> {

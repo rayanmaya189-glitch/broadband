@@ -3,12 +3,14 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 use redis::AsyncCommands;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, Set,
 };
 use sha2::{Digest, Sha256};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::modules::identity::domain::entities::{user, user_session};
+use crate::modules::notification::application::services::NotificationService;
 use crate::modules::security::domain::entities::{
     permission as perm_entity, role, role_permission, user_role,
 };
@@ -597,12 +599,17 @@ impl IdentityService {
             .ok_or_else(|| AppError::NotFound(format!("User {} not found", id)))
     }
 
-    pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<user::Model>, AppError> {
-        let users = user::Entity::find()
+    pub async fn list_users(
+        db: &DatabaseConnection,
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<user::Model>, u64), AppError> {
+        let paginator = user::Entity::find()
             .filter(user::Column::DeletedAt.is_null())
-            .all(db)
-            .await?;
-        Ok(users)
+            .paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let users = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((users, total))
     }
 
     /// Logout all sessions for a user — deletes all refresh token sessions.
@@ -645,8 +652,8 @@ impl IdentityService {
         Ok(())
     }
 
-    /// Request password reset — generates a token and stores it in Redis.
-    /// In production, send the token via email. For now, return it in the response.
+    /// Request password reset — generates a token, stores its hash in Redis, and
+    /// queues a password-reset email (delivered by the notification worker).
     pub async fn request_password_reset(
         db: &DatabaseConnection,
         redis: &mut redis::aio::ConnectionManager,
@@ -658,14 +665,42 @@ impl IdentityService {
             .one(db)
             .await;
 
-        if let Ok(Some(_user_model)) = user_result {
+        if let Ok(Some(user_model)) = user_result {
             let reset_token = Self::generate_refresh_token();
             let reset_token_hash = Self::hash_token(&reset_token);
             let key = format!("aeroxe:password_reset:{}", reset_token_hash);
+            let ttl_secs = 3600;
             let _: () = redis
-                .set_ex(&key, email, 3600)
+                .set_ex(&key, email, ttl_secs)
                 .await
                 .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+
+            // Queue the reset email via the notification queue (worker delivers it).
+            let base_url = std::env::var("APP_PUBLIC_URL")
+                .unwrap_or_else(|_| "http://localhost:8000".to_string());
+            let reset_link = format!("{}/reset-password?token={}", base_url, reset_token);
+            let body = format!(
+                "We received a request to reset your AeroXe Broadband password.\n\n\
+                 Use the link below to set a new password:\n{}\n\n\
+                 This link is valid for {} minutes.\n\
+                 If you did not request this, you can safely ignore this email.",
+                reset_link,
+                ttl_secs / 60,
+            );
+            let recipient_email = user_model.email.clone();
+            if let Err(e) = NotificationService::send_notification(
+                db,
+                "email".to_string(),
+                "user".to_string(),
+                user_model.id,
+                recipient_email,
+                Some("AeroXe Broadband — Reset your password".to_string()),
+                body,
+            )
+            .await
+            {
+                warn!(error = %e, email = %email, "Failed to queue password reset email");
+            }
         }
 
         Ok(())

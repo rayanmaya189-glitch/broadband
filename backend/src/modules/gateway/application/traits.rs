@@ -41,6 +41,7 @@ pub trait GatewayServiceTrait: Send + Sync {
     async fn list_request_logs(
         &self,
         db: &DatabaseConnection,
+        page: u64,
         limit: u64,
-    ) -> Result<Vec<RequestLogModel>, AppError>;
+    ) -> Result<(Vec<RequestLogModel>, u64), AppError>;
 }

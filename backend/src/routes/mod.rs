@@ -38,8 +38,11 @@ async fn health_check() -> axum::Json<serde_json::Value> {
 /// GET /metrics — Prometheus scrape endpoint
 async fn prometheus_metrics(
     axum::extract::State(state): axum::extract::State<SharedState>,
+    headers: axum::http::HeaderMap,
 ) -> Result<String, axum::http::StatusCode> {
     use prometheus::Encoder;
+
+    crate::infrastructure::metrics_handler::require_metrics_auth(&headers)?;
 
     if let Some(ref metrics) = state.metrics {
         let metrics = metrics.read().await;
@@ -253,6 +256,13 @@ fn auth_routes() -> Router<SharedState> {
             axum::routing::post(id_http::verify_backup_code),
         )
         .route("/2fa/disable", axum::routing::delete(id_http::disable_2fa))
+        // OTP login (§28 Security) — sms / whatsapp / telegram / firebase
+        .route("/otp/request", axum::routing::post(id_http::request_otp))
+        .route("/otp/verify", axum::routing::post(id_http::verify_otp))
+        .route(
+            "/otp/telegram-webhook",
+            axum::routing::post(id_http::telegram_webhook),
+        )
 }
 
 fn user_routes() -> Router<SharedState> {

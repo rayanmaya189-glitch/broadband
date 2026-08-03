@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,7 @@ use crate::modules::gateway::application::services::GatewayService;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
+use crate::shared::primitives::PaginationParams;
 use sha2::{Digest, Sha256};
 
 // ── Rate Limit Rules ──
@@ -37,8 +38,9 @@ pub struct CreateRateLimitRuleRequest {
 
 pub async fn list_rate_limit_rules(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<RateLimitRuleResponse>>, AppError> {
+    require_permission(&user, "gateway.ratelimit.view").map_err(|e| AppError::Forbidden(e.1))?;
     let rules = GatewayService::list_rate_limit_rules(&state.db).await?;
     Ok(Json(
         rules
@@ -148,8 +150,9 @@ pub struct CreateApiKeyRequest {
 
 pub async fn list_api_keys(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<ApiKeyResponse>>, AppError> {
+    require_permission(&user, "gateway.apikey.view").map_err(|e| AppError::Forbidden(e.1))?;
     let keys = GatewayService::list_api_keys(&state.db).await?;
     Ok(Json(
         keys.into_iter()
@@ -261,27 +264,32 @@ pub struct RequestLogResponse {
 
 pub async fn list_request_logs(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
-) -> Result<Json<Vec<RequestLogResponse>>, AppError> {
-    let logs = GatewayService::list_request_logs(&state.db, 100).await?;
+    Query(p): Query<PaginationParams>,
+    user: UserContext,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "gateway.log.view").map_err(|e| AppError::Forbidden(e.1))?;
+    let (logs, total) = GatewayService::list_request_logs(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<RequestLogResponse> = logs
+        .into_iter()
+        .map(|l| RequestLogResponse {
+            id: l.id,
+            method: l.method,
+            path: l.path,
+            status_code: l.status_code,
+            response_time_ms: l.response_time_ms,
+            rate_limited: l.rate_limited,
+            created_at: l.created_at.to_rfc3339(),
+        })
+        .collect();
     Ok(Json(
-        logs.into_iter()
-            .map(|l| RequestLogResponse {
-                id: l.id,
-                method: l.method,
-                path: l.path,
-                status_code: l.status_code,
-                response_time_ms: l.response_time_ms,
-                rate_limited: l.rate_limited,
-                created_at: l.created_at.to_rfc3339(),
-            })
-            .collect(),
+        serde_json::json!({ "items": items, "total": total, "page": p.page(), "limit": p.limit() }),
     ))
 }
 
 pub async fn get_request_stats(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "gateway.log.view").map_err(|e| AppError::Forbidden(e.1))?;
     Ok(Json(GatewayService::get_request_stats(&state.db).await?))
 }

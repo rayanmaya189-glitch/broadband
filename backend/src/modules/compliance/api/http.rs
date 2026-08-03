@@ -43,21 +43,24 @@ pub struct UpdateKycStatusRequest {
 pub async fn list_kyc_verifications(
     State(state): State<Arc<AppState>>,
     user: UserContext,
-    Query(_p): Query<PaginationParams>,
-) -> Result<Json<Vec<KycResponse>>, AppError> {
+    Query(p): Query<PaginationParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&user, "compliance.kyc.view").map_err(|e| AppError::Forbidden(e.1))?;
-    let kycs = ComplianceService::list_kyc_verifications(&state.db).await?;
+    let (kycs, total) =
+        ComplianceService::list_kyc_verifications(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<KycResponse> = kycs
+        .into_iter()
+        .map(|k| KycResponse {
+            id: k.id,
+            customer_id: k.customer_id,
+            document_type: k.document_type,
+            status: k.status,
+            provider: k.provider,
+            verified_at: k.verified_at.map(|v| v.to_rfc3339()),
+        })
+        .collect();
     Ok(Json(
-        kycs.into_iter()
-            .map(|k| KycResponse {
-                id: k.id,
-                customer_id: k.customer_id,
-                document_type: k.document_type,
-                status: k.status,
-                provider: k.provider,
-                verified_at: k.verified_at.map(|v| v.to_rfc3339()),
-            })
-            .collect(),
+        serde_json::json!({ "items": items, "total": total, "page": p.page(), "limit": p.limit() }),
     ))
 }
 

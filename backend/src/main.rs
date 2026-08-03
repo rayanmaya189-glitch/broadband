@@ -241,6 +241,12 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http())
         // 7. CORS (outermost for preflight handling)
         .layer(cors)
+        // 8. Security alerting (§28) — outermost so it observes every response status
+        .layer(
+            aeroxe_backend::shared::middleware::security_alerts::SecurityAlertLayer::new(
+                state.clone(),
+            ),
+        )
         .with_state(state.clone());
 
     // --- Graceful shutdown setup ---
@@ -662,10 +668,15 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn the server in a separate task so we can handle shutdown signals
     let server_handle = tokio::spawn(async move {
-        axum::serve(listener, app)
-            .with_graceful_shutdown(shutdown_signal())
-            .await
-            .expect("Server failed");
+        // into_make_service_with_connect_info exposes the real peer IP to
+        // middleware (used by rate limiting instead of trusting X-Forwarded-For).
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("Server failed");
     });
 
     // Wait for the server task to complete, with 30-second drain timeout

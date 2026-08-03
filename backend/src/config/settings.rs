@@ -23,7 +23,6 @@ pub struct Settings {
     // JWT (RS256 asymmetric keys)
     pub jwt_private_key_pem: Option<String>,
     pub jwt_public_key_pem: Option<String>,
-    pub jwt_secret: String, // fallback for dev mode
     pub jwt_access_token_ttl_secs: i64,
     pub jwt_refresh_token_ttl_secs: i64,
 
@@ -49,6 +48,7 @@ pub struct Settings {
     // Application
     pub app_name: String,
     pub app_env: String,
+    pub app_public_url: String,
     pub cors_origins: Vec<String>,
 
     // Security
@@ -104,15 +104,6 @@ impl Settings {
 
             jwt_private_key_pem: env::var("JWT_PRIVATE_KEY").ok(),
             jwt_public_key_pem: env::var("JWT_PUBLIC_KEY").ok(),
-            jwt_secret: env::var("JWT_SECRET").ok().filter(|s| !s.is_empty()).or_else(|| {
-                // In production, panic if JWT_SECRET is not set
-                let env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
-                if env == "production" {
-                    panic!("FATAL: JWT_SECRET must be set in production environment");
-                }
-                tracing::warn!("JWT_SECRET not set — using development fallback. DO NOT use in production!");
-                Some("dev-only-insecure-jwt-secret".to_string())
-            }).unwrap_or_default(),
             jwt_access_token_ttl_secs: env::var("JWT_ACCESS_TOKEN_TTL_SECS")
                 .unwrap_or_else(|_| "1800".to_string()) // 30 minutes
                 .parse()
@@ -148,6 +139,8 @@ impl Settings {
 
             app_name: env::var("APP_NAME").unwrap_or_else(|_| "AeroXe Broadband".to_string()),
             app_env: env::var("APP_ENV").unwrap_or_else(|_| "development".to_string()),
+            app_public_url: env::var("APP_PUBLIC_URL")
+                .unwrap_or_else(|_| "http://localhost:8000".to_string()),
             cors_origins: env::var("CORS_ORIGINS")
                 .unwrap_or_else(|_| "http://localhost:3000,http://localhost:5173".to_string())
                 .split(',')
@@ -160,25 +153,51 @@ impl Settings {
                 .unwrap_or(90),
 
             worker_outbox_poll_interval_secs: env::var("WORKER_OUTBOX_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "5".to_string()).parse().unwrap_or(5),
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .unwrap_or(5),
             worker_billing_poll_interval_secs: env::var("WORKER_BILLING_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "300".to_string()).parse().unwrap_or(300),
-            worker_notification_poll_interval_secs: env::var("WORKER_NOTIFICATION_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "30".to_string()).parse().unwrap_or(30),
-            worker_device_sync_poll_interval_secs: env::var("WORKER_DEVICE_SYNC_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "120".to_string()).parse().unwrap_or(120),
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .unwrap_or(300),
+            worker_notification_poll_interval_secs: env::var(
+                "WORKER_NOTIFICATION_POLL_INTERVAL_SECS",
+            )
+            .unwrap_or_else(|_| "30".to_string())
+            .parse()
+            .unwrap_or(30),
+            worker_device_sync_poll_interval_secs: env::var(
+                "WORKER_DEVICE_SYNC_POLL_INTERVAL_SECS",
+            )
+            .unwrap_or_else(|_| "120".to_string())
+            .parse()
+            .unwrap_or(120),
             worker_bandwidth_poll_interval_secs: env::var("WORKER_BANDWIDTH_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "60".to_string()).parse().unwrap_or(60),
+                .unwrap_or_else(|_| "60".to_string())
+                .parse()
+                .unwrap_or(60),
             worker_radius_poll_interval_secs: env::var("WORKER_RADIUS_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "300".to_string()).parse().unwrap_or(300),
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .unwrap_or(300),
             worker_scheduler_poll_interval_secs: env::var("WORKER_SCHEDULER_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "30".to_string()).parse().unwrap_or(30),
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
             worker_monitoring_poll_interval_secs: env::var("WORKER_MONITORING_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "120".to_string()).parse().unwrap_or(120),
+                .unwrap_or_else(|_| "120".to_string())
+                .parse()
+                .unwrap_or(120),
             worker_partition_poll_interval_secs: env::var("WORKER_PARTITION_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "86400".to_string()).parse().unwrap_or(86400),
-            worker_outbox_cleanup_poll_interval_secs: env::var("WORKER_OUTBOX_CLEANUP_POLL_INTERVAL_SECS")
-                .unwrap_or_else(|_| "3600".to_string()).parse().unwrap_or(3600),
+                .unwrap_or_else(|_| "86400".to_string())
+                .parse()
+                .unwrap_or(86400),
+            worker_outbox_cleanup_poll_interval_secs: env::var(
+                "WORKER_OUTBOX_CLEANUP_POLL_INTERVAL_SECS",
+            )
+            .unwrap_or_else(|_| "3600".to_string())
+            .parse()
+            .unwrap_or(3600),
 
             supplier_gstin: env::var("SUPPLIER_GSTIN")
                 .unwrap_or_else(|_| "27AABCA1234H1Z5".to_string()),

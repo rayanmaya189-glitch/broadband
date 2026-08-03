@@ -1,5 +1,6 @@
 use axum::http::request::Parts;
 use axum::http::StatusCode;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -131,4 +132,29 @@ pub const COMPANY_WIDE_ROLES: &[&str] = &["super_admin", "isp_owner", "finance_m
 /// Check if a role is company-wide.
 pub fn is_company_wide_role(role: &str) -> bool {
     COMPANY_WIDE_ROLES.contains(&role)
+}
+
+/// Resolve the effective branch_id for creating branch-scoped records.
+///
+/// Company-wide users (super_admin, isp_owner, finance_manager) may have no
+/// branch assigned; falling back to `0` would create orphaned records that no
+/// real branch can access. Instead, resolve to the first active branch.
+pub async fn resolve_branch_id(
+    db: &sea_orm::DatabaseConnection,
+    user: &UserContext,
+) -> Result<i64, crate::shared::errors::AppError> {
+    if let Some(bid) = user.branch_id {
+        return Ok(bid);
+    }
+    if user.is_company_wide || is_company_wide_role(&user.role) {
+        if let Some(branch) = crate::modules::branches::domain::entities::branch::Entity::find()
+            .filter(crate::modules::branches::domain::entities::branch::Column::IsActive.eq(true))
+            .order_by_asc(crate::modules::branches::domain::entities::branch::Column::Id)
+            .one(db)
+            .await?
+        {
+            return Ok(branch.id);
+        }
+    }
+    Ok(0)
 }

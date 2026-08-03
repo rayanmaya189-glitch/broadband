@@ -18,8 +18,13 @@ impl ComplianceService {
 
     pub async fn list_kyc_verifications(
         db: &DatabaseConnection,
-    ) -> Result<Vec<kyc_verification::Model>, AppError> {
-        Ok(KycVerification::find().all(db).await?)
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<kyc_verification::Model>, u64), AppError> {
+        let paginator = KycVerification::find().paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((items, total))
     }
 
     pub async fn create_kyc_verification(

@@ -1,7 +1,8 @@
 # Rust
 /target
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock is committed for this binary application (reproducible builds / cargo-deny).
+# For libraries, Cargo.lock should remain untracked.
 
 # Environment files (CRITICAL - never commit secrets)
 .env

@@ -13,6 +13,7 @@ pub mod push;
 pub mod radius;
 pub mod sms;
 pub mod smtp;
+pub mod telegram;
 pub mod whatsapp;
 
 pub use factory::{DeviceAdapterFactory, DeviceType, NetworkDeviceAdapter};

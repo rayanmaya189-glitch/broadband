@@ -59,9 +59,10 @@ pub async fn create_inventory_item(
     Json(req): Json<CreateItemRequest>,
 ) -> Result<(StatusCode, Json<InventoryItemResponse>), AppError> {
     require_permission(&user, "inventory.item.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = crate::shared::middleware::auth::resolve_branch_id(&state.db, &user).await?;
     let i = InventoryService::create_item(
         &state.db,
-        user.branch_id.unwrap_or(0),
+        branch_id,
         req.item_type,
         req.serial_number,
         req.barcode,

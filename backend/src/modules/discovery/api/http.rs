@@ -59,13 +59,8 @@ pub async fn create_scan(
     Json(req): Json<CreateScanRequest>,
 ) -> Result<(StatusCode, Json<ScanResponse>), AppError> {
     require_permission(&user, "discovery.scan.create").map_err(|e| AppError::Forbidden(e.1))?;
-    let s = DiscoveryService::create_scan(
-        &state.db,
-        user.branch_id.unwrap_or(0),
-        req.name,
-        req.scan_type,
-    )
-    .await?;
+    let branch_id = crate::shared::middleware::auth::resolve_branch_id(&state.db, &user).await?;
+    let s = DiscoveryService::create_scan(&state.db, branch_id, req.name, req.scan_type).await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
         "discovery.scan.created",

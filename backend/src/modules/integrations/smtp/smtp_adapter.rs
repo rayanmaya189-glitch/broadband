@@ -58,10 +58,11 @@ impl LettreSmtpAdapter {
         } else {
             let env = std::env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
             if env == "production" {
-                panic!(
-                    "FATAL: SMTP running without TLS in production. \
-                     Set SMTP_USE_TLS=true or use a TLS-capable SMTP server."
+                warn!(
+                    "Refusing to start SMTP without TLS in production. \
+                     Set SMTP_USE_TLS=true or provide a TLS-capable SMTP server. Email delivery disabled."
                 );
+                return None;
             }
             warn!("SMTP running without TLS - use only for local development");
             let creds = Credentials::new(config.username.clone(), config.password.clone());

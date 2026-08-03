@@ -150,4 +150,6 @@ lto = "thin"
 codegen-units = 16
 opt-level = 3
 strip = true
-panic = "abort"
+# "unwind" keeps tokio::task / catch_unwind worker protections effective.
+# With "abort", a single panic in any request handler or worker aborts the whole process.
+panic = "unwind"

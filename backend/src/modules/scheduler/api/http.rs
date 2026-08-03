@@ -43,22 +43,25 @@ pub struct ExecutionsQuery {
 /// GET /api/v1/scheduler/jobs
 pub async fn list_jobs(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
-    Query(_p): Query<PaginationParams>,
+    user: UserContext,
+    Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "scheduler.job.view").map_err(|e| AppError::Forbidden(e.1))?;
     let repo = SchedulerRepository::new(&state.db);
-    let jobs = SchedulerService::list_job_definitions(&repo, &state.db).await?;
+    let (jobs, total) =
+        SchedulerService::list_job_definitions(&repo, &state.db, p.page(), p.limit()).await?;
     Ok(Json(
-        serde_json::json!({ "items": jobs, "total": jobs.len() }),
+        serde_json::json!({ "items": jobs, "total": total, "page": p.page(), "limit": p.limit() }),
     ))
 }
 
 /// GET /api/v1/scheduler/jobs/:id
 pub async fn get_job(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "scheduler.job.view").map_err(|e| AppError::Forbidden(e.1))?;
     let repo = SchedulerRepository::new(&state.db);
     let job = SchedulerService::get_job_definition(&repo, &state.db, id).await?;
     Ok(Json(serde_json::to_value(job).unwrap_or_default()))
@@ -150,9 +153,10 @@ pub async fn trigger_job(
 /// GET /api/v1/scheduler/executions
 pub async fn list_executions(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(q): Query<ExecutionsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "scheduler.job.view").map_err(|e| AppError::Forbidden(e.1))?;
     let repo = SchedulerRepository::new(&state.db);
     let jobs = SchedulerService::list_executions(&repo, &state.db, q.job_id).await?;
     Ok(Json(
@@ -163,8 +167,9 @@ pub async fn list_executions(
 /// GET /api/v1/scheduler/stats
 pub async fn scheduler_stats(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "scheduler.job.view").map_err(|e| AppError::Forbidden(e.1))?;
     let repo = SchedulerRepository::new(&state.db);
     let stats = SchedulerService::get_scheduler_stats(&repo, &state.db).await?;
     Ok(Json(stats))

@@ -66,10 +66,11 @@ pub async fn create_installation(
     Json(req): Json<CreateOrderRequest>,
 ) -> Result<(StatusCode, Json<InstallationResponse>), AppError> {
     require_permission(&user, "installation.order.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = crate::shared::middleware::auth::resolve_branch_id(&state.db, &user).await?;
     let o = InstallationService::create_order(
         &state.db,
         req.customer_id,
-        user.branch_id.unwrap_or(0),
+        branch_id,
         req.subscription_id,
     )
     .await?;

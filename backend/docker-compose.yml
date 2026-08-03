@@ -1,26 +1,52 @@
 version: '3.8'
 
 services:
+  # ── Database Migration Runner ─────────────────────────────────────────────
+  # Runs the versioned Migrator FIRST so the backend never races with DDL.
+  # NOTE: migrations/sql/ must NOT be mounted into postgres:/docker-entrypoint-initdb.d
+  # (both would run the same DDL and fail with "relation already exists").
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgresql://aeroxe:${POSTGRES_PASSWORD:-secret}@postgres:5432/aeroxe
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aeroxe-net
+    restart: "no"
+
   # ── Backend API ───────────────────────────────────────────────────────────
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql://aeroxe:secret@postgres:5432/aeroxe
+      DATABASE_URL: postgresql://aeroxe:${POSTGRES_PASSWORD:-secret}@postgres:5432/aeroxe
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: aeroxe-documents
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_REGION: us-east-1
+      MINIO_BUCKET_KYC: aeroxe-kyc
+      MINIO_BUCKET_INVOICES: aeroxe-invoices
+      MINIO_BUCKET_DOCUMENTS: aeroxe-documents
       SERVER_ADDR: "0.0.0.0:8000"
-      APP_ENV: development
+      APP_ENV: ${APP_ENV:-development}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8000}
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       RUST_LOG: aeroxe_backend=debug,tower_http=debug
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -39,10 +65,9 @@ services:
     environment:
       POSTGRES_DB: aeroxe
       POSTGRES_USER: aeroxe
-      POSTGRES_PASSWORD: secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./migrations/sql:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -91,8 +116,8 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     volumes:
       - miniodata:/data
     ports:
@@ -105,22 +130,6 @@ services:
       retries: 3
     networks:
       - aeroxe-net
-
-  # ── Database Migration Runner ─────────────────────────────────────────────
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["migrate"]
-    environment:
-      DATABASE_URL: postgresql://aeroxe:secret@postgres:5432/aeroxe
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - aeroxe-net
-    # Run once and exit
-    restart: "no"
 
 volumes:
   pgdata:

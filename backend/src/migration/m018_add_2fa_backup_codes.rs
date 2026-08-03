@@ -25,7 +25,7 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
-                    .table(Alias::new("users"))
+                    .table((Alias::new("identity"), Alias::new("users")))
                     .drop_column(Alias::new("two_factor_backup_codes"))
                     .to_owned(),
             )

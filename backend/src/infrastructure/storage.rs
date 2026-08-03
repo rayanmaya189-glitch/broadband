@@ -5,9 +5,9 @@ use tracing::{debug, info};
 
 use crate::shared::errors::AppError;
 
-/// Maximum file size for direct upload (100 MB).
-/// Larger files should use presigned URLs instead.
-const MAX_DIRECT_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
+/// Maximum file size for direct upload (10 MB) — matches the API request body
+/// limit configured in main.rs. Larger files must use presigned URLs instead.
+const MAX_DIRECT_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
 
 /// MinIO/S3 compatible storage service
 #[derive(Clone)]
@@ -112,7 +112,7 @@ impl StorageService {
         Ok(url)
     }
 
-    /// Upload a file directly to storage (max 100 MB).
+    /// Upload a file directly to storage (max 10 MB).
     /// For larger files, use presigned URLs instead.
     pub async fn upload_object(
         &self,
@@ -148,7 +148,7 @@ impl StorageService {
         Ok(location)
     }
 
-    /// Download a file from storage as bytes (max 100 MB).
+    /// Download a file from storage as bytes (max 10 MB).
     /// For larger files, use presigned download URLs instead.
     pub async fn download_object(
         &self,

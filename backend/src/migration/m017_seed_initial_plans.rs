@@ -11,12 +11,12 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM notification_channels WHERE channel IN ('email', 'sms', 'whatsapp', 'push')").await?;
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM approval_workflows").await?;
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM branches WHERE slug IN ('jalgaon-main', 'bhusawal', 'mumbai', 'navi-mumbai')").await?;
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM speed_profiles").await?;
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM plan_pricing").await?;
-        crate::migration::exec_stmt_raw(manager, "DELETE FROM plans WHERE slug IN ('basic-50', 'standard-100', 'premium-150', 'pro-200', 'ultimate-300', 'business-500')").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM notification.notification_channels WHERE channel IN ('email', 'sms', 'whatsapp', 'push')").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM workflow.approval_workflows").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM branches.branches WHERE slug IN ('jalgaon-main', 'bhusawal', 'mumbai', 'navi-mumbai')").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM plans.speed_profiles").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM plans.plan_pricing").await?;
+        crate::migration::exec_stmt_raw(manager, "DELETE FROM plans.plans WHERE slug IN ('basic-50', 'standard-100', 'premium-150', 'pro-200', 'ultimate-300', 'business-500')").await?;
         Ok(())
     }
 }

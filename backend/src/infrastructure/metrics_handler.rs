@@ -1,5 +1,5 @@
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use prometheus::{Encoder, TextEncoder};
@@ -8,8 +8,45 @@ use tracing::debug;
 
 use crate::shared::app_state::SharedState;
 
+/// Require `Authorization: Bearer <token>` on metrics endpoints.
+///
+/// - When `METRICS_TOKEN` is set, it must match.
+/// - In production, a token is REQUIRED (metrics expose business counters).
+/// - In development, unset token means the endpoint stays open.
+pub fn require_metrics_auth(headers: &HeaderMap) -> Result<(), StatusCode> {
+    let is_production = std::env::var("APP_ENV")
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("production");
+    let configured = std::env::var("METRICS_TOKEN").unwrap_or_default();
+
+    if configured.is_empty() {
+        if is_production {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+        return Ok(());
+    }
+
+    let provided = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+    if provided == configured {
+        Ok(())
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
 /// GET /api/v1/metrics — Prometheus scrape endpoint.
-pub async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
+pub async fn metrics_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> impl IntoResponse {
+    if let Err(status) = require_metrics_auth(&headers) {
+        return (status, "Metrics auth required".to_string()).into_response();
+    }
+
     let Some(metrics) = &state.metrics else {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -61,8 +98,10 @@ pub struct MetricsSummary {
 }
 
 pub async fn metrics_summary_handler(
+    headers: HeaderMap,
     State(state): State<SharedState>,
 ) -> Result<Json<MetricsSummary>, StatusCode> {
+    require_metrics_auth(&headers)?;
     let Some(metrics) = &state.metrics else {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     };

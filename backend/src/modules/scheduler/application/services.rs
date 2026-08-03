@@ -12,8 +12,10 @@ impl SchedulerService {
     pub async fn list_job_definitions(
         repo: &dyn SchedulerRepositoryTrait,
         db: &sea_orm::DatabaseConnection,
-    ) -> Result<Vec<job_definition::Model>, AppError> {
-        repo.list_job_definitions(db).await
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<job_definition::Model>, u64), AppError> {
+        repo.list_job_definitions(db, page, limit).await
     }
 
     pub async fn get_job_definition(

@@ -30,6 +30,8 @@ mod m022_add_fk_constraints_and_indexes;
 mod m023_add_gst_tax_breakdown;
 mod m024_widen_status_checks;
 mod m025_make_payment_invoice_nullable;
+mod m026_seed_gateway_scheduler_permissions;
+mod m027_create_otp_codes;
 
 pub struct Migrator;
 
@@ -204,6 +206,8 @@ impl MigratorTrait for Migrator {
             Box::new(m023_add_gst_tax_breakdown::Migration),
             Box::new(m024_widen_status_checks::Migration),
             Box::new(m025_make_payment_invoice_nullable::Migration),
+            Box::new(m026_seed_gateway_scheduler_permissions::Migration),
+            Box::new(m027_create_otp_codes::Migration),
         ]
     }
 }

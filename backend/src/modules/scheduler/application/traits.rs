@@ -10,7 +10,9 @@ pub trait SchedulerRepositoryTrait: Send + Sync {
     async fn list_job_definitions(
         &self,
         db: &DatabaseConnection,
-    ) -> Result<Vec<JobDefinitionModel>, AppError>;
+        page: u64,
+        limit: u64,
+    ) -> Result<(Vec<JobDefinitionModel>, u64), AppError>;
 
     async fn get_job_definition(
         &self,

@@ -1,17 +1,18 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::modules::identity::application::otp as otp_service;
 use crate::modules::identity::application::services::IdentityService;
 use crate::modules::identity::application::two_factor;
 use crate::modules::identity::domain::entities::user;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::UserContext;
-use crate::shared::primitives::ClientIp;
+use crate::shared::primitives::{ClientIp, PaginationParams};
 use crate::shared::utils::login_anomaly;
 
 #[derive(Debug, Deserialize)]
@@ -265,13 +266,17 @@ pub async fn get_current_user(
 /// GET /api/v1/users
 pub async fn list_users(
     State(state): State<Arc<AppState>>,
+    Query(p): Query<PaginationParams>,
     user: UserContext,
-) -> Result<Json<Vec<UserResponse>>, AppError> {
+) -> Result<Json<serde_json::Value>, AppError> {
     if !user.is_company_wide {
         return Err(AppError::Forbidden("Insufficient permissions".to_string()));
     }
-    let users = IdentityService::list_users(&state.db).await?;
-    Ok(Json(users.into_iter().map(to_user_response).collect()))
+    let (users, total) = IdentityService::list_users(&state.db, p.page(), p.limit()).await?;
+    let items: Vec<UserResponse> = users.into_iter().map(to_user_response).collect();
+    Ok(Json(
+        serde_json::json!({ "items": items, "total": total, "page": p.page(), "limit": p.limit() }),
+    ))
 }
 
 // ──────────────────────────────────────────────
@@ -531,4 +536,148 @@ pub async fn revoke_session(
     let mut redis = state.redis.clone();
     IdentityService::revoke_session(&mut redis, user.user_id, &session_id).await?;
     Ok(Json(serde_json::json!({ "status": "session_revoked" })))
+}
+
+// ──────────────────────────────────────────────
+// OTP Login (§28 Security)
+// ──────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct OtpRequestRequest {
+    pub phone: String,
+    #[serde(default)]
+    pub channel: Option<String>,
+    #[serde(default)]
+    pub fcm_token: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OtpRequestResponse {
+    pub success: bool,
+    pub channel: String,
+    pub expires_in_secs: u64,
+    pub message: String,
+}
+
+/// POST /api/v1/auth/otp/request — Generate and deliver an OTP via
+/// sms (MSG91), whatsapp, telegram or firebase (FCM push).
+pub async fn request_otp(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<OtpRequestRequest>,
+) -> Result<Json<OtpRequestResponse>, AppError> {
+    let channel = otp_service::OtpChannel::from_str(req.channel.as_deref().unwrap_or("sms"))?;
+
+    let mut redis = state.redis.clone();
+    let sent = otp_service::send_otp(
+        &state.db,
+        &mut redis,
+        &state.settings.app_name,
+        &req.phone,
+        &channel,
+        req.fcm_token.as_deref(),
+    )
+    .await?;
+
+    let channel_name = sent.channel.clone();
+
+    Ok(Json(OtpRequestResponse {
+        success: true,
+        channel: sent.channel,
+        expires_in_secs: sent.expires_in_secs,
+        message: format!(
+            "OTP sent via {}. It expires in {} seconds.",
+            channel_name, sent.expires_in_secs
+        ),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OtpVerifyRequest {
+    pub phone: String,
+    #[serde(default)]
+    pub channel: Option<String>,
+    pub code: String,
+}
+
+/// POST /api/v1/auth/otp/verify — Verify the OTP and complete login.
+/// Issues access/refresh tokens for the account linked to the phone.
+pub async fn verify_otp(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<OtpVerifyRequest>,
+) -> Result<Json<AuthResponse>, AppError> {
+    let channel = otp_service::OtpChannel::from_str(req.channel.as_deref().unwrap_or("sms"))?;
+
+    let mut redis = state.redis.clone();
+    otp_service::verify_otp(&state.db, &mut redis, &req.phone, &channel, &req.code).await?;
+
+    let user_model = otp_service::find_user_by_phone(&state.db, &req.phone)
+        .await?
+        .ok_or_else(|| {
+            AppError::NotFound("No account is linked to this phone number".to_string())
+        })?;
+
+    if user_model.status != "active" {
+        return Err(AppError::Unauthorized);
+    }
+
+    let (access_token, refresh_token, user) = IdentityService::complete_2fa_login(
+        &state.db,
+        &mut redis,
+        &state.settings,
+        &user_model,
+        &state.jwt_keys,
+    )
+    .await?;
+
+    Ok(Json(AuthResponse {
+        requires_2fa: false,
+        access_token: Some(access_token),
+        refresh_token: Some(refresh_token),
+        user: Some(to_user_response(user)),
+        pending_token: None,
+        message: None,
+    }))
+}
+
+/// POST /api/v1/auth/otp/telegram-webhook — Receive Telegram bot updates.
+/// A user binds their phone by messaging the bot: `/start <phone>` or
+/// `/login <phone>`.
+pub async fn telegram_webhook(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let raw = serde_json::to_string(&payload)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize webhook: {}", e)))?;
+
+    let Some(update) = crate::modules::integrations::telegram::parse_update(&raw) else {
+        return Ok(Json(serde_json::json!({ "ok": true })));
+    };
+    let Some(msg) = update.message else {
+        return Ok(Json(serde_json::json!({ "ok": true })));
+    };
+
+    let chat_id = msg.chat.id;
+    let text = msg.text.unwrap_or_default();
+    let parts: Vec<&str> = text.split_whitespace().collect();
+
+    let mut redis = state.redis.clone();
+    let mut reply = String::from("Usage: send /login <phone> to enable OTP login.");
+    if parts.len() == 2 && matches!(parts[0], "/start" | "/login") {
+        match otp_service::bind_telegram_chat(&mut redis, parts[1], chat_id).await {
+            Ok(()) => {
+                reply = format!(
+                    "Phone {} is now linked. You can use it for OTP login.",
+                    parts[1]
+                );
+            }
+            Err(e) => reply = format!("Could not link phone: {}", e),
+        }
+    }
+
+    let adapter = crate::modules::integrations::telegram::TelegramBotAdapter::from_env();
+    if adapter.is_configured() {
+        let _ = adapter.send_message(chat_id, &reply).await;
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
 }

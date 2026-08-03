@@ -61,13 +61,9 @@ pub async fn create_lead(
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<(StatusCode, Json<LeadResponse>), AppError> {
     require_permission(&user, "lead.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = crate::shared::middleware::auth::resolve_branch_id(&state.db, &user).await?;
     let l = LeadService::create_lead(
-        &state.db,
-        user.branch_id.unwrap_or(0),
-        req.name,
-        req.phone,
-        req.email,
-        req.source,
+        &state.db, branch_id, req.name, req.phone, req.email, req.source,
     )
     .await?;
     // Publish event to outbox

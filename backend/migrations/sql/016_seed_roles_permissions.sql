@@ -161,6 +161,22 @@ INSERT INTO permissions (name, module, resource, action, description) VALUES
 ('audit.log.view', 'audit', 'log', 'view', 'View audit logs'),
 ('audit.log.export', 'audit', 'log', 'export', 'Export audit logs'),
 
+-- Gateway permissions
+('gateway.ratelimit.view', 'gateway', 'ratelimit', 'view', 'View rate limit rules'),
+('gateway.ratelimit.create', 'gateway', 'ratelimit', 'create', 'Create rate limit rules'),
+('gateway.ratelimit.delete', 'gateway', 'ratelimit', 'delete', 'Delete rate limit rules'),
+('gateway.apikey.view', 'gateway', 'apikey', 'view', 'View API keys'),
+('gateway.apikey.create', 'gateway', 'apikey', 'create', 'Create API keys'),
+('gateway.apikey.revoke', 'gateway', 'apikey', 'revoke', 'Revoke API keys'),
+('gateway.log.view', 'gateway', 'log', 'view', 'View gateway request logs and stats'),
+
+-- Scheduler permissions
+('scheduler.job.view', 'scheduler', 'job', 'view', 'View scheduled jobs'),
+('scheduler.job.create', 'scheduler', 'job', 'create', 'Create scheduled jobs'),
+('scheduler.job.update', 'scheduler', 'job', 'update', 'Update scheduled jobs'),
+('scheduler.job.delete', 'scheduler', 'job', 'delete', 'Delete scheduled jobs'),
+('scheduler.job.trigger', 'scheduler', 'job', 'trigger', 'Trigger scheduled jobs'),
+
 -- Accounting permissions
 ('accounting.journal.view', 'accounting', 'journal', 'view', 'View journal entries'),
 ('accounting.journal.create', 'accounting', 'journal', 'create', 'Create journal entries'),
