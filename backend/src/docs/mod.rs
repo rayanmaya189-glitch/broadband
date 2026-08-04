@@ -61,6 +61,9 @@ pub mod workflow;
         auth::verify_2fa,
         auth::verify_backup_code,
         auth::disable_2fa,
+        auth::request_otp,
+        auth::verify_otp,
+        auth::telegram_webhook,
         // Customers
         customers::list_customers,
         customers::create_customer,

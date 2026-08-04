@@ -36,6 +36,27 @@ pub struct Login2FARequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct UserResponse {
+    /// User ID
+    pub id: i64,
+    /// User email address
+    pub email: String,
+    /// Phone number
+    pub phone: String,
+    /// Display name
+    pub name: String,
+    /// Avatar URL
+    pub avatar_url: Option<String>,
+    /// Branch ID (null for company-wide users)
+    #[serde(default)]
+    pub branch_id: Option<i64>,
+    /// Account status
+    pub status: String,
+    /// Last login timestamp (RFC 3339)
+    pub last_login_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
     /// Whether 2FA verification is required
     pub requires_2fa: bool,
@@ -45,12 +66,49 @@ pub struct AuthResponse {
     /// Refresh token (null if 2FA required)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
+    /// Authenticated user details
+    pub user: Option<UserResponse>,
     /// Pending token for 2FA step (null if not required)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_token: Option<String>,
     /// Status message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OtpRequestRequest {
+    /// Phone number in E.164 format (e.g. +919876543210)
+    pub phone: String,
+    /// Delivery channel: sms, whatsapp, telegram or firebase (default: sms)
+    #[serde(default)]
+    pub channel: Option<String>,
+    /// Firebase cloud messaging token (required when channel = firebase)
+    #[serde(default)]
+    pub fcm_token: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OtpRequestResponse {
+    /// Whether the OTP was generated and sent
+    pub success: bool,
+    /// Channel the OTP was delivered via
+    pub channel: String,
+    /// OTP validity window in seconds
+    pub expires_in_secs: u64,
+    /// Human-readable confirmation message
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OtpVerifyRequest {
+    /// Phone number the OTP was sent to
+    pub phone: String,
+    /// Delivery channel used at request time (default: sms)
+    #[serde(default)]
+    pub channel: Option<String>,
+    /// OTP code received by the user
+    pub code: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -234,5 +292,51 @@ pub async fn verify_backup_code() -> axum::Json<serde_json::Value> {
     security(("bearer_auth" = []))
 )]
 pub async fn disable_2fa() -> axum::Json<serde_json::Value> {
+    unimplemented!()
+}
+
+/// Request an OTP for phone-based login
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/otp/request",
+    tag = "Auth",
+    request_body = OtpRequestRequest,
+    responses(
+        (status = 200, description = "OTP generated and delivered", body = OtpRequestResponse),
+        (status = 400, description = "Invalid phone number or channel"),
+        (status = 429, description = "Too many requests, OTP rate limit exceeded")
+    )
+)]
+pub async fn request_otp() -> axum::Json<serde_json::Value> {
+    unimplemented!()
+}
+
+/// Verify an OTP and complete phone-based login
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/otp/verify",
+    tag = "Auth",
+    request_body = OtpVerifyRequest,
+    responses(
+        (status = 200, description = "OTP verified, login complete", body = AuthResponse),
+        (status = 400, description = "Invalid or expired OTP"),
+        (status = 404, description = "No account is linked to this phone number")
+    )
+)]
+pub async fn verify_otp() -> axum::Json<serde_json::Value> {
+    unimplemented!()
+}
+
+/// Receive Telegram bot updates for phone-to-chat binding
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/otp/telegram-webhook",
+    tag = "Auth",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Update processed (always returns ok)")
+    )
+)]
+pub async fn telegram_webhook() -> axum::Json<serde_json::Value> {
     unimplemented!()
 }
