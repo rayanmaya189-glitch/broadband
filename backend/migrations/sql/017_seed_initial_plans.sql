@@ -167,11 +167,14 @@ VALUES
 ('Plan Pricing Change', 'plan_pricing_change', '["finance_manager", "isp_owner"]', 48, TRUE)
 ON CONFLICT (operation) DO NOTHING;
 
--- Seed notification channels
+-- Seed notification channels.
+-- Config JSON mirrors the runtime adapters: SMS uses MSG91_* env vars via
+-- Msg91Adapter::from_env(); SMTP uses settings with gmail defaults. Empty
+-- secrets mean "not configured yet"; secrets live in env, not in the DB.
 INSERT INTO notification_channels (channel, provider, config, is_active)
 VALUES
-('email', 'smtp', '{"host": "${SMTP_HOST}", "port": 587, "username": "${SMTP_USERNAME}", "from_email": "${SMTP_FROM_EMAIL}"}', TRUE),
-('sms', 'msg91', '{"api_key": "${SMS_API_KEY}", "sender_id": "${SMS_SENDER_ID}"}', TRUE),
+('email', 'smtp', '{"host": "smtp.gmail.com", "port": 587, "username": "", "from_email": ""}', TRUE),
+('sms', 'msg91', '{"auth_key": "", "sender_id": "AEROXE", "route": "4", "country_code": "91"}', TRUE),
 ('whatsapp', 'business_api', '{"phone_number_id": "", "access_token": ""}', FALSE),
 ('push', 'fcm', '{"server_key": ""}', FALSE)
 ON CONFLICT (channel) DO NOTHING;

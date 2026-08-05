@@ -32,6 +32,7 @@ mod m024_widen_status_checks;
 mod m025_make_payment_invoice_nullable;
 mod m026_seed_gateway_scheduler_permissions;
 mod m027_create_otp_codes;
+mod m028_fix_notification_channel_seeds;
 
 pub struct Migrator;
 
@@ -208,6 +209,7 @@ impl MigratorTrait for Migrator {
             Box::new(m025_make_payment_invoice_nullable::Migration),
             Box::new(m026_seed_gateway_scheduler_permissions::Migration),
             Box::new(m027_create_otp_codes::Migration),
+            Box::new(m028_fix_notification_channel_seeds::Migration),
         ]
     }
 }

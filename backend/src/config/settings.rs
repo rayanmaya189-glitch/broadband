@@ -41,10 +41,6 @@ pub struct Settings {
     pub smtp_password: String,
     pub smtp_from_email: String,
 
-    // SMS
-    pub sms_api_key: String,
-    pub sms_sender_id: String,
-
     // Application
     pub app_name: String,
     pub app_env: String,
@@ -133,9 +129,6 @@ impl Settings {
             smtp_password: env::var("SMTP_PASSWORD").unwrap_or_default(),
             smtp_from_email: env::var("SMTP_FROM_EMAIL")
                 .unwrap_or_else(|_| "noreply@aeroxebroadband.com".to_string()),
-
-            sms_api_key: env::var("SMS_API_KEY").unwrap_or_default(),
-            sms_sender_id: env::var("SMS_SENDER_ID").unwrap_or_else(|_| "AEROXE".to_string()),
 
             app_name: env::var("APP_NAME").unwrap_or_else(|_| "AeroXe Broadband".to_string()),
             app_env: env::var("APP_ENV").unwrap_or_else(|_| "development".to_string()),
