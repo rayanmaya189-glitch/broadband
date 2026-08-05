@@ -3,6 +3,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Loader from '../components/ui/Loader';
 import { SITE_CONFIG } from '../config/site';
+import { adminRoutes } from '../admin/routes';
 
 const LandingPage = lazy(() => import('../pages/LandingPage'));
 const PlansPage = lazy(() => import('../features/plans/PlansPage'));
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
       </Suspense>
     ),
   },
+  adminRoutes,
 ]);
 
 export const navLinks = SITE_CONFIG.navLinks;

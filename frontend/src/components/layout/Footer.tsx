@@ -123,6 +123,7 @@ export default function Footer() {
             <Link to="/privacy" className="text-xs sm:text-sm text-dark-500 hover:text-dark-400 transition-colors">Privacy</Link>
             <Link to="/terms" className="text-xs sm:text-sm text-dark-500 hover:text-dark-400 transition-colors">Terms</Link>
             <Link to="/refund" className="text-xs sm:text-sm text-dark-500 hover:text-dark-400 transition-colors">Refund</Link>
+            <Link to="/admin/login" className="text-xs sm:text-sm text-dark-500 hover:text-accent-400 transition-colors">Staff Login</Link>
           </div>
         </div>
       </div>
