@@ -33,6 +33,11 @@ mod m025_make_payment_invoice_nullable;
 mod m026_seed_gateway_scheduler_permissions;
 mod m027_create_otp_codes;
 mod m028_fix_notification_channel_seeds;
+mod m029_seed_users_branch;
+mod m030_add_role_is_company_wide;
+mod m031_add_missing_runtime_columns;
+mod m032_realign_approval_requests;
+mod m033_align_column_types;
 
 pub struct Migrator;
 
@@ -210,6 +215,11 @@ impl MigratorTrait for Migrator {
             Box::new(m026_seed_gateway_scheduler_permissions::Migration),
             Box::new(m027_create_otp_codes::Migration),
             Box::new(m028_fix_notification_channel_seeds::Migration),
+            Box::new(m029_seed_users_branch::Migration),
+            Box::new(m030_add_role_is_company_wide::Migration),
+            Box::new(m031_add_missing_runtime_columns::Migration),
+            Box::new(m032_realign_approval_requests::Migration),
+            Box::new(m033_align_column_types::Migration),
         ]
     }
 }

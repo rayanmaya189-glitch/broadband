@@ -391,9 +391,14 @@ CREATE TABLE IF NOT EXISTS bandwidth.bandwidth_policies (
 -- ============================================================
 -- notification schema (supplemental table)
 -- ============================================================
+-- NOTE: notification_delivery_history.notification_id has NO FK to
+-- notification.notifications(id) — notifications is RANGE-partitioned (by
+-- created_at) so its primary key is (id, created_at) and PostgreSQL cannot
+-- reference only notifications(id). The link is enforced at the application
+-- layer (see migration 021_add_missing_fk_constraints_and_indexes.sql).
 CREATE TABLE IF NOT EXISTS notification.notification_delivery_history (
     id BIGSERIAL PRIMARY KEY,
-    notification_id BIGINT NOT NULL REFERENCES notification.notifications(id),
+    notification_id BIGINT NOT NULL,
     channel TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     attempts INTEGER NOT NULL DEFAULT 0,

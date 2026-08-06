@@ -247,15 +247,10 @@ ALTER TABLE billing.payment_reminders
     ADD CONSTRAINT fk_payment_reminders_invoice
     FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id);
 
--- bandwidth.bandwidth_profiles.customer_id → customer.customers.id
-ALTER TABLE bandwidth.bandwidth_profiles
-    ADD CONSTRAINT fk_bandwidth_profiles_customer
-    FOREIGN KEY (customer_id) REFERENCES customer.customers(id);
-
--- bandwidth.bandwidth_applications.customer_id → customer.customers.id
-ALTER TABLE bandwidth.bandwidth_applications
-    ADD CONSTRAINT fk_bandwidth_applications_customer
-    FOREIGN KEY (customer_id) REFERENCES customer.customers(id);
+-- NOTE: bandwidth.bandwidth_profiles / bandwidth.bandwidth_applications do
+-- NOT have a customer_id column (see 005_create_plans.sql and the SeaORM
+-- entities), so no customer FK can be added here. Applications are linked to
+-- customers through subscription.subscriptions at the application layer.
 
 -- document.document_files.uploaded_by → identity.users.id
 ALTER TABLE document.document_files

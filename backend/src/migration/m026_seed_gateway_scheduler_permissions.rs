@@ -8,7 +8,7 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         crate::migration::exec_stmt_raw(
             manager,
-            "INSERT INTO permissions (name, module, resource, action, description) VALUES
+            "INSERT INTO security.permissions (name, module, resource, action, description) VALUES
 ('gateway.ratelimit.view', 'gateway', 'ratelimit', 'view', 'View rate limit rules'),
 ('gateway.apikey.view', 'gateway', 'apikey', 'view', 'View API keys'),
 ('gateway.log.view', 'gateway', 'log', 'view', 'View gateway request logs and stats'),
@@ -19,9 +19,9 @@ ON CONFLICT (name) DO NOTHING",
 
         crate::migration::exec_stmt_raw(
             manager,
-            "INSERT INTO role_permissions (role_id, permission_id)
+            "INSERT INTO security.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
-FROM roles r, permissions p
+FROM security.roles r, security.permissions p
 WHERE r.is_system = TRUE
   AND r.slug IN ('super_admin', 'isp_owner')
   AND p.name IN ('gateway.ratelimit.view', 'gateway.ratelimit.create', 'gateway.ratelimit.delete',
@@ -39,12 +39,12 @@ ON CONFLICT (role_id, permission_id) DO NOTHING",
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         crate::migration::exec_stmt_raw(
             manager,
-            "DELETE FROM role_permissions WHERE permission_id IN (SELECT id FROM permissions WHERE name IN ('gateway.ratelimit.view', 'gateway.apikey.view', 'gateway.log.view', 'scheduler.job.view'))",
+            "DELETE FROM security.role_permissions WHERE permission_id IN (SELECT id FROM security.permissions WHERE name IN ('gateway.ratelimit.view', 'gateway.apikey.view', 'gateway.log.view', 'scheduler.job.view'))",
         )
         .await?;
         crate::migration::exec_stmt_raw(
             manager,
-            "DELETE FROM permissions WHERE name IN ('gateway.ratelimit.view', 'gateway.apikey.view', 'gateway.log.view', 'scheduler.job.view')",
+            "DELETE FROM security.permissions WHERE name IN ('gateway.ratelimit.view', 'gateway.apikey.view', 'gateway.log.view', 'scheduler.job.view')",
         )
         .await?;
         Ok(())

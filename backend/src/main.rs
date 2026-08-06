@@ -192,7 +192,6 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .nest("/api/v1", aeroxe_backend::routes::v1_routes())
         .merge(aeroxe_backend::routes::health_routes())
-        .merge(aeroxe_backend::infrastructure::openapi::swagger_routes())
         // 0. Request ID (outermost — generates/propagates X-Request-ID before anything else)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::request_id::request_id_middleware,
