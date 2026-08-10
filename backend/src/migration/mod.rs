@@ -38,6 +38,9 @@ mod m030_add_role_is_company_wide;
 mod m031_add_missing_runtime_columns;
 mod m032_realign_approval_requests;
 mod m033_align_column_types;
+mod m034_seed_missing_permissions;
+mod m035_grant_read_permissions;
+mod m036_remove_unenforced_permissions;
 
 pub struct Migrator;
 
@@ -220,6 +223,9 @@ impl MigratorTrait for Migrator {
             Box::new(m031_add_missing_runtime_columns::Migration),
             Box::new(m032_realign_approval_requests::Migration),
             Box::new(m033_align_column_types::Migration),
+            Box::new(m034_seed_missing_permissions::Migration),
+            Box::new(m035_grant_read_permissions::Migration),
+            Box::new(m036_remove_unenforced_permissions::Migration),
         ]
     }
 }

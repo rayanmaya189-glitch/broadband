@@ -240,6 +240,18 @@ impl NotificationWorker {
                     .await
                 {
                     Ok(status) => {
+                        if !status.delivered {
+                            let err = status
+                                .error
+                                .as_deref()
+                                .unwrap_or("SMTP transport returned a failure status");
+                            error!(
+                                notification_id = notif.id,
+                                error = %err,
+                                "SMTP delivery reported failure"
+                            );
+                            return Err(anyhow::anyhow!("Email delivery failed: {}", err));
+                        }
                         info!(
                             notification_id = notif.id,
                             message_id = %status.message_id,
@@ -297,6 +309,18 @@ impl NotificationWorker {
                     .await
                 {
                     Ok(status) => {
+                        if !status.delivered {
+                            let err = status
+                                .error
+                                .as_deref()
+                                .unwrap_or("WhatsApp API returned a failure status");
+                            error!(
+                                notification_id = notif.id,
+                                error = %err,
+                                "WhatsApp delivery reported failure"
+                            );
+                            return Err(anyhow::anyhow!("WhatsApp delivery failed: {}", err));
+                        }
                         info!(
                             notification_id = notif.id,
                             message_id = %status.message_id,
@@ -329,6 +353,18 @@ impl NotificationWorker {
                     .await
                 {
                     Ok(status) => {
+                        if !status.delivered {
+                            let err = status
+                                .error
+                                .as_deref()
+                                .unwrap_or("FCM returned a failure status");
+                            error!(
+                                notification_id = notif.id,
+                                error = %err,
+                                "FCM delivery reported failure"
+                            );
+                            return Err(anyhow::anyhow!("Push delivery failed: {}", err));
+                        }
                         info!(
                             notification_id = notif.id,
                             message_id = %status.message_id,

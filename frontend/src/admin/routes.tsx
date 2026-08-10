@@ -1,6 +1,7 @@
 import type { RouteObject } from 'react-router-dom';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { RequireAuth } from './components/layout/RequireAuth';
+import { RequireModule } from './components/layout/RequireModule';
 import { AdminLoginPage } from './pages/Login';
 import { AdminForbidden, AdminNotFound } from './pages/Errors';
 import { DashboardPage } from './pages/Dashboard';
@@ -36,26 +37,166 @@ export const adminRoutes: RouteObject = {
         </RequireAuth>
       ),
       children: [
-        { index: true, element: <DashboardPage /> },
-        { path: 'customers', element: <CustomersPage /> },
-        { path: 'plans', element: <PlansPage /> },
-        { path: 'subscriptions', element: <SubscriptionsPage /> },
-        { path: 'billing', element: <BillingPage /> },
-        { path: 'tickets', element: <TicketsPage /> },
-        { path: 'leads', element: <LeadsPage /> },
-        { path: 'network', element: <NetworkPage /> },
-        { path: 'devices', element: <DevicesPage /> },
-        { path: 'monitoring', element: <MonitoringPage /> },
-        { path: 'installations', element: <InstallationsPage /> },
-        { path: 'approvals', element: <ApprovalsPage /> },
-        { path: 'notifications', element: <NotificationsPage /> },
-        { path: 'users', element: <UsersPage /> },
-        { path: 'roles', element: <RolesPage /> },
-        { path: 'branches', element: <BranchesPage /> },
-        { path: 'audit', element: <AuditPage /> },
-        { path: 'accounting', element: <AccountingPage /> },
-        { path: 'coverage', element: <CoveragePage /> },
-        { path: 'profile', element: <ProfilePage /> },
+        {
+          index: true,
+          element: (
+            <RequireModule module="dashboard">
+              <DashboardPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'customers',
+          element: (
+            <RequireModule module="customers">
+              <CustomersPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'plans',
+          element: (
+            <RequireModule module="plans">
+              <PlansPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'subscriptions',
+          element: (
+            <RequireModule module="subscriptions">
+              <SubscriptionsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'billing',
+          element: (
+            <RequireModule module="billing">
+              <BillingPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'tickets',
+          element: (
+            <RequireModule module="tickets">
+              <TicketsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'leads',
+          element: (
+            <RequireModule module="leads">
+              <LeadsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'network',
+          element: (
+            <RequireModule module="network">
+              <NetworkPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'devices',
+          element: (
+            <RequireModule module="devices">
+              <DevicesPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'monitoring',
+          element: (
+            <RequireModule module="monitoring">
+              <MonitoringPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'installations',
+          element: (
+            <RequireModule module="installations">
+              <InstallationsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'approvals',
+          element: (
+            <RequireModule module="approvals">
+              <ApprovalsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'notifications',
+          element: (
+            <RequireModule module="notifications">
+              <NotificationsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'users',
+          element: (
+            <RequireModule module="users">
+              <UsersPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'roles',
+          element: (
+            <RequireModule module="roles">
+              <RolesPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'branches',
+          element: (
+            <RequireModule module="branches">
+              <BranchesPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'audit',
+          element: (
+            <RequireModule module="audit">
+              <AuditPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'accounting',
+          element: (
+            <RequireModule module="accounting">
+              <AccountingPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'coverage',
+          element: (
+            <RequireModule module="coverage">
+              <CoveragePage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'profile',
+          element: (
+            <RequireModule module="profile">
+              <ProfilePage />
+            </RequireModule>
+          ),
+        },
         { path: '*', element: <AdminNotFound /> },
       ],
     },

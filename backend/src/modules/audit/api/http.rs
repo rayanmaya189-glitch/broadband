@@ -41,8 +41,9 @@ pub async fn search_history(
     State(state): State<Arc<AppState>>,
     Path(entity_type): Path<String>,
     Query(query): Query<HistoryQuery>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<PaginatedResult<HistoryEntry>>, AppError> {
+    require_permission(&user, "audit.history.view").map_err(|e| AppError::Forbidden(e.1))?;
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).min(100);
 
@@ -66,8 +67,9 @@ pub async fn search_history(
 pub async fn get_history_entry(
     State(state): State<Arc<AppState>>,
     Path((entity_type, history_id)): Path<(String, String)>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<HistoryEntry>, AppError> {
+    require_permission(&user, "audit.history.view").map_err(|e| AppError::Forbidden(e.1))?;
     let entry = EntityHistoryService::get_entry(&state.db, &entity_type, &history_id)
         .await?
         .ok_or_else(|| AppError::NotFound("History entry not found".into()))?;
@@ -82,12 +84,7 @@ pub async fn rollback_entity(
     user: UserContext,
     Json(req): Json<RollbackRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // Only super_admin and isp_owner can perform rollbacks
-    if !["super_admin", "isp_owner"].contains(&user.role.as_str()) {
-        return Err(AppError::Forbidden(
-            "Only administrators can perform rollbacks".to_string(),
-        ));
-    }
+    require_permission(&user, "admin.data.manage").map_err(|e| AppError::Forbidden(e.1))?;
 
     let result = EntityHistoryService::rollback_entity(
         &state.db,
@@ -109,7 +106,8 @@ pub async fn rollback_entity(
 }
 
 /// GET /api/v1/audit/entity-types — List allowed entity types
-pub async fn list_entity_types(_user: UserContext) -> Result<Json<Vec<&'static str>>, AppError> {
+pub async fn list_entity_types(user: UserContext) -> Result<Json<Vec<&'static str>>, AppError> {
+    require_permission(&user, "audit.history.view").map_err(|e| AppError::Forbidden(e.1))?;
     Ok(Json(
         crate::modules::audit::domain::entity_history::ALLOWED_ENTITY_TYPES.to_vec(),
     ))
@@ -188,8 +186,9 @@ pub struct AuditLogQuery {
 pub async fn search_audit_logs(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AuditLogQuery>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "audit.event.view").map_err(|e| AppError::Forbidden(e.1))?;
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = (page - 1) * limit;
@@ -225,8 +224,9 @@ pub async fn search_audit_logs(
 pub async fn get_audit_log(
     State(state): State<Arc<AppState>>,
     Path(id): Path<i64>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<crate::modules::audit::domain::entities::audit_log::Model>, AppError> {
+    require_permission(&user, "audit.event.view").map_err(|e| AppError::Forbidden(e.1))?;
     let repo = crate::modules::audit::infrastructure::repository::AuditRepository::new(&state.db);
     let log = repo
         .find_by_id(id)
@@ -240,8 +240,9 @@ pub async fn get_user_activity(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<i64>,
     Query(query): Query<AuditLogQuery>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<crate::modules::audit::domain::entities::audit_log::Model>>, AppError> {
+    require_permission(&user, "audit.event.view").map_err(|e| AppError::Forbidden(e.1))?;
     let limit = query.limit.unwrap_or(50).min(200);
     let repo = crate::modules::audit::infrastructure::repository::AuditRepository::new(&state.db);
     let logs = repo.get_user_activity(user_id, limit).await?;
@@ -252,14 +253,9 @@ pub async fn get_user_activity(
 pub async fn export_audit_logs(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AuditLogQuery>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // Only super_admin and isp_owner can export audit logs
-    if !["super_admin", "isp_owner"].contains(&_user.role.as_str()) {
-        return Err(AppError::Forbidden(
-            "Only administrators can export audit logs".to_string(),
-        ));
-    }
+    require_permission(&user, "audit.event.export").map_err(|e| AppError::Forbidden(e.1))?;
 
     let repo = crate::modules::audit::infrastructure::repository::AuditRepository::new(&state.db);
     let logs = repo

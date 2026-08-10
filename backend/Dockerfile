@@ -3,7 +3,9 @@
 # =============================================================================
 
 # ── Build Stage ─────────────────────────────────────────────────────────────
-FROM rust:1.84-slim AS builder
+# Rust >= 1.85 is required: some dependencies use the edition2024 crate
+# feature, which is not stabilized in Cargo 1.84.
+FROM rust:1.96-slim AS builder
 
 WORKDIR /app
 
@@ -11,22 +13,28 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    curl \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Cache dependencies: copy manifests first, create dummy src, build deps
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && \
+# Cache dependencies: copy manifests and build.rs first, create dummy src so
+# only the real source is rebuilt after COPY.
+COPY Cargo.toml Cargo.lock build.rs ./
+RUN mkdir -p src && \
     echo 'fn main() { println!("Dummy"); }' > src/main.rs && \
     echo 'fn main() { println!("Dummy"); }' > src/bin/migrate.rs && \
     cargo build --release 2>/dev/null || true && \
     rm -rf src
 
-# Copy actual source and rebuild
+# Copy actual source, build script and protos, then rebuild
 COPY src/ src/
+COPY migrations/ migrations/
+COPY proto/ proto/
 RUN touch src/main.rs && cargo build --release
 
 # ── Runtime Stage ───────────────────────────────────────────────────────────
-FROM debian:bookworm-slim
+# trixie-slim ships glibc >= 2.38, matching the builder toolchain (rust:1.96).
+FROM debian:trixie-slim
 
 # Install runtime dependencies
 RUN apt-get update && \

@@ -57,9 +57,10 @@ pub async fn list_devices(
 
 pub async fn get_device(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<DeviceResponse>, AppError> {
+    require_permission(&user, "device.router.view").map_err(|e| AppError::Forbidden(e.1))?;
     let d = DeviceService::get_device(&state.db, id).await?;
     Ok(Json(DeviceResponse {
         id: d.id,
@@ -270,9 +271,10 @@ pub struct PortResponse {
 /// GET /api/v1/devices/:id/ports
 pub async fn list_device_ports(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<PortResponse>>, AppError> {
+    require_permission(&user, "device.router.view").map_err(|e| AppError::Forbidden(e.1))?;
     let ports = DeviceService::list_ports(&state.db, id).await?;
     Ok(Json(
         ports
@@ -330,10 +332,11 @@ pub struct DeviceLogResponse {
 /// GET /api/v1/devices/:id/logs
 pub async fn list_device_logs(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "device.router.view").map_err(|e| AppError::Forbidden(e.1))?;
     let (logs, total) = DeviceService::list_logs(&state.db, id, p.page(), p.limit()).await?;
     let resp: Vec<DeviceLogResponse> = logs
         .into_iter()
@@ -366,10 +369,11 @@ pub struct DeviceMetricResponse {
 /// GET /api/v1/devices/:id/metrics
 pub async fn list_device_metrics(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "device.router.view").map_err(|e| AppError::Forbidden(e.1))?;
     let (metrics, total) = DeviceService::list_metrics(&state.db, id, p.page(), p.limit()).await?;
     let resp: Vec<DeviceMetricResponse> = metrics
         .into_iter()
@@ -405,9 +409,10 @@ pub struct UpdateFirmwareRequest {
 /// GET /api/v1/devices/:id/firmware
 pub async fn get_firmware_status(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<FirmwareResponse>, AppError> {
+    require_permission(&user, "device.router.view").map_err(|e| AppError::Forbidden(e.1))?;
     let d = DeviceService::get_device(&state.db, id).await?;
     Ok(Json(FirmwareResponse {
         device_id: d.id,

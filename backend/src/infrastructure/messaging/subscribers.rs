@@ -33,76 +33,35 @@ use crate::infrastructure::messaging::EventEnvelope;
 use crate::shared::errors::AppError;
 
 /// Subscribe to all domain events and route to appropriate handlers.
+///
+/// Waits on every subscriber task. Each subscriber returns as soon as its
+/// NATS subscription stream ends (i.e. the connection dropped), so callers
+/// (the NATS supervisor) can detect a disconnect and reconnect cleanly.
 pub async fn start_subscribers(
     client: Client,
     db: Arc<DatabaseConnection>,
 ) -> Result<(), AppError> {
     info!("Starting NATS event subscribers");
 
-    // Subscribe to customer events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_customer_events(client_c, db_c).await {
-            error!(error = %e, "Customer event subscriber failed");
-        }
-    });
+    let customer = subscribe_customer_events(client.clone(), db.clone());
+    let subscription = subscribe_subscription_events(client.clone(), db.clone());
+    let billing = subscribe_billing_events(client.clone(), db.clone());
+    let device = subscribe_device_events(client.clone(), db.clone());
+    let network = subscribe_network_events(client.clone(), db.clone());
+    let ticket = subscribe_ticket_events(client.clone(), db.clone());
+    let installation = subscribe_installation_events(client, db);
 
-    // Subscribe to subscription events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_subscription_events(client_c, db_c).await {
-            error!(error = %e, "Subscription event subscriber failed");
-        }
-    });
+    tokio::try_join!(
+        customer,
+        subscription,
+        billing,
+        device,
+        network,
+        ticket,
+        installation,
+    )?;
 
-    // Subscribe to billing events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_billing_events(client_c, db_c).await {
-            error!(error = %e, "Billing event subscriber failed");
-        }
-    });
-
-    // Subscribe to device events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_device_events(client_c, db_c).await {
-            error!(error = %e, "Device event subscriber failed");
-        }
-    });
-
-    // Subscribe to network events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_network_events(client_c, db_c).await {
-            error!(error = %e, "Network event subscriber failed");
-        }
-    });
-
-    // Subscribe to ticket events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_ticket_events(client_c, db_c).await {
-            error!(error = %e, "Ticket event subscriber failed");
-        }
-    });
-
-    // Subscribe to installation events
-    let client_c = client.clone();
-    let db_c = db.clone();
-    tokio::spawn(async move {
-        if let Err(e) = subscribe_installation_events(client_c, db_c).await {
-            error!(error = %e, "Installation event subscriber failed");
-        }
-    });
-
-    info!("All NATS event subscribers started");
+    info!("All NATS event subscribers exited");
     Ok(())
 }
 

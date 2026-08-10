@@ -11,7 +11,7 @@ use crate::modules::identity::application::two_factor;
 use crate::modules::identity::domain::entities::user;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
-use crate::shared::middleware::auth::UserContext;
+use crate::shared::middleware::auth::{require_permission, UserContext};
 use crate::shared::primitives::{ClientIp, PaginationParams};
 use crate::shared::utils::login_anomaly;
 
@@ -269,9 +269,7 @@ pub async fn list_users(
     Query(p): Query<PaginationParams>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !user.is_company_wide {
-        return Err(AppError::Forbidden("Insufficient permissions".to_string()));
-    }
+    require_permission(&user, "user.account.view").map_err(|e| AppError::Forbidden(e.1))?;
     let (users, total) = IdentityService::list_users(&state.db, p.page(), p.limit()).await?;
     let items: Vec<UserResponse> = users.into_iter().map(to_user_response).collect();
     Ok(Json(

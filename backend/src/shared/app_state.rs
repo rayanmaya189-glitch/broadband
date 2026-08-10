@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::config::settings::Settings;
-use crate::infrastructure::messaging::EventPublisher;
 use crate::infrastructure::metrics::SharedMetrics;
 use crate::infrastructure::storage::StorageService;
 use crate::shared::middleware::rate_limit::RateLimitStore;
@@ -12,8 +11,9 @@ pub struct AppState {
     pub db: sea_orm::DatabaseConnection,
     pub redis: redis::aio::ConnectionManager,
     pub redis_client: redis::Client,
-    pub nats: Option<async_nats::Client>,
-    pub event_publisher: Option<EventPublisher>,
+    /// Live NATS connection, set by the NATS supervisor once connected and
+    /// cleared on disconnect so consumers never hold a stale handle.
+    pub nats: Arc<tokio::sync::RwLock<Option<async_nats::Client>>>,
     pub settings: Settings,
     pub storage: Option<StorageService>,
     pub rate_limit_store: Arc<RateLimitStore>,
@@ -39,8 +39,7 @@ impl AppState {
             redis: redis.clone(),
             redis_client: redis::Client::open(settings.redis_url.as_str())
                 .expect("Failed to create Redis client"),
-            nats: None,
-            event_publisher: None,
+            nats: Arc::new(tokio::sync::RwLock::new(None)),
             settings,
             storage: None,
             rate_limit_store: Arc::new(RateLimitStore::new(redis)),
@@ -51,10 +50,16 @@ impl AppState {
         }
     }
 
-    pub fn with_nats(mut self, nats: async_nats::Client) -> Self {
-        self.nats = Some(nats.clone());
-        self.event_publisher = Some(EventPublisher::new(nats));
-        self
+    /// Update the live NATS connection handle. Called by the NATS supervisor
+    /// on (re)connect and on disconnect so health checks see reality.
+    pub async fn set_nats(&self, nats: async_nats::Client) {
+        *self.nats.write().await = Some(nats);
+    }
+
+    /// Mark NATS as disconnected. Called by the NATS supervisor when the
+    /// connection drops so consumers never hold a stale handle.
+    pub async fn set_nats_offline(&self) {
+        *self.nats.write().await = None;
     }
 
     pub fn with_storage(mut self, storage: StorageService) -> Self {

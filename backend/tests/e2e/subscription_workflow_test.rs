@@ -47,12 +47,13 @@ async fn test_subscription_plan_change_workflow() {
     let sub = sub.insert(db).await.unwrap();
     assert_eq!(sub.status, "active");
 
-    // Simulate upgrade (change plan)
+    // Simulate upgrade (change plan to a valid higher-tier plan)
+    let upgrade_plan_id = TestFixture::create_plan(db).await;
     let mut active: subscription::ActiveModel = sub.into();
-    active.plan_id = Set(999); // New plan ID
+    active.plan_id = Set(upgrade_plan_id);
     active.updated_at = Set(chrono::Utc::now());
     let sub = active.update(db).await.unwrap();
-    assert_eq!(sub.plan_id, 999);
+    assert_eq!(sub.plan_id, upgrade_plan_id);
 
     // Simulate cancellation
     let mut active: subscription::ActiveModel = sub.into();

@@ -422,7 +422,7 @@ fn determine_tier(path: &str, request: &Request) -> RateLimitTier {
 
     match role {
         // Admin/staff roles get higher limits
-        Some("super_admin" | "admin" | "finance_manager" | "billing_operator") => {
+        Some(role) if crate::shared::middleware::auth::is_privileged_role(role) => {
             if request.method().is_safe() {
                 RateLimitTier::admin_read()
             } else {
@@ -542,5 +542,50 @@ mod tests {
             .unwrap();
         let tier = determine_tier("/health", &request);
         assert_eq!(tier.max_requests, i32::MAX);
+    }
+
+    #[test]
+    fn test_determine_tier_privileged_roles() {
+        for role in crate::shared::middleware::auth::PRIVILEGED_ROLES {
+            let mut request = Request::builder()
+                .uri("/api/v1/customers")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            request
+                .extensions_mut()
+                .insert(crate::shared::middleware::auth::UserContext {
+                    user_id: 1,
+                    email: "staff@aeroxe.com".to_string(),
+                    role: role.to_string(),
+                    branch_id: None,
+                    is_company_wide: false,
+                    permissions: vec![],
+                });
+            let tier = determine_tier("/api/v1/customers", &request);
+            assert_eq!(tier.max_requests, 200, "role {role} should get admin_read");
+        }
+    }
+
+    #[test]
+    fn test_determine_tier_customer_and_standard() {
+        for role in ["customer", "noc_engineer", "field_technician"] {
+            let mut request = Request::builder()
+                .uri("/api/v1/customers")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            request
+                .extensions_mut()
+                .insert(crate::shared::middleware::auth::UserContext {
+                    user_id: 1,
+                    email: "user@aeroxe.com".to_string(),
+                    role: role.to_string(),
+                    branch_id: None,
+                    is_company_wide: false,
+                    permissions: vec![],
+                });
+            let tier = determine_tier("/api/v1/customers", &request);
+            let expected = if role == "customer" { 50 } else { 100 };
+            assert_eq!(tier.max_requests, expected, "role {role} tier");
+        }
     }
 }

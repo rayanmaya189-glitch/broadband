@@ -17,10 +17,23 @@ async fn insert_test_user(
     phone: &str,
     name: &str,
 ) -> aeroxe_backend::modules::identity::domain::entities::user::Model {
+    user_active_model(email, phone, name)
+        .insert(db)
+        .await
+        .expect("Failed to insert test user")
+}
+
+/// Build a user ActiveModel without touching the database (used for
+/// constraint-rejection assertions).
+fn user_active_model(
+    email: &str,
+    phone: &str,
+    name: &str,
+) -> aeroxe_backend::modules::identity::domain::entities::user::ActiveModel {
     use aeroxe_backend::modules::identity::domain::entities::user;
 
     let now = chrono::Utc::now();
-    let active = user::ActiveModel {
+    user::ActiveModel {
         email: Set(email.to_string()),
         phone: Set(phone.to_string()),
         password_hash: Set(Some("$argon2id$v=19$m=4096,t=3,p=1$hash".to_string())),
@@ -33,8 +46,7 @@ async fn insert_test_user(
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
-    };
-    active.insert(db).await.expect("Failed to insert test user")
+    }
 }
 
 // ===========================================================================
@@ -47,11 +59,11 @@ async fn test_user_registration() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let user = insert_test_user(db, "alice@aeroxe.com", "+919000000001", "Alice").await;
+    let user = insert_test_user(db, "alice@aeroxe.com", "+918100000001", "Alice").await;
 
     assert!(user.id > 0, "User should get a positive ID");
     assert_eq!(user.email, "alice@aeroxe.com");
-    assert_eq!(user.phone, "+919000000001");
+    assert_eq!(user.phone, "+918100000001");
     assert_eq!(user.name, "Alice");
     assert_eq!(user.status, "active");
     assert!(!user.two_factor_enabled);
@@ -63,13 +75,11 @@ async fn test_user_registration_duplicate_email_fails() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    insert_test_user(db, "bob@aeroxe.com", "+919000000002", "Bob").await;
+    insert_test_user(db, "bob@aeroxe.com", "+918100000002", "Bob").await;
 
     // Second user with the same email should fail (unique constraint)
-    let duplicate = insert_test_user(db, "bob@aeroxe.com", "+919000000099", "Robert").await;
-    let active: aeroxe_backend::modules::identity::domain::entities::user::ActiveModel =
-        duplicate.into();
-    let result = active.insert(db).await;
+    let duplicate = user_active_model("bob@aeroxe.com", "+918100000099", "Robert");
+    let result = duplicate.insert(db).await;
     assert!(result.is_err(), "Duplicate email should be rejected");
 }
 
@@ -79,12 +89,10 @@ async fn test_user_registration_duplicate_phone_fails() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    insert_test_user(db, "carol@aeroxe.com", "+919000000003", "Carol").await;
+    insert_test_user(db, "carol@aeroxe.com", "+918100000003", "Carol").await;
 
-    let duplicate = insert_test_user(db, "carol2@aeroxe.com", "+919000000003", "Carol2").await;
-    let active: aeroxe_backend::modules::identity::domain::entities::user::ActiveModel =
-        duplicate.into();
-    let result = active.insert(db).await;
+    let duplicate = user_active_model("carol2@aeroxe.com", "+918100000003", "Carol2");
+    let result = duplicate.insert(db).await;
     assert!(result.is_err(), "Duplicate phone should be rejected");
 }
 
@@ -94,7 +102,7 @@ async fn test_user_retrieval_by_email() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "dave@aeroxe.com", "+919000000004", "Dave").await;
+    let created = insert_test_user(db, "dave@aeroxe.com", "+918100000004", "Dave").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user;
 
@@ -115,12 +123,12 @@ async fn test_user_retrieval_by_phone() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "eve@aeroxe.com", "+919000000005", "Eve").await;
+    let created = insert_test_user(db, "eve@aeroxe.com", "+918100000005", "Eve").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user;
 
     let found = user::Entity::find()
-        .filter(user::Column::Phone.eq("+919000000005"))
+        .filter(user::Column::Phone.eq("+918100000005"))
         .one(db)
         .await
         .expect("Query failed")
@@ -139,7 +147,7 @@ async fn test_user_login_updates_last_login_at() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "frank@aeroxe.com", "+919000000006", "Frank").await;
+    let created = insert_test_user(db, "frank@aeroxe.com", "+918100000006", "Frank").await;
     assert!(created.last_login_at.is_none(), "Should have no login yet");
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -164,7 +172,7 @@ async fn test_failed_login_increments_counter() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "grace@aeroxe.com", "+919000000007", "Grace").await;
+    let created = insert_test_user(db, "grace@aeroxe.com", "+918100000007", "Grace").await;
     assert_eq!(created.failed_login_attempts, 0);
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -192,7 +200,7 @@ async fn test_account_lockout_after_failed_attempts() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "hank@aeroxe.com", "+919000000008", "Hank").await;
+    let created = insert_test_user(db, "hank@aeroxe.com", "+918100000008", "Hank").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user;
 
@@ -216,7 +224,7 @@ async fn test_account_unlock_after_timeout() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "ivy@aeroxe.com", "+919000000009", "Ivy").await;
+    let created = insert_test_user(db, "ivy@aeroxe.com", "+918100000009", "Ivy").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user;
 
@@ -244,7 +252,7 @@ async fn test_account_status_transitions() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "jake@aeroxe.com", "+919000000010", "Jake").await;
+    let created = insert_test_user(db, "jake@aeroxe.com", "+918100000010", "Jake").await;
     assert_eq!(created.status, "active");
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -263,12 +271,12 @@ async fn test_account_status_transitions() {
     let reactivated = active.update(db).await.unwrap();
     assert_eq!(reactivated.status, "active");
 
-    // active -> deactivated
+    // active -> inactive
     let mut active: user::ActiveModel = reactivated.into();
-    active.status = Set("deactivated".to_string());
+    active.status = Set("inactive".to_string());
     active.updated_at = Set(chrono::Utc::now());
     let deactivated = active.update(db).await.unwrap();
-    assert_eq!(deactivated.status, "deactivated");
+    assert_eq!(deactivated.status, "inactive");
 }
 
 // ===========================================================================
@@ -281,7 +289,7 @@ async fn test_enable_two_factor_authentication() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "kate@aeroxe.com", "+919000000011", "Kate").await;
+    let created = insert_test_user(db, "kate@aeroxe.com", "+918100000011", "Kate").await;
     assert!(!created.two_factor_enabled);
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -306,7 +314,7 @@ async fn test_disable_two_factor_authentication() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "leo@aeroxe.com", "+919000000012", "Leo").await;
+    let created = insert_test_user(db, "leo@aeroxe.com", "+918100000012", "Leo").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user;
 
@@ -339,7 +347,7 @@ async fn test_email_verification() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "mia@aeroxe.com", "+919000000013", "Mia").await;
+    let created = insert_test_user(db, "mia@aeroxe.com", "+918100000013", "Mia").await;
     assert!(!created.email_verified);
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -358,7 +366,7 @@ async fn test_phone_verification() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "nora@aeroxe.com", "+919000000014", "Nora").await;
+    let created = insert_test_user(db, "nora@aeroxe.com", "+918100000014", "Nora").await;
     assert!(!created.phone_verified);
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -381,7 +389,7 @@ async fn test_user_soft_delete() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "oscar@aeroxe.com", "+919000000015", "Oscar").await;
+    let created = insert_test_user(db, "oscar@aeroxe.com", "+918100000015", "Oscar").await;
     assert!(created.deleted_at.is_none());
 
     use aeroxe_backend::modules::identity::domain::entities::user;
@@ -404,7 +412,7 @@ async fn test_create_user_session() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let user = insert_test_user(db, "pam@aeroxe.com", "+919000000016", "Pam").await;
+    let user = insert_test_user(db, "pam@aeroxe.com", "+918100000016", "Pam").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user_session;
 
@@ -430,7 +438,7 @@ async fn test_list_sessions_for_user() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let user = insert_test_user(db, "quinn@aeroxe.com", "+919000000017", "Quinn").await;
+    let user = insert_test_user(db, "quinn@aeroxe.com", "+918100000017", "Quinn").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user_session;
 
@@ -464,7 +472,7 @@ async fn test_delete_user_session() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let user = insert_test_user(db, "rita@aeroxe.com", "+919000000018", "Rita").await;
+    let user = insert_test_user(db, "rita@aeroxe.com", "+918100000018", "Rita").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user_session;
 
@@ -498,7 +506,7 @@ async fn test_delete_all_sessions_for_user() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let user = insert_test_user(db, "sam@aeroxe.com", "+919000000019", "Sam").await;
+    let user = insert_test_user(db, "sam@aeroxe.com", "+918100000019", "Sam").await;
 
     use aeroxe_backend::modules::identity::domain::entities::user_session;
 
@@ -546,7 +554,7 @@ async fn test_user_with_branch() {
     let now = chrono::Utc::now();
     let active = user::ActiveModel {
         email: Set("tina@aeroxe.com".to_string()),
-        phone: Set("+919000000020".to_string()),
+        phone: Set("+918100000020".to_string()),
         password_hash: Set(Some("hash".to_string())),
         name: Set("Tina".to_string()),
         branch_id: Set(Some(branch_id)),
@@ -570,7 +578,7 @@ async fn test_user_update_avatar() {
     let test_db = TestDatabase::new().await;
     let db = test_db.connection();
 
-    let created = insert_test_user(db, "uma@aeroxe.com", "+919000000021", "Uma").await;
+    let created = insert_test_user(db, "uma@aeroxe.com", "+918100000021", "Uma").await;
     assert!(created.avatar_url.is_none());
 
     use aeroxe_backend::modules::identity::domain::entities::user;

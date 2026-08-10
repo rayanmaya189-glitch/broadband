@@ -67,6 +67,7 @@ pub async fn list_subscriptions(
     user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "subscription.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -204,9 +205,10 @@ pub async fn downgrade_subscription(
 /// GET /api/v1/subscriptions/:id
 pub async fn get_subscription(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<SubscriptionResponse>, AppError> {
+    require_permission(&user, "subscription.view").map_err(|e| AppError::Forbidden(e.1))?;
     let sub = SubscriptionService::get_subscription(&state.db, id).await?;
     Ok(Json(to_response(sub)))
 }
@@ -250,9 +252,10 @@ pub async fn renew_subscription(
 /// GET /api/v1/subscriptions/:id/history
 pub async fn get_subscription_history(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "subscription.view").map_err(|e| AppError::Forbidden(e.1))?;
     use crate::modules::audit::domain::entity_history::EntityHistoryService;
 
     let result = EntityHistoryService::search_history(

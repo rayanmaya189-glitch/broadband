@@ -113,7 +113,7 @@ async fn readiness_check(
     }
 
     // Check NATS connectivity (optional — degraded if unavailable)
-    if let Some(ref nats) = state.nats {
+    if let Some(ref nats) = *state.nats.read().await {
         match tokio::time::timeout(std::time::Duration::from_secs(3), nats.flush()).await {
             Ok(Ok(_)) => {
                 checks.insert("nats".to_string(), serde_json::json!({"status": "ok"}));

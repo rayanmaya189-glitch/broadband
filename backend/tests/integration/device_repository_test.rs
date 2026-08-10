@@ -171,7 +171,8 @@ async fn test_device_health_score_update() {
         "online",
     )
     .await;
-    assert!(device.health_score.is_none());
+    assert!(device.health_score.is_some());
+    assert_eq!(device.health_score, Some(0));
 
     use aeroxe_backend::modules::device::domain::entities::network_device;
 
@@ -529,8 +530,20 @@ async fn test_device_duplicate_serial() {
     insert_device(db, branch_id, "Device 1", "SN-UNIQUE", "10.0.0.1", "online").await;
 
     // Second device with same serial number should fail (unique constraint)
-    let result = insert_device(db, branch_id, "Device 2", "SN-UNIQUE", "10.0.0.2", "online").await;
-    // If serial_number has a unique constraint this will fail
-    // The test verifies the constraint exists
-    let _ = result;
+    use aeroxe_backend::modules::device::domain::entities::network_device;
+    let device_model_id = TestFixture::create_device_model(db).await;
+    let now = chrono::Utc::now();
+    let duplicate = network_device::ActiveModel {
+        branch_id: Set(branch_id),
+        name: Set("Device 2".to_string()),
+        device_model_id: Set(device_model_id),
+        serial_number: Set("SN-UNIQUE".to_string()),
+        management_ip: Set("10.0.0.2".to_string()),
+        status: Set("online".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+    let result = duplicate.insert(db).await;
+    assert!(result.is_err(), "Duplicate serial should be rejected");
 }

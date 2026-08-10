@@ -167,8 +167,9 @@ impl From<crate::modules::accounting::domain::entities::journal_entry_line::Mode
 /// GET /api/v1/accounting/accounts
 pub async fn list_accounts(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.accounts.view").map_err(|e| AppError::Forbidden(e.1))?;
     let accounts = AccountingService::list_accounts(&state.db).await?;
     let resp: Vec<AccountResponse> = accounts.into_iter().map(AccountResponse::from).collect();
     Ok(Json(
@@ -214,9 +215,10 @@ pub async fn update_account(
 /// GET /api/v1/accounting/journal
 pub async fn list_journal_entries(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.journal.view").map_err(|e| AppError::Forbidden(e.1))?;
     let entries = AccountingService::list_journal_entries(&state.db, None).await?;
     let total = entries.len() as u64;
     let resp: Vec<JournalEntryResponse> = entries
@@ -324,9 +326,11 @@ pub async fn void_journal_entry(
 /// GET /api/v1/accounting/trial-balance
 pub async fn generate_trial_balance(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(q): Query<TrialBalanceQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.trial_balance.view")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let start: chrono::NaiveDate = q
         .period_start
         .parse()
@@ -342,9 +346,11 @@ pub async fn generate_trial_balance(
 /// GET /api/v1/accounting/statements/profit-loss
 pub async fn profit_and_loss(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(q): Query<ProfitLossQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.statements.view")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let start: chrono::NaiveDate = q
         .period_start
         .parse()
@@ -360,9 +366,11 @@ pub async fn profit_and_loss(
 /// GET /api/v1/accounting/statements/balance-sheet
 pub async fn balance_sheet(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(q): Query<BalanceSheetQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.statements.view")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let date: chrono::NaiveDate = q
         .as_of_date
         .parse()
@@ -374,10 +382,11 @@ pub async fn balance_sheet(
 /// GET /api/v1/accounting/gst/:type
 pub async fn gst_return(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(return_type): Path<String>,
     Query(q): Query<GstQuery>,
 ) -> Result<Response, AppError> {
+    require_permission(&user, "accounting.gst.file").map_err(|e| AppError::Forbidden(e.1))?;
     if !["GSTR1", "GSTR3B"].contains(&return_type.as_str()) {
         return Err(AppError::Validation(
             "Invalid GST return type, must be GSTR1 or GSTR3B".into(),
@@ -460,9 +469,11 @@ pub struct RocFilingQuery {
 /// GET /api/v1/accounting/roc/annual
 pub async fn roc_annual_filing(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(q): Query<RocFilingQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.statements.view")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let data = AccountingService::generate_roc_annual_data(&state.db, q.financial_year).await?;
     Ok(Json(serde_json::to_value(data).unwrap_or_default()))
 }
@@ -476,10 +487,11 @@ pub struct ReconciliationQuery {
 /// GET /api/v1/accounting/reconciliation/:account_id
 pub async fn reconcile_account(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(account_id): Path<i64>,
     Query(q): Query<ReconciliationQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "accounting.accounts.view").map_err(|e| AppError::Forbidden(e.1))?;
     let start: chrono::NaiveDate = q
         .period_start
         .parse()

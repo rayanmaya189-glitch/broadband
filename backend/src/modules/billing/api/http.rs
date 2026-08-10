@@ -63,6 +63,7 @@ pub async fn list_invoices(
     user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "billing.invoice.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -234,6 +235,7 @@ pub async fn list_payments(
     user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "billing.payment.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -260,6 +262,7 @@ pub async fn list_overdue_invoices(
     State(state): State<Arc<AppState>>,
     user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "billing.invoice.view").map_err(|e| AppError::Forbidden(e.1))?;
     let bid = if user.is_company_wide {
         None
     } else {
@@ -309,9 +312,10 @@ pub async fn auto_generate_invoices(
 /// GET /api/v1/billing/invoices/:id
 pub async fn get_invoice(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<InvoiceResponse>, AppError> {
+    require_permission(&user, "billing.invoice.view").map_err(|e| AppError::Forbidden(e.1))?;
     let inv = BillingService::get_invoice(&state.db, id).await?;
     Ok(Json(InvoiceResponse {
         id: inv.id,
@@ -542,8 +546,9 @@ pub struct CreateDiscountRequest {
 /// GET /api/v1/billing/discounts
 pub async fn list_discounts(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<DiscountResponse>>, AppError> {
+    require_permission(&user, "billing.discount.view").map_err(|e| AppError::Forbidden(e.1))?;
     let items = BillingService::list_discounts(&state.db).await?;
     Ok(Json(
         items
@@ -622,8 +627,9 @@ pub struct DunningConfigResponse {
 /// GET /api/v1/billing/dunning/config
 pub async fn get_dunning_config(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<DunningConfigResponse>, AppError> {
+    require_permission(&user, "billing.dunning.view").map_err(|e| AppError::Forbidden(e.1))?;
     let config = BillingService::get_dunning_config(&state.db).await?;
     Ok(Json(config))
 }
@@ -644,8 +650,9 @@ pub struct TaxConfigResponse {
 /// GET /api/v1/billing/tax/config
 pub async fn get_tax_config(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<TaxConfigResponse>, AppError> {
+    require_permission(&user, "billing.tax.view").map_err(|e| AppError::Forbidden(e.1))?;
     let config = BillingService::get_tax_config(&state.db).await?;
     Ok(Json(config))
 }
@@ -680,9 +687,10 @@ pub struct AddLineItemRequest {
 /// GET /api/v1/billing/invoices/:id/items
 pub async fn list_invoice_items(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<LineItemResponse>>, AppError> {
+    require_permission(&user, "billing.invoice.view").map_err(|e| AppError::Forbidden(e.1))?;
     let items = BillingService::list_line_items(&state.db, id).await?;
     Ok(Json(
         items

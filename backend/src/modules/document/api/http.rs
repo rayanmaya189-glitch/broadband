@@ -55,9 +55,10 @@ pub struct DownloadUrlResponse {
 
 pub async fn list_documents(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "document.view").map_err(|e| AppError::Forbidden(e.1))?;
     let (docs, total) =
         DocumentService::list_documents(&state.db, None, p.page(), p.limit()).await?;
     let items: Vec<DocumentResponse> = docs

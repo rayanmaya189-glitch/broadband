@@ -415,12 +415,6 @@ CREATE INDEX IF NOT EXISTS idx_tickets_assigned_status ON ticket.tickets(assigne
 -- PPPoE: subscription_id (session lookup by subscription)
 CREATE INDEX IF NOT EXISTS idx_pppoe_sessions_subscription ON network.pppoe_sessions(subscription_id);
 
--- PPPoE: customer_id (session lookup by customer)
-CREATE INDEX IF NOT EXISTS idx_pppoe_sessions_customer ON network.pppoe_sessions(customer_id);
-
--- MAC binding: customer_id (binding lookup by customer)
-CREATE INDEX IF NOT EXISTS idx_mac_bindings_customer ON network.mac_bindings(customer_id);
-
 -- MAC binding: subscription_id (binding lookup by subscription)
 CREATE INDEX IF NOT EXISTS idx_mac_bindings_subscription ON network.mac_bindings(subscription_id);
 
@@ -429,9 +423,6 @@ CREATE INDEX IF NOT EXISTS idx_leads_branch_status ON lead.leads(branch_id, stat
 
 -- Notification: recipient_id + status (notification history)
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient_status ON notification.notifications(recipient_id, status);
-
--- Device: branch_id (device listing by branch)
-CREATE INDEX IF NOT EXISTS idx_network_devices_branch ON device.network_devices(branch_id);
 
 -- Audit log: user_id + created_at (user activity audit)
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit.audit_logs(user_id, created_at DESC);

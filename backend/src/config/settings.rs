@@ -98,8 +98,8 @@ impl Settings {
 
             nats_url: env::var("NATS_URL").unwrap_or_else(|_| "nats://127.0.0.1:4222".to_string()),
 
-            jwt_private_key_pem: env::var("JWT_PRIVATE_KEY").ok(),
-            jwt_public_key_pem: env::var("JWT_PUBLIC_KEY").ok(),
+            jwt_private_key_pem: env::var("JWT_PRIVATE_KEY").ok().filter(|s| !s.is_empty()),
+            jwt_public_key_pem: env::var("JWT_PUBLIC_KEY").ok().filter(|s| !s.is_empty()),
             jwt_access_token_ttl_secs: env::var("JWT_ACCESS_TOKEN_TTL_SECS")
                 .unwrap_or_else(|_| "1800".to_string()) // 30 minutes
                 .parse()

@@ -129,6 +129,20 @@ pub fn require_permission(
 /// Company-wide roles that bypass branch filtering.
 pub const COMPANY_WIDE_ROLES: &[&str] = &["super_admin", "isp_owner", "finance_manager"];
 
+/// Privileged staff roles that get the higher rate limit tiers.
+pub const PRIVILEGED_ROLES: &[&str] = &[
+    "super_admin",
+    "isp_owner",
+    "network_admin",
+    "finance_manager",
+    "billing_operator",
+];
+
+/// Check if a role is privileged (staff-level rate limits).
+pub fn is_privileged_role(role: &str) -> bool {
+    PRIVILEGED_ROLES.contains(&role)
+}
+
 /// Check if a role is company-wide.
 pub fn is_company_wide_role(role: &str) -> bool {
     COMPANY_WIDE_ROLES.contains(&role)

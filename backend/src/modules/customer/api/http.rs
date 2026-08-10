@@ -174,9 +174,10 @@ pub async fn create_customer(
 /// POST /api/v1/customers/get
 pub async fn get_customer(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     req: Request,
 ) -> Result<Response<Body>, AppError> {
+    require_permission(&user, "customer.account.view").map_err(|e| AppError::Forbidden(e.1))?;
     let proto_req: GetCustomerRequest = decode_proto(req).await?;
     let customer = CustomerService::get_customer(&state.db, proto_req.customer_id).await?;
     wrap_ok(&model_to_proto(&customer))
@@ -263,9 +264,10 @@ pub async fn delete_customer(
 /// POST /api/v1/customers/search
 pub async fn search_customers(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     req: Request,
 ) -> Result<Response<Body>, AppError> {
+    require_permission(&user, "customer.account.view").map_err(|e| AppError::Forbidden(e.1))?;
     let proto_req: SearchCustomersRequest = decode_proto(req).await?;
     let customers =
         CustomerService::search_customers(&state.db, proto_req.query, proto_req.status).await?;
@@ -282,9 +284,10 @@ pub async fn search_customers(
 /// POST /api/v1/customers/addresses/list
 pub async fn list_addresses(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     req: Request,
 ) -> Result<Response<Body>, AppError> {
+    require_permission(&user, "customer.account.view").map_err(|e| AppError::Forbidden(e.1))?;
     let proto_req: ListAddressesRequest = decode_proto(req).await?;
     let addresses = CustomerService::get_addresses(&state.db, proto_req.customer_id).await?;
     let proto_addresses: Vec<CustomerAddress> = addresses.iter().map(address_to_proto).collect();
@@ -322,9 +325,10 @@ pub async fn add_address(
 /// POST /api/v1/customers/history
 pub async fn get_customer_history(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     req: Request,
 ) -> Result<Response<Body>, AppError> {
+    require_permission(&user, "customer.account.view").map_err(|e| AppError::Forbidden(e.1))?;
     use crate::modules::audit::domain::entity_history::EntityHistoryService;
 
     let proto_req: GetCustomerHistoryRequest = decode_proto(req).await?;

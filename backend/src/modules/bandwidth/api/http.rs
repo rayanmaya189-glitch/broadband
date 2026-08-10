@@ -28,9 +28,10 @@ pub struct CreateProfileRequest {
 
 pub async fn list_profiles(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "bandwidth.profile.view").map_err(|e| AppError::Forbidden(e.1))?;
     let (profiles, total) = BandwidthService::list_profiles(&state.db, p.page(), p.limit()).await?;
     let items: Vec<BandwidthProfileResponse> = profiles
         .into_iter()
@@ -195,8 +196,9 @@ pub struct UpdatePolicyRequest {
 /// GET /api/v1/bandwidth/policies
 pub async fn list_policies(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<BandwidthPolicyResponse>>, AppError> {
+    require_permission(&user, "bandwidth.profile.view").map_err(|e| AppError::Forbidden(e.1))?;
     let items = BandwidthService::list_policies(&state.db).await?;
     Ok(Json(
         items
@@ -284,9 +286,10 @@ pub async fn delete_policy(
 /// GET /api/v1/bandwidth/profiles/:id
 pub async fn get_profile(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(id): Path<i64>,
 ) -> Result<Json<BandwidthProfileResponse>, AppError> {
+    require_permission(&user, "bandwidth.profile.view").map_err(|e| AppError::Forbidden(e.1))?;
     let p = BandwidthService::get_profile(&state.db, id).await?;
     Ok(Json(BandwidthProfileResponse {
         id: p.id,
@@ -346,8 +349,9 @@ pub async fn apply_to_subscription(
 /// GET /api/v1/bandwidth/applications
 pub async fn list_bandwidth_applications(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&user, "bandwidth.profile.view").map_err(|e| AppError::Forbidden(e.1))?;
     let apps = BandwidthService::list_applications(&state.db).await?;
     Ok(Json(
         apps.into_iter()
@@ -371,9 +375,10 @@ pub async fn list_bandwidth_applications(
 /// GET /api/v1/bandwidth/usage/:subscription_id
 pub async fn get_bandwidth_usage(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Path(subscription_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "bandwidth.profile.view").map_err(|e| AppError::Forbidden(e.1))?;
     let usage = BandwidthService::get_usage(&state.db, subscription_id).await?;
     Ok(Json(usage))
 }

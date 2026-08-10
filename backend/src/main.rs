@@ -58,61 +58,6 @@ async fn main() -> anyhow::Result<()> {
     let redis = create_redis_pool(&settings.redis_url).await?;
     tracing::info!("Redis pool created");
 
-    // Connect to NATS (optional - gracefully handle if unavailable)
-    let nats_client = match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(
-        &settings.nats_url,
-    )
-    .await
-    {
-        Ok(client) => {
-            // Set up JetStream
-            let js_config =
-                aeroxe_backend::infrastructure::messaging::nats_client::JetStreamConfig::default();
-            if let Err(e) =
-                aeroxe_backend::infrastructure::messaging::nats_client::ensure_jetstream_stream(
-                    &client, &js_config,
-                )
-                .await
-            {
-                tracing::warn!(error = %e, "Failed to set up JetStream, continuing without event publishing");
-                None
-            } else {
-                tracing::info!("NATS JetStream ready");
-                Some(client)
-            }
-        }
-        Err(e) => {
-            tracing::error!(
-                error = %e,
-                nats_url = %settings.nats_url,
-                "CRITICAL: Failed to connect to NATS — event publishing, outbox delivery, and cross-module communication DISABLED. Retrying in background."
-            );
-            // Spawn background NATS reconnection task
-            let nats_url = settings.nats_url.clone();
-            tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-                loop {
-                    interval.tick().await;
-                    match aeroxe_backend::infrastructure::messaging::nats_client::connect_nats(
-                        &nats_url,
-                    )
-                    .await
-                    {
-                        Ok(_client) => {
-                            tracing::info!("NATS reconnection successful");
-                            // Note: can't easily hot-swap into AppState, but at least we know it's back
-                            break;
-                        }
-                        Err(e) => {
-                            tracing::warn!(error = %e, "NATS reconnection attempt failed, retrying in 30s");
-                        }
-                    }
-                }
-            });
-            None
-        }
-    };
-
     // Initialize JWT RS256 key pair
     let jwt_keys = init_jwt_keys(&settings.jwt_private_key_pem, &settings.jwt_public_key_pem)?;
     tracing::info!("JWT RS256 keys ready");
@@ -120,11 +65,10 @@ async fn main() -> anyhow::Result<()> {
     // Initialize global JWT keys for branch_scope middleware
     aeroxe_backend::shared::middleware::branch_scope::init_jwt_keys_global(jwt_keys.clone());
 
-    // Build shared state
+    // Build shared state. The NATS connection is left `None` here — the NATS
+    // supervisor (started below) connects with retry/backoff and publishes the
+    // live client into `state.nats` once available.
     let mut app_state = AppState::new(db, redis, settings.clone(), jwt_keys.clone());
-    if let Some(client) = nats_client {
-        app_state = app_state.with_nats(client);
-    }
     // Initialize MinIO/S3 storage (optional - gracefully handle if unavailable)
     match aeroxe_backend::infrastructure::storage::StorageService::from_env().await {
         Ok(storage) => {
@@ -252,53 +196,19 @@ async fn main() -> anyhow::Result<()> {
     // Create a shutdown signal broadcast channel (capacity 32 for 8+ workers + subscribers)
     let (shutdown_tx, _) = tokio::sync::broadcast::channel::<()>(32);
 
-    // Start outbox worker and NATS subscribers (if NATS is available)
-    if let Some(nats_client) = state.nats.clone() {
-        // Start outbox worker
-        let outbox_db = state.db.clone();
-        let outbox_client = nats_client.clone();
-        let outbox_publisher =
-            aeroxe_backend::infrastructure::messaging::EventPublisher::new(outbox_client);
-        let outbox_worker = aeroxe_backend::workers::outbox_worker::OutboxWorker::new(
-            std::sync::Arc::new(outbox_db),
-            outbox_publisher,
-        )
-        .with_poll_interval(state.settings.worker_outbox_poll_interval_secs);
-        let outbox_worker = if let Some(ref metrics) = state.metrics {
-            outbox_worker.with_metrics(metrics.clone())
-        } else {
-            outbox_worker
-        };
-        let mut outbox_rx = shutdown_tx.subscribe();
+    // Start the NATS supervisor. It owns the entire NATS lifecycle: connect
+    // with retry/backoff (never giving up), publish the live client into
+    // AppState, start the outbox worker + event subscribers, and reconnect
+    // everything if the connection drops. This removes the previous behavior
+    // where a NATS outage at boot permanently disabled outbox delivery and
+    // cross-module subscribers.
+    {
+        let state_supervisor = state.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
         tokio::spawn(async move {
-            tokio::select! {
-                _ = outbox_worker.run() => {},
-                _ = outbox_rx.recv() => {
-                    tracing::info!("Outbox worker shutting down");
-                }
-            }
+            nats_supervisor(state_supervisor, shutdown_rx).await;
         });
-        tracing::info!("Outbox worker started");
-
-        // Start NATS event subscribers for cross-module communication
-        let sub_db = Arc::new(state.db.clone());
-        let mut sub_rx = shutdown_tx.subscribe();
-        let nats_clone = nats_client.clone();
-        tokio::spawn(async move {
-            tokio::select! {
-                result = aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
-                    nats_clone, sub_db,
-                ) => {
-                    if let Err(e) = result {
-                        tracing::error!(error = %e, "NATS subscribers failed");
-                    }
-                }
-                _ = sub_rx.recv() => {
-                    tracing::info!("NATS subscribers shutting down");
-                }
-            }
-        });
-        tracing::info!("NATS event subscribers started");
+        tracing::info!("NATS supervisor started");
     }
 
     // Start background workers with graceful shutdown
@@ -697,6 +607,116 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("AeroXe Backend shutdown complete");
     Ok(())
+}
+
+/// Owns the full NATS lifecycle: connect with retry/backoff (never giving up),
+/// publish the live client into AppState, start the outbox worker and event
+/// subscribers, and reconnect everything if the connection drops.
+///
+/// Previously, a NATS outage at boot permanently disabled outbox delivery and
+/// cross-module subscribers because the outbox worker and subscribers were only
+/// started when the initial boot connection succeeded. With this supervisor the
+/// outbox drains automatically as soon as NATS is reachable, and a dropped
+/// connection is detected (the subscriber tasks exit when their NATS streams
+/// end) and healed.
+async fn nats_supervisor(
+    state: Arc<AppState>,
+    mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
+) {
+    use aeroxe_backend::infrastructure::messaging::nats_client::{
+        connect_nats, ensure_jetstream_stream, JetStreamConfig,
+    };
+    use aeroxe_backend::infrastructure::messaging::EventPublisher;
+    use aeroxe_backend::workers::outbox_worker::OutboxWorker;
+
+    const MAX_DELAY_SECS: u64 = 60;
+    let mut delay_secs: u64 = 2;
+    let nats_url = state.settings.nats_url.clone();
+    let db = std::sync::Arc::new(state.db.clone());
+    let metrics = state.metrics.clone();
+    let outbox_poll_interval_secs = state.settings.worker_outbox_poll_interval_secs;
+
+    loop {
+        let client = match connect_nats(&nats_url).await {
+            Ok(client) => client,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    nats_url = %nats_url,
+                    retry_in_secs = delay_secs,
+                    "NATS unavailable; outbox events will queue until connectivity is restored"
+                );
+                let sleep = tokio::time::sleep(std::time::Duration::from_secs(delay_secs));
+                tokio::pin!(sleep);
+                tokio::select! {
+                    _ = &mut sleep => {}
+                    _ = shutdown_rx.recv() => {
+                        tracing::info!("NATS supervisor shutting down (NATS never connected)");
+                        return;
+                    }
+                }
+                delay_secs = (delay_secs * 2).min(MAX_DELAY_SECS);
+                continue;
+            }
+        };
+
+        // JetStream is best-effort: durable streams need it, but core NATS
+        // messaging and outbox delivery work without it.
+        if let Err(e) = ensure_jetstream_stream(&client, &JetStreamConfig::default()).await {
+            tracing::warn!(
+                error = %e,
+                "JetStream setup failed; proceeding with core NATS only"
+            );
+        }
+
+        // Publish the live client so health checks and consumers see it.
+        state.set_nats(client.clone()).await;
+        delay_secs = 2;
+        tracing::info!("NATS connected; starting outbox worker and event subscribers");
+
+        // Outbox worker: drains the outbox table to NATS. It tolerates NATS
+        // blips internally (events stay queued and retry), so we only recreate
+        // it with a fresh client on full reconnects.
+        let publisher = EventPublisher::new(client.clone());
+        let mut outbox_worker = OutboxWorker::new(db.clone(), publisher);
+        outbox_worker = outbox_worker.with_poll_interval(outbox_poll_interval_secs);
+        if let Some(ref m) = metrics {
+            outbox_worker = outbox_worker.with_metrics(m.clone());
+        }
+        let outbox_handle = tokio::spawn(async move { outbox_worker.run().await });
+
+        // Subscribers: return when their NATS streams end (connection dropped),
+        // signalling the supervisor to reconnect.
+        let sub_client = client.clone();
+        let sub_db = db.clone();
+        let subscribers_handle = tokio::spawn(async move {
+            if let Err(e) =
+                aeroxe_backend::infrastructure::messaging::subscribers::start_subscribers(
+                    sub_client, sub_db,
+                )
+                .await
+            {
+                tracing::error!(error = %e, "NATS event subscribers failed");
+            }
+        });
+
+        tokio::pin!(subscribers_handle);
+        tokio::select! {
+            _ = shutdown_rx.recv() => {
+                outbox_handle.abort();
+                subscribers_handle.abort();
+                tracing::info!("NATS supervisor shutting down");
+                return;
+            }
+            _ = &mut subscribers_handle => {
+                tracing::warn!(
+                    "NATS event subscribers exited (connection likely dropped); reconnecting"
+                );
+                state.set_nats_offline().await;
+                outbox_handle.abort();
+            }
+        }
+    }
 }
 
 /// Wait for a shutdown signal (SIGINT on Unix, Ctrl+C on all platforms)

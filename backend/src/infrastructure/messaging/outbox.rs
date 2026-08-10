@@ -64,6 +64,7 @@ pub async fn fetch_unpublished_events(
 ) -> Result<Vec<OutboxEventModel>, AppError> {
     let events = OutboxEventEntity::find()
         .filter(outbox_entity::Column::Published.eq(false))
+        .filter(outbox_entity::Column::DeadLetter.eq(false))
         .order_by_asc(outbox_entity::Column::CreatedAt)
         .limit(limit)
         .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)

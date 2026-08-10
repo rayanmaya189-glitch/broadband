@@ -10,15 +10,26 @@ use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageEx
 /// Test database container
 pub struct TestDatabase {
     #[allow(dead_code)]
-    pub container: ContainerAsync<GenericImage>,
+    pub container: Option<ContainerAsync<GenericImage>>,
     #[allow(dead_code)]
     pub connection_string: String,
     pub db: DatabaseConnection,
 }
 
 impl TestDatabase {
-    /// Create a new test database using testcontainers and apply all migrations
+    /// Create a new test database and apply all migrations.
+    ///
+    /// When `TEST_DATABASE_URL` is set, a fresh per-test database is created
+    /// next to the given one (preserving the per-test isolation the suite was
+    /// written for, without relying on Docker/testcontainers).
     pub async fn new() -> Self {
+        if let Some(url) = std::env::var("TEST_DATABASE_URL")
+            .ok()
+            .filter(|u| !u.trim().is_empty())
+        {
+            return Self::new_shared(&url).await;
+        }
+
         let container = GenericImage::new("postgis/postgis", "16-3.4")
             .with_env_var("POSTGRES_DB", "aeroxe_test")
             .with_env_var("POSTGRES_USER", "test_user")
@@ -48,9 +59,65 @@ impl TestDatabase {
         Self::apply_migrations(&db).await;
 
         Self {
-            container,
+            container: Some(container),
             connection_string,
             db,
+        }
+    }
+
+    /// Create a fresh per-test database next to the one given in
+    /// `TEST_DATABASE_URL`, apply the full migration chain and return a handle.
+    async fn new_shared(base_url: &str) -> Self {
+        use sea_orm::{ConnectionTrait, Statement};
+
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+        let (server_part, base_db) = Self::split_database_url(base_url);
+        let unique = format!(
+            "{base_db}_t{:x}{:04}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos(),
+            COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        );
+
+        let admin = Database::connect(&format!("{server_part}postgres"))
+            .await
+            .expect("Failed to connect to maintenance database");
+        admin
+            .execute(Statement::from_string(
+                admin.get_database_backend(),
+                format!("CREATE DATABASE \"{unique}\""),
+            ))
+            .await
+            .expect("Failed to create per-test database");
+
+        let connection_string = format!("{server_part}{unique}");
+        let db = Database::connect(&connection_string)
+            .await
+            .expect("Failed to connect to per-test database");
+        Self::apply_migrations(&db).await;
+
+        Self {
+            container: None,
+            connection_string,
+            db,
+        }
+    }
+
+    /// Split `postgres://user:pass@host:port/dbname` into the server part
+    /// (ending with `/`) and the bare database name.
+    fn split_database_url(url: &str) -> (String, String) {
+        let scheme_end = url.find("://").map(|i| i + 3).unwrap_or(0);
+        let rest = &url[scheme_end..];
+        match rest.find('/') {
+            Some(slash) => {
+                let server = &url[..scheme_end + slash + 1];
+                let db = &url[scheme_end + slash + 1..];
+                (server.to_string(), db.to_string())
+            }
+            None => (url.to_string(), "postgres".to_string()),
         }
     }
 
@@ -78,7 +145,8 @@ impl TestDatabase {
                 ('system.2@aeroxe.test', '+910000000002', 'System Two',   'active', '{now}', '{now}'),
                 ('system.3@aeroxe.test', '+910000000003', 'System Three', 'active', '{now}', '{now}'),
                 ('system.4@aeroxe.test', '+910000000004', 'System Four',  'active', '{now}', '{now}'),
-                ('system.5@aeroxe.test', '+910000000005', 'System Five',  'active', '{now}', '{now}')"
+                ('system.5@aeroxe.test', '+910000000005', 'System Five',  'active', '{now}', '{now}')
+             ON CONFLICT (email) DO NOTHING"
         );
         db.execute(Statement::from_string(db.get_database_backend(), sql))
             .await
@@ -184,8 +252,8 @@ impl TestFixture {
             .execute(Statement::from_string(
                 db.get_database_backend(),
                 format!(
-                    "INSERT INTO plans.plans (slug, name, download_mbps, upload_mbps, is_active, created_at, updated_at) 
-                     VALUES ('{}', 'Test Plan', 100, 50, true, '{}', '{}')
+                    "INSERT INTO plans.plans (slug, name, speed_label, download_mbps, upload_mbps, is_active, created_at, updated_at) 
+                     VALUES ('{}', 'Test Plan', '100 Mbps', 100, 50, true, '{}', '{}')
                      RETURNING id",
                     slug,
                     now.format("%Y-%m-%d %H:%M:%S"),

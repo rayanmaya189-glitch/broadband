@@ -29,9 +29,11 @@ pub struct CreateTemplateRequest {
 
 pub async fn list_templates(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "notification.template.view")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let (tmpls, total) =
         NotificationService::list_templates(&state.db, p.page(), p.limit()).await?;
     let items: Vec<TemplateResponse> = tmpls
@@ -151,9 +153,10 @@ pub async fn send_notification(
 /// GET /api/v1/notifications/list
 pub async fn list_notifications(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(p): Query<PaginationParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "notification.send").map_err(|e| AppError::Forbidden(e.1))?;
     let (items, total) =
         NotificationService::list_notifications(&state.db, p.page(), p.limit()).await?;
     let resp: Vec<NotificationResponse> = items
@@ -217,8 +220,10 @@ pub struct ChannelResponse {
 
 pub async fn list_channels(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "notification.channel.update")
+        .map_err(|e| AppError::Forbidden(e.1))?;
     let channels = NotificationService::list_channels(&state.db).await?;
     let items: Vec<ChannelResponse> = channels
         .into_iter()
@@ -322,9 +327,10 @@ pub struct DeliveryHistoryResponse {
 
 pub async fn list_delivery_history(
     State(state): State<Arc<AppState>>,
-    _user: UserContext,
+    user: UserContext,
     Query(params): Query<DeliveryHistoryParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "notification.retry").map_err(|e| AppError::Forbidden(e.1))?;
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20);
     let (items, total) = NotificationService::list_delivery_history(

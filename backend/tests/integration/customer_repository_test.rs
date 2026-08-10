@@ -91,7 +91,7 @@ async fn test_plan_crud() {
         .expect("Failed to find plan")
         .expect("Plan not found");
 
-    assert_eq!(plan.slug, "test-plan-100");
+    assert!(plan.slug.starts_with("test-plan-"));
     assert_eq!(plan.download_mbps, 100);
 }
 

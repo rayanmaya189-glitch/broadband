@@ -156,8 +156,9 @@ pub async fn update_kyc_status(
 pub async fn get_customer_kyc(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(customer_id): axum::extract::Path<i64>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<KycResponse>>, AppError> {
+    require_permission(&user, "compliance.kyc.view").map_err(|e| AppError::Forbidden(e.1))?;
     let kycs = ComplianceService::get_kyc_by_customer(&state.db, customer_id).await?;
     Ok(Json(
         kycs.into_iter()
@@ -205,8 +206,9 @@ pub struct RevokeConsentRequest {
 pub async fn list_consents(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(customer_id): axum::extract::Path<i64>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<Vec<ConsentResponse>>, AppError> {
+    require_permission(&user, "compliance.consent.grant").map_err(|e| AppError::Forbidden(e.1))?;
     let consents = ComplianceService::list_consents(&state.db, customer_id).await?;
     Ok(Json(
         consents
@@ -287,8 +289,9 @@ pub async fn revoke_consent(
 pub async fn check_consent(
     State(state): State<Arc<AppState>>,
     axum::extract::Path((customer_id, consent_type)): axum::extract::Path<(i64, String)>,
-    _user: UserContext,
+    user: UserContext,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&user, "compliance.consent.grant").map_err(|e| AppError::Forbidden(e.1))?;
     let has = ComplianceService::has_consent(&state.db, customer_id, &consent_type).await?;
     Ok(Json(
         serde_json::json!({ "customer_id": customer_id, "consent_type": consent_type, "granted": has }),
