@@ -343,9 +343,11 @@ fn build_radius_packet(request: &RadiusRequest, secret: &str) -> Vec<u8> {
             }
         }
         RadiusPacketType::AccountingRequest => {
-            // MD5(Code + Identifier + Length + Authenticator + Attributes + Secret)
+            // RFC 2866: MD5(Code + Id + Length + Request-Authenticator + Attributes + Secret)
             let mut data = Vec::new();
             data.extend_from_slice(&packet[..authenticator_pos]);
+            data.extend_from_slice(&packet[authenticator_pos..authenticator_pos + 16]);
+            data.extend_from_slice(&packet[authenticator_pos + 16..]);
             data.extend_from_slice(secret.as_bytes());
             let hash = md5_hash(&data);
             packet[authenticator_pos..authenticator_pos + 16].copy_from_slice(&hash);
@@ -813,5 +815,200 @@ impl RadiusClient for RadiusAdapter {
                 None
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_packet_type_from_u8() {
+        assert_eq!(
+            RadiusPacketType::from_u8(1),
+            Some(RadiusPacketType::AccessRequest)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(2),
+            Some(RadiusPacketType::AccessAccept)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(3),
+            Some(RadiusPacketType::AccessReject)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(4),
+            Some(RadiusPacketType::AccountingRequest)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(5),
+            Some(RadiusPacketType::AccountingResponse)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(37),
+            Some(RadiusPacketType::CoARequest)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(38),
+            Some(RadiusPacketType::CoAACK)
+        );
+        assert_eq!(
+            RadiusPacketType::from_u8(39),
+            Some(RadiusPacketType::CoANAK)
+        );
+        assert_eq!(RadiusPacketType::from_u8(200), None);
+    }
+
+    #[test]
+    fn test_build_access_request_packet() {
+        let request = RadiusRequest {
+            packet_type: RadiusPacketType::AccessRequest,
+            identifier: 0x42,
+            attributes: vec![
+                RadiusAttribute::UserName("pppoe-user".to_string()),
+                RadiusAttribute::UserPassword("secret-pass".to_string()),
+            ],
+        };
+
+        let packet = build_radius_packet(&request, "shared-secret");
+
+        assert_eq!(packet[0], 1, "Access-Request code");
+        assert_eq!(packet[1], 0x42, "identifier");
+        let length = ((packet[2] as u16) << 8) | packet[3] as u16;
+        assert_eq!(length as usize, packet.len(), "packet length");
+
+        // Random request authenticator must be present (non-zero)
+        assert_ne!(&packet[4..20], &[0u8; 16]);
+
+        // User-Name attribute (type 1)
+        assert_eq!(packet[20], 1, "User-Name attribute type");
+        assert_eq!(packet[21] as usize, 2 + "pppoe-user".len());
+        assert_eq!(&packet[22..22 + "pppoe-user".len()], b"pppoe-user");
+
+        // User-Password attribute (type 2), padded to 16 bytes for RFC 2865
+        let pw_start = 20 + 2 + "pppoe-user".len();
+        assert_eq!(packet[pw_start], 2, "User-Password attribute type");
+        assert_eq!(packet[pw_start + 1], 18, "2 + 16 padded bytes");
+        assert_ne!(
+            &packet[pw_start + 2..pw_start + 18],
+            b"secret-pass" as &[u8]
+        );
+    }
+
+    #[test]
+    fn test_build_accounting_request_authenticator() {
+        let request = RadiusRequest {
+            packet_type: RadiusPacketType::AccountingRequest,
+            identifier: 0x07,
+            attributes: vec![
+                RadiusAttribute::UserName("user1".to_string()),
+                RadiusAttribute::AcctSessionId("session-1".to_string()),
+                RadiusAttribute::AcctStatusType(AccountingStatusType::Start as u32),
+            ],
+        };
+        let secret = "s3cret-key";
+
+        let packet = build_radius_packet(&request, secret);
+
+        // RFC 2866: Request-Authenticator = MD5(Code + Id + Length + Auth + Attributes + Secret)
+        let mut with_zero_auth = packet.clone();
+        with_zero_auth[4..20].fill(0);
+        let mut expected_input = Vec::new();
+        expected_input.extend_from_slice(&with_zero_auth[..4]);
+        expected_input.extend_from_slice(&with_zero_auth[4..20]);
+        expected_input.extend_from_slice(&with_zero_auth[20..]);
+        expected_input.extend_from_slice(secret.as_bytes());
+        let expected = md5::compute(&expected_input);
+        assert_eq!(&packet[4..20], &expected.0[..]);
+    }
+
+    #[test]
+    fn test_parse_response_valid_authenticator() {
+        let request_auth = [0x11u8; 16];
+        let secret = "s3cret";
+
+        let mut packet: Vec<u8> = vec![
+            2,    // Access-Accept
+            0x12, // identifier
+            0, 0, // length placeholder
+        ];
+        packet.extend_from_slice(&[0u8; 16]); // authenticator placeholder
+
+        // Framed-IP-Address attribute
+        packet.extend_from_slice(&[8, 6, 192, 168, 1, 50]);
+        // Filter-Id attribute
+        packet.extend_from_slice(&[11, 10]); // 2 + 8
+        packet.extend_from_slice(b"speed-10");
+        // Reply-Message attribute
+        packet.extend_from_slice(&[18, 10]); // 2 + 8
+        packet.extend_from_slice(b"Welcome!");
+
+        let length = packet.len() as u16;
+        packet[2] = (length >> 8) as u8;
+        packet[3] = length as u8;
+
+        let mut auth_input = Vec::new();
+        auth_input.extend_from_slice(&packet[0..4]);
+        auth_input.extend_from_slice(&request_auth);
+        auth_input.extend_from_slice(&packet[20..]);
+        auth_input.extend_from_slice(secret.as_bytes());
+        let hash = md5::compute(&auth_input);
+        packet[4..20].copy_from_slice(&hash.0);
+
+        let response = parse_radius_packet(&packet, &request_auth, secret).unwrap();
+        assert_eq!(response.packet_type, RadiusPacketType::AccessAccept);
+        assert_eq!(response.identifier, 0x12);
+        assert!(response.response_auth_valid);
+        assert!(response
+            .attributes
+            .iter()
+            .any(|a| matches!(a, RadiusAttribute::FramedIpAddress(ip) if ip == "192.168.1.50")));
+        assert!(response
+            .attributes
+            .iter()
+            .any(|a| matches!(a, RadiusAttribute::FilterId(f) if f == "speed-10")));
+    }
+
+    #[test]
+    fn test_parse_response_invalid_authenticator_flag() {
+        let request_auth = [0x22u8; 16];
+        let secret = "s3cret";
+
+        let mut packet: Vec<u8> = vec![2, 0x01, 0, 0];
+        packet.extend_from_slice(&[0u8; 16]);
+        packet.extend_from_slice(&[8, 6, 10, 0, 0, 1]);
+
+        let length = packet.len() as u16;
+        packet[2] = (length >> 8) as u8;
+        packet[3] = length as u8;
+
+        let mut auth_input = Vec::new();
+        auth_input.extend_from_slice(&packet[0..4]);
+        auth_input.extend_from_slice(&request_auth);
+        auth_input.extend_from_slice(&packet[20..]);
+        auth_input.extend_from_slice(secret.as_bytes());
+        let hash = md5::compute(&auth_input);
+        packet[4..20].copy_from_slice(&hash.0);
+
+        // Tamper with a single attribute byte so the authenticator no longer matches
+        packet[25] ^= 0xff;
+
+        let response = parse_radius_packet(&packet, &request_auth, secret).unwrap();
+        assert_eq!(response.packet_type, RadiusPacketType::AccessAccept);
+        assert!(!response.response_auth_valid);
+    }
+
+    #[test]
+    fn test_parse_response_too_short() {
+        let result = parse_radius_packet(&[0u8; 10], &[0u8; 16], "secret");
+        assert!(matches!(result, Err(AppError::External(_))));
+    }
+
+    #[test]
+    fn test_parse_response_invalid_type() {
+        let mut packet = vec![0u8; 20];
+        packet[0] = 99;
+        let result = parse_radius_packet(&packet, &[0u8; 16], "secret");
+        assert!(matches!(result, Err(AppError::External(_))));
     }
 }

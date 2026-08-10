@@ -229,6 +229,36 @@ jobs:
           kubectl rollout status deployment/aeroxe-backend -n aeroxe-prod
 ```
 
+### Running Integration Tests Without testcontainers
+
+The integration suite (`cargo test --test integration`) normally boots its own
+PostGIS container per test binary via `testcontainers`. On environments where
+Docker is unavailable or unreliable (e.g. a local Windows dev box), point the
+suite at any already-running PostGIS 16 server with a superuser account by
+setting `TEST_DATABASE_URL`. The harness then creates a fresh, isolated database
+per test beside the given one and applies the full migration chain to it, so
+tests keep the same isolation guarantees without Docker.
+
+```powershell
+# Start a shared PostGIS server once (or reuse an existing one):
+docker run -d --name aeroxe-test-pg -p 15432:5432 `
+  -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_password `
+  -e POSTGRES_DB=aeroxe_test postgis/postgis:16-3.4
+
+# Run the full suite (env var must be set inline in PowerShell — it does not
+# persist across separate shell invocations):
+$env:TEST_DATABASE_URL = "postgres://test_user:test_password@127.0.0.1:15432/aeroxe_test"
+cargo test --test integration -- --ignored --test-threads=4
+cargo test --test e2e -- --ignored --test-threads=4
+```
+
+Notes:
+- Unit tests (`cargo test --lib`) need no database at all.
+- `--ignored` is required because the DB-backed tests are annotated `#[ignore]`
+  so `cargo test` stays green without infrastructure.
+- When `TEST_DATABASE_URL` is unset the suite falls back to testcontainers, so
+  CI and Docker-enabled machines need no configuration.
+
 ## 5. Monitoring Stack
 
 ### Prometheus Configuration

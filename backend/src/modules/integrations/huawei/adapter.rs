@@ -102,7 +102,7 @@ pub struct DbaProfile {
 }
 
 /// DBA Profile type (determines bandwidth allocation behavior)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DbaProfileType {
     /// Fixed bandwidth (e.g., for VoIP)
     Type1 = 1,
@@ -306,7 +306,10 @@ impl HuaweiOltSshAdapter {
             let line = line.trim();
             if line.contains("Profile ID:") || line.starts_with("DBA Profile") {
                 if let Some(profile) = current_profile.take() {
-                    profiles.push(profile);
+                    // Skip placeholder profiles that were never populated
+                    if profile.profile_id != 0 || !profile.name.is_empty() {
+                        profiles.push(profile);
+                    }
                 }
                 // Try to extract profile ID
                 let id = if let Some(pos) = line.find(':') {
@@ -659,5 +662,165 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
 
     async fn execute_cli(&self, command: &str) -> Result<CliResult, AppError> {
         self.ssh_execute(command).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_cli_input_accepts_safe_values() {
+        assert_eq!(sanitize_cli_input("fiber-basic").unwrap(), "fiber-basic");
+        assert_eq!(sanitize_cli_input("Plan_1GB").unwrap(), "Plan_1GB");
+        assert_eq!(sanitize_cli_input("gig.100").unwrap(), "gig.100");
+        assert_eq!(
+            sanitize_cli_input("  padded-name  ").unwrap(),
+            "padded-name"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_cli_input_rejects_metacharacters() {
+        for input in [
+            "rm -rf /; poweroff",
+            "name|more",
+            "a&b",
+            "$(whoami)",
+            "`id`",
+            "injection()",
+            "{junk}",
+            "<script>",
+            "new\nline",
+            "carriage\rreturn",
+        ] {
+            assert!(
+                matches!(sanitize_cli_input(input), Err(AppError::Validation(_))),
+                "expected {:?} to be rejected",
+                input
+            );
+        }
+    }
+
+    #[test]
+    fn test_sanitize_cli_input_rejects_empty_and_path_traversal() {
+        assert!(matches!(
+            sanitize_cli_input(""),
+            Err(AppError::Validation(_))
+        ));
+        assert!(matches!(
+            sanitize_cli_input("   "),
+            Err(AppError::Validation(_))
+        ));
+        assert!(matches!(
+            sanitize_cli_input("a..b"),
+            Err(AppError::Validation(_))
+        ));
+        assert!(matches!(
+            sanitize_cli_input(".."),
+            Err(AppError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn test_dba_profile_type_as_str() {
+        assert_eq!(DbaProfileType::Type1.as_str(), "type1");
+        assert_eq!(DbaProfileType::Type2.as_str(), "type2");
+        assert_eq!(DbaProfileType::Type3.as_str(), "type3");
+        assert_eq!(DbaProfileType::Type4.as_str(), "type4");
+    }
+
+    #[test]
+    fn test_parse_dba_profiles() {
+        let output = "DBA Profile
+Profile ID: 5
+Profile Name: fiber-50m
+Type: 4
+Max Bandwidth: 51200 kbps
+Assured BW: 25600 kbps
+
+DBA Profile
+Profile ID: 10
+Profile Name: gold-100m
+Type: 2
+Max Bandwidth: 102400 kbps
+Assured BW: 51200 kbps
+";
+
+        let adapter = HuaweiOltSshAdapter::new(HuaweiOltConfig::default());
+        let profiles = adapter.parse_dba_profiles(output);
+
+        assert_eq!(profiles.len(), 2);
+        assert_eq!(profiles[0].profile_id, 5);
+        assert_eq!(profiles[0].name, "fiber-50m");
+        assert_eq!(profiles[0].profile_type, DbaProfileType::Type4);
+        assert_eq!(profiles[0].max_bandwidth_kbps, 51200);
+        assert_eq!(profiles[0].assured_bandwidth_kbps, Some(25600));
+        assert_eq!(profiles[1].profile_id, 10);
+        assert_eq!(profiles[1].name, "gold-100m");
+        assert_eq!(profiles[1].profile_type, DbaProfileType::Type2);
+        assert_eq!(profiles[1].max_bandwidth_kbps, 102400);
+    }
+
+    #[test]
+    fn test_parse_ont_status() {
+        let output = "ONT ID: 1
+SN: HWTC01234567
+State: online
+Rx Power: -18.5 dBm
+Tx Power: 2.1 dBm
+Distance: 480 m
+
+ONT ID: 2
+SN: HWTC76543210
+State: offline
+";
+
+        let adapter = HuaweiOltSshAdapter::new(HuaweiOltConfig::default());
+        let onts = adapter.parse_ont_status(output, 0, 1, 2);
+
+        assert_eq!(onts.len(), 2);
+        assert_eq!(onts[0].frame, 0);
+        assert_eq!(onts[0].slot, 1);
+        assert_eq!(onts[0].pon, 2);
+        assert_eq!(onts[0].ont_id, 1);
+        assert_eq!(onts[0].sn, "HWTC01234567");
+        assert_eq!(onts[0].state, "online");
+        assert_eq!(onts[0].rx_power_dbm, Some(-18.5));
+        assert_eq!(onts[0].tx_power_dbm, Some(2.1));
+        assert_eq!(onts[0].distance_meters, Some(480));
+        assert_eq!(onts[1].ont_id, 2);
+        assert_eq!(onts[1].sn, "HWTC76543210");
+        assert_eq!(onts[1].state, "offline");
+    }
+
+    #[tokio::test]
+    async fn test_create_dba_profile_rejects_forbidden_name_before_ssh() {
+        let adapter = HuaweiOltSshAdapter::new(HuaweiOltConfig::default());
+        let profile = DbaProfile {
+            profile_id: 1,
+            name: "evil;rm -rf /".to_string(),
+            profile_type: DbaProfileType::Type4,
+            max_bandwidth_kbps: 1024,
+            assured_bandwidth_kbps: None,
+            fixed_bandwidth_kbps: None,
+        };
+
+        let result = adapter.create_dba_profile(&profile).await;
+        assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn test_create_traffic_table_rejects_forbidden_name_before_ssh() {
+        let adapter = HuaweiOltSshAdapter::new(HuaweiOltConfig::default());
+        let table = TrafficTable {
+            index: 1,
+            name: "prod&shutdown".to_string(),
+            cir_kbps: 51200,
+            pir_kbps: 102400,
+        };
+
+        let result = adapter.create_traffic_table(&table).await;
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 }

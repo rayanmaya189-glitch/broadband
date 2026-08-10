@@ -580,3 +580,74 @@ impl MikrotikDeviceAdapter for MikrotikAdapter {
         self.rest_get(cmd_path).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config(host: &str, port: u16) -> MikrotikConfig {
+        MikrotikConfig {
+            host: host.to_string(),
+            port,
+            username: "admin".to_string(),
+            password: "pass".to_string(),
+            use_ssl: false,
+            accept_invalid_certs: false,
+            api_version: "v7".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_auth_header() {
+        let adapter = MikrotikAdapter::new(test_config("127.0.0.1", 8080));
+        assert_eq!(adapter.auth_header(), "Basic YWRtaW46cGFzcw==");
+    }
+
+    #[test]
+    fn test_base_url_build() {
+        let http_adapter = MikrotikAdapter::new(test_config("10.0.0.1", 80));
+        assert_eq!(http_adapter.base_url, "http://10.0.0.1:80/rest");
+
+        let mut config = test_config("10.0.0.1", 443);
+        config.use_ssl = true;
+        let https_adapter = MikrotikAdapter::new(config);
+        assert_eq!(https_adapter.base_url, "https://10.0.0.1:443/rest");
+    }
+
+    #[test]
+    fn test_queue_config_default() {
+        let config = QueueConfig::default();
+        assert!(config.name.is_empty());
+        assert!(config.target.is_empty());
+        assert_eq!(config.download_kbps, 0);
+        assert_eq!(config.upload_kbps, 0);
+        assert!(config.enabled);
+    }
+
+    #[tokio::test]
+    async fn test_execute_command_blocks_destructive_commands() {
+        let adapter = MikrotikAdapter::new(test_config("127.0.0.1", 1));
+
+        for command in [
+            "rm -rf /",
+            "/user/add name=hacker group=full",
+            "/ppp/secret/set [find name=x] password=evil",
+            "/queue simple remove [find name=default]",
+        ] {
+            let result = adapter.execute_command(command).await;
+            assert!(
+                matches!(result, Err(AppError::Forbidden(_))),
+                "expected {:?} to be forbidden",
+                command
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_command_rejects_empty_command() {
+        let adapter = MikrotikAdapter::new(test_config("127.0.0.1", 1));
+        // Empty command fails the read-only whitelist check
+        let result = adapter.execute_command("").await;
+        assert!(matches!(result, Err(AppError::Forbidden(_))));
+    }
+}

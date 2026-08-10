@@ -43,6 +43,12 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = settings.server_addr.parse()?;
     tracing::info!("Server listening on {}", addr);
 
+    // Boot-time integration health summary. External adapters read their
+    // configuration directly from environment variables, so a missing secret
+    // is only discoverable at first use unless we check now. Warn loudly at
+    // startup instead of failing silently on the first invoice/OTP/device sync.
+    log_integration_health();
+
     // Create database pool
     let db = create_database_pool(
         &settings.database_url,
@@ -745,5 +751,132 @@ async fn shutdown_signal() {
         _ = terminate => {
             tracing::info!("Received SIGTERM, initiating graceful shutdown");
         }
+    }
+}
+
+/// Log a boot-time summary of external integration adapters. Each adapter
+/// falls back to placeholder values when its environment variables are
+/// missing, so this is the only place where a partially-configured channel
+/// is surfaced before it is used. Severity is a warning (not a fatal error)
+/// because some integrations (e.g. WhatsApp, FCM) are optional and the server
+/// can still run without them.
+fn log_integration_health() {
+    use aeroxe_backend::modules::integrations::huawei::adapter::HuaweiOltConfig;
+    use aeroxe_backend::modules::integrations::mikrotik::adapter::MikrotikConfig;
+    use aeroxe_backend::modules::integrations::push::fcm::FcmConfig;
+    use aeroxe_backend::modules::integrations::radius::adapter::RadiusConfig;
+    use aeroxe_backend::modules::integrations::sms::{msg91::Msg91Config, twilio::TwilioConfig};
+    use aeroxe_backend::modules::integrations::smtp::SmtpConfig;
+    use aeroxe_backend::modules::integrations::whatsapp::WhatsAppConfig;
+
+    // SMTP email delivery
+    let smtp = SmtpConfig::from_env();
+    if smtp.username.is_empty() || smtp.password.is_empty() {
+        tracing::warn!(
+            integration = "smtp",
+            missing = "SMTP_USERNAME,SMTP_PASSWORD",
+            "SMTP email delivery is not configured — invoice and alert emails will be unavailable"
+        );
+    } else {
+        tracing::info!(integration = "smtp", host = %smtp.host, "SMTP email delivery configured");
+    }
+
+    // SMS: MSG91 (default provider) and Twilio (optional)
+    let msg91 = Msg91Config::default();
+    if msg91.auth_key.is_empty() {
+        tracing::warn!(
+            integration = "sms_msg91",
+            missing = "MSG91_AUTH_KEY",
+            "MSG91 SMS delivery is not configured — OTP and SMS notifications will be unavailable"
+        );
+    } else {
+        tracing::info!(
+            integration = "sms_msg91",
+            sender = %msg91.sender_id,
+            "MSG91 SMS delivery configured"
+        );
+    }
+
+    let twilio = TwilioConfig::default();
+    if twilio.account_sid.is_empty() || twilio.auth_token.is_empty() {
+        tracing::warn!(
+            integration = "sms_twilio",
+            missing = "TWILIO_ACCOUNT_SID,TWILIO_AUTH_TOKEN",
+            "Twilio SMS delivery is not configured"
+        );
+    } else {
+        tracing::info!(integration = "sms_twilio", "Twilio SMS delivery configured");
+    }
+
+    // WhatsApp Business API
+    let whatsapp = WhatsAppConfig::default();
+    if whatsapp.access_token.is_empty() || whatsapp.phone_number_id.is_empty() {
+        tracing::warn!(
+            integration = "whatsapp",
+            missing = "WHATSAPP_ACCESS_TOKEN,WHATSAPP_PHONE_NUMBER_ID",
+            "WhatsApp Business API is not configured — WhatsApp OTP and notifications will be unavailable"
+        );
+    } else {
+        tracing::info!(integration = "whatsapp", "WhatsApp Business API configured");
+    }
+
+    // FCM push notifications
+    let fcm = FcmConfig::default();
+    if fcm.service_account_key.is_empty() || fcm.project_id.is_empty() {
+        tracing::warn!(
+            integration = "fcm",
+            missing = "FCM_SERVICE_ACCOUNT_KEY,FCM_PROJECT_ID",
+            "FCM push notifications are not configured — mobile app alerts will be unavailable"
+        );
+    } else {
+        tracing::info!(integration = "fcm", "FCM push notifications configured");
+    }
+
+    // RADIUS PPPoE authentication/accounting
+    let radius = RadiusConfig::default();
+    if radius.secret.is_empty() {
+        tracing::warn!(
+            integration = "radius",
+            missing = "RADIUS_SECRET",
+            "RADIUS is not configured — PPPoE authentication and accounting will fail"
+        );
+    } else {
+        tracing::info!(
+            integration = "radius",
+            server = %radius.server,
+            "RADIUS authentication configured"
+        );
+    }
+
+    // MikroTik device management
+    let mikrotik = MikrotikConfig::default();
+    if mikrotik.password.is_empty() {
+        tracing::warn!(
+            integration = "mikrotik",
+            missing = "MIKROTIK_PASSWORD",
+            "MikroTik device management is not configured — device sync and bandwidth provisioning will be unavailable"
+        );
+    } else {
+        tracing::info!(
+            integration = "mikrotik",
+            host = %mikrotik.host,
+            "MikroTik device management configured"
+        );
+    }
+
+    // Huawei OLT provisioning
+    let huawei = HuaweiOltConfig::default();
+    if huawei.password.is_empty() {
+        tracing::warn!(
+            integration = "huawei_olt",
+            missing = "HUAWEI_OLT_PASSWORD",
+            "Huawei OLT management is not configured — GPON provisioning will be unavailable"
+        );
+    } else {
+        tracing::info!(
+            integration = "huawei_olt",
+            host = %huawei.host,
+            "Huawei OLT management configured"
+        );
     }
 }

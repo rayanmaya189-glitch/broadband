@@ -97,6 +97,7 @@ pub struct SmsMessage {
 /// API response
 #[derive(Debug, Clone, Deserialize)]
 pub struct Msg91Response {
+    #[serde(rename = "type")]
     pub type_: Option<String>,
     pub message: Option<String>,
     pub request_id: Option<String>,
@@ -368,5 +369,94 @@ impl SmsProvider for Msg91Adapter {
             delivered_at: None,
             error: result["message"].as_str().map(|s| s.to_string()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_otp() {
+        for _ in 0..100 {
+            let otp = Msg91Adapter::generate_otp();
+            assert_eq!(otp.len(), 6);
+            assert!(otp.chars().all(|c| c.is_ascii_digit()));
+            assert!(otp.parse::<u32>().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_is_configured() {
+        let unconfigured = Msg91Adapter::new(Msg91Config {
+            auth_key: String::new(),
+            ..Msg91Config::default()
+        });
+        assert!(!unconfigured.is_configured());
+
+        let configured = Msg91Adapter::new(Msg91Config {
+            auth_key: "some-auth-key".to_string(),
+            ..Msg91Config::default()
+        });
+        assert!(configured.is_configured());
+    }
+
+    #[test]
+    fn test_otp_send_request_serialization() {
+        let request = OtpSendRequest {
+            phone: "919876543210".to_string(),
+            otp: Some("123456".to_string()),
+            expiry_minutes: Some(5),
+            template_id: Some("tpl1".to_string()),
+            sender_id: Some("AEROXE".to_string()),
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["mobile"], "919876543210");
+        assert_eq!(json["otp"], "123456");
+        assert_eq!(json["otp_expiry"], 5);
+        assert_eq!(json["template_id"], "tpl1");
+        assert_eq!(json["sender"], "AEROXE");
+    }
+
+    #[test]
+    fn test_otp_verify_request_serialization() {
+        let request = OtpVerifyRequest {
+            phone: "919876543210".to_string(),
+            otp: "654321".to_string(),
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["mobile"], "919876543210");
+        assert_eq!(json["otp"], "654321");
+    }
+
+    #[test]
+    fn test_sms_send_request_serialization() {
+        let request = SmsSendRequest {
+            sender_id: "AEROXE".to_string(),
+            route: "4".to_string(),
+            country_code: "91".to_string(),
+            messages: vec![SmsMessage {
+                text: "Hello".to_string(),
+                recipients: vec!["919876543210".to_string(), "919811223344".to_string()],
+                template_id: Some("tpl2".to_string()),
+            }],
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["sender"], "AEROXE");
+        assert_eq!(json["route"], "4");
+        assert_eq!(json["country"], "91");
+        assert_eq!(json["sms"][0]["message"], "Hello");
+        assert_eq!(json["sms"][0]["to"][0], "919876543210");
+        assert_eq!(json["sms"][0]["to"][1], "919811223344");
+        assert_eq!(json["sms"][0]["template_id"], "tpl2");
+    }
+
+    #[test]
+    fn test_msg91_response_deserialize() {
+        let json = r#"{"type":"success","message":"OTP sent successfully","request_id":"req-123"}"#;
+        let response: Msg91Response = serde_json::from_str(json).unwrap();
+        assert_eq!(response.type_, Some("success".to_string()));
+        assert_eq!(response.message, Some("OTP sent successfully".to_string()));
+        assert_eq!(response.request_id, Some("req-123".to_string()));
     }
 }

@@ -326,3 +326,80 @@ impl SmsProvider for TwilioSmsAdapter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_auth_header() {
+        let adapter = TwilioSmsAdapter::new(TwilioConfig {
+            account_sid: "AC123".to_string(),
+            auth_token: "secret-token".to_string(),
+            from_number: "+15005550006".to_string(),
+            verify_service_sid: None,
+            api_url: "https://api.twilio.com".to_string(),
+        });
+        assert_eq!(adapter.auth_header(), "Basic QUMxMjM6c2VjcmV0LXRva2Vu");
+    }
+
+    #[test]
+    fn test_config_default_requires_credentials() {
+        let config = TwilioConfig::default();
+        assert!(config.account_sid.is_empty());
+        assert!(config.auth_token.is_empty());
+        assert!(config.from_number.is_empty());
+    }
+
+    #[test]
+    fn test_twilio_message_response_deserialize() {
+        let json = r#"{
+            "sid": "SM12345",
+            "status": "delivered",
+            "to": "+919876543210",
+            "from": "+15005550006",
+            "date_sent": "2025-01-01T00:00:00Z",
+            "error_code": null,
+            "error_message": null
+        }"#;
+        let response: TwilioMessageResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.sid, "SM12345");
+        assert_eq!(response.status, "delivered");
+        assert_eq!(response.to, "+919876543210");
+        assert_eq!(response.date_sent, Some("2025-01-01T00:00:00Z".to_string()));
+        assert_eq!(response.error_code, None);
+        assert_eq!(response.error_message, None);
+    }
+
+    #[test]
+    fn test_twilio_message_response_error_deserialize() {
+        let json = r#"{
+            "sid": "SM999",
+            "status": "failed",
+            "to": "+919876543210",
+            "from": "+15005550006",
+            "error_code": 30007,
+            "error_message": "SMS delivery failed"
+        }"#;
+        let response: TwilioMessageResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.status, "failed");
+        assert_eq!(response.error_code, Some(30007));
+        assert_eq!(
+            response.error_message,
+            Some("SMS delivery failed".to_string())
+        );
+    }
+
+    #[test]
+    fn test_twilio_verify_response_deserialize() {
+        let json = r#"{
+            "sid": "VE12345",
+            "status": "approved",
+            "to": "+919876543210",
+            "valid": true
+        }"#;
+        let response: TwilioVerifyResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.sid, "VE12345");
+        assert!(response.valid);
+    }
+}

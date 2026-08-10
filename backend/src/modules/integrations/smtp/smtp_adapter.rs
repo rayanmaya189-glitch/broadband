@@ -209,3 +209,58 @@ impl EmailProvider for LettreSmtpAdapter {
         self.transport.is_some()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_config(username: &str, password: &str) -> SmtpConfig {
+        SmtpConfig {
+            host: "smtp.example.com".to_string(),
+            port: 587,
+            username: username.to_string(),
+            password: password.to_string(),
+            from_email: "noreply@aeroxebroadband.com".to_string(),
+            from_name: "AeroXe Broadband".to_string(),
+            // Non-TLS builder path avoids DNS/SRV resolution and real network I/O
+            use_tls: false,
+        }
+    }
+
+    #[test]
+    fn test_parse_email() {
+        assert!(LettreSmtpAdapter::parse_email("user@example.com").is_ok());
+        assert!(LettreSmtpAdapter::parse_email("AeroXe <noreply@aeroxe.com>").is_ok());
+        assert!(LettreSmtpAdapter::parse_email("not-an-email").is_err());
+        assert!(LettreSmtpAdapter::parse_email("user@").is_err());
+        assert!(LettreSmtpAdapter::parse_email("").is_err());
+    }
+
+    #[test]
+    fn test_not_configured_without_credentials() {
+        let adapter = LettreSmtpAdapter::new(test_config("", ""));
+        assert!(!adapter.is_configured());
+    }
+
+    #[tokio::test]
+    async fn test_configured_with_credentials() {
+        let adapter = LettreSmtpAdapter::new(test_config("user", "password"));
+        assert!(adapter.is_configured());
+    }
+
+    #[tokio::test]
+    async fn test_send_email_rejects_invalid_recipient() {
+        let adapter = LettreSmtpAdapter::new(test_config("user", "password"));
+        let result = adapter.send_email("not-an-email", "subject", "body").await;
+        assert!(matches!(result, Err(AppError::Internal(_))));
+    }
+
+    #[tokio::test]
+    async fn test_send_email_when_not_configured() {
+        let adapter = LettreSmtpAdapter::new(test_config("", ""));
+        let result = adapter
+            .send_email("user@example.com", "subject", "body")
+            .await;
+        assert!(matches!(result, Err(AppError::Internal(_))));
+    }
+}

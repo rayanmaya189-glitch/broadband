@@ -41,6 +41,7 @@ mod m033_align_column_types;
 mod m034_seed_missing_permissions;
 mod m035_grant_read_permissions;
 mod m036_remove_unenforced_permissions;
+mod m037_widen_subscription_review_status;
 
 pub struct Migrator;
 
@@ -226,6 +227,7 @@ impl MigratorTrait for Migrator {
             Box::new(m034_seed_missing_permissions::Migration),
             Box::new(m035_grant_read_permissions::Migration),
             Box::new(m036_remove_unenforced_permissions::Migration),
+            Box::new(m037_widen_subscription_review_status::Migration),
         ]
     }
 }
