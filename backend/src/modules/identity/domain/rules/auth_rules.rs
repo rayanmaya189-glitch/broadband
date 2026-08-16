@@ -26,6 +26,13 @@ impl AuthRules {
     /// OTP rate limit: max OTPs per phone per hour
     pub const OTP_RATE_LIMIT_PER_HOUR: u32 = 5;
 
+    /// Telegram binding code expiry in seconds (5 minutes)
+    pub const TELEGRAM_BIND_CODE_TTL_SECONDS: u64 = 300;
+
+    /// Telegram bind attempts per phone per hour (limits SMS-bombing via the
+    /// unauthenticated bot webhook)
+    pub const TELEGRAM_BIND_RATE_LIMIT_PER_HOUR: u32 = 5;
+
     /// Check if password meets strength requirements
     pub fn is_strong_password(password: &str) -> bool {
         if password.len() < Self::MIN_PASSWORD_LENGTH {

@@ -249,11 +249,18 @@ pub async fn verify_otp(
     Ok(())
 }
 
-/// Bind a Telegram chat_id to a phone for OTP delivery.
-pub async fn bind_telegram_chat(
+/// Initiate a Telegram binding for a phone.
+///
+/// A one-time verification code is sent over SMS to the phone and must be
+/// confirmed from the same chat that started the binding
+/// (`confirm_telegram_bind`). This proves the phone owner is in control of the
+/// account before a chat is bound — without this, an attacker could bind
+/// their own chat to a victim's phone and receive the victim's OTPs.
+pub async fn initiate_telegram_bind(
     redis: &mut redis::aio::ConnectionManager,
     phone: &str,
     chat_id: i64,
+    app_name: &str,
 ) -> Result<(), AppError> {
     let phone = normalize_phone(phone);
     if !AuthRules::is_valid_indian_phone(&phone) {
@@ -262,13 +269,110 @@ pub async fn bind_telegram_chat(
             phone
         )));
     }
+
+    // Per-phone rate limit on bind attempts so the unauthenticated bot webhook
+    // cannot be used to spam a victim with SMS.
+    let rl_key = format!("{}:bindrl", CacheKeys::otp(&phone));
+    let count: i64 = redis
+        .incr(&rl_key, 1)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis rate limit error: {}", e)))?;
+    if count == 1 {
+        let _: () = redis
+            .expire(&rl_key, 3600)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis expire error: {}", e)))?;
+    }
+    if count as u32 > AuthRules::TELEGRAM_BIND_RATE_LIMIT_PER_HOUR {
+        warn!(phone = %phone, attempts = count, "Telegram bind rate limit exceeded");
+        return Err(AppError::RateLimited);
+    }
+
+    let code = generate_otp();
+    let ttl = AuthRules::TELEGRAM_BIND_CODE_TTL_SECONDS;
+
+    // The code hash is keyed by phone; the pending chat link is keyed by chat
+    // so only the chat that initiated the binding can confirm it.
+    let bind_key = format!("{}:telegram_bind", CacheKeys::otp(&phone));
+    let _: () = redis
+        .set_ex(&bind_key, hash_otp(&code), ttl)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+    let pending_key = format!("otp:telegram_pending:{}", chat_id);
+    let _: () = redis
+        .set_ex(&pending_key, &phone, ttl)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+
+    // Deliver the code to the phone owner over SMS.
+    let provider = DeviceAdapterFactory::create_sms_provider("msg91");
+    provider
+        .send_sms(
+            &phone,
+            &format!(
+                "Your {} Telegram binding code is {}. It expires in {} minutes.",
+                app_name,
+                code,
+                AuthRules::TELEGRAM_BIND_CODE_TTL_SECONDS / 60
+            ),
+            None,
+        )
+        .await?;
+
+    info!(phone = %phone, chat_id = chat_id, "Telegram bind code sent via SMS");
+    Ok(())
+}
+
+/// Confirm a Telegram binding using the code delivered to the phone owner.
+/// The code must be replied from the same chat that initiated the binding.
+/// Returns the bound phone on success.
+pub async fn confirm_telegram_bind(
+    redis: &mut redis::aio::ConnectionManager,
+    chat_id: i64,
+    code: &str,
+) -> Result<String, AppError> {
+    let pending_key = format!("otp:telegram_pending:{}", chat_id);
+    let phone: Option<String> = redis
+        .get(&pending_key)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
+    let Some(phone) = phone else {
+        return Err(AppError::BadRequest(
+            "No pending binding for this chat. Start with: /login <phone>".to_string(),
+        ));
+    };
+    let phone = normalize_phone(&phone);
+
+    let bind_key = format!("{}:telegram_bind", CacheKeys::otp(&phone));
+    let stored_hash: Option<String> = redis
+        .get(&bind_key)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis get error: {}", e)))?;
+    if stored_hash.as_deref() != Some(hash_otp(code).as_str()) {
+        return Err(AppError::BadRequest(
+            "Invalid or expired binding code".to_string(),
+        ));
+    }
+
+    // Bind the confirmed chat to the phone.
     let key = format!("{}:telegram", CacheKeys::otp(&phone));
     let _: () = redis
         .set_ex(&key, chat_id, 30 * 24 * 3600)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis set error: {}", e)))?;
+
+    // Consume the one-time binding state.
+    let _: () = redis
+        .del(&pending_key)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis del error: {}", e)))?;
+    let _: () = redis
+        .del(&bind_key)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Redis del error: {}", e)))?;
+
     info!(phone = %phone, chat_id = chat_id, "Bound Telegram chat to phone");
-    Ok(())
+    Ok(phone)
 }
 
 async fn lookup_telegram_chat(

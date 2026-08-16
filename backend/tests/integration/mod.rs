@@ -11,6 +11,7 @@ pub mod customer_repository_test;
 pub mod device_repository_test;
 pub mod identity_repository_test;
 pub mod network_repository_test;
+pub mod payment_idempotency_test;
 pub mod referral_reward_test;
 pub mod security_abuse_tests;
 pub mod security_jwt_tests;

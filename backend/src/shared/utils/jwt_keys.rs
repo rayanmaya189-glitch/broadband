@@ -5,8 +5,8 @@ use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::{info, warn};
+use std::sync::RwLock as StdRwLock;
+use tracing::info;
 
 /// RS256 JWT key pair — holds both private and public keys in memory.
 #[derive(Clone)]
@@ -117,46 +117,129 @@ impl JwtKeyPair {
     }
 }
 
+/// Thread-safe JWT key store used for signing and verification.
+///
+/// Holds the active key pair plus a read-only copy of the immediately-previous
+/// key's decoding key. When a rotation happens, tokens that were issued with
+/// the old key remain verifiable for their remaining lifetime instead of being
+/// rejected en masse — which would otherwise force a logout of every user on
+/// each 90-day rotation.
+#[derive(Clone)]
+pub struct JwtKeys {
+    inner: Arc<StdRwLock<JwtKeyStoreInner>>,
+}
+
+struct JwtKeyStoreInner {
+    current: JwtKeyPair,
+    previous: Option<PreviousKey>,
+}
+
+/// Rotated-out key pair kept only for verification (no private key).
+struct PreviousKey {
+    decoding_key: DecodingKey,
+}
+
+impl JwtKeys {
+    /// Create a store seeded with the initial key pair.
+    pub fn new(keys: JwtKeyPair) -> Self {
+        Self {
+            inner: Arc::new(StdRwLock::new(JwtKeyStoreInner {
+                current: keys,
+                previous: None,
+            })),
+        }
+    }
+
+    /// Sign a JWT with the current key pair.
+    pub fn sign(&self, claims: &StandardClaims) -> Result<String> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("JWT key store poisoned"))?;
+        inner.current.sign(claims)
+    }
+
+    /// Verify a JWT against the current key pair, then the previous pair as a
+    /// fallback so tokens issued shortly before a rotation still validate.
+    pub fn verify(&self, token: &str) -> Result<StandardClaims> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("JWT key store poisoned"))?;
+        match inner.current.verify(token) {
+            Ok(claims) => Ok(claims),
+            Err(_) => match &inner.previous {
+                Some(prev) => {
+                    let mut validation = Validation::new(Algorithm::RS256);
+                    validation.validate_exp = true;
+                    validation.validate_aud = false;
+                    decode::<StandardClaims>(token, &prev.decoding_key, &validation)
+                        .map(|d| d.claims)
+                        .context("JWT verification failed")
+                }
+                None => Err(anyhow::anyhow!("JWT verification failed")),
+            },
+        }
+    }
+
+    /// Whether the current key is older than `max_age_days`.
+    fn needs_rotation(&self, max_age_days: i64) -> bool {
+        let inner = self
+            .inner
+            .read()
+            .unwrap_or_else(|_| panic!("JWT key store poisoned"));
+        inner.current.needs_rotation(max_age_days)
+    }
+
+    /// Generate a fresh key pair, promote the current one to `previous` and
+    /// drop the private key of the old pair (kept for verification only).
+    fn rotate(&self) -> Result<bool> {
+        let new_keys = JwtKeyPair::generate()?;
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("JWT key store poisoned"))?;
+        let old = std::mem::replace(&mut inner.current, new_keys);
+        inner.previous = Some(PreviousKey {
+            decoding_key: old.decoding_key,
+        });
+        info!(old_created_at = %old.created_at, "JWT key pair rotated; previous key kept for token grace period");
+        Ok(true)
+    }
+}
+
 /// JWT key rotation manager with automatic key refresh.
 pub struct JwtKeyRotationManager {
-    current_keys: Arc<RwLock<JwtKeyPair>>,
+    keys: Arc<JwtKeys>,
     max_age_days: i64,
 }
 
 impl JwtKeyRotationManager {
-    /// Create a new key rotation manager.
+    /// Create a new key rotation manager wrapping a fresh key store.
     pub fn new(keys: JwtKeyPair, max_age_days: i64) -> Self {
         Self {
-            current_keys: Arc::new(RwLock::new(keys)),
+            keys: Arc::new(JwtKeys::new(keys)),
             max_age_days,
         }
     }
 
-    /// Get the current key pair (read lock).
-    pub async fn current_keys(&self) -> tokio::sync::RwLockReadGuard<'_, JwtKeyPair> {
-        self.current_keys.read().await
+    /// Create a manager over an existing key store (same store shared with the
+    /// auth path via [`Self::keys`]).
+    pub fn from_arc(keys: Arc<JwtKeys>, max_age_days: i64) -> Self {
+        Self { keys, max_age_days }
+    }
+
+    /// The shared key store used by signing/verification.
+    pub fn keys(&self) -> Arc<JwtKeys> {
+        self.keys.clone()
     }
 
     /// Check if rotation is needed and perform it.
     pub async fn check_and_rotate(&self) -> Result<bool> {
-        let old_created_at = {
-            let keys = self.current_keys.read().await;
-            if !keys.needs_rotation(self.max_age_days) {
-                return Ok(false);
-            }
-            keys.created_at()
-        };
-
-        // Generate new keys
-        let new_keys = JwtKeyPair::generate()?;
-        info!(old_created_at = %old_created_at, "Rotating JWT key pair");
-
-        // Update keys
-        let mut keys = self.current_keys.write().await;
-        *keys = new_keys;
-
-        warn!("JWT key pair rotated — active tokens signed with old key remain valid until expiry");
-        Ok(true)
+        if !self.keys.needs_rotation(self.max_age_days) {
+            return Ok(false);
+        }
+        self.keys.rotate()
     }
 
     /// Start background rotation checker (runs daily).
@@ -208,5 +291,63 @@ pub fn init_jwt_keys(
         _ => {
             anyhow::bail!("Both JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must be set, or neither")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn claims(sub: &str) -> StandardClaims {
+        StandardClaims {
+            sub: sub.to_string(),
+            email: format!("{sub}@aeroxe.test"),
+            name: "Test User".to_string(),
+            role: "user".to_string(),
+            branch_id: None,
+            is_company_wide: false,
+            iat: Utc::now().timestamp(),
+            exp: (Utc::now() + chrono::Duration::seconds(300)).timestamp(),
+        }
+    }
+
+    #[test]
+    fn token_signed_before_rotation_remains_verifiable() {
+        let store = JwtKeys::new(JwtKeyPair::generate().unwrap());
+        let token = store.sign(&claims("42")).unwrap();
+
+        // Tokens verify before rotation.
+        assert_eq!(store.verify(&token).unwrap().sub, "42");
+
+        // After rotation the same token must still verify via the previous key.
+        store.rotate().unwrap();
+        assert_eq!(store.verify(&token).unwrap().sub, "42");
+    }
+
+    #[test]
+    fn tokens_signed_after_rotation_verify_and_oldest_key_is_dropped() {
+        let store = JwtKeys::new(JwtKeyPair::generate().unwrap());
+        let first = store.sign(&claims("1")).unwrap();
+
+        store.rotate().unwrap();
+        let second = store.sign(&claims("2")).unwrap();
+        assert_eq!(store.verify(&second).unwrap().sub, "2");
+        assert_eq!(store.verify(&first).unwrap().sub, "1");
+
+        // Only one previous key is retained: after a second rotation the token
+        // signed with the oldest key is no longer accepted.
+        store.rotate().unwrap();
+        let third = store.sign(&claims("3")).unwrap();
+        assert_eq!(store.verify(&third).unwrap().sub, "3");
+        assert_eq!(store.verify(&second).unwrap().sub, "2");
+        assert!(store.verify(&first).is_err());
+    }
+
+    #[test]
+    fn rotation_manager_reports_when_no_rotation_is_due() {
+        let keys = JwtKeyPair::generate().unwrap();
+        let manager = JwtKeyRotationManager::new(keys, 90);
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        assert!(!runtime.block_on(manager.check_and_rotate()).unwrap());
     }
 }

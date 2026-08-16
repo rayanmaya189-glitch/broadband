@@ -40,6 +40,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Load configuration
     let settings = Settings::from_env()?;
+    settings.validate_environment()?;
     let addr: SocketAddr = settings.server_addr.parse()?;
     tracing::info!("Server listening on {}", addr);
 
@@ -67,6 +68,12 @@ async fn main() -> anyhow::Result<()> {
     // Initialize JWT RS256 key pair
     let jwt_keys = init_jwt_keys(&settings.jwt_private_key_pem, &settings.jwt_public_key_pem)?;
     tracing::info!("JWT RS256 keys ready");
+    // Shared rotating key store: signing/verification and the rotation manager
+    // all reference the same store, so a rotation actually takes effect while
+    // the previous key stays valid for the token grace window.
+    let jwt_keys = std::sync::Arc::new(aeroxe_backend::shared::utils::jwt_keys::JwtKeys::new(
+        jwt_keys,
+    ));
 
     // Initialize global JWT keys for branch_scope middleware
     aeroxe_backend::shared::middleware::branch_scope::init_jwt_keys_global(jwt_keys.clone());
@@ -74,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
     // Build shared state. The NATS connection is left `None` here — the NATS
     // supervisor (started below) connects with retry/backoff and publishes the
     // live client into `state.nats` once available.
-    let mut app_state = AppState::new(db, redis, settings.clone(), jwt_keys.clone());
+    let mut app_state = AppState::new(db, redis, settings.clone(), jwt_keys);
     // Initialize MinIO/S3 storage (optional - gracefully handle if unavailable)
     match aeroxe_backend::infrastructure::storage::StorageService::from_env().await {
         Ok(storage) => {

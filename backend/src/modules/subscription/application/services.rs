@@ -205,9 +205,18 @@ impl SubscriptionService {
         let proration = match (old_pricing, new_pricing) {
             (Some(old_p), Some(new_p)) => {
                 let today = chrono::Utc::now().date_naive();
-                let billing_period_days = (sub.billing_period_months as i64 * 30) as i32;
-                let days_used = (today - sub.start_date).num_days() as i32;
-                let days_used = days_used.max(0).min(billing_period_days);
+                // The current cycle is bounded by next_billing_date, not the
+                // subscription's original start_date (which is months/years old
+                // after renewals and would zero out the credit).
+                let months = sub.billing_period_months.max(1) as u32;
+                let cycle_end = sub.next_billing_date.unwrap_or(today);
+                let cycle_start =
+                    crate::shared::utils::billing_period::period_start_months(cycle_end, months);
+                let billing_period_days = (cycle_end - cycle_start).num_days().max(1) as i32;
+                let days_used = (today - cycle_start)
+                    .num_days()
+                    .max(0)
+                    .min(billing_period_days as i64) as i32;
 
                 let adjustment = crate::shared::primitives::calculate_pro_rata(
                     old_p.price,
@@ -429,12 +438,37 @@ impl SubscriptionService {
         db: &DatabaseConnection,
         id: i64,
     ) -> Result<crate::modules::subscription::domain::entities::subscription::Model, AppError> {
-        use crate::modules::plans::domain::entities::{PlanPricing, PlanPricingColumn};
         use sea_orm::TransactionTrait;
 
         let txn = db.begin().await?;
+        let (updated, invoice_id) = Self::renew_subscription_inner(&txn, id).await?;
+        txn.commit().await?;
+
+        // When auto-renew is on and the customer has wallet balance, try to
+        // settle the new invoice immediately. Best effort — if the balance is
+        // insufficient the invoice simply stays pending for the dunning worker.
+        Self::settle_renewal_from_wallet(db, &updated, invoice_id).await;
+
+        Ok(updated)
+    }
+
+    /// Core renewal logic shared by the single-renewal API and the due sweep.
+    /// Runs inside a caller-provided transaction so the sweep can hold a
+    /// `FOR UPDATE SKIP LOCKED` claim on the rows it is processing.
+    async fn renew_subscription_inner(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i64,
+    ) -> Result<
+        (
+            crate::modules::subscription::domain::entities::subscription::Model,
+            Option<i64>,
+        ),
+        AppError,
+    > {
+        use crate::modules::plans::domain::entities::{PlanPricing, PlanPricingColumn};
+
         let sub = Subscription::find_by_id(id)
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("Subscription {} not found", id)))?;
 
@@ -446,14 +480,16 @@ impl SubscriptionService {
 
         let now = chrono::Utc::now();
         let period_start = sub.next_billing_date.unwrap_or_else(|| now.date_naive());
-        let next_billing =
-            now.date_naive() + chrono::Duration::days((sub.billing_period_months as i64) * 30);
+        let next_billing = crate::shared::utils::billing_period::period_end_months(
+            now.date_naive(),
+            sub.billing_period_months as u32,
+        );
 
         let mut active: SubscriptionActiveModel = sub.clone().into();
         active.status = Set("active".to_string());
         active.next_billing_date = Set(Some(next_billing));
         active.updated_at = Set(now);
-        let updated = active.update(&txn).await?;
+        let updated = active.update(txn).await?;
 
         // Generate the next billing-cycle invoice from the active plan pricing
         // (same transaction as the renewal so the two never drift apart).
@@ -462,12 +498,12 @@ impl SubscriptionService {
             .filter(PlanPricingColumn::PlanId.eq(sub.plan_id))
             .filter(PlanPricingColumn::BillingPeriodMonths.eq(sub.billing_period_months))
             .filter(PlanPricingColumn::IsActive.eq(true))
-            .one(&txn)
+            .one(txn)
             .await?;
         if let Some(p) = pricing {
             let inv =
                 crate::modules::billing::application::services::BillingService::create_invoice(
-                    &txn,
+                    txn,
                     sub.customer_id,
                     sub.branch_id,
                     sub.id,
@@ -481,7 +517,7 @@ impl SubscriptionService {
 
         // Publish the renewal event once, atomically with the state change above.
         outbox::insert_outbox_event(
-            &txn,
+            txn,
             "subscription.renewed",
             "subscription",
             updated.id,
@@ -498,60 +534,84 @@ impl SubscriptionService {
         )
         .await?;
 
-        txn.commit().await?;
+        Ok((updated, invoice_id))
+    }
 
-        // When auto-renew is on and the customer has wallet balance, try to
-        // settle the new invoice immediately. Best effort — if the balance is
-        // insufficient the invoice simply stays pending for the dunning worker.
-        if updated.auto_renew {
-            if let Some(inv_id) = invoice_id {
-                if let Err(e) =
-                    crate::modules::payment::application::services::PaymentService::pay_from_wallet(
-                        db,
-                        inv_id,
-                        updated.customer_id,
-                        None,
-                    )
-                    .await
-                {
-                    info!(
-                        subscription_id = updated.id,
-                        invoice_id = inv_id,
-                        error = %e,
-                        "Auto-renew wallet payment not applied (balance may be insufficient)"
-                    );
-                }
+    /// Best-effort wallet settlement of a freshly-renewed invoice.
+    async fn settle_renewal_from_wallet(
+        db: &DatabaseConnection,
+        updated: &crate::modules::subscription::domain::entities::subscription::Model,
+        invoice_id: Option<i64>,
+    ) {
+        if !updated.auto_renew {
+            return;
+        }
+        if let Some(inv_id) = invoice_id {
+            if let Err(e) =
+                crate::modules::payment::application::services::PaymentService::pay_from_wallet(
+                    db,
+                    inv_id,
+                    updated.customer_id,
+                    None,
+                )
+                .await
+            {
+                info!(
+                    subscription_id = updated.id,
+                    invoice_id = inv_id,
+                    error = %e,
+                    "Auto-renew wallet payment not applied (balance may be insufficient)"
+                );
             }
         }
-
-        Ok(updated)
     }
 
     /// Renew every active, auto-renew subscription whose `next_billing_date` has
     /// arrived. Individual failures are logged and do not stop the sweep.
     /// Returns the number of subscriptions renewed.
+    ///
+    /// Runs in a single transaction and claims rows with `FOR UPDATE SKIP
+    /// LOCKED`, so concurrent worker instances cannot double-renew the same
+    /// subscription.
     pub async fn renew_due_subscriptions(db: &DatabaseConnection) -> Result<usize, AppError> {
+        use sea_orm::sea_query::{LockBehavior, LockType};
+        use sea_orm::QuerySelect;
+        use sea_orm::TransactionTrait;
+
+        let txn = db.begin().await?;
         let today = chrono::Utc::now().date_naive();
         let due = Subscription::find()
             .filter(SubscriptionColumn::AutoRenew.eq(true))
             .filter(SubscriptionColumn::Status.eq("active"))
             .filter(SubscriptionColumn::NextBillingDate.is_not_null())
             .filter(SubscriptionColumn::NextBillingDate.lte(today))
-            .all(db)
+            .lock_with_behavior(LockType::Update, LockBehavior::SkipLocked)
+            .all(&txn)
             .await?;
 
         let mut renewed = 0;
+        let mut wallet_settlements = Vec::new();
         for sub in due {
-            if let Err(e) = Self::renew_subscription(db, sub.id).await {
-                error!(
-                    subscription_id = sub.id,
-                    error = %e,
-                    "Failed to auto-renew due subscription"
-                );
-                continue;
+            match Self::renew_subscription_inner(&txn, sub.id).await {
+                Ok((updated, invoice_id)) => {
+                    wallet_settlements.push((updated, invoice_id));
+                    renewed += 1;
+                }
+                Err(e) => {
+                    error!(
+                        subscription_id = sub.id,
+                        error = %e,
+                        "Failed to auto-renew due subscription"
+                    );
+                }
             }
-            renewed += 1;
         }
+        txn.commit().await?;
+
+        for (updated, invoice_id) in wallet_settlements {
+            Self::settle_renewal_from_wallet(db, &updated, invoice_id).await;
+        }
+
         info!(renewed = renewed, "Subscription renewal sweep complete");
         Ok(renewed)
     }

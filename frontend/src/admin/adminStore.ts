@@ -7,7 +7,7 @@ import {
   adminMe,
   adminRefresh,
 } from '../api/admin/auth';
-import { setAdminTokenProvider, setAdminUnauthorizedHandler } from '../api/admin/client';
+import { setAdminTokenProvider, setAdminUnauthorizedHandler, setAdminRefreshHandler } from '../api/admin/client';
 import { decodeJwt } from '../admin/lib/jwt';
 
 const KEYS = {
@@ -241,6 +241,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
 });
 
 setAdminTokenProvider(() => useAdminStore.getState().accessToken);
+setAdminRefreshHandler(() => useAdminStore.getState().refreshSession());
 setAdminUnauthorizedHandler(() => {
   sessionStorage.removeItem(KEYS.access);
   sessionStorage.removeItem(KEYS.refresh);

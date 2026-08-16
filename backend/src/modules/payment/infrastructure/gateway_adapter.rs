@@ -7,6 +7,17 @@ use crate::shared::errors::AppError;
 
 type HmacSha256 = Hmac<Sha256>;
 
+/// Shared HTTP client for all gateway calls. A bare `reqwest::Client::new()`
+/// has no timeout, so a hung gateway would block the request thread forever.
+/// All gateway adapters use explicit connect + total timeouts instead.
+fn gateway_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap_or_default()
+}
+
 /// Gateway response from creating a payment link/order
 #[derive(Debug, Clone)]
 pub struct GatewayPaymentResponse {
@@ -118,7 +129,7 @@ impl GatewayAdapter for RazorpayAdapter {
             "metadata": metadata,
         });
 
-        let client = reqwest::Client::new();
+        let client = gateway_http_client();
         let response = client
             .post("https://api.razorpay.com/v1/orders")
             .basic_auth(&self.key_id, Some(&self.key_secret))
@@ -232,7 +243,7 @@ impl GatewayAdapter for RazorpayAdapter {
             "notes": notes,
         });
 
-        let client = reqwest::Client::new();
+        let client = gateway_http_client();
         let response = client
             .post(format!(
                 "https://api.razorpay.com/v1/payments/{}/refund",
@@ -305,6 +316,29 @@ impl PayuAdapter {
     }
 }
 
+/// PayU SHA-512 hash: sha512(key|txnid|amount|productinfo|firstname|email|
+/// udf1..udf10|salt). Firstname and email are required in their exact
+/// positions — substituting any other field (e.g. currency) produces a hash
+/// PayU's server rejects.
+pub fn payu_hash(
+    merchant_key: &str,
+    txn_id: &str,
+    amount: &str,
+    productinfo: &str,
+    firstname: &str,
+    email: &str,
+    merchant_salt: &str,
+) -> String {
+    use sha2::{Digest, Sha512};
+    let hash_string = format!(
+        "{}|{}|{}|{}|{}|{}|||||||||||{}",
+        merchant_key, txn_id, amount, productinfo, firstname, email, merchant_salt
+    );
+    let mut hasher = Sha512::new();
+    hasher.update(hash_string.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 #[async_trait]
 impl GatewayAdapter for PayuAdapter {
     async fn create_payment_link(
@@ -317,34 +351,46 @@ impl GatewayAdapter for PayuAdapter {
         let uuid_str = crate::shared::utils::uuid_v7::new_v7_compact();
         let txn_id = format!("txn_{}", &uuid_str[..14.min(uuid_str.len())]);
 
-        // PayU uses SHA-512 hash for hash generation
-        let hash_string = format!(
-            "{}|{}|{}|{}|{}|||||||||||{}",
-            self.merchant_key, txn_id, amount, receipt, currency, self.merchant_salt
+        // PayU uses SHA-512: sha512(key|txnid|amount|productinfo|firstname|
+        // email|udf1..udf10|salt). The 5th and 6th fields are firstname/email,
+        // NOT currency — a mismatched layout fails PayU's server-side hash check
+        // and rejects every payment.
+        let firstname = metadata["customer_name"].as_str().unwrap_or("Customer");
+        let email = metadata["customer_email"].as_str().unwrap_or("");
+        let hash = payu_hash(
+            &self.merchant_key,
+            &txn_id,
+            &amount.to_string(),
+            receipt,
+            firstname,
+            email,
+            &self.merchant_salt,
         );
-        let hash = {
-            use sha2::{Digest, Sha512};
-            let mut hasher = Sha512::new();
-            hasher.update(hash_string.as_bytes());
-            hex::encode(hasher.finalize())
-        };
 
         let body = serde_json::json!({
             "key": self.merchant_key,
             "txnid": txn_id,
             "amount": amount.to_string(),
             "productinfo": receipt,
-            "firstname": metadata["customer_name"].as_str().unwrap_or("Customer"),
-            "email": metadata["customer_email"].as_str().unwrap_or(""),
+            "firstname": firstname,
+            "email": email,
             "phone": metadata["customer_phone"].as_str().unwrap_or(""),
             "surl": metadata["success_url"].as_str().unwrap_or(""),
             "furl": metadata["failure_url"].as_str().unwrap_or(""),
             "hash": hash,
         });
 
-        let client = reqwest::Client::new();
+        // Post the order to the same environment as the redirect endpoint:
+        // test.payu.in in test, secure.payu.in in production.
+        let post_url = if self.api_endpoint.contains("test.payu.in") {
+            "https://test.payu.in/merchant/postservice.php?form=1"
+        } else {
+            "https://secure.payu.in/merchant/postservice.php?form=1"
+        };
+
+        let client = gateway_http_client();
         let response = client
-            .post("https://secure.payu.in/merchant/postcollector.php")
+            .post(post_url)
             .json(&body)
             .send()
             .await
@@ -488,7 +534,7 @@ impl GatewayAdapter for PayuAdapter {
             "hash": hash,
         });
 
-        let client = reqwest::Client::new();
+        let client = gateway_http_client();
         let response = client
             .post(refund_url)
             .json(&body)
@@ -572,7 +618,7 @@ impl GatewayAdapter for StripeAdapter {
             .unwrap_or(0);
 
         // Create a PaymentIntent via Stripe API
-        let client = reqwest::Client::new();
+        let client = gateway_http_client();
         let response = client
             .post(format!("{}/payment_intents", self.api_endpoint))
             .bearer_auth(&self.secret_key)
@@ -661,6 +707,21 @@ impl GatewayAdapter for StripeAdapter {
             return Ok(false);
         }
 
+        // Replay protection: reject signatures older than 5 minutes so a
+        // captured/leaked webhook payload cannot be replayed later.
+        let sent_ts: i64 = timestamp.parse().unwrap_or(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        if sent_ts <= 0 || (now - sent_ts).abs() > 300 {
+            warn!(
+                timestamp = %timestamp,
+                "Stripe webhook signature is stale — rejecting replay"
+            );
+            return Ok(false);
+        }
+
         let sign_payload = format!("{}.{}", timestamp, std::str::from_utf8(body).unwrap_or(""));
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
             .map_err(|e| AppError::Internal(anyhow::anyhow!("HMAC key error: {}", e)))?;
@@ -730,7 +791,7 @@ impl GatewayAdapter for StripeAdapter {
             .parse::<i64>()
             .unwrap_or(0);
 
-        let client = reqwest::Client::new();
+        let client = gateway_http_client();
         let response = client
             .post(format!("{}/refunds", self.api_endpoint))
             .bearer_auth(&self.secret_key)
@@ -852,5 +913,59 @@ mod tests {
         });
         let parsed = adapter.parse_webhook(payload).unwrap();
         assert_amount_eq(parsed.amount, "500.00");
+    }
+
+    #[test]
+    fn payu_hash_layout_uses_firstname_and_email_in_the_5th_and_6th_fields() {
+        use sha2::Digest;
+
+        // key|txnid|amount|productinfo|firstname|email|udf1..udf10|salt
+        // = 17 pipe-separated fields, firstname/email at positions 5 and 6.
+        let key = "gtKFFx";
+        let txn = "txn_abc";
+        let amount = "500.00";
+        let productinfo = "inv-1";
+        let firstname = "Rahul";
+        let email = "rahul@example.com";
+        let salt = "e5iIg1jwi8";
+        let hash = payu_hash(key, txn, amount, productinfo, firstname, email, salt);
+
+        // The hash must be computed over the exact documented layout.
+        let expected_input =
+            format!("{key}|{txn}|{amount}|{productinfo}|{firstname}|{email}|||||||||||{salt}");
+        let mut hasher = sha2::Sha512::new();
+        hasher.update(expected_input.as_bytes());
+        let expected = hex::encode(hasher.finalize());
+        assert_eq!(hash, expected);
+
+        // A layout that swaps in `currency` (the historical bug) must differ,
+        // proving the fix actually changes what is hashed.
+        let wrong_input = format!("{key}|{txn}|{amount}|{productinfo}|INR|||||||||||{salt}");
+        let mut hasher = sha2::Sha512::new();
+        hasher.update(wrong_input.as_bytes());
+        let wrong = hex::encode(hasher.finalize());
+        assert_ne!(hash, wrong);
+    }
+
+    #[test]
+    fn stripe_webhook_rejects_stale_signature() {
+        let adapter = StripeAdapter {
+            secret_key: "k".into(),
+            webhook_signing_secret: "w".into(),
+            api_endpoint: "https://api.stripe.com/v1".into(),
+        };
+        // A signature stamped 10 minutes ago (freshness window is 5 min) must
+        // be rejected even before HMAC comparison.
+        let stale_ts = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            - 600) as i64;
+        let body = b"{}";
+        let signature = format!("t={},v1=deadbeef", stale_ts);
+        let ok = adapter
+            .verify_webhook_signature(body, &signature, "w")
+            .unwrap();
+        assert!(!ok, "stale webhook signature must be rejected");
     }
 }

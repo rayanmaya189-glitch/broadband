@@ -42,6 +42,8 @@ mod m034_seed_missing_permissions;
 mod m035_grant_read_permissions;
 mod m036_remove_unenforced_permissions;
 mod m037_widen_subscription_review_status;
+mod m038_add_idempotency_constraints;
+mod m039_add_usage_sync_watermark;
 
 pub struct Migrator;
 
@@ -228,6 +230,8 @@ impl MigratorTrait for Migrator {
             Box::new(m035_grant_read_permissions::Migration),
             Box::new(m036_remove_unenforced_permissions::Migration),
             Box::new(m037_widen_subscription_review_status::Migration),
+            Box::new(m038_add_idempotency_constraints::Migration),
+            Box::new(m039_add_usage_sync_watermark::Migration),
         ]
     }
 }

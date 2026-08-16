@@ -15,7 +15,7 @@ use crate::modules::security::domain::entities::{
     permission as perm_entity, role, role_permission, user_role,
 };
 use crate::shared::errors::AppError;
-use crate::shared::utils::jwt_keys::{JwtKeyPair, StandardClaims};
+use crate::shared::utils::jwt_keys::{JwtKeys, StandardClaims};
 
 /// Redis key prefix for user permissions
 const REDIS_PERMS_PREFIX: &str = "aeroxe:user:";
@@ -104,7 +104,7 @@ impl IdentityService {
     /// The token encodes the user_id and is valid for 10 minutes.
     pub fn generate_pending_2fa_token(
         user_model: &user::Model,
-        jwt_keys: &JwtKeyPair,
+        jwt_keys: &JwtKeys,
     ) -> Result<String, AppError> {
         let claims = StandardClaims {
             sub: user_model.id.to_string(),
@@ -124,7 +124,7 @@ impl IdentityService {
     /// Verify the pending 2FA token and return the user_id.
     pub fn verify_pending_2fa_token(
         pending_token: &str,
-        jwt_keys: &JwtKeyPair,
+        jwt_keys: &JwtKeys,
     ) -> Result<i64, AppError> {
         let claims = jwt_keys
             .verify(pending_token)
@@ -146,7 +146,7 @@ impl IdentityService {
         redis: &mut redis::aio::ConnectionManager,
         settings: &crate::config::settings::Settings,
         user_model: &user::Model,
-        jwt_keys: &JwtKeyPair,
+        jwt_keys: &JwtKeys,
     ) -> Result<(String, String, user::Model), AppError> {
         let (role, branch_id, is_company_wide, permissions) =
             Self::load_user_context(db, user_model).await?;
@@ -388,7 +388,7 @@ impl IdentityService {
         redis: &mut redis::aio::ConnectionManager,
         settings: &crate::config::settings::Settings,
         refresh_token: &str,
-        jwt_keys: &JwtKeyPair,
+        jwt_keys: &JwtKeys,
     ) -> Result<(String, String, user::Model), AppError> {
         let token_hash = Self::hash_token(refresh_token);
 
@@ -467,7 +467,7 @@ impl IdentityService {
         settings: &crate::config::settings::Settings,
         email: &str,
         password: &str,
-        jwt_keys: &JwtKeyPair,
+        jwt_keys: &JwtKeys,
     ) -> Result<(String, String, user::Model), AppError> {
         let user_model = user::Entity::find()
             .filter(user::Column::Email.eq(email))
@@ -559,7 +559,7 @@ impl IdentityService {
         role: &str,
         branch_id: Option<i64>,
         is_company_wide: bool,
-        jwt_keys: &JwtKeyPair,
+        jwt_keys: &JwtKeys,
     ) -> Result<String, AppError> {
         let claims = StandardClaims {
             sub: user.id.to_string(),

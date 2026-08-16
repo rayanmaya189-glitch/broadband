@@ -151,65 +151,55 @@ impl TwilioSmsAdapter {
 #[async_trait]
 impl SmsProvider for TwilioSmsAdapter {
     async fn send_otp(&self, phone: &str, _template_id: Option<&str>) -> Result<String, AppError> {
-        // Use Twilio Verify API if service SID is configured
-        if let Some(ref service_sid) = self.config.verify_service_sid {
-            let url = format!(
-                "{}/v2/Services/{}/Verifications",
-                self.config.api_url, service_sid
-            );
+        // Fail closed: Twilio OTP MUST use Twilio Verify. The plain-SMS fallback
+        // below generated an OTP that verify_otp could never check, silently
+        // locking users out of OTP login.
+        let service_sid = self.config.verify_service_sid.as_deref().ok_or_else(|| {
+            AppError::External(
+                "Twilio Verify Service SID (TWILIO_VERIFY_SERVICE_SID) is not configured"
+                    .to_string(),
+            )
+        })?;
 
-            let form = [
-                ("To", &format!("+91{}", phone)),
-                ("Channel", &"sms".to_string()),
-            ];
-
-            debug!(phone = %phone, "Sending OTP via Twilio Verify");
-
-            let response = self
-                .client
-                .post(&url)
-                .header("Authorization", self.auth_header())
-                .form(&form)
-                .send()
-                .await
-                .map_err(|e| {
-                    AppError::External(format!("Twilio Verify API request failed: {}", e))
-                })?;
-
-            if !response.status().is_success() {
-                let status = response.status();
-                let body = response.text().await.unwrap_or_default();
-                warn!(status = %status, body = %body, "Twilio Verify send failed");
-                return Err(AppError::External(format!(
-                    "Twilio Verify API error ({}): {}",
-                    status, body
-                )));
-            }
-
-            let result: serde_json::Value = response.json().await.map_err(|e| {
-                AppError::External(format!("Failed to parse Twilio response: {}", e))
-            })?;
-
-            let sid = result["sid"].as_str().unwrap_or("").to_string();
-            info!(phone = %phone, sid = %sid, "Sent OTP via Twilio Verify");
-            return Ok(sid);
-        }
-
-        // Fallback: Generate OTP and send via regular SMS
-        let otp = {
-            use rand::Rng;
-            format!("{:06}", rand::thread_rng().gen_range(100000..999999))
-        };
-
-        let message = format!(
-            "Your AeroXe verification code is: {}. Valid for 5 minutes. Do not share this code.",
-            otp
+        let url = format!(
+            "{}/v2/Services/{}/Verifications",
+            self.config.api_url, service_sid
         );
 
-        let result = self
-            .send_message(&format!("+91{}", phone), &message)
-            .await?;
-        Ok(result.sid)
+        let form = [
+            ("To", &format!("+91{}", phone)),
+            ("Channel", &"sms".to_string()),
+        ];
+
+        debug!(phone = %phone, "Sending OTP via Twilio Verify");
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", self.auth_header())
+            .form(&form)
+            .send()
+            .await
+            .map_err(|e| AppError::External(format!("Twilio Verify API request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            warn!(status = %status, body = %body, "Twilio Verify send failed");
+            return Err(AppError::External(format!(
+                "Twilio Verify API error ({}): {}",
+                status, body
+            )));
+        }
+
+        let result: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| AppError::External(format!("Failed to parse Twilio response: {}", e)))?;
+
+        let sid = result["sid"].as_str().unwrap_or("").to_string();
+        info!(phone = %phone, sid = %sid, "Sent OTP via Twilio Verify");
+        Ok(sid)
     }
 
     async fn verify_otp(&self, phone: &str, otp: &str) -> Result<bool, AppError> {

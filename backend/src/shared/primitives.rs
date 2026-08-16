@@ -16,8 +16,18 @@ impl ClientIp {
         &self.0
     }
 
-    /// Extract client IP from request headers
+    /// Extract client IP from request headers.
+    ///
+    /// SECURITY: X-Forwarded-For / X-Real-IP are only honored when TRUST_PROXY=true,
+    /// matching the rate limiter, so a client cannot spoof its own IP in
+    /// audit/anomaly signals when the service is exposed directly.
     pub fn from_headers(headers: &axum::http::HeaderMap) -> Self {
+        let trust_proxy = std::env::var("TRUST_PROXY")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false);
+        if !trust_proxy {
+            return ClientIp("unknown".to_string());
+        }
         let ip = headers
             .get("x-forwarded-for")
             .and_then(|v| v.to_str().ok())
@@ -30,6 +40,15 @@ impl ClientIp {
             })
             .unwrap_or_else(|| "unknown".to_string());
         ClientIp(ip)
+    }
+
+    /// Best-effort client IP: the real peer socket address is authoritative;
+    /// forwarding headers are only consulted when TRUST_PROXY=true.
+    pub fn from_peer(peer: Option<std::net::SocketAddr>, headers: &axum::http::HeaderMap) -> Self {
+        match peer {
+            Some(addr) => ClientIp(addr.ip().to_string()),
+            None => Self::from_headers(headers),
+        }
     }
 }
 

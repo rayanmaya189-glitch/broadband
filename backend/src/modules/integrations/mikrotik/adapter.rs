@@ -220,6 +220,23 @@ impl MikrotikAdapter {
         )
     }
 
+    /// Redact sensitive fields (PPPoE passwords etc.) before a body is logged,
+    /// so a debug-level log never leaks credentials.
+    fn redact_sensitive(body: &serde_json::Value) -> serde_json::Value {
+        let mut redacted = body.clone();
+        if let serde_json::Value::Object(ref mut map) = redacted {
+            for key in ["password", "secret", "token", "authorization"] {
+                if map.contains_key(key) {
+                    map.insert(
+                        key.to_string(),
+                        serde_json::Value::String("[REDACTED]".to_string()),
+                    );
+                }
+            }
+        }
+        redacted
+    }
+
     /// Make a GET request to the REST API
     async fn rest_get(&self, path: &str) -> Result<serde_json::Value, AppError> {
         let url = format!("{}/{}", self.base_url, path.trim_start_matches('/'));
@@ -256,7 +273,11 @@ impl MikrotikAdapter {
         body: serde_json::Value,
     ) -> Result<serde_json::Value, AppError> {
         let url = format!("{}/{}", self.base_url, path.trim_start_matches('/'));
-        debug!(url = %url, body = %body, "MikroTik REST POST");
+        debug!(
+            url = %url,
+            body = %Self::redact_sensitive(&body),
+            "MikroTik REST POST"
+        );
 
         let response = self
             .client
@@ -270,7 +291,13 @@ impl MikrotikAdapter {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            warn!(status = %status, body = %body, "MikroTik REST POST failed");
+            warn!(
+                status = %status,
+                body = %Self::redact_sensitive(
+                    &serde_json::from_str(&body).unwrap_or(serde_json::Value::String(body.clone()))
+                ),
+                "MikroTik REST POST failed"
+            );
             return Err(AppError::External(format!(
                 "MikroTik API error ({}): {}",
                 status, body

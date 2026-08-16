@@ -6,20 +6,21 @@ use axum::middleware::Next;
 use axum::response::Response;
 
 use crate::shared::middleware::auth::UserContext;
-use crate::shared::utils::jwt_keys::{JwtKeyPair, StandardClaims};
+use crate::shared::utils::jwt_keys::{JwtKeys, StandardClaims};
+use std::sync::Arc;
 use std::sync::OnceLock;
 
-/// Global JWT key pair reference for the branch scope middleware.
+/// Global JWT key store reference for the branch scope middleware.
 /// Initialized once at startup via `init_jwt_keys_global`.
-static JWT_KEYS: OnceLock<JwtKeyPair> = OnceLock::new();
+static JWT_KEYS: OnceLock<Arc<JwtKeys>> = OnceLock::new();
 
-/// Initialize the global JWT key pair. Call once at startup.
-pub fn init_jwt_keys_global(keys: JwtKeyPair) {
+/// Initialize the global JWT key store. Call once at startup.
+pub fn init_jwt_keys_global(keys: Arc<JwtKeys>) {
     let _ = JWT_KEYS.set(keys);
 }
 
-/// Get the global JWT key pair reference.
-fn get_jwt_keys() -> Option<&'static JwtKeyPair> {
+/// Get the global JWT key store reference.
+fn get_jwt_keys() -> Option<&'static Arc<JwtKeys>> {
     JWT_KEYS.get()
 }
 
@@ -80,7 +81,6 @@ fn extract_user_context_from_headers(headers: &axum::http::HeaderMap) -> Option<
 
     let jwt_keys = get_jwt_keys()?;
     let claims: StandardClaims = jwt_keys.verify(token).ok()?;
-
     let user_id = claims.sub.parse::<i64>().unwrap_or(0);
 
     // Note: permissions are NOT fetched here (no Redis call in middleware).

@@ -1,45 +1,93 @@
+use axum::extract::connect_info::ConnectInfo;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use validator::Validate;
+use validator::ValidationError;
 
 use crate::modules::identity::application::otp as otp_service;
 use crate::modules::identity::application::services::IdentityService;
 use crate::modules::identity::application::two_factor;
 use crate::modules::identity::domain::entities::user;
+use crate::modules::identity::domain::rules::auth_rules::AuthRules;
 use crate::shared::app_state::AppState;
 use crate::shared::errors::AppError;
 use crate::shared::middleware::auth::{require_permission, UserContext};
 use crate::shared::primitives::{ClientIp, PaginationParams};
 use crate::shared::utils::login_anomaly;
 
-#[derive(Debug, Deserialize)]
+/// Run validator-crate validation on a request DTO and map failures to a 400.
+fn validate_input<T: Validate>(req: &T) -> Result<(), AppError> {
+    req.validate()
+        .map_err(|e| AppError::BadRequest(format!("Invalid request: {}", e)))
+}
+
+fn validate_phone(phone: &str) -> Result<(), ValidationError> {
+    let normalized = otp_service::normalize_phone(phone);
+    if AuthRules::is_valid_indian_phone(&normalized) {
+        Ok(())
+    } else {
+        Err(ValidationError::new("invalid_indian_phone"))
+    }
+}
+
+fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
+    if AuthRules::is_strong_password(password) {
+        Ok(())
+    } else {
+        Err(ValidationError::new("weak_password"))
+    }
+}
+
+fn validate_otp_code(code: &str) -> Result<(), ValidationError> {
+    let ok = code.len() >= 4 && code.len() <= 16 && code.chars().all(|c| c.is_ascii_digit());
+    if ok {
+        Ok(())
+    } else {
+        Err(ValidationError::new("invalid_otp_code"))
+    }
+}
+
+#[derive(Debug, Deserialize, Validate)]
 pub struct RegisterRequest {
+    #[validate(email)]
     pub email: String,
+    #[validate(custom(function = "validate_phone"))]
     pub phone: String,
+    #[validate(length(min = 2, max = 120))]
     pub name: String,
+    #[validate(
+        length(min = 8, max = 128),
+        custom(function = "validate_password_strength")
+    )]
     pub password: String,
     #[serde(default)]
     pub branch_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
+    #[validate(length(min = 3, max = 320))]
     pub email: String,
+    #[validate(length(min = 1, max = 256))]
     pub password: String,
 }
 
 /// Two-step 2FA login: verify TOTP code after password
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct Login2FARequest {
+    #[validate(length(min = 8, max = 512))]
     pub pending_token: String,
+    #[validate(custom(function = "validate_otp_code"))]
     pub code: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
+    #[validate(length(min = 8, max = 2048))]
     pub refresh_token: String,
 }
 
@@ -92,6 +140,7 @@ pub async fn register(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<AuthResponse>), AppError> {
+    validate_input(&req)?;
     let email = req.email.clone();
     let password = req.password.clone();
     let user = IdentityService::register(
@@ -132,13 +181,17 @@ pub async fn register(
 pub async fn login(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
+    validate_input(&req)?;
     let user_model =
         IdentityService::verify_password_only(&state.db, &req.email, &req.password).await?;
 
     // Login anomaly detection — check for new IP (non-blocking, best-effort)
-    let client_ip = ClientIp::from_headers(&headers);
+    // The real peer socket address is authoritative; forwarding headers are
+    // only honored when TRUST_PROXY=true (see ClientIp::from_peer).
+    let client_ip = ClientIp::from_peer(Some(peer), &headers);
     let ip_str = client_ip.as_str().to_string();
     let mut redis = state.redis.clone();
     let anomaly = login_anomaly::check_login_anomaly(&mut redis, user_model.id, &ip_str)
@@ -194,6 +247,7 @@ pub async fn login_2fa(
     State(state): State<Arc<AppState>>,
     Json(req): Json<Login2FARequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
+    validate_input(&req)?;
     let user_id = IdentityService::verify_pending_2fa_token(&req.pending_token, &state.jwt_keys)?;
 
     let user_model = user::Entity::find_by_id(user_id)
@@ -239,6 +293,7 @@ pub async fn refresh_token(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, AppError> {
+    validate_input(&req)?;
     let mut redis = state.redis.clone();
     let (access_token, refresh_token, _) = IdentityService::refresh_token(
         &state.db,
@@ -288,8 +343,9 @@ pub struct TwoFactorSetupResponse {
     pub backup_codes: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct TwoFactorVerifyRequest {
+    #[validate(custom(function = "validate_otp_code"))]
     pub code: String,
 }
 
@@ -326,6 +382,7 @@ pub async fn confirm_2fa(
     user: UserContext,
     Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    validate_input(&req)?;
     let user_model = IdentityService::get_user(&state.db, user.user_id).await?;
     let secret = user_model.two_factor_secret.as_deref().ok_or_else(|| {
         AppError::BadRequest("2FA not initialized. Call /2fa/setup first.".to_string())
@@ -353,6 +410,7 @@ pub async fn verify_2fa(
     user: UserContext,
     Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    validate_input(&req)?;
     let user_model = user::Entity::find_by_id(user.user_id)
         .one(&state.db)
         .await?
@@ -376,6 +434,7 @@ pub async fn verify_backup_code(
     user: UserContext,
     Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    validate_input(&req)?;
     let user_model = user::Entity::find_by_id(user.user_id)
         .one(&state.db)
         .await?
@@ -450,9 +509,14 @@ pub async fn logout_all(
     Ok(Json(serde_json::json!({ "status": "logged_out" })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ChangePasswordRequest {
+    #[validate(length(min = 1, max = 256))]
     pub current_password: String,
+    #[validate(
+        length(min = 8, max = 128),
+        custom(function = "validate_password_strength")
+    )]
     pub new_password: String,
 }
 
@@ -462,6 +526,7 @@ pub async fn change_password(
     user: UserContext,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    validate_input(&req)?;
     IdentityService::change_password(
         &state.db,
         user.user_id,
@@ -472,8 +537,9 @@ pub async fn change_password(
     Ok(Json(serde_json::json!({ "status": "password_changed" })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct PasswordResetRequest {
+    #[validate(length(min = 3, max = 320))]
     pub email: String,
 }
 
@@ -482,6 +548,7 @@ pub async fn request_password_reset(
     State(state): State<Arc<AppState>>,
     Json(req): Json<PasswordResetRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    validate_input(&req)?;
     let mut redis = state.redis.clone();
     IdentityService::request_password_reset(&state.db, &mut redis, &req.email).await?;
     Ok(Json(serde_json::json!({
@@ -489,9 +556,14 @@ pub async fn request_password_reset(
     })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct PasswordResetConfirmRequest {
+    #[validate(length(min = 16, max = 512))]
     pub token: String,
+    #[validate(
+        length(min = 8, max = 128),
+        custom(function = "validate_password_strength")
+    )]
     pub new_password: String,
 }
 
@@ -500,6 +572,7 @@ pub async fn confirm_password_reset(
     State(state): State<Arc<AppState>>,
     Json(req): Json<PasswordResetConfirmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    validate_input(&req)?;
     let mut redis = state.redis.clone();
     IdentityService::confirm_password_reset(&state.db, &mut redis, &req.token, &req.new_password)
         .await?;
@@ -540,8 +613,9 @@ pub async fn revoke_session(
 // OTP Login (§28 Security)
 // ──────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct OtpRequestRequest {
+    #[validate(custom(function = "validate_phone"))]
     pub phone: String,
     #[serde(default)]
     pub channel: Option<String>,
@@ -563,6 +637,7 @@ pub async fn request_otp(
     State(state): State<Arc<AppState>>,
     Json(req): Json<OtpRequestRequest>,
 ) -> Result<Json<OtpRequestResponse>, AppError> {
+    validate_input(&req)?;
     let channel = otp_service::OtpChannel::from_str(req.channel.as_deref().unwrap_or("sms"))?;
 
     let mut redis = state.redis.clone();
@@ -589,11 +664,13 @@ pub async fn request_otp(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct OtpVerifyRequest {
+    #[validate(custom(function = "validate_phone"))]
     pub phone: String,
     #[serde(default)]
     pub channel: Option<String>,
+    #[validate(custom(function = "validate_otp_code"))]
     pub code: String,
 }
 
@@ -603,6 +680,7 @@ pub async fn verify_otp(
     State(state): State<Arc<AppState>>,
     Json(req): Json<OtpVerifyRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
+    validate_input(&req)?;
     let channel = otp_service::OtpChannel::from_str(req.channel.as_deref().unwrap_or("sms"))?;
 
     let mut redis = state.redis.clone();
@@ -638,8 +716,9 @@ pub async fn verify_otp(
 }
 
 /// POST /api/v1/auth/otp/telegram-webhook — Receive Telegram bot updates.
-/// A user binds their phone by messaging the bot: `/start <phone>` or
-/// `/login <phone>`.
+/// A user binds their phone by messaging the bot:
+///   `/login <phone>`   — sends a verification code to the phone via SMS
+///   `/confirm <code>`  — confirms the binding from the same chat
 pub async fn telegram_webhook(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
@@ -659,17 +738,47 @@ pub async fn telegram_webhook(
     let parts: Vec<&str> = text.split_whitespace().collect();
 
     let mut redis = state.redis.clone();
-    let mut reply = String::from("Usage: send /login <phone> to enable OTP login.");
-    if parts.len() == 2 && matches!(parts[0], "/start" | "/login") {
-        match otp_service::bind_telegram_chat(&mut redis, parts[1], chat_id).await {
-            Ok(()) => {
-                reply = format!(
-                    "Phone {} is now linked. You can use it for OTP login.",
-                    parts[1]
-                );
+    // Two-step binding proves phone ownership before a chat is linked:
+    //   1. /login <phone>  -> a verification code is sent to the phone via SMS
+    //   2. /confirm <code> -> the same chat that started the flow confirms it
+    let mut reply =
+        String::from("Usage: /login <phone> to link a phone for OTP login, then /confirm <code>.");
+    match parts.as_slice() {
+        ["/start" | "/login", phone] => {
+            let normalized = otp_service::normalize_phone(phone);
+            if !AuthRules::is_valid_indian_phone(&normalized) {
+                reply = "Please provide a valid 10-digit Indian phone number.".to_string();
+            } else {
+                match otp_service::initiate_telegram_bind(
+                    &mut redis,
+                    &normalized,
+                    chat_id,
+                    &state.settings.app_name,
+                )
+                .await
+                {
+                    Ok(()) => {
+                        reply = format!(
+                            "A verification code has been sent to {}. Reply with /confirm <code> within 5 minutes.",
+                            normalized
+                        );
+                    }
+                    Err(e) => reply = format!("Could not start linking phone: {}", e),
+                }
             }
-            Err(e) => reply = format!("Could not link phone: {}", e),
         }
+        ["/confirm", code] => {
+            match otp_service::confirm_telegram_bind(&mut redis, chat_id, code).await {
+                Ok(phone) => {
+                    reply = format!(
+                        "Phone {} is now linked. You can use it for OTP login.",
+                        phone
+                    );
+                }
+                Err(e) => reply = format!("Could not confirm phone: {}", e),
+            }
+        }
+        _ => {}
     }
 
     let adapter = crate::modules::integrations::telegram::TelegramBotAdapter::from_env();

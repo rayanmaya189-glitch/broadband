@@ -17,6 +17,7 @@ export const PROTOBUF_CONTENT_TYPE = 'application/protobuf';
 
 let tokenProvider: (() => string | null) | null = null;
 let unauthorizedHandler: (() => void) | null = null;
+let refreshHandler: (() => Promise<boolean>) | null = null;
 
 export function setAdminTokenProvider(fn: () => string | null) {
   tokenProvider = fn;
@@ -26,8 +27,12 @@ export function setAdminUnauthorizedHandler(fn: () => void) {
   unauthorizedHandler = fn;
 }
 
+export function setAdminRefreshHandler(fn: () => Promise<boolean>) {
+  refreshHandler = fn;
+}
+
 function apiBase(): string {
-  return import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  return import.meta.env.VITE_API_URL || '/api';
 }
 
 interface RawResult {
@@ -69,8 +74,31 @@ async function raw(
   }
 
   if (resp.status === 401) {
-    unauthorizedHandler?.();
-    throw new ApiError(401, 'Session expired. Please sign in again.');
+    // Attempt a silent token refresh before forcing a sign-out.
+    const refreshed = refreshHandler ? await refreshHandler() : false;
+    if (refreshed) {
+      const newToken = tokenProvider?.() ?? null;
+      if (newToken) {
+        const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+        try {
+          resp = await fetch(url, { method, headers: retryHeaders, body: opts.body });
+        } catch {
+          throw new ApiError(0, 'Network error — cannot reach the API server');
+        }
+        if (resp.status !== 401) {
+          // Continue to the normal response handling below.
+        } else {
+          unauthorizedHandler?.();
+          throw new ApiError(401, 'Session expired. Please sign in again.');
+        }
+      } else {
+        unauthorizedHandler?.();
+        throw new ApiError(401, 'Session expired. Please sign in again.');
+      }
+    } else {
+      unauthorizedHandler?.();
+      throw new ApiError(401, 'Session expired. Please sign in again.');
+    }
   }
 
   const contentType = resp.headers.get('content-type') ?? '';

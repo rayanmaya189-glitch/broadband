@@ -233,10 +233,36 @@ impl PaymentService {
             created_at: Set(now),
             ..Default::default()
         };
-        let payment = payment_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to record payment: {}", e)))?;
+        let payment = match payment_model.insert(&txn).await {
+            Ok(p) => p,
+            Err(e) if crate::shared::errors::is_unique_violation(&e) => {
+                // A concurrent webhook replay already recorded this transaction.
+                // Roll back (the failed statement aborts the txn) and return the
+                // reconciled link idempotently.
+                txn.rollback().await.map_err(|re| {
+                    AppError::Internal(anyhow::anyhow!("Failed to rollback transaction: {}", re))
+                })?;
+                let existing = payment_link::Entity::find()
+                    .filter(payment_link::Column::LinkId.eq(&link.link_id))
+                    .one(db)
+                    .await
+                    .map_err(|e| {
+                        AppError::Internal(anyhow::anyhow!("Failed to reload payment link: {}", e))
+                    })?
+                    .ok_or_else(|| AppError::NotFound("Payment link not found".to_string()))?;
+                debug!(
+                    transaction_id = %gateway_transaction_id,
+                    "Payment already recorded by concurrent replay (idempotent)"
+                );
+                return Ok(existing);
+            }
+            Err(e) => {
+                return Err(AppError::Internal(anyhow::anyhow!(
+                    "Failed to record payment: {}",
+                    e
+                )))
+            }
+        };
 
         // 2. Mark the payment link completed.
         let mut active: payment_link::ActiveModel = link.clone().into();
@@ -821,12 +847,20 @@ impl PaymentService {
             ..Default::default()
         };
 
-        model
-            .insert(db)
-            .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to log webhook: {}", e)))?;
-
-        Ok(false) // New webhook
+        // DB-backed idempotency: a concurrent replay that already logged this
+        // event will hit the unique (gateway_id, event_id) constraint, which is
+        // the same as the existing-row short-circuit above.
+        match model.insert(db).await {
+            Ok(_) => Ok(false), // New webhook
+            Err(e) if crate::shared::errors::is_unique_violation(&e) => {
+                debug!(event_id = %event_id, "Webhook already processed (idempotent)");
+                Ok(true)
+            }
+            Err(e) => Err(AppError::Internal(anyhow::anyhow!(
+                "Failed to log webhook: {}",
+                e
+            ))),
+        }
     }
 
     /// Mark webhook as processed
@@ -946,12 +980,16 @@ impl PaymentService {
     ) -> Result<(sea_orm::prelude::Decimal, i64), AppError> {
         use crate::modules::referral::domain::entities::{customer_wallet, wallet_transaction};
         use sea_orm::IntoActiveModel;
+        use sea_orm::QuerySelect;
 
         let now = chrono::Utc::now();
         let zero = sea_orm::prelude::Decimal::ZERO;
 
+        // FOR UPDATE: serialize concurrent credits so the read-modify-write
+        // below cannot lose a concurrent update to the balance.
         let wallet = match customer_wallet::Entity::find()
             .filter(customer_wallet::Column::CustomerId.eq(customer_id))
+            .lock_exclusive()
             .one(txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load wallet: {}", e)))?
@@ -1019,11 +1057,15 @@ impl PaymentService {
     ) -> Result<(sea_orm::prelude::Decimal, i64), AppError> {
         use crate::modules::referral::domain::entities::{customer_wallet, wallet_transaction};
         use sea_orm::IntoActiveModel;
+        use sea_orm::QuerySelect;
 
         let now = chrono::Utc::now();
 
+        // FOR UPDATE: serialize concurrent debits (and credits) so the
+        // balance read and the insufficient-funds check are race-free.
         let wallet = customer_wallet::Entity::find()
             .filter(customer_wallet::Column::CustomerId.eq(customer_id))
+            .lock_exclusive()
             .one(txn)
             .await
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to load wallet: {}", e)))?

@@ -10,7 +10,7 @@ use crate::shared::errors::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, TransactionTrait,
 };
 
 /// Minimum date for balance sheet queries (epoch)
@@ -203,7 +203,10 @@ impl AccountingService {
             updated_at: Set(now),
             ..Default::default()
         };
-        let saved_entry = entry.insert(db).await?;
+        // Insert the header and all lines atomically — a partial entry (header
+        // without all lines) would be unbalanced and untraceable.
+        let txn = db.begin().await?;
+        let saved_entry = entry.insert(&txn).await?;
 
         // Insert lines
         for line in lines {
@@ -216,8 +219,10 @@ impl AccountingService {
                 created_at: Set(Utc::now()),
                 ..Default::default()
             };
-            line_model.insert(db).await?;
+            line_model.insert(&txn).await?;
         }
+
+        txn.commit().await?;
 
         Ok(saved_entry)
     }

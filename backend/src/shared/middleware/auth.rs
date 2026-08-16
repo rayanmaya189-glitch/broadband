@@ -45,10 +45,12 @@ impl axum::extract::FromRequestParts<Arc<AppState>> for UserContext {
             )
         })?;
 
-        let claims: StandardClaims = state
-            .jwt_keys
-            .verify(token)
-            .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
+        let claims: StandardClaims = state.jwt_keys.verify(token).map_err(|_| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Invalid or expired token".to_string(),
+            )
+        })?;
 
         let user_id = claims.sub.parse::<i64>().unwrap_or(0);
         let email = claims.email;

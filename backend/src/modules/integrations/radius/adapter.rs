@@ -592,6 +592,9 @@ impl RadiusClient for RadiusAdapter {
                 username = %request.username,
                 "RADIUS response authenticator validation failed — possible spoofing"
             );
+            return Err(AppError::External(
+                "RADIUS response authenticator validation failed".to_string(),
+            ));
         }
 
         let accepted = response.packet_type == RadiusPacketType::AccessAccept;

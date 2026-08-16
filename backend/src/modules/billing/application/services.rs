@@ -228,8 +228,10 @@ impl BillingService {
         let mut count = 0u64;
         for sub in due_subscriptions {
             let period_start = sub.next_billing_date.unwrap_or(today);
-            let period_end =
-                period_start + chrono::Duration::days(30 * sub.billing_period_months as i64);
+            let period_end = crate::shared::utils::billing_period::period_end_months(
+                period_start,
+                sub.billing_period_months as u32,
+            );
 
             // Dedupe on the actual billing period (subscription + period start),
             // not on `today`: the generated invoice's period_end is derived from
@@ -300,19 +302,36 @@ impl BillingService {
                 ..Default::default()
             };
 
-            if let Ok(invoice) = new_inv.insert(db).await {
-                // Update subscription's next_billing_date
-                let mut sub_active: crate::modules::subscription::domain::entities::SubscriptionActiveModel = sub.into();
-                sub_active.next_billing_date = Set(Some(period_end));
-                sub_active.updated_at = Set(now);
-                let _ = sub_active.update(db).await;
+            match new_inv.insert(db).await {
+                Ok(invoice) => {
+                    // Update subscription's next_billing_date
+                    let mut sub_active: crate::modules::subscription::domain::entities::SubscriptionActiveModel = sub.into();
+                    sub_active.next_billing_date = Set(Some(period_end));
+                    sub_active.updated_at = Set(now);
+                    let _ = sub_active.update(db).await;
 
-                count += 1;
-                tracing::info!(
-                    invoice_id = invoice.id,
-                    subscription_id = invoice.subscription_id,
-                    "Auto-generated invoice"
-                );
+                    count += 1;
+                    tracing::info!(
+                        invoice_id = invoice.id,
+                        subscription_id = invoice.subscription_id,
+                        "Auto-generated invoice"
+                    );
+                }
+                Err(e) if crate::shared::errors::is_unique_violation(&e) => {
+                    tracing::debug!(
+                        subscription_id = sub.id,
+                        period_start = %period_start,
+                        "Invoice already generated (idempotent)"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        subscription_id = sub.id,
+                        period_start = %period_start,
+                        error = %e,
+                        "Failed to auto-generate invoice"
+                    );
+                }
             }
         }
 
@@ -389,64 +408,84 @@ impl BillingService {
         use crate::modules::payment::infrastructure::gateway_adapter::{
             GatewayAdapter, PayuAdapter, RazorpayAdapter, StripeAdapter,
         };
+        use sea_orm::QuerySelect;
 
-        let txn = db.begin().await?;
-        let refund = Refund::find_by_id(id)
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Refund {} not found", id)))?;
-        if refund.status != "pending" {
-            return Err(AppError::Validation(
-                "Refund is not in pending status".to_string(),
-            ));
-        }
-        let payment = Payment::find_by_id(refund.payment_id)
-            .one(&txn)
-            .await?
-            .ok_or_else(|| {
-                AppError::NotFound(format!("Payment {} not found", refund.payment_id))
-            })?;
+        // ── Phase 1: load and validate under a short-lived transaction. The
+        // refund row is locked FOR UPDATE so concurrent approvals serialize. ──
+        let (
+            refund_id,
+            refund_number,
+            invoice_id,
+            customer_id,
+            amount,
+            currency,
+            method,
+            gateway_name,
+            gateway_txn_id,
+            is_wallet,
+            original_review_notes,
+        ) = {
+            let txn = db.begin().await?;
+            let refund = Refund::find_by_id(id)
+                .lock_exclusive()
+                .one(&txn)
+                .await?
+                .ok_or_else(|| AppError::NotFound(format!("Refund {} not found", id)))?;
+            if refund.status != "pending" {
+                return Err(AppError::Validation(
+                    "Refund is not in pending status".to_string(),
+                ));
+            }
+            let payment = Payment::find_by_id(refund.payment_id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("Payment {} not found", refund.payment_id))
+                })?;
 
-        let refund_id = refund.id;
-        let refund_number = refund.refund_number.clone();
-        let invoice_id = refund.invoice_id;
-        let customer_id = refund.customer_id;
-        let amount = refund.amount;
-        let original_review_notes = refund.review_notes.clone();
-        let now = chrono::Utc::now();
+            let method = payment.payment_method.to_lowercase();
+            let gateway = payment.payment_gateway.clone().unwrap_or_default();
+            let is_wallet = method == "wallet";
+            let gateway_name = if !gateway.is_empty() {
+                gateway.to_lowercase()
+            } else {
+                method.clone()
+            };
 
-        let method = payment.payment_method.to_lowercase();
-        let gateway = payment.payment_gateway.clone().unwrap_or_default();
-        let is_wallet = method == "wallet";
-        let gateway_name = if !gateway.is_empty() {
-            gateway.to_lowercase()
-        } else {
-            method.clone()
+            // Validate the funding source early, before any gateway call.
+            if !is_wallet && payment.gateway_transaction_id.is_none() {
+                return Err(AppError::Validation(format!(
+                    "Payment {} has no gateway transaction id to refund",
+                    payment.id
+                )));
+            }
+
+            let fields = (
+                refund.id,
+                refund.refund_number.clone(),
+                refund.invoice_id,
+                refund.customer_id,
+                refund.amount,
+                payment.currency.clone(),
+                method,
+                gateway_name,
+                payment.gateway_transaction_id.clone(),
+                is_wallet,
+                refund.review_notes.clone(),
+            );
+            txn.commit().await?;
+            fields
         };
 
-        // Execute the refund against the original funding source.
+        // ── Phase 2: execute the refund at the gateway OUTSIDE any DB
+        // transaction, so the network call never holds a DB connection or row
+        // locks. Wallet refunds have no external call (credit happens in phase
+        // 3, atomically with the status change). ──
         let mut gateway_refund_id: Option<String> = None;
         let mut gateway_refund_status: Option<String> = None;
 
-        if is_wallet {
-            // Money returns to the customer's wallet in the same transaction.
-            PaymentService::credit_wallet(
-                &txn,
-                customer_id,
-                amount,
-                "refund",
-                refund_id,
-                "refund",
-                Some(&format!("Refund {} approved", refund_number)),
-            )
-            .await?;
-        } else {
-            let gateway_txn_id = payment.gateway_transaction_id.clone().ok_or_else(|| {
-                AppError::Validation(format!(
-                    "Payment {} has no gateway transaction id to refund",
-                    payment.id
-                ))
-            })?;
+        if !is_wallet {
+            let gateway_txn_id = gateway_txn_id.as_deref().unwrap_or_default();
             let reason = Some(format!("Refund {}", refund_number));
 
             match gateway_name.as_str() {
@@ -459,12 +498,7 @@ impl BillingService {
                         ));
                     }
                     let resp = adapter
-                        .refund_payment(
-                            &gateway_txn_id,
-                            amount,
-                            &payment.currency,
-                            reason.as_deref(),
-                        )
+                        .refund_payment(gateway_txn_id, amount, &currency, reason.as_deref())
                         .await?;
                     gateway_refund_id = Some(resp.refund_id);
                     gateway_refund_status = Some(resp.status);
@@ -478,12 +512,7 @@ impl BillingService {
                         ));
                     }
                     let resp = adapter
-                        .refund_payment(
-                            &gateway_txn_id,
-                            amount,
-                            &payment.currency,
-                            reason.as_deref(),
-                        )
+                        .refund_payment(gateway_txn_id, amount, &currency, reason.as_deref())
                         .await?;
                     gateway_refund_id = Some(resp.refund_id);
                     gateway_refund_status = Some(resp.status);
@@ -496,12 +525,7 @@ impl BillingService {
                         ));
                     }
                     let resp = adapter
-                        .refund_payment(
-                            &gateway_txn_id,
-                            amount,
-                            &payment.currency,
-                            reason.as_deref(),
-                        )
+                        .refund_payment(gateway_txn_id, amount, &currency, reason.as_deref())
                         .await?;
                     gateway_refund_id = Some(resp.refund_id);
                     gateway_refund_status = Some(resp.status);
@@ -518,6 +542,30 @@ impl BillingService {
             }
         }
 
+        // ── Phase 3: persist the outcome atomically. ──
+        let now = chrono::Utc::now();
+        let txn = db.begin().await?;
+        let refund = Refund::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Refund {} not found", id)))?;
+        if refund.status != "pending" {
+            // The refund changed state while the gateway call was in flight.
+            // If the gateway already issued a refund, surface it loudly for
+            // manual reconciliation.
+            if gateway_refund_id.is_some() {
+                tracing::error!(
+                    refund_id = id,
+                    gateway_refund_id = ?gateway_refund_id,
+                    "Refund changed state during gateway call but gateway issued a refund — manual reconciliation required"
+                );
+            }
+            return Err(AppError::Validation(
+                "Refund is not in pending status".to_string(),
+            ));
+        }
+
         // Determine the final refund status from the funding-source result.
         let (status, processed_at) = if is_wallet {
             ("processed".to_string(), Some(now))
@@ -528,7 +576,7 @@ impl BillingService {
                     // Gateway declined the refund — keep it pending for retry.
                     return Err(AppError::External(format!(
                         "Gateway rejected refund for payment {} ({})",
-                        payment.id, g
+                        refund_id, g
                     )));
                 }
                 _ => ("approved".to_string(), None),
@@ -537,6 +585,21 @@ impl BillingService {
             // Offline refund is settled outside the system; record as processed.
             ("processed".to_string(), Some(now))
         };
+
+        // Wallet refunds: money returns to the customer's wallet in the same
+        // transaction as the status change.
+        if is_wallet {
+            PaymentService::credit_wallet(
+                &txn,
+                customer_id,
+                amount,
+                "refund",
+                refund_id,
+                "refund",
+                Some(&format!("Refund {} approved", refund_number)),
+            )
+            .await?;
+        }
 
         let mut active: RefundActiveModel = refund.into();
         active.status = Set(status.clone());

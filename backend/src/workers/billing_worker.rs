@@ -396,18 +396,56 @@ impl BillingWorker {
                 .await;
             let Ok(Some(sub)) = sub else { continue };
 
-            let bytes_used =
-                Some(sub.bytes_used.unwrap_or(0) + session.bytes_in + session.bytes_out);
-            let mut active: subscription::ActiveModel = sub.into();
-            active.bytes_used = Set(bytes_used);
-            active.last_session_duration = Set(Some(session.session_duration_seconds));
-            active.last_session_at = Set(Some(chrono::Utc::now()));
-            active.updated_at = Set(chrono::Utc::now());
-            if let Err(e) = active.update(&self.db).await {
-                error!(session_id = session.id, error = %e, "Failed to sync usage to subscription");
+            // Only count the bytes accumulated since the previous sync; without
+            // a watermark every poll re-added the whole session's counters.
+            let delta_in = (session.bytes_in - session.usage_synced_bytes_in).max(0);
+            let delta_out = (session.bytes_out - session.usage_synced_bytes_out).max(0);
+            if delta_in == 0 && delta_out == 0 {
                 continue;
             }
-            synced += 1;
+
+            let txn = match self.db.begin().await {
+                Ok(t) => t,
+                Err(e) => {
+                    error!(session_id = session.id, error = %e, "Failed to begin usage sync txn");
+                    continue;
+                }
+            };
+
+            let result: Result<(), sea_orm::DbErr> = async {
+                let bytes_used = Some(sub.bytes_used.unwrap_or(0) + delta_in + delta_out);
+                let mut active: subscription::ActiveModel = sub.clone().into();
+                active.bytes_used = Set(bytes_used);
+                active.last_session_duration = Set(Some(session.session_duration_seconds));
+                active.last_session_at = Set(Some(chrono::Utc::now()));
+                active.updated_at = Set(chrono::Utc::now());
+                active.update(&txn).await?;
+
+                // Advance the watermark on the session atomically with the
+                // subscription update, so a crash cannot double-count a delta.
+                let mut sess_active: pppoe_session::ActiveModel = session.clone().into();
+                sess_active.usage_synced_bytes_in = Set(session.bytes_in);
+                sess_active.usage_synced_bytes_out = Set(session.bytes_out);
+                sess_active.updated_at = Set(chrono::Utc::now());
+                sess_active.update(&txn).await?;
+
+                Ok(())
+            }
+            .await;
+
+            match result {
+                Ok(()) => {
+                    if let Err(e) = txn.commit().await {
+                        error!(session_id = session.id, error = %e, "Failed to commit usage sync");
+                        continue;
+                    }
+                    synced += 1;
+                }
+                Err(e) => {
+                    let _ = txn.rollback().await;
+                    error!(session_id = session.id, error = %e, "Failed to sync usage to subscription");
+                }
+            }
         }
 
         info!(

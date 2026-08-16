@@ -18,6 +18,11 @@ export default class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // Keep render failures observable in production logs.
+    console.error('[ErrorBoundary]', error, info.componentStack);
+  }
+
   handleRetry = () => {
     this.setState({ hasError: false, error: null });
   };

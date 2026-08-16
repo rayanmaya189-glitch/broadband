@@ -71,6 +71,67 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Resolve and normalize the application environment.
+    ///
+    /// Fail-closed: missing `APP_ENV` defaults to `development`, but we warn
+    /// loudly so a production deployment that forgets to set `APP_ENV` does not
+    /// silently run with permissive CORS, ephemeral JWT keys and Swagger.
+    fn resolve_environment() -> String {
+        match env::var("APP_ENV") {
+            Ok(v) => v.trim().to_lowercase(),
+            Err(_) => {
+                tracing::warn!(
+                    "APP_ENV is not set — defaulting to `development`. \
+                     Set APP_ENV=production in production deployments."
+                );
+                "development".to_string()
+            }
+        }
+    }
+
+    /// Fail-closed configuration validation, run at boot.
+    pub fn validate_environment(&self) -> Result<()> {
+        match self.app_env.as_str() {
+            "production" => {
+                if self.jwt_private_key_pem.is_none() || self.jwt_public_key_pem.is_none() {
+                    anyhow::bail!(
+                        "APP_ENV=production requires JWT_PRIVATE_KEY and JWT_PUBLIC_KEY \
+                         (RS256 PEM). Refusing to boot with ephemeral signing keys."
+                    );
+                }
+                if self.cors_origins.is_empty()
+                    || self.cors_origins.iter().any(|o| o == "*" || o.is_empty())
+                {
+                    anyhow::bail!(
+                        "APP_ENV=production requires explicit CORS_ORIGINS (wildcard is not allowed)."
+                    );
+                }
+                if self.smtp_password.is_empty() || self.smtp_username.is_empty() {
+                    tracing::warn!(
+                        "SMTP_USERNAME/SMTP_PASSWORD are not set — transactional email will be unavailable."
+                    );
+                }
+            }
+            "development" | "dev" | "test" => {
+                if self.server_addr.starts_with("0.0.0.0")
+                    && self.app_public_url.contains("localhost")
+                {
+                    tracing::warn!(
+                        "Server is bound to 0.0.0.0 while APP_PUBLIC_URL points to localhost — \
+                         external users may be able to reach this instance."
+                    );
+                }
+            }
+            other => {
+                anyhow::bail!(
+                    "APP_ENV must be one of `development`, `production` (got `{}`)",
+                    other
+                );
+            }
+        }
+        Ok(())
+    }
+
     pub fn from_env() -> Result<Self> {
         Ok(Self {
             server_addr: env::var("SERVER_ADDR").unwrap_or_else(|_| "0.0.0.0:8000".to_string()),
@@ -131,7 +192,7 @@ impl Settings {
                 .unwrap_or_else(|_| "noreply@aeroxebroadband.com".to_string()),
 
             app_name: env::var("APP_NAME").unwrap_or_else(|_| "AeroXe Broadband".to_string()),
-            app_env: env::var("APP_ENV").unwrap_or_else(|_| "development".to_string()),
+            app_env: Self::resolve_environment(),
             app_public_url: env::var("APP_PUBLIC_URL")
                 .unwrap_or_else(|_| "http://localhost:8000".to_string()),
             cors_origins: env::var("CORS_ORIGINS")

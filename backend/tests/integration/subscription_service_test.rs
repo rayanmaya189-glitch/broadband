@@ -240,7 +240,7 @@ async fn test_renew_subscription_creates_invoice() {
     let today = chrono::Utc::now().date_naive();
     assert_eq!(
         renewed.next_billing_date,
-        Some(today + chrono::Duration::days(30))
+        Some(aeroxe_backend::shared::utils::billing_period::period_end_months(today, 1))
     );
 
     use aeroxe_backend::modules::billing::domain::entities::Invoice;

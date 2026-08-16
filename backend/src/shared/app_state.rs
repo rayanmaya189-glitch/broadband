@@ -4,7 +4,7 @@ use crate::config::settings::Settings;
 use crate::infrastructure::metrics::SharedMetrics;
 use crate::infrastructure::storage::StorageService;
 use crate::shared::middleware::rate_limit::RateLimitStore;
-use crate::shared::utils::jwt_keys::{JwtKeyPair, JwtKeyRotationManager};
+use crate::shared::utils::jwt_keys::{JwtKeyRotationManager, JwtKeys};
 
 /// Shared application state available to all handlers.
 pub struct AppState {
@@ -17,7 +17,7 @@ pub struct AppState {
     pub settings: Settings,
     pub storage: Option<StorageService>,
     pub rate_limit_store: Arc<RateLimitStore>,
-    pub jwt_keys: Arc<JwtKeyPair>,
+    pub jwt_keys: Arc<JwtKeys>,
     pub jwt_rotation_manager: Arc<JwtKeyRotationManager>,
     pub metrics: Option<SharedMetrics>,
     /// Semaphore to cap concurrent Redis Pub/Sub connections (used by WebSocket).
@@ -30,10 +30,10 @@ impl AppState {
         db: sea_orm::DatabaseConnection,
         redis: redis::aio::ConnectionManager,
         settings: Settings,
-        jwt_keys: JwtKeyPair,
+        jwt_keys: Arc<JwtKeys>,
     ) -> Self {
         let rotation_manager =
-            JwtKeyRotationManager::new(jwt_keys.clone(), settings.jwt_key_rotation_days);
+            JwtKeyRotationManager::from_arc(jwt_keys.clone(), settings.jwt_key_rotation_days);
         Self {
             db,
             redis: redis.clone(),
@@ -43,7 +43,7 @@ impl AppState {
             settings,
             storage: None,
             rate_limit_store: Arc::new(RateLimitStore::new(redis)),
-            jwt_keys: Arc::new(jwt_keys),
+            jwt_keys,
             jwt_rotation_manager: Arc::new(rotation_manager),
             metrics: None,
             ws_pubsub_semaphore: Arc::new(tokio::sync::Semaphore::new(100)),

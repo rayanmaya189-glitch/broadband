@@ -333,8 +333,10 @@ impl SmsProvider for Msg91Adapter {
     }
 
     async fn check_delivery(&self, request_id: &str) -> Result<SmsDeliveryStatus, AppError> {
+        // Delivery report endpoint — NOT the `/otp/retry` endpoint, which would
+        // re-send the OTP to the customer on every delivery poll.
         let url = format!(
-            "https://api.msg91.com/api/v5/otp/retry?request_id={}",
+            "https://api.msg91.com/api/v5/otp/report?request_id={}",
             request_id
         );
 

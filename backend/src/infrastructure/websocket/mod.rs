@@ -149,10 +149,12 @@ pub async fn ws_handler(
     })?;
 
     // Verify JWT token
-    let claims: StandardClaims = state
-        .jwt_keys
-        .verify(&token)
-        .map_err(|e| (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))?;
+    let claims: StandardClaims = state.jwt_keys.verify(&token).map_err(|_| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "Invalid or expired token".to_string(),
+        )
+    })?;
 
     let user_id = claims.sub.parse::<i64>().map_err(|_| {
         (

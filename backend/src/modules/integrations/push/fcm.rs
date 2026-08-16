@@ -189,8 +189,11 @@ pub struct PushDeliveryStatus {
 pub struct FcmAdapter {
     config: FcmConfig,
     client: Client,
-    /// Cached access token
-    access_token: Option<String>,
+    /// Cached OAuth2 access token and when it was acquired.
+    ///
+    /// Google access tokens expire after 3600s; caching without an expiry meant
+    /// every push after the first hour got a 401 until the process restarted.
+    access_token: Option<(String, std::time::Instant)>,
 }
 
 impl FcmAdapter {
@@ -226,8 +229,12 @@ impl FcmAdapter {
     /// NOTE: For production, add the `jsonwebtoken` crate and replace
     /// the signing logic with proper RS256 JWT creation.
     async fn get_access_token(&mut self) -> Result<String, AppError> {
-        if let Some(ref token) = self.access_token {
-            return Ok(token.clone());
+        // Reuse the cached token while it is comfortably inside its 1h lifetime
+        // (refresh 10 minutes early to avoid a mid-burst 401).
+        if let Some((ref token, acquired)) = self.access_token {
+            if acquired.elapsed() < std::time::Duration::from_secs(3000) {
+                return Ok(token.clone());
+            }
         }
 
         // Parse service account key
@@ -311,7 +318,7 @@ impl FcmAdapter {
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Missing access_token in response")))?
             .to_string();
 
-        self.access_token = Some(access_token.clone());
+        self.access_token = Some((access_token.clone(), std::time::Instant::now()));
         Ok(access_token)
     }
 

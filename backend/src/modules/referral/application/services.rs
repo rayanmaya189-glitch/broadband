@@ -56,11 +56,14 @@ impl ReferralService {
         db: &impl ConnectionTrait,
         customer_id: i64,
     ) -> Result<crate::modules::referral::domain::entities::customer_wallet::Model, AppError> {
+        // FOR UPDATE: within a transaction this serializes concurrent reward
+        // credits for the same customer so the balance cannot be lost.
         let wallet = CustomerWallet::find()
             .filter(
                 crate::modules::referral::domain::entities::customer_wallet::Column::CustomerId
                     .eq(customer_id),
             )
+            .lock_exclusive()
             .one(db)
             .await?;
         if let Some(w) = wallet {

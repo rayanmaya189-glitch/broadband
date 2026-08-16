@@ -598,19 +598,58 @@ impl HuaweiOltAdapter for HuaweiOltSshAdapter {
         let cmd = format!("display ont info {} {} {} summary", frame, slot, pon);
         let result = self.ssh_execute(&cmd).await?;
 
-        // Parse output for ONT count
-        let ont_count = result
-            .output
-            .lines()
-            .filter(|l| l.contains("ONT") || l.contains("Total"))
-            .count() as u32;
+        // Parse real telemetry from the summary table instead of fabricating it:
+        // each ONT row starts with "<frame/slot/pon> <ontid>" followed by the
+        // run state (e.g. "online", "offline", "active").
+        let pon_prefix = format!("{}/{}/{}", frame, slot, pon);
+        let mut ont_count = 0u32;
+        let mut online_count = 0u32;
+        for line in result.output.lines() {
+            let line = line.trim();
+            let row_ok = line.starts_with(&pon_prefix)
+                && line[pon_prefix.len()..]
+                    .chars()
+                    .next()
+                    .map(|c| c.is_whitespace())
+                    .unwrap_or(true);
+            if !row_ok {
+                continue;
+            }
+            ont_count += 1;
+            if line.split_whitespace().any(|t| {
+                t.eq_ignore_ascii_case("online")
+                    || t.eq_ignore_ascii_case("normal")
+                    || t.eq_ignore_ascii_case("active")
+            }) {
+                online_count += 1;
+            }
+        }
+
+        // Never claim a PON is online without evidence from the device.
+        if ont_count == 0 {
+            return Err(AppError::External(format!(
+                "Huawei OLT returned no ONT rows for PON {}/{}/{} — cannot report status",
+                frame, slot, pon
+            )));
+        }
+
+        let state = if online_count > 0 {
+            "online"
+        } else {
+            "offline"
+        };
+
+        info!(
+            frame,
+            slot, pon, ont_count, online_count, "Huawei PON status"
+        );
 
         Ok(PonInterfaceStatus {
             frame,
             slot,
             pon_id: pon,
-            state: "online".to_string(),
-            ont_count: ont_count.max(1),
+            state: state.to_string(),
+            ont_count,
             max_ont_count: 128,
             bandwidth_mbps: 2500,
         })

@@ -51,6 +51,18 @@ impl From<sea_orm::DbErr> for AppError {
     }
 }
 
+/// Detect a Postgres unique-constraint violation (SQLSTATE 23505) inside a
+/// sea_orm error chain. Used for DB-backed idempotency, where a concurrent
+/// duplicate insert must be treated as an already-processed success.
+pub fn is_unique_violation(err: &sea_orm::DbErr) -> bool {
+    match err {
+        sea_orm::DbErr::Exec(sea_orm::RuntimeErr::SqlxError(sea_orm::sqlx::Error::Database(
+            db,
+        ))) => db.code().map(|c| c == "23505").unwrap_or(false),
+        _ => false,
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match &self {

@@ -161,18 +161,35 @@ impl NetworkService {
         pool_id: i64,
         customer_id: i64,
     ) -> Result<crate::modules::network::domain::entities::ip_pool::Model, AppError> {
-        let pool = Self::get_ip_pool(db, pool_id).await?;
-        if pool.allocated_count >= pool.total_count {
+        use crate::modules::network::domain::entities::ip_pool;
+        use sea_orm::sea_query::Expr;
+
+        // Atomic conditional increment: the WHERE clause enforces capacity, so
+        // two concurrent allocations cannot both read the same free slot.
+        let now = chrono::Utc::now();
+        let result = ip_pool::Entity::update_many()
+            .col_expr(
+                ip_pool::Column::AllocatedCount,
+                Expr::col(ip_pool::Column::AllocatedCount).add(1),
+            )
+            .col_expr(ip_pool::Column::UpdatedAt, Expr::value(now))
+            .filter(ip_pool::Column::Id.eq(pool_id))
+            .filter(
+                Expr::col(ip_pool::Column::AllocatedCount)
+                    .lt(Expr::col(ip_pool::Column::TotalCount)),
+            )
+            .exec(db)
+            .await?;
+
+        if result.rows_affected == 0 {
+            let pool = Self::get_ip_pool(db, pool_id).await?;
             return Err(AppError::Conflict(format!(
                 "IP pool {} is full ({}/{})",
                 pool.name, pool.allocated_count, pool.total_count
             )));
         }
-        let new_count = pool.allocated_count + 1;
-        let mut active = <crate::modules::network::domain::entities::ip_pool::Entity as sea_orm::EntityTrait>::ActiveModel::from(pool);
-        active.allocated_count = Set(new_count);
-        active.updated_at = Set(chrono::Utc::now());
-        let updated = active.update(db).await?;
+
+        let updated = Self::get_ip_pool(db, pool_id).await?;
         tracing::info!(pool_id, customer_id, "IP allocated from pool");
         Ok(updated)
     }
@@ -182,18 +199,31 @@ impl NetworkService {
         pool_id: i64,
         customer_id: i64,
     ) -> Result<crate::modules::network::domain::entities::ip_pool::Model, AppError> {
-        let pool = Self::get_ip_pool(db, pool_id).await?;
-        if pool.allocated_count <= 0 {
+        use crate::modules::network::domain::entities::ip_pool;
+        use sea_orm::sea_query::Expr;
+
+        // Atomic conditional decrement with a floor of zero.
+        let now = chrono::Utc::now();
+        let result = ip_pool::Entity::update_many()
+            .col_expr(
+                ip_pool::Column::AllocatedCount,
+                Expr::col(ip_pool::Column::AllocatedCount).sub(1),
+            )
+            .col_expr(ip_pool::Column::UpdatedAt, Expr::value(now))
+            .filter(ip_pool::Column::Id.eq(pool_id))
+            .filter(Expr::col(ip_pool::Column::AllocatedCount).gt(Expr::value(0)))
+            .exec(db)
+            .await?;
+
+        if result.rows_affected == 0 {
+            let pool = Self::get_ip_pool(db, pool_id).await?;
             return Err(AppError::BadRequest(format!(
                 "IP pool {} has no allocated IPs to release",
                 pool.name
             )));
         }
-        let new_count = pool.allocated_count - 1;
-        let mut active = <crate::modules::network::domain::entities::ip_pool::Entity as sea_orm::EntityTrait>::ActiveModel::from(pool);
-        active.allocated_count = Set(new_count);
-        active.updated_at = Set(chrono::Utc::now());
-        let updated = active.update(db).await?;
+
+        let updated = Self::get_ip_pool(db, pool_id).await?;
         tracing::info!(pool_id, customer_id, "IP released from pool");
         Ok(updated)
     }

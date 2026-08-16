@@ -23,6 +23,8 @@ pub struct Model {
     pub session_duration_seconds: i64,
     pub bytes_in: i64,
     pub bytes_out: i64,
+    pub usage_synced_bytes_in: i64,
+    pub usage_synced_bytes_out: i64,
     pub status: String,
     pub device_id: Option<i64>,
     pub last_activity_at: Option<chrono::DateTime<chrono::Utc>>,

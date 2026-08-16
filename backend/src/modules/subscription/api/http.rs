@@ -156,8 +156,10 @@ pub async fn upgrade_subscription(
     if let Some(ref adj) = proration {
         if !adj.adjustment.is_zero() {
             let today = chrono::Utc::now().date_naive();
-            let billing_start =
-                today - chrono::Duration::days(30 * sub.billing_period_months as i64);
+            let billing_start = crate::shared::utils::billing_period::period_start_months(
+                today,
+                sub.billing_period_months as u32,
+            );
             let proration_amount = adj.adjustment;
             if let Err(e) =
                 crate::modules::billing::application::services::BillingService::create_invoice(
