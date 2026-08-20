@@ -1,0 +1,38 @@
+# AeroXe Production Overlay
+#
+# Adds TLS termination via certbot + nginx with automatic renewal.
+#
+# Usage:
+#   1. Set CERTBOT_EMAIL in .env
+#   2. docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   3. First run: docker compose exec certbot certbot certonly --webroot -w /var/www/certbot ...
+#   4. Certs auto-renew every 12 hours via the certbot sidecar.
+
+services:
+  # ── Frontend with TLS ─────────────────────────────────────────────────
+  frontend:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+      - ./frontend/tls-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - certbot
+
+  # ── Certbot sidecar ───────────────────────────────────────────────────
+  # Runs certbot renewal every 12 hours.
+  # First-time cert generation requires a manual run:
+  #   docker compose exec certbot certbot certonly --webroot \
+  #     -w /var/www/certbot -d ${CERTBOT_DOMAIN} --email ${CERTBOT_EMAIL} --agree-tos
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'"
+
+volumes:
+  certbot-conf:
+  certbot-www:

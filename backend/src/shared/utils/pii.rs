@@ -1,8 +1,8 @@
 use sha2::{Digest, Sha256};
 
-/// PII Protection utilities per §28 Security Design.
-/// Provides hashing for Aadhaar/PAN (searchable salted hashes) and
-/// masking for phone/email (display-only redaction).
+// PII Protection utilities per §28 Security Design.
+// Provides hashing for Aadhaar/PAN (searchable salted hashes) and
+// masking for phone/email (display-only redaction).
 
 // ── App-level salted hashing (deterministic — useful for lookups) ────────
 // The fixed app-level salt makes the hash deterministic for the same input,

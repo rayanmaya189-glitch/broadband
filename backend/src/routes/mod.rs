@@ -63,7 +63,7 @@ async fn readiness_check(
 ) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
     use crate::modules::branches::domain::entities::branch;
     use redis::RedisResult;
-    use sea_orm::{EntityTrait, QuerySelect};
+    use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 
     let mut checks = serde_json::Map::new();
     let mut is_ready = true;
@@ -74,18 +74,48 @@ async fn readiness_check(
         match branch::Entity::find().limit(1).all(&state.db).await {
             Ok(_) => {
                 let latency_ms = start.elapsed().as_millis();
+
+                // Query live connection pool stats via pg_stat_activity
+                let pool_info = match state
+                    .db
+                    .query_one(sea_orm::Statement::from_string(
+                        state.db.get_database_backend(),
+                        "SELECT count(*) FILTER (WHERE state = 'active') AS active,
+                                count(*) FILTER (WHERE state = 'idle') AS idle,
+                                count(*) AS total
+                         FROM pg_stat_activity WHERE datname = current_database()"
+                            .to_string(),
+                    ))
+                    .await
+                {
+                    Ok(Some(row)) => {
+                        let active: i64 = row.try_get("", "active").unwrap_or(0);
+                        let idle: i64 = row.try_get("", "idle").unwrap_or(0);
+                        let total: i64 = row.try_get("", "total").unwrap_or(0);
+                        serde_json::json!({
+                            "active_connections": active,
+                            "idle_connections": idle,
+                            "total_connections": total,
+                        })
+                    }
+                    _ => serde_json::json!({}),
+                };
+
                 checks.insert(
                     "database".to_string(),
                     serde_json::json!({
                         "status": "ok",
                         "latency_ms": latency_ms,
+                        "pool": pool_info,
                     }),
                 );
 
-                // Update Prometheus gauge (mark DB as reachable)
+                // Update Prometheus metrics
                 if let Some(ref metrics) = state.metrics {
                     let m = metrics.read().await;
                     m.db_connections_active.set(1);
+                    m.db_health_check_latency_seconds
+                        .observe(start.elapsed().as_secs_f64());
                 }
             }
             Err(e) => {

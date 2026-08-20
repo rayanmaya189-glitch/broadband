@@ -13,6 +13,7 @@ pub struct Metrics {
 
     // Database metrics
     pub db_connections_active: IntGauge,
+    pub db_health_check_latency_seconds: prometheus::Histogram,
 
     // Business metrics
     pub active_subscriptions: IntGauge,
@@ -104,8 +105,20 @@ impl Metrics {
         registry
             .register(Box::new(http_request_duration_seconds.clone()))
             .expect("metric already registered");
+        let db_health_check_latency_seconds = prometheus::Histogram::with_opts(
+            prometheus::histogram_opts!(
+                "aeroxe_db_health_check_latency_seconds",
+                "Database health check latency in seconds"
+            )
+            .buckets(vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]),
+        )
+        .expect("valid metric name");
+
         registry
             .register(Box::new(db_connections_active.clone()))
+            .expect("metric already registered");
+        registry
+            .register(Box::new(db_health_check_latency_seconds.clone()))
             .expect("metric already registered");
         registry
             .register(Box::new(active_subscriptions.clone()))
@@ -137,6 +150,7 @@ impl Metrics {
             http_requests_total,
             http_request_duration_seconds,
             db_connections_active,
+            db_health_check_latency_seconds,
             active_subscriptions,
             invoices_generated_total,
             device_online_count,
