@@ -1,0 +1,34 @@
+# AeroXe Staging Environment
+#
+# Production-like setup for pre-production testing.
+# Differences from production:
+#   - Debug logging enabled
+#   - Swagger UI accessible
+#   - Default credentials (CHANGE BEFORE EXPOSING TO INTERNET)
+#
+# Usage:
+#   cp .env.staging .env   (fill in real values)
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+
+services:
+  # Override backend environment for staging
+  backend:
+    environment:
+      APP_ENV: staging
+      RUST_LOG: aeroxe_backend=info,tower_http=info
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://staging.aeroxebroadband.com}
+      JWT_KEY_ROTATION_DAYS: 30
+
+  # Override frontend environment for staging
+  frontend:
+    environment:
+      VITE_API_URL: ${APP_PUBLIC_URL:-https://staging-api.aeroxebroadband.com}/api
+
+  # Override Redis with password for staging
+  redis:
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-aeroxe_staging_redis_secret}
+
+  # Override postgres with stronger password for staging
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aeroxe_staging_db_secret}
