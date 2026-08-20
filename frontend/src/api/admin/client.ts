@@ -129,6 +129,7 @@ async function raw(
       const parsed = JSON.parse(new TextDecoder().decode(bytes));
       details = parsed;
       if (parsed?.error?.message) message = parsed.error.message;
+      else if (typeof parsed?.error === 'string') message = parsed.error;
       else if (parsed?.message) message = parsed.message;
       else if (parsed?.detail) message = String(parsed.detail);
       else if (Array.isArray(parsed?.errors) && parsed.errors.length) {
