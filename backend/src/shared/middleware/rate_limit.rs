@@ -16,7 +16,7 @@ pub struct RateLimitTier {
 impl RateLimitTier {
     pub fn auth() -> Self {
         Self {
-            max_requests: 5,
+            max_requests: 15,
             window_seconds: 60,
         }
     }
@@ -463,7 +463,7 @@ mod tests {
     #[test]
     fn test_rate_limit_tiers() {
         let auth = RateLimitTier::auth();
-        assert_eq!(auth.max_requests, 5);
+        assert_eq!(auth.max_requests, 15);
         assert_eq!(auth.window_seconds, 60);
 
         let api_read = RateLimitTier::api_read();
@@ -531,7 +531,7 @@ mod tests {
             .body(axum::body::Body::empty())
             .unwrap();
         let tier = determine_tier("/api/v1/auth/login", &request);
-        assert_eq!(tier.max_requests, 5);
+        assert_eq!(tier.max_requests, 15);
     }
 
     #[test]
