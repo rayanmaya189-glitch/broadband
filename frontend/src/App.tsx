@@ -6,6 +6,7 @@ import { router } from './routes';
 import { useAuthStore } from './store/authStore';
 import { useTheme } from './hooks/useTheme';
 import JsonLd from './components/seo/JsonLd';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import { loadWebVitals, monitorPageInteraction } from './utils/seoUtils';
 
 const queryClient = new QueryClient({
@@ -24,7 +25,7 @@ function AppContent() {
 
   useEffect(() => {
     hydrate();
-    
+
     // Initialize SEO monitoring
     loadWebVitals();
     monitorPageInteraction();
@@ -35,11 +36,13 @@ function AppContent() {
 
 export default function App() {
   return (
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
-        <JsonLd />
-        <AppContent />
-      </QueryClientProvider>
-    </HelmetProvider>
+    <ErrorBoundary>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <JsonLd />
+          <AppContent />
+        </QueryClientProvider>
+      </HelmetProvider>
+    </ErrorBoundary>
   );
 }

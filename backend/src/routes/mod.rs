@@ -68,22 +68,33 @@ async fn readiness_check(
     let mut checks = serde_json::Map::new();
     let mut is_ready = true;
 
-    // Check database connectivity
-    match branch::Entity::find().limit(1).all(&state.db).await {
-        Ok(_) => {
-            checks.insert(
-                "database".to_string(),
-                serde_json::json!({
-                    "status": "ok",
-                }),
-            );
-        }
-        Err(e) => {
-            checks.insert(
-                "database".to_string(),
-                serde_json::json!({"status": "error", "error": e.to_string()}),
-            );
-            is_ready = false;
+    // Check database connectivity + latency
+    {
+        let start = std::time::Instant::now();
+        match branch::Entity::find().limit(1).all(&state.db).await {
+            Ok(_) => {
+                let latency_ms = start.elapsed().as_millis();
+                checks.insert(
+                    "database".to_string(),
+                    serde_json::json!({
+                        "status": "ok",
+                        "latency_ms": latency_ms,
+                    }),
+                );
+
+                // Update Prometheus gauge (mark DB as reachable)
+                if let Some(ref metrics) = state.metrics {
+                    let m = metrics.read().await;
+                    m.db_connections_active.set(1);
+                }
+            }
+            Err(e) => {
+                checks.insert(
+                    "database".to_string(),
+                    serde_json::json!({"status": "error", "error": e.to_string()}),
+                );
+                is_ready = false;
+            }
         }
     }
 

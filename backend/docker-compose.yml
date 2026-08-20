@@ -42,12 +42,13 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       DATABASE_URL: postgresql://aeroxe:${POSTGRES_PASSWORD:-secret}@postgres:5432/aeroxe
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:-aeroxe_redis_secret}@redis:6379
       NATS_URL: nats://nats:4222
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_REGION: us-east-1
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       MINIO_BUCKET_KYC: aeroxe-kyc
       MINIO_BUCKET_INVOICES: aeroxe-invoices
       MINIO_BUCKET_DOCUMENTS: aeroxe-documents
@@ -98,13 +99,13 @@ services:
   # ── Cache ─────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-aeroxe_redis_secret}
     volumes:
       - redisdata:/data
     ports:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-aeroxe_redis_secret}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -129,6 +130,7 @@ services:
       - aeroxe-net
 
   # ── Object Storage ────────────────────────────────────────────────────────
+  # SECURITY: Change MINIO_ACCESS_KEY / MINIO_SECRET_KEY in production!
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"

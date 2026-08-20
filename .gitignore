@@ -43,3 +43,6 @@ target/
 # Cargo.lock is committed for the backend binary (reproducible builds)
 
 google-service-*.json
+
+# Load test results
+loadtest/results/

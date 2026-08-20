@@ -129,15 +129,44 @@ pub async fn audit_middleware(request: Request, next: Next) -> Response {
     response
 }
 
-/// Extract client IP from request headers
+/// Extract client IP from request.
+///
+/// Priority: real TCP peer IP > (trusted-proxy headers) > "unknown"
+/// SECURITY: X-Forwarded-For / X-Real-IP are IGNORED unless TRUST_PROXY=true is
+/// explicitly configured, preventing client-controlled IP spoofing.
+/// This mirrors the logic in `rate_limit::extract_client_id`.
 fn extract_ip(request: &Request) -> String {
-    request
-        .headers()
-        .get("x-forwarded-for")
-        .or_else(|| request.headers().get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string()
+    // 1. Prefer the real peer IP from the TCP connection
+    if let Some(connect_info) = request
+        .extensions()
+        .get::<axum::extract::connect_info::ConnectInfo<std::net::SocketAddr>>()
+    {
+        return connect_info.0.ip().to_string();
+    }
+
+    // 2. Only trust forwarding headers when the operator explicitly opted in
+    let trust_proxy = std::env::var("TRUST_PROXY")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    if trust_proxy {
+        let ip = request
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.split(',').next().unwrap_or(v).trim().to_string())
+            .or_else(|| {
+                request
+                    .headers()
+                    .get("x-real-ip")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string())
+            });
+        if let Some(ip) = ip {
+            return ip;
+        }
+    }
+
+    "unknown".to_string()
 }
 
 #[allow(dead_code)]
