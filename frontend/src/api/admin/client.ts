@@ -32,7 +32,9 @@ export function setAdminRefreshHandler(fn: () => Promise<boolean>) {
 }
 
 function apiBase(): string {
-  return import.meta.env.VITE_API_URL || '/api';
+  const base = import.meta.env.VITE_API_URL || '/api';
+  // Backend v1 routes are mounted at /api/v1
+  return base.endsWith('/v1') ? base : `${base}/v1`;
 }
 
 interface RawResult {
