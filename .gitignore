@@ -46,3 +46,21 @@ google-service-*.json
 
 # Load test results
 loadtest/results/
+
+# Local dev scripts (not production)
+backend/*.vbs
+backend/*.bat
+backend/*.ps1
+frontend/*.vbs
+
+# Playwright artifacts
+frontend/playwright-report/
+frontend/test-results/
+
+# PM2
+backend/ecosystem.config.js
+pm2.pid
+.pm2/
+
+# Backend logs
+backend/backend.log

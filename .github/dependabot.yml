@@ -1,0 +1,89 @@
+# =============================================================================
+# AeroXe Broadband — Automated Dependency Updates
+# =============================================================================
+# Dependabot creates PRs when new versions of dependencies are available.
+# Runs weekly to avoid PR fatigue; critical security patches are flagged
+# by GitHub's built-in vulnerability alerts regardless of this config.
+# =============================================================================
+
+version: 2
+updates:
+  # ── Rust / Cargo ────────────────────────────────────────────────────────────
+  - package-ecosystem: cargo
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 10
+    reviewers:
+      - "your-team"
+    labels:
+      - dependencies
+      - rust
+    groups:
+      rust-dev:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  # ── npm / Frontend ──────────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 10
+    reviewers:
+      - "your-team"
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      vite-plugins:
+        patterns:
+          - "@vitejs/*"
+          - "vite"
+          - "rollup*"
+          - "esbuild"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-router*"
+          - "@types/react*"
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+          - "docker/*"
+
+  # ── Docker ──────────────────────────────────────────────────────────────────
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - docker
