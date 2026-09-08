@@ -68,6 +68,22 @@ pub struct Settings {
     pub tds_rate_professional: f64,
     pub tds_rate_contractor: f64,
     pub tds_pan: String,
+
+    // Rate limiting (per-minute limits, 0 = use built-in defaults)
+    pub rate_limit_auth: i32,
+    pub rate_limit_api_read: i32,
+    pub rate_limit_api_write: i32,
+    pub rate_limit_upload: i32,
+    pub rate_limit_admin_read: i32,
+    pub rate_limit_admin_write: i32,
+    pub rate_limit_customer_read: i32,
+    pub rate_limit_customer_write: i32,
+
+    // Metrics token for /metrics endpoint auth
+    pub metrics_token: String,
+
+    // Trust proxy headers (X-Forwarded-For / X-Real-IP)
+    pub trust_proxy: bool,
 }
 
 impl Settings {
@@ -266,6 +282,44 @@ impl Settings {
                 .parse()
                 .unwrap_or(0.02),
             tds_pan: env::var("TDS_PAN").unwrap_or_default(),
+
+            rate_limit_auth: env::var("RATE_LIMIT_AUTH")
+                .unwrap_or_else(|_| "15".to_string())
+                .parse()
+                .unwrap_or(15),
+            rate_limit_api_read: env::var("RATE_LIMIT_API_READ")
+                .unwrap_or_else(|_| "100".to_string())
+                .parse()
+                .unwrap_or(100),
+            rate_limit_api_write: env::var("RATE_LIMIT_API_WRITE")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
+            rate_limit_upload: env::var("RATE_LIMIT_UPLOAD")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse()
+                .unwrap_or(10),
+            rate_limit_admin_read: env::var("RATE_LIMIT_ADMIN_READ")
+                .unwrap_or_else(|_| "200".to_string())
+                .parse()
+                .unwrap_or(200),
+            rate_limit_admin_write: env::var("RATE_LIMIT_ADMIN_WRITE")
+                .unwrap_or_else(|_| "100".to_string())
+                .parse()
+                .unwrap_or(100),
+            rate_limit_customer_read: env::var("RATE_LIMIT_CUSTOMER_READ")
+                .unwrap_or_else(|_| "50".to_string())
+                .parse()
+                .unwrap_or(50),
+            rate_limit_customer_write: env::var("RATE_LIMIT_CUSTOMER_WRITE")
+                .unwrap_or_else(|_| "20".to_string())
+                .parse()
+                .unwrap_or(20),
+
+            metrics_token: env::var("METRICS_TOKEN").unwrap_or_default(),
+            trust_proxy: env::var("TRUST_PROXY")
+                .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+                .unwrap_or(false),
         })
     }
 }

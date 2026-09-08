@@ -48,6 +48,10 @@ async function raw(
   path: string,
   opts: { body?: BodyInit; proto?: boolean; query?: Record<string, string | number | undefined | null> } = {}
 ): Promise<RawResult> {
+  // The refresh endpoint must never trigger another refresh attempt —
+  // an expired refresh token would otherwise recurse forever.
+  const isRefreshCall = path === '/auth/refresh';
+
   const token = tokenProvider?.() ?? null;
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -77,7 +81,7 @@ async function raw(
 
   if (resp.status === 401) {
     // Attempt a silent token refresh before forcing a sign-out.
-    const refreshed = refreshHandler ? await refreshHandler() : false;
+    const refreshed = !isRefreshCall && refreshHandler ? await refreshHandler() : false;
     if (refreshed) {
       const newToken = tokenProvider?.() ?? null;
       if (newToken) {

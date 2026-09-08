@@ -135,3 +135,68 @@ export interface Toast {
 }
 
 export type UsageType = 'all' | 'gaming' | 'streaming' | 'business';
+
+// ─── Customer Portal types ─────────────────────────────────────────────────
+
+export interface CustomerUser {
+  id: number;
+  email: string;
+  name: string;
+  phone: string;
+  branch_id?: number;
+  status?: string;
+}
+
+export interface CustomerPlan {
+  id: number;
+  name: string;
+  slug?: string;
+  description?: string;
+  speed_download?: string;
+  speed_upload?: string;
+  price_monthly?: number;
+  features?: string[];
+  is_popular?: boolean;
+}
+
+export interface CustomerSubscription {
+  id: number;
+  plan_id: number;
+  plan_name?: string;
+  status: string;
+  start_date?: string;
+  expiry_date?: string;
+  monthly_fee?: number;
+  download_kbps?: number;
+  upload_kbps?: number;
+}
+
+export interface CustomerInvoice {
+  id: number;
+  invoice_number: string;
+  amount: number;
+  tax_amount?: number;
+  total_amount?: number;
+  status: string;
+  due_date?: string;
+  issued_at?: string;
+  paid_at?: string;
+}
+
+export interface CustomerTicket {
+  id: number;
+  ticket_number?: string;
+  subject: string;
+  category?: string;
+  priority: string;
+  status: string;
+  created_at?: string;
+}
+
+export interface CustomerTicketComment {
+  id: number;
+  user_name?: string;
+  content: string;
+  is_internal?: boolean;
+  created_at?: string;
+}

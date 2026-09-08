@@ -116,3 +116,65 @@ pub struct CreateAreaRequest {
     pub name: String,
     pub area_type: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAreaRequest {
+    pub name: String,
+    pub area_type: String,
+}
+
+/// PUT /api/v1/coverage/areas/:id
+pub async fn update_coverage_area(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    Json(req): Json<UpdateAreaRequest>,
+) -> Result<Json<CoverageAreaResponse>, AppError> {
+    require_permission(&user, "coverage.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let a = CoverageService::update_area(&state.db, id, req.name, req.area_type).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "coverage.area.updated",
+        "coverage_area",
+        a.id,
+        serde_json::json!({"area_id": a.id, "name": a.name}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(error = %e, "Failed to publish coverage.area.updated event");
+    }
+    Ok(Json(CoverageAreaResponse {
+        id: a.id,
+        name: a.name,
+        area_type: a.area_type,
+        is_active: a.is_active,
+    }))
+}
+
+/// DELETE /api/v1/coverage/areas/:id
+pub async fn delete_coverage_area(
+    State(state): State<Arc<AppState>>,
+    user: UserContext,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+) -> Result<StatusCode, AppError> {
+    require_permission(&user, "coverage.create").map_err(|e| AppError::Forbidden(e.1))?;
+    CoverageService::delete_area(&state.db, id).await?;
+    if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
+        &state.db,
+        "coverage.area.deleted",
+        "coverage_area",
+        id,
+        serde_json::json!({"area_id": id}),
+        None,
+        Some(user.user_id),
+        user.branch_id,
+    )
+    .await
+    {
+        tracing::error!(error = %e, "Failed to publish coverage.area.deleted event");
+    }
+    Ok(StatusCode::NO_CONTENT)
+}

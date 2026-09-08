@@ -8,8 +8,8 @@ pub struct Metrics {
     pub registry: Registry,
 
     // HTTP metrics
-    pub http_requests_total: IntCounter,
-    pub http_request_duration_seconds: prometheus::Histogram,
+    pub http_requests_total: IntCounterVec,
+    pub http_request_duration_seconds: prometheus::HistogramVec,
 
     // Database metrics
     pub db_connections_active: IntGauge,
@@ -28,6 +28,10 @@ pub struct Metrics {
     // NATS metrics
     pub nats_messages_published: IntCounter,
     pub nats_messages_consumed: IntCounter,
+
+    // DB pool stats
+    pub db_pool_active: IntGauge,
+    pub db_pool_idle: IntGauge,
 }
 
 impl Default for Metrics {
@@ -40,17 +44,18 @@ impl Metrics {
     pub fn new() -> Self {
         let registry = Registry::new();
 
-        let http_requests_total = IntCounter::with_opts(prometheus::opts!(
-            "aeroxe_http_requests_total",
-            "Total HTTP requests"
-        ))
+        let http_requests_total = IntCounterVec::new(
+            prometheus::opts!("aeroxe_http_requests_total", "Total HTTP requests"),
+            &["method", "path", "status"],
+        )
         .expect("valid metric name");
-        let http_request_duration_seconds = prometheus::Histogram::with_opts(
+        let http_request_duration_seconds = prometheus::HistogramVec::new(
             prometheus::histogram_opts!(
                 "aeroxe_http_request_duration_seconds",
                 "Request latency in seconds"
             )
             .buckets(vec![0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0]),
+            &["method", "path", "status"],
         )
         .expect("valid metric name");
         let db_connections_active = IntGauge::with_opts(prometheus::opts!(
@@ -145,6 +150,23 @@ impl Metrics {
             .register(Box::new(nats_messages_consumed.clone()))
             .expect("metric already registered");
 
+        let db_pool_active = IntGauge::with_opts(prometheus::opts!(
+            "aeroxe_db_pool_active",
+            "Active connections in the DB pool"
+        ))
+        .expect("valid metric name");
+        let db_pool_idle = IntGauge::with_opts(prometheus::opts!(
+            "aeroxe_db_pool_idle",
+            "Idle connections in the DB pool"
+        ))
+        .expect("valid metric name");
+        registry
+            .register(Box::new(db_pool_active.clone()))
+            .expect("metric already registered");
+        registry
+            .register(Box::new(db_pool_idle.clone()))
+            .expect("metric already registered");
+
         Self {
             registry,
             http_requests_total,
@@ -159,6 +181,8 @@ impl Metrics {
             worker_errors_total,
             nats_messages_published,
             nats_messages_consumed,
+            db_pool_active,
+            db_pool_idle,
         }
     }
 }

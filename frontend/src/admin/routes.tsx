@@ -23,6 +23,14 @@ import { BranchesPage } from './pages/Branches';
 import { AuditPage } from './pages/Audit';
 import { AccountingPage } from './pages/Accounting';
 import { CoveragePage } from './pages/Coverage';
+import { BandwidthPage } from './pages/Bandwidth';
+import { SchedulerPage } from './pages/Scheduler';
+import { CompliancePage } from './pages/Compliance';
+import { ReferralsPage } from './pages/Referrals';
+import { DiscoveryPage } from './pages/Discovery';
+import { InventoryPage } from './pages/Inventory';
+import { DocumentsPage } from './pages/Documents';
+import { GatewayPage } from './pages/Gateway';
 import { ProfilePage } from './pages/Profile';
 
 export const adminRoutes: RouteObject = {
@@ -186,6 +194,70 @@ export const adminRoutes: RouteObject = {
           element: (
             <RequireModule module="coverage">
               <CoveragePage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'bandwidth',
+          element: (
+            <RequireModule module="bandwidth">
+              <BandwidthPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'scheduler',
+          element: (
+            <RequireModule module="scheduler">
+              <SchedulerPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'compliance',
+          element: (
+            <RequireModule module="compliance">
+              <CompliancePage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'referrals',
+          element: (
+            <RequireModule module="referrals">
+              <ReferralsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'discovery',
+          element: (
+            <RequireModule module="discovery">
+              <DiscoveryPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'inventory',
+          element: (
+            <RequireModule module="inventory">
+              <InventoryPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'documents',
+          element: (
+            <RequireModule module="documents">
+              <DocumentsPage />
+            </RequireModule>
+          ),
+        },
+        {
+          path: 'gateway',
+          element: (
+            <RequireModule module="gateway">
+              <GatewayPage />
             </RequireModule>
           ),
         },

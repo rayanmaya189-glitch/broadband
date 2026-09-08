@@ -33,22 +33,22 @@ pub struct AlertsQuery {
 #[derive(Debug, Deserialize)]
 pub struct CreateAlertRequest {
     pub device_id: i64,
-    pub branch_id: i64,
+    /// Optional: falls back to the caller's branch when omitted.
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub severity: String,
     pub title: String,
     pub message: String,
 }
 
-/// Request body for acknowledging an alert
+/// Request body for acknowledging an alert — actor comes from the session.
 #[derive(Debug, Deserialize)]
-pub struct AcknowledgeAlertRequest {
-    pub user_id: i64,
-}
+pub struct AcknowledgeAlertRequest {}
 
-/// Request body for resolving an alert
+/// Request body for resolving an alert — actor comes from the session.
 #[derive(Debug, Deserialize)]
 pub struct ResolveAlertRequest {
-    pub user_id: i64,
+    #[serde(default)]
     pub notes: Option<String>,
 }
 
@@ -238,10 +238,13 @@ pub async fn create_alert(
     Json(request): Json<CreateAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&user, "monitoring.alert.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = request.branch_id.or(user.branch_id).ok_or_else(|| {
+        AppError::Validation("branch_id is required for company-wide accounts".into())
+    })?;
     let now = chrono::Utc::now();
     let active = monitoring_alert::ActiveModel {
         device_id: Set(request.device_id),
-        branch_id: Set(request.branch_id),
+        branch_id: Set(branch_id),
         severity: Set(request.severity),
         title: Set(request.title),
         message: Set(request.message),
@@ -267,7 +270,7 @@ pub async fn acknowledge_alert(
     State(state): State<SharedState>,
     user: UserContext,
     Path(alert_id): Path<i64>,
-    Json(request): Json<AcknowledgeAlertRequest>,
+    Json(_request): Json<AcknowledgeAlertRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&user, "monitoring.alert.acknowledge")
         .map_err(|e| AppError::Forbidden(e.1))?;
@@ -277,7 +280,7 @@ pub async fn acknowledge_alert(
         .ok_or_else(|| AppError::NotFound(format!("Alert {} not found", alert_id)))?;
     let mut active: monitoring_alert::ActiveModel = alert.into();
     active.status = Set("acknowledged".to_string());
-    active.acknowledged_by = Set(Some(request.user_id));
+    active.acknowledged_by = Set(Some(user.user_id));
     active.acknowledged_at = Set(Some(chrono::Utc::now()));
     active.updated_at = Set(chrono::Utc::now());
     active.update(&state.db).await?;
@@ -298,7 +301,7 @@ pub async fn resolve_alert(
         .ok_or_else(|| AppError::NotFound(format!("Alert {} not found", alert_id)))?;
     let mut active: monitoring_alert::ActiveModel = alert.into();
     active.status = Set("resolved".to_string());
-    active.resolved_by = Set(Some(request.user_id));
+    active.resolved_by = Set(Some(user.user_id));
     active.resolved_at = Set(Some(chrono::Utc::now()));
     active.resolution_notes = Set(request.notes);
     active.updated_at = Set(chrono::Utc::now());

@@ -2,11 +2,11 @@ name: Deploy to Staging
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, dev-v4]
   workflow_run:
     workflows: ["AeroXe CI"]
     types: [completed]
-    branches: [develop]
+    branches: [develop, dev-v4]
 
 env:
   IMAGE_REGISTRY: ghcr.io

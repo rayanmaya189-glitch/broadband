@@ -370,8 +370,10 @@ fn extract_client_id(request: &Request) -> String {
     }
 
     // 4. Only trust forwarding headers when the operator explicitly opted in
-    let trust_proxy = std::env::var("TRUST_PROXY")
-        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+    let trust_proxy = request
+        .extensions()
+        .get::<Arc<RateLimitConfig>>()
+        .map(|c| c.trust_proxy)
         .unwrap_or(false);
     if trust_proxy {
         let ip = request
@@ -394,8 +396,43 @@ fn extract_client_id(request: &Request) -> String {
     "ip:unknown".to_string()
 }
 
+/// Rate limit configuration (injected from Settings).
+#[derive(Debug, Clone)]
+pub struct RateLimitConfig {
+    pub auth: i32,
+    pub api_read: i32,
+    pub api_write: i32,
+    pub upload: i32,
+    pub admin_read: i32,
+    pub admin_write: i32,
+    pub customer_read: i32,
+    pub customer_write: i32,
+    pub trust_proxy: bool,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        Self {
+            auth: 15,
+            api_read: 100,
+            api_write: 30,
+            upload: 10,
+            admin_read: 200,
+            admin_write: 100,
+            customer_read: 50,
+            customer_write: 20,
+            trust_proxy: false,
+        }
+    }
+}
+
 /// Determine rate limit tier based on request path, method, and user role.
 fn determine_tier(path: &str, request: &Request) -> RateLimitTier {
+    let config = request
+        .extensions()
+        .get::<Arc<RateLimitConfig>>()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(RateLimitConfig::default()));
     // Health checks and websocket: no rate limit
     if path == "/health" || path == "/ready" || path == "/ws" {
         return RateLimitTier {
@@ -406,12 +443,18 @@ fn determine_tier(path: &str, request: &Request) -> RateLimitTier {
 
     // Auth endpoints: strict limit regardless of role
     if path.starts_with("/api/v1/auth") {
-        return RateLimitTier::auth();
+        return RateLimitTier {
+            max_requests: config.auth,
+            window_seconds: 60,
+        };
     }
 
     // Upload endpoints: strict limit
     if path.starts_with("/api/v1/documents") || path.starts_with("/api/v1/notifications") {
-        return RateLimitTier::upload();
+        return RateLimitTier {
+            max_requests: config.upload,
+            window_seconds: 300,
+        };
     }
 
     // Extract user role from request extensions for role-based limiting
@@ -424,33 +467,57 @@ fn determine_tier(path: &str, request: &Request) -> RateLimitTier {
         // Admin/staff roles get higher limits
         Some(role) if crate::shared::middleware::auth::is_privileged_role(role) => {
             if request.method().is_safe() {
-                RateLimitTier::admin_read()
+                RateLimitTier {
+                    max_requests: config.admin_read,
+                    window_seconds: 60,
+                }
             } else {
-                RateLimitTier::admin_write()
+                RateLimitTier {
+                    max_requests: config.admin_write,
+                    window_seconds: 60,
+                }
             }
         }
         // Customer role gets lower limits
         Some("customer") => {
             if request.method().is_safe() {
-                RateLimitTier::customer_read()
+                RateLimitTier {
+                    max_requests: config.customer_read,
+                    window_seconds: 60,
+                }
             } else {
-                RateLimitTier::customer_write()
+                RateLimitTier {
+                    max_requests: config.customer_write,
+                    window_seconds: 60,
+                }
             }
         }
         // Field technician, support agent, etc: standard limits
         Some(_) => {
             if request.method().is_safe() {
-                RateLimitTier::api_read()
+                RateLimitTier {
+                    max_requests: config.api_read,
+                    window_seconds: 60,
+                }
             } else {
-                RateLimitTier::api_write()
+                RateLimitTier {
+                    max_requests: config.api_write,
+                    window_seconds: 60,
+                }
             }
         }
         // Unauthenticated: standard public limits
         None => {
             if request.method().is_safe() {
-                RateLimitTier::api_read()
+                RateLimitTier {
+                    max_requests: config.api_read,
+                    window_seconds: 60,
+                }
             } else {
-                RateLimitTier::api_write()
+                RateLimitTier {
+                    max_requests: config.api_write,
+                    window_seconds: 60,
+                }
             }
         }
     }

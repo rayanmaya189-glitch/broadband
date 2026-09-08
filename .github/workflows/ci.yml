@@ -2,9 +2,9 @@ name: AeroXe CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, dev-v4]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, dev-v4]
 
 env:
   CARGO_TERM_COLOR: always

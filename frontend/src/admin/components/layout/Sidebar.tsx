@@ -20,6 +20,14 @@ import {
   Users,
   Wrench,
   Bell,
+  Zap,
+  Clock,
+  FileCheck,
+  Gift,
+  Radar,
+  Package,
+  FolderOpen,
+  Key,
 } from 'lucide-react';
 import { useAdminStore } from '../../adminStore';
 import { modulesForRole, type ModuleKey } from '../../lib/permissions';
@@ -57,6 +65,14 @@ const ICONS = {
   audit: ScrollText,
   accounting: BookOpen,
   coverage: MapPin,
+  bandwidth: Zap,
+  scheduler: Clock,
+  compliance: FileCheck,
+  referrals: Gift,
+  discovery: Radar,
+  inventory: Package,
+  documents: FolderOpen,
+  gateway: Key,
 } as const;
 
 const GROUPING: { label: string; keys: ModuleKey[] }[] = [
@@ -66,10 +82,12 @@ const GROUPING: { label: string; keys: ModuleKey[] }[] = [
     keys: ['customers', 'subscriptions', 'tickets', 'installations', 'approvals', 'leads'],
   },
   { label: 'Billing & Finance', keys: ['billing', 'accounting'] },
-  { label: 'Network', keys: ['network', 'devices', 'monitoring'] },
+  { label: 'Network', keys: ['network', 'devices', 'monitoring', 'bandwidth', 'discovery'] },
+  { label: 'Inventory & Docs', keys: ['inventory', 'documents'] },
+  { label: 'Automation', keys: ['scheduler'] },
   {
     label: 'Administration',
-    keys: ['plans', 'users', 'roles', 'branches', 'notifications', 'audit', 'coverage'],
+    keys: ['plans', 'users', 'roles', 'branches', 'notifications', 'audit', 'coverage', 'compliance', 'referrals', 'gateway'],
   },
 ];
 

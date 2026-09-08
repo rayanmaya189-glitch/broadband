@@ -27,7 +27,9 @@ pub struct SubscriptionResponse {
 #[derive(Debug, Deserialize)]
 pub struct CreateSubscriptionRequest {
     pub customer_id: i64,
-    pub branch_id: i64,
+    /// Optional: falls back to the caller's own branch when omitted.
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub plan_id: i64,
     pub billing_period_months: i32,
 }
@@ -88,10 +90,18 @@ pub async fn create_subscription(
     Json(req): Json<CreateSubscriptionRequest>,
 ) -> Result<(StatusCode, Json<SubscriptionResponse>), AppError> {
     require_permission(&user, "subscription.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = match req.branch_id {
+        Some(b) => b,
+        None => user.branch_id.ok_or_else(|| {
+            AppError::Validation(
+                "branch_id is required when the account is not scoped to a single branch".into(),
+            )
+        })?,
+    };
     let sub = SubscriptionService::create_subscription(
         &state.db,
         req.customer_id,
-        req.branch_id,
+        branch_id,
         req.plan_id,
         req.billing_period_months,
     )

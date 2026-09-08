@@ -40,8 +40,12 @@ pub struct PaymentResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateInvoiceRequest {
-    pub customer_id: i64,
-    pub branch_id: i64,
+    /// Optional: derived from the subscription when omitted (safer — the client
+    /// cannot record an invoice against a mismatched customer/branch).
+    #[serde(default)]
+    pub customer_id: Option<i64>,
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub subscription_id: i64,
     pub billing_period_start: String,
     pub billing_period_end: String,
@@ -51,8 +55,11 @@ pub struct CreateInvoiceRequest {
 #[derive(Debug, Deserialize)]
 pub struct RecordPaymentRequest {
     pub invoice_id: i64,
-    pub customer_id: i64,
-    pub branch_id: i64,
+    /// Optional: derived from the invoice when omitted.
+    #[serde(default)]
+    pub customer_id: Option<i64>,
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub amount: String,
     pub payment_method: String,
 }
@@ -113,11 +120,31 @@ pub async fn create_invoice(
     if amt <= sea_orm::prelude::Decimal::ZERO {
         return Err(AppError::Validation("Amount must be positive".into()));
     }
+    // Resolve customer/branch from the subscription when the client omitted
+    // them, so the invoice always belongs to the subscription's owner.
+    let (customer_id, branch_id) = match (req.customer_id, req.branch_id) {
+        (Some(c), Some(b)) => (c, b),
+        _ => {
+            use crate::modules::subscription::domain::entities::Subscription;
+            use sea_orm::EntityTrait;
+            let sub = Subscription::find_by_id(req.subscription_id)
+                .one(&state.db)
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("Subscription {} not found", req.subscription_id))
+                })?;
+            (
+                req.customer_id.unwrap_or(sub.customer_id),
+                req.branch_id.unwrap_or(sub.branch_id),
+            )
+        }
+    };
+
     let txn = state.db.begin().await?;
     let inv = BillingService::create_invoice(
         &txn,
-        req.customer_id,
-        req.branch_id,
+        customer_id,
+        branch_id,
         req.subscription_id,
         start,
         end,
@@ -182,11 +209,31 @@ pub async fn record_payment(
     if amt <= sea_orm::prelude::Decimal::ZERO {
         return Err(AppError::Validation("Amount must be positive".into()));
     }
+    // Derive customer/branch from the invoice when omitted, so a payment can
+    // never be attached to a different customer or branch than its invoice.
+    let (customer_id, branch_id) = match (req.customer_id, req.branch_id) {
+        (Some(c), Some(b)) => (c, b),
+        _ => {
+            use crate::modules::billing::domain::entities::Invoice;
+            use sea_orm::EntityTrait;
+            let inv = Invoice::find_by_id(req.invoice_id)
+                .one(&state.db)
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("Invoice {} not found", req.invoice_id))
+                })?;
+            (
+                req.customer_id.unwrap_or(inv.customer_id),
+                req.branch_id.unwrap_or(inv.branch_id),
+            )
+        }
+    };
+
     let pay = BillingService::record_payment(
         &state.db,
         req.invoice_id,
-        req.customer_id,
-        req.branch_id,
+        customer_id,
+        branch_id,
         amt,
         req.payment_method,
     )
@@ -435,8 +482,11 @@ pub struct RefundResponse {
 #[derive(Debug, Deserialize)]
 pub struct RequestRefundRequest {
     pub payment_id: i64,
-    pub invoice_id: i64,
-    pub customer_id: i64,
+    /// Optional: derived from the payment when omitted.
+    #[serde(default)]
+    pub invoice_id: Option<i64>,
+    #[serde(default)]
+    pub customer_id: Option<i64>,
     pub amount: String,
     pub reason: String,
 }
@@ -455,11 +505,34 @@ pub async fn request_refund(
     if amt <= sea_orm::prelude::Decimal::ZERO {
         return Err(AppError::Validation("Amount must be positive".into()));
     }
+    // Derive invoice/customer from the payment when omitted so a refund is
+    // always attributed to the customer who actually paid.
+    let (invoice_id, customer_id) = match (req.invoice_id, req.customer_id) {
+        (Some(i), Some(c)) => (i, c),
+        _ => {
+            use crate::modules::billing::domain::entities::Payment;
+            use sea_orm::EntityTrait;
+            let pay = Payment::find_by_id(req.payment_id)
+                .one(&state.db)
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("Payment {} not found", req.payment_id))
+                })?;
+            let invoice_id = req.invoice_id.or(pay.invoice_id).ok_or_else(|| {
+                AppError::Validation(
+                    "Cannot determine invoice for refund — payment is not linked to an invoice"
+                        .into(),
+                )
+            })?;
+            (invoice_id, req.customer_id.unwrap_or(pay.customer_id))
+        }
+    };
+
     let refund = BillingService::request_refund(
         &state.db,
         req.payment_id,
-        req.invoice_id,
-        req.customer_id,
+        invoice_id,
+        customer_id,
         amt,
         req.reason,
         user.user_id,

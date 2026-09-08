@@ -154,10 +154,10 @@ function CreateLeadModal({ open, onClose, onCreated }: { open: boolean; onClose:
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !phone.trim()) return;
     setBusy(true);
     try {
-      await createLead({ name: name.trim(), phone: phone.trim() || undefined, email: email.trim() || undefined, source: source || undefined });
+      await createLead({ name: name.trim(), phone: phone.trim(), email: email.trim() || undefined, source });
       toast('Lead created');
       onCreated();
     } catch (err) {
@@ -175,7 +175,7 @@ function CreateLeadModal({ open, onClose, onCreated }: { open: boolean; onClose:
       </>}>
       <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="space-y-4">
         <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <TextField label="Phone" required value={phone} onChange={(e) => setPhone(e.target.value)} />
         <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <SelectField label="Source" value={source} onChange={(e) => setSource(e.target.value)}
           options={[

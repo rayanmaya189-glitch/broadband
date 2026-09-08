@@ -846,6 +846,10 @@ fn coverage_routes() -> Router<SharedState> {
             "/areas",
             axum::routing::get(http::list_coverage_areas).post(http::create_coverage_area),
         )
+        .route(
+            "/areas/:id",
+            axum::routing::put(http::update_coverage_area).delete(http::delete_coverage_area),
+        )
         .route("/check", axum::routing::post(http::check_availability))
 }
 
@@ -997,7 +1001,12 @@ fn approval_routes() -> Router<SharedState> {
 
 fn admin_routes() -> Router<SharedState> {
     use crate::modules::admin::api::http as admin_http;
-    Router::new().route("/seed", axum::routing::post(admin_http::seed_data))
+    Router::new()
+        .route("/seed", axum::routing::post(admin_http::seed_data))
+        .route(
+            "/dashboard/summary",
+            axum::routing::get(admin_http::dashboard_summary),
+        )
 }
 
 fn compliance_routes() -> Router<SharedState> {

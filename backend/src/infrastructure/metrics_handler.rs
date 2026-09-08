@@ -86,7 +86,6 @@ pub async fn metrics_handler(
 /// GET /api/v1/metrics/summary — JSON summary of key metrics for dashboards.
 #[derive(Serialize)]
 pub struct MetricsSummary {
-    pub http_requests_total: u64,
     pub active_subscriptions: i64,
     pub invoices_generated: u64,
     pub devices_online: i64,
@@ -95,6 +94,8 @@ pub struct MetricsSummary {
     pub worker_errors: u64,
     pub nats_published: u64,
     pub nats_consumed: u64,
+    pub db_pool_active: i64,
+    pub db_pool_idle: i64,
 }
 
 pub async fn metrics_summary_handler(
@@ -107,7 +108,6 @@ pub async fn metrics_summary_handler(
     };
     let m = metrics.read().await;
     Ok(Json(MetricsSummary {
-        http_requests_total: m.http_requests_total.get(),
         active_subscriptions: m.active_subscriptions.get(),
         invoices_generated: m.invoices_generated_total.get(),
         devices_online: m.device_online_count.get(),
@@ -152,5 +152,7 @@ pub async fn metrics_summary_handler(
         },
         nats_published: m.nats_messages_published.get(),
         nats_consumed: m.nats_messages_consumed.get(),
+        db_pool_active: m.db_pool_active.get(),
+        db_pool_idle: m.db_pool_idle.get(),
     }))
 }

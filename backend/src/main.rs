@@ -142,6 +142,20 @@ async fn main() -> anyhow::Result<()> {
 
     // Clone rate_limit_store for the middleware closure
     let rate_limit_store = state.rate_limit_store.clone();
+    let metrics_ref = state.metrics.clone();
+    let rate_limit_config = std::sync::Arc::new(
+        aeroxe_backend::shared::middleware::rate_limit::RateLimitConfig {
+            auth: settings.rate_limit_auth,
+            api_read: settings.rate_limit_api_read,
+            api_write: settings.rate_limit_api_write,
+            upload: settings.rate_limit_upload,
+            admin_read: settings.rate_limit_admin_read,
+            admin_write: settings.rate_limit_admin_write,
+            customer_read: settings.rate_limit_customer_read,
+            customer_write: settings.rate_limit_customer_write,
+            trust_proxy: settings.trust_proxy,
+        },
+    );
 
     // Build application router with middlewares
     // Layer order matters: outermost layer runs first on request, last on response
@@ -165,7 +179,24 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::security_headers::security_headers_middleware,
         ))
-        // 4. Audit middleware (captures timing, logs after response, persists to DB)
+        // 4. HTTP metrics (records request count + duration to Prometheus)
+        .layer(axum::middleware::from_fn({
+            let m = metrics_ref.clone();
+            move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
+                let m = m.clone();
+                async move {
+                    let mut req = req;
+                    if let Some(m) = m {
+                        req.extensions_mut().insert(m);
+                    }
+                    aeroxe_backend::shared::middleware::http_metrics::http_metrics_middleware(
+                        req, next,
+                    )
+                    .await
+                }
+            }
+        }))
+        // 5. Audit middleware (captures timing, logs after response, persists to DB)
         .layer(axum::middleware::from_fn({
             let db = std::sync::Arc::new(state.db.clone());
             move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
@@ -177,27 +208,30 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }))
-        // 5. Rate limiting (with injected store)
+        // 6. Rate limiting (with injected store + config)
         .layer(axum::middleware::from_fn({
             let store = rate_limit_store.clone();
+            let config = rate_limit_config.clone();
             move |req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| {
                 let store = store.clone();
+                let config = config.clone();
                 async move {
                     let mut req = req;
                     req.extensions_mut().insert(store);
+                    req.extensions_mut().insert(config);
                     aeroxe_backend::shared::middleware::rate_limit::rate_limit_middleware(req, next)
                         .await
                 }
             }
         }))
-        // 6. Branch scope (extracts JWT, sets BranchScope in extensions)
+        // 7. Branch scope (extracts JWT, sets BranchScope in extensions)
         .layer(axum::middleware::from_fn(
             aeroxe_backend::shared::middleware::branch_scope::branch_scope_middleware,
         ))
         .layer(TraceLayer::new_for_http())
-        // 7. CORS (outermost for preflight handling)
+        // 8. CORS (outermost for preflight handling)
         .layer(cors)
-        // 8. Security alerting (§28) — outermost so it observes every response status
+        // 9. Security alerting (§28) — outermost so it observes every response status
         .layer(
             aeroxe_backend::shared::middleware::security_alerts::SecurityAlertLayer::new(
                 state.clone(),

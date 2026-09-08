@@ -136,6 +136,12 @@ export default function Navbar() {
 
             <div className="flex items-center gap-3">
               <Link
+                to="/portal"
+                className="hidden sm:inline-flex items-center px-4 py-2.5 text-sm font-medium text-dark-300 hover:text-white rounded-lg hover:bg-white/[0.06] transition-all duration-200"
+              >
+                My Account
+              </Link>
+              <Link
                 to="/plans"
                 className="hidden sm:inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-accent-500 to-primary-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-accent-500/25 transition-all duration-300"
               >
@@ -175,8 +181,14 @@ export default function Navbar() {
                 </Link>
               ))}
               <Link
+                to="/portal"
+                className="block w-full mt-2 px-6 py-3.5 border border-white/10 text-dark-300 text-center font-medium rounded-xl hover:bg-white/[0.06] transition-all"
+              >
+                My Account
+              </Link>
+              <Link
                 to="/plans"
-                className="block w-full mt-4 px-6 py-3.5 bg-gradient-to-r from-accent-500 to-primary-600 text-white text-center font-semibold rounded-xl"
+                className="block w-full mt-2 px-6 py-3.5 bg-gradient-to-r from-accent-500 to-primary-600 text-white text-center font-semibold rounded-xl"
               >
                 View Plans
               </Link>

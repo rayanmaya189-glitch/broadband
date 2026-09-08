@@ -1,0 +1,138 @@
+name: Deploy to Production
+
+on:
+  # Manual trigger only — production deploys are never automatic.
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm production deployment'
+        required: true
+        default: ''
+
+env:
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  guard:
+    name: Deployment Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "❌ Refusing to deploy: type \"deploy\" in the confirm input to proceed."
+            exit 1
+          fi
+          echo "✅ Deployment confirmed by ${{ github.actor }}"
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [guard]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://aeroxebroadband.com
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_SSH_KEY }}
+
+      - name: Add host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy backend containers
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+          PRODUCTION_USER: ${{ secrets.PRODUCTION_USER || 'deploy' }}
+          PRODUCTION_DIR: ${{ secrets.PRODUCTION_DIR || '/opt/aeroxe' }}
+        run: |
+          ssh ${PRODUCTION_USER}@${PRODUCTION_HOST} << 'DEPLOY_SCRIPT'
+            set -euo pipefail
+            cd $PRODUCTION_DIR
+
+            echo "📥 Pulling latest images..."
+            docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml pull
+
+            echo "🔄 Running database migrations..."
+            docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml run --rm migrate
+
+            echo "🚀 Restarting services..."
+            docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f --filter "until=168h"
+
+            echo "✅ Verifying health..."
+            for i in {1..30}; do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "✅ Backend is healthy!"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "❌ Backend health check failed after 60s"
+            exit 1
+          DEPLOY_SCRIPT
+
+      - name: Roll back on failure
+        if: failure()
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+          PRODUCTION_USER: ${{ secrets.PRODUCTION_USER || 'deploy' }}
+          PRODUCTION_DIR: ${{ secrets.PRODUCTION_DIR || '/opt/aeroxe' }}
+        run: |
+          ssh ${PRODUCTION_USER}@${PRODUCTION_HOST} << 'ROLLBACK_SCRIPT'
+            set -euo pipefail
+            cd $PRODUCTION_DIR
+            echo "⏪ Rolling back to previous images..."
+            docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend
+            echo "Rollback attempted — verify /health manually."
+          ROLLBACK_SCRIPT
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" = "success" ]; then
+            echo "✅ Production deployment succeeded"
+          else
+            echo "❌ Production deployment failed — rollback may have been attempted"
+          fi
+
+  smoke-test:
+    name: Production Smoke Test
+    needs: [deploy-production]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for services
+        run: sleep 10
+
+      - name: Health check
+        run: |
+          for endpoint in /health /ready; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://aeroxebroadband.com/api${endpoint}" || echo "000")
+            if [ "$STATUS" != "200" ]; then
+              echo "❌ ${endpoint} returned ${STATUS}"
+              exit 1
+            fi
+            echo "✅ ${endpoint} → ${STATUS}"
+          done
+
+      - name: Frontend check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://aeroxebroadband.com" || echo "000")
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Frontend returned ${STATUS}"
+            exit 1
+          fi
+          echo "✅ Frontend → ${STATUS}"

@@ -15,6 +15,9 @@ pub struct TemplateResponse {
     pub id: i64,
     pub name: String,
     pub channel: String,
+    #[serde(default)]
+    pub subject_template: Option<String>,
+    pub body_template: String,
     pub is_active: bool,
 }
 
@@ -42,6 +45,8 @@ pub async fn list_templates(
             id: t.id,
             name: t.name,
             channel: t.channel,
+            subject_template: t.subject_template,
+            body_template: t.body_template,
             is_active: t.is_active,
         })
         .collect();
@@ -85,6 +90,8 @@ pub async fn create_template(
             id: t.id,
             name: t.name,
             channel: t.channel,
+            subject_template: t.subject_template,
+            body_template: t.body_template,
             is_active: t.is_active,
         }),
     ))
@@ -205,6 +212,8 @@ pub async fn update_template(
         id: t.id,
         name: t.name,
         channel: t.channel,
+        subject_template: t.subject_template,
+        body_template: t.body_template,
         is_active: t.is_active,
     }))
 }

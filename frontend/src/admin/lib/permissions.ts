@@ -21,6 +21,14 @@ export type ModuleKey =
   | 'audit'
   | 'accounting'
   | 'coverage'
+  | 'bandwidth'
+  | 'scheduler'
+  | 'compliance'
+  | 'referrals'
+  | 'discovery'
+  | 'inventory'
+  | 'documents'
+  | 'gateway'
   | 'profile';
 
 export const ALL_MODULES: ModuleKey[] = [
@@ -43,6 +51,14 @@ export const ALL_MODULES: ModuleKey[] = [
   'audit',
   'accounting',
   'coverage',
+  'bandwidth',
+  'scheduler',
+  'compliance',
+  'referrals',
+  'discovery',
+  'inventory',
+  'documents',
+  'gateway',
   'profile',
 ];
 
@@ -65,6 +81,11 @@ const ROLE_MODULES: Record<string, ModuleKey[]> = {
     'notifications',
     'branches',
     'audit',
+    'bandwidth',
+    'scheduler',
+    'discovery',
+    'inventory',
+    'documents',
   ],
   noc_engineer: [
     'dashboard',
@@ -76,6 +97,10 @@ const ROLE_MODULES: Record<string, ModuleKey[]> = {
     'installations',
     'notifications',
     'audit',
+    'bandwidth',
+    'scheduler',
+    'discovery',
+    'inventory',
   ],
   field_technician: ['dashboard', 'customers', 'tickets', 'devices', 'installations'],
   customer_support: [
@@ -87,7 +112,7 @@ const ROLE_MODULES: Record<string, ModuleKey[]> = {
     'notifications',
     'profile',
   ],
-  sales_agent: ['dashboard', 'customers', 'leads', 'plans', 'coverage', 'profile'],
+  sales_agent: ['dashboard', 'customers', 'leads', 'plans', 'coverage', 'referrals', 'profile'],
   finance_manager: [
     'dashboard',
     'customers',
@@ -98,9 +123,11 @@ const ROLE_MODULES: Record<string, ModuleKey[]> = {
     'branches',
     'audit',
     'notifications',
+    'compliance',
+    'gateway',
   ],
   billing_operator: ['dashboard', 'customers', 'subscriptions', 'billing', 'profile'],
-  customer: ['dashboard', 'profile'],
+  customer: ['dashboard', 'documents', 'profile'],
 };
 
 export function roleHasModule(role: AdminRole | null | undefined, module: ModuleKey): boolean {

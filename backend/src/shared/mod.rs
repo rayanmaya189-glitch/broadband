@@ -1,5 +1,7 @@
 pub mod app_state;
 pub mod config;
+#[cfg(test)]
+mod contracts;
 pub mod errors;
 pub mod event_contracts;
 pub mod kernel;

@@ -16,6 +16,11 @@ services:
     networks:
       - aeroxe-net
     restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ── Frontend (static SPA served by nginx) ─────────────────────────────────
   frontend:
@@ -28,10 +33,21 @@ services:
       - "${FRONTEND_PORT:-80}:80"
       - "${FRONTEND_HTTPS_PORT:-}:443"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - aeroxe-net
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   # ── Backend API ───────────────────────────────────────────────────────────
   backend:
@@ -59,7 +75,25 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
-      RUST_LOG: aeroxe_backend=debug,tower_http=debug
+      RATE_LIMIT_AUTH: ${RATE_LIMIT_AUTH:-15}
+      RATE_LIMIT_API_READ: ${RATE_LIMIT_API_READ:-100}
+      RATE_LIMIT_API_WRITE: ${RATE_LIMIT_API_WRITE:-30}
+      RATE_LIMIT_UPLOAD: ${RATE_LIMIT_UPLOAD:-10}
+      RATE_LIMIT_ADMIN_READ: ${RATE_LIMIT_ADMIN_READ:-200}
+      RATE_LIMIT_ADMIN_WRITE: ${RATE_LIMIT_ADMIN_WRITE:-100}
+      RATE_LIMIT_CUSTOMER_READ: ${RATE_LIMIT_CUSTOMER_READ:-50}
+      RATE_LIMIT_CUSTOMER_WRITE: ${RATE_LIMIT_CUSTOMER_WRITE:-20}
+      # Integration secrets (optional — warn at boot if missing)
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MSG91_AUTH_KEY: ${MSG91_AUTH_KEY:-}
+      RADIUS_SECRET: ${RADIUS_SECRET:-}
+      MIKROTIK_PASSWORD: ${MIKROTIK_PASSWORD:-}
+      HUAWEI_OLT_PASSWORD: ${HUAWEI_OLT_PASSWORD:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      RUST_LOG: ${RUST_LOG:-aeroxe_backend=info,tower_http=info}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -76,6 +110,16 @@ services:
       - aeroxe-net
     expose:
       - "8000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "10"
 
   # ── Database ──────────────────────────────────────────────────────────────
   postgres:
@@ -84,6 +128,28 @@ services:
       POSTGRES_DB: aeroxe
       POSTGRES_USER: aeroxe
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      # Performance tuning for production
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - max_connections=100
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_checkpoints=on
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -95,6 +161,16 @@ services:
       retries: 5
     networks:
       - aeroxe-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "10"
 
   # ── Cache ─────────────────────────────────────────────────────────────────
   redis:
@@ -111,6 +187,16 @@ services:
       retries: 5
     networks:
       - aeroxe-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   # ── Message Bus ───────────────────────────────────────────────────────────
   nats:
@@ -128,6 +214,16 @@ services:
       retries: 3
     networks:
       - aeroxe-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   # ── Object Storage ────────────────────────────────────────────────────────
   # SECURITY: Change MINIO_ACCESS_KEY / MINIO_SECRET_KEY in production!
@@ -149,6 +245,16 @@ services:
       retries: 3
     networks:
       - aeroxe-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
 volumes:
   pgdata:

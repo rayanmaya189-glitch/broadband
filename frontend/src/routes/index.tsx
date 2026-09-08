@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import CustomerLayout from '../components/layout/CustomerLayout';
 import Loader from '../components/ui/Loader';
 import { SITE_CONFIG } from '../config/site';
 import { adminRoutes } from '../admin/routes';
@@ -17,6 +18,13 @@ const PrivacyPolicy = lazy(() => import('../features/legal/LegalPage'));
 const TermsOfService = lazy(() => import('../features/legal/TermsOfService'));
 const RefundPolicy = lazy(() => import('../features/legal/RefundPolicy'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
+
+// Customer Portal
+const CustomerLoginPage = lazy(() => import('../features/customer/CustomerLoginPage'));
+const CustomerSignupPage = lazy(() => import('../features/customer/CustomerSignupPage'));
+const CustomerDashboard = lazy(() => import('../features/customer/CustomerDashboard'));
+const CustomerInvoicesPage = lazy(() => import('../features/customer/CustomerInvoicesPage'));
+const CustomerTicketsPage = lazy(() => import('../features/customer/CustomerTicketsPage'));
 
 function PageLoader() {
   return (
@@ -46,6 +54,22 @@ export const router = createBrowserRouter([
       { path: 'terms', element: <TermsOfService /> },
       { path: 'refund', element: <RefundPolicy /> },
       { path: 'team', element: <TeamPage /> },
+    ],
+  },
+  {
+    path: '/portal',
+    element: (
+      <Suspense fallback={<PageLoader />}>
+        <CustomerLayout />
+      </Suspense>
+    ),
+    children: [
+      { path: 'login', element: <CustomerLoginPage /> },
+      { path: 'signup', element: <CustomerSignupPage /> },
+      { index: true, element: <CustomerDashboard /> },
+      { path: 'dashboard', element: <CustomerDashboard /> },
+      { path: 'invoices', element: <CustomerInvoicesPage /> },
+      { path: 'tickets', element: <CustomerTicketsPage /> },
     ],
   },
   {

@@ -53,11 +53,11 @@ cp .env.example .env
 
 ### 3. Deploy with Docker Compose
 ```bash
-# Production
-docker compose up -d
+# Production (single canonical overlay — see docker-compose.prod.yml)
+docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Staging
-docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+docker compose -f backend/docker-compose.yml -f backend/docker-compose.staging.yml up -d
 ```
 
 ### 4. Verify Deployment
@@ -131,6 +131,20 @@ See `backend/.env.example` for the full list.
 ### Prometheus Metrics
 - `GET /metrics` — Prometheus scrape endpoint (requires `METRICS_TOKEN`)
 - `GET /api/v1/metrics/summary` — JSON summary for dashboards
+
+### Database Backups
+Automated `pg_dump` backups run daily at 02:00 via the `backup` service
+(defined in `docker-compose.prod.yml`), writing compressed dumps into the
+`pgbackups` volume with 14-day rolling retention.
+
+```bash
+# List available backups
+docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml exec backup ls -1t /backups
+
+# Restore a backup (example)
+docker compose -f backend/docker-compose.yml -f docker-compose.prod.yml run --rm backup sh -c \
+  "pg_restore -h postgres -U aeroxe -d aeroxe < /backups/aeroxe-20260908-0200.dump"
+```
 
 ### Key Metrics
 - `aeroxe_http_requests_total` — Total HTTP requests

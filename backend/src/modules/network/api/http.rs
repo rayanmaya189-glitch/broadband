@@ -21,7 +21,9 @@ pub struct VlanResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateVlanRequest {
-    pub branch_id: i64,
+    /// Optional: falls back to the caller's branch when omitted.
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub vlan_id: i32,
     pub name: String,
     pub vlan_type: String,
@@ -40,7 +42,9 @@ pub struct IpPoolResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateIpPoolRequest {
-    pub branch_id: i64,
+    /// Optional: falls back to the caller's branch when omitted.
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub name: String,
     pub cidr: String,
     pub gateway: String,
@@ -79,7 +83,9 @@ pub struct MacBindingResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateMacBindingRequest {
-    pub branch_id: i64,
+    /// Optional: falls back to the caller's branch when omitted.
+    #[serde(default)]
+    pub branch_id: Option<i64>,
     pub customer_id: i64,
     pub subscription_id: i64,
     pub mac_address: String,
@@ -153,14 +159,12 @@ pub async fn create_vlan(
     Json(req): Json<CreateVlanRequest>,
 ) -> Result<(StatusCode, Json<VlanResponse>), AppError> {
     require_permission(&user, "network.vlan.create").map_err(|e| AppError::Forbidden(e.1))?;
-    let vlan = NetworkService::create_vlan(
-        &state.db,
-        req.branch_id,
-        req.vlan_id,
-        req.name,
-        req.vlan_type,
-    )
-    .await?;
+    let branch_id = req.branch_id.or(user.branch_id).ok_or_else(|| {
+        AppError::Validation("branch_id is required for company-wide accounts".into())
+    })?;
+    let vlan =
+        NetworkService::create_vlan(&state.db, branch_id, req.vlan_id, req.name, req.vlan_type)
+            .await?;
     if let Err(e) = crate::infrastructure::messaging::outbox::insert_outbox_event(
         &state.db,
         "network.vlan.created",
@@ -246,9 +250,12 @@ pub async fn create_ip_pool(
     Json(req): Json<CreateIpPoolRequest>,
 ) -> Result<(StatusCode, Json<IpPoolResponse>), AppError> {
     require_permission(&user, "network.ippool.create").map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = req.branch_id.or(user.branch_id).ok_or_else(|| {
+        AppError::Validation("branch_id is required for company-wide accounts".into())
+    })?;
     let pool = NetworkService::create_ip_pool(
         &state.db,
-        req.branch_id,
+        branch_id,
         req.name,
         req.cidr,
         req.gateway,
@@ -409,9 +416,12 @@ pub async fn create_mac_binding(
 ) -> Result<(StatusCode, Json<MacBindingResponse>), AppError> {
     require_permission(&user, "network.mac_binding.create")
         .map_err(|e| AppError::Forbidden(e.1))?;
+    let branch_id = req.branch_id.or(user.branch_id).ok_or_else(|| {
+        AppError::Validation("branch_id is required for company-wide accounts".into())
+    })?;
     let binding = NetworkService::create_mac_binding(
         &state.db,
-        req.branch_id,
+        branch_id,
         req.customer_id,
         req.subscription_id,
         req.mac_address,
